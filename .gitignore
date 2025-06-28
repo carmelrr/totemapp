@@ -1,0 +1,37 @@
+# תיקיות שיש להתעלם מהן
+node_modules/
+.expo/
+.expo-shared/
+dist/
+build/
+
+# קבצים הקשורים לקונפיגורציה אישית או זמנית
+.env
+*.env
+*.log
+*.tmp
+
+# קבצים של macOS
+.DS_Store
+
+# קבצים של VS Code
+.vscode/
+
+# קבצי debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+expo-debug.log
+
+# Firebase credentials (אם יש קבצים נוספים עם מידע רגיש)
+firebase-debug.log
+firebase-config.js
+
+# TypeScript build artifacts (למקרה שתשתמש ב־tsc בהמשך)
+*.tsbuildinfo
+
+# eas build artifacts
+eas-build/
+
+# אם אתה משתמש ב־Metro cache
+.cache/
