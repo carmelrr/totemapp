@@ -1,45 +1,68 @@
-// GoogleAuth.js
-import * as WebBrowser from 'expo-web-browser';
+import React from 'react';
+import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
 import * as Google from 'expo-auth-session/providers/google';
-import { useEffect } from 'react';
-import { Button } from 'react-native';
-import { signInWithCredential, GoogleAuthProvider } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
 import { auth } from './firebase-config';
-
-// מאפשר ל-WebBrowser לסיים אוטומטית את ה-Auth Session (סגירת החלון) לאחר ההפניה חזרה:
-WebBrowser.maybeCompleteAuthSession();
+import Constants from 'expo-constants';
 
 export default function GoogleLoginButton() {
-  // יצירת בקשת OAuth באמצעות ה-Hook של expo-auth-session
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    expoClientId: '720872675049-lpr4j4qvprtk8g19l36tr5qla8ebs33l.apps.googleusercontent.com',
-    iosClientId: '720872675049-e0du1dtbe53puak85sr4da6c8i0gjhak.apps.googleusercontent.com',
-    androidClientId: '720872675049-ubhok243tvh36cut4ptchnubsckulj04.apps.googleusercontent.com',
-    scopes: ['openid', 'email', 'profile'],
-    responseType: 'id_token'
+  const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
+    clientId: Constants.expoConfig.extra.expoClientId,
+    iosClientId: Constants.expoConfig.extra.iosClientId,
+    androidClientId: Constants.expoConfig.extra.androidClientId,
   });
 
-  // אפקט: יופעל ברגע שיש תגובה (response) מניסיון ההתחברות
-  useEffect(() => {
+  React.useEffect(() => {
     if (response?.type === 'success') {
-      // שליפת ה-ID token מתוך הפרמטרים שהתקבלו
       const { id_token } = response.params;
-      // יצירת אישור קרדנציאל של Firebase מתוך ה-ID token של Google
       const credential = GoogleAuthProvider.credential(id_token);
-      // התחברות המשתמש ל-Firebase באמצעות הקרדנציאל
+      
       signInWithCredential(auth, credential)
+        .then((result) => {
+          Alert.alert('הצלחה', `ברוך הבא ${result.user.displayName}!`);
+        })
         .catch((error) => {
-          console.log('Firebase sign-in error:', error);
+          Alert.alert('שגיאה', 'נכשל בהתחברות: ' + error.message);
         });
+    } else if (response?.type === 'error') {
+      Alert.alert('שגיאה', 'נכשל בהתחברות Google');
     }
   }, [response]);
 
-  // רינדור כפתור התחברות (מנוטרל אם הבקשה עדיין נטענת)
+  const handleGoogleLogin = async () => {
+    try {
+      await promptAsync();
+    } catch (error) {
+      Alert.alert('שגיאה', 'נכשל בפתיחת Google Login: ' + error.message);
+    }
+  };
+
   return (
-    <Button
-      title="Sign in with Google"
+    <TouchableOpacity 
+      style={styles.googleButton} 
+      onPress={handleGoogleLogin}
       disabled={!request}
-      onPress={() => promptAsync()}
-    />
+    >
+      <Text style={styles.googleButtonText}>🚀 התחברות עם Google</Text>
+    </TouchableOpacity>
   );
 }
+
+const styles = StyleSheet.create({
+  googleButton: {
+    backgroundColor: '#db4437',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginVertical: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+  },
+  googleButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 5,
+    textAlign: 'right',
+  },
+});

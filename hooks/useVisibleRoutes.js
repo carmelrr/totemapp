@@ -1,13 +1,19 @@
+
 import { useMemo } from 'react';
+import { isRouteVisibleOnScreen } from '../utils/mapUtils';
 
-export default function useVisibleRoutes(routes, scale, translateX, translateY, containerWidth, containerHeight) {
+export default function useVisibleRoutes(routes, scale, translateX, translateY, mapWidth, mapHeight, circleRadius = 15) {
   return useMemo(() => {
-    const visible = routes.filter((r) => {
-      const x = (r.x / 2560) * containerWidth * scale + translateX;
-      const y = (r.y / 1600) * containerHeight * scale + translateY;
-      return x >= 0 && x <= containerWidth && y >= 0 && y <= containerHeight;
+    if (!routes || !Array.isArray(routes)) {
+      return [];
+    }
+    
+    const visibleRoutes = routes.filter((route) => {
+      if (!route) return false;
+      const isVisible = isRouteVisibleOnScreen(route, scale, translateX, translateY, mapWidth, mapHeight, circleRadius);
+      return isVisible;
     });
-    return visible;
-  }, [routes, scale, translateX, translateY]);
+    
+    return visibleRoutes;
+  }, [routes, scale, translateX, translateY, mapWidth, mapHeight, circleRadius]);
 }
-

@@ -8,33 +8,133 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
+  RefreshControl,
 } from 'react-native';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { auth } from '../firebase-config';
-import GoogleLoginButton from '../GoogleAuth'; // ✅ New import
+import GoogleLoginButton from '../GoogleAuth';
+import { useTheme } from '../context/ThemeContext';
+
+const createStyles = (theme) => StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.background,
+    justifyContent: 'center',
+  },
+  formContainer: {
+    padding: 20,
+    margin: 20,
+    backgroundColor: theme.surface,
+    borderRadius: 10,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  title: {
+    fontSize: 32,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 10,
+    color: theme.text,
+  },
+  subtitle: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginBottom: 30,
+    color: theme.textSecondary,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: theme.border,
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 15,
+    fontSize: 16,
+    backgroundColor: theme.inputBackground,
+    textAlign: 'right',
+    color: theme.text,
+  },
+  button: {
+    backgroundColor: theme.primary,
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  buttonDisabled: {
+    backgroundColor: theme.border,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  switchButton: {
+    alignItems: 'center',
+    padding: 10,
+  },
+  switchText: {
+    color: theme.primary,
+    fontSize: 14,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+});
 
 export default function LoginScreen() {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Refresh function
+  const onRefresh = async () => {
+    setRefreshing(true);
+    // Reset form
+    setEmail('');
+    setPassword('');
+    setDisplayName('');
+    setIsSignUp(false);
+    setLoading(false);
+    setTimeout(() => {
+      setRefreshing(false);
+    }, 1000);
+  };
 
   const handleAuth = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert('שגיאה', 'יש למלא את כל השדות');
+      return;
+    }
+
+    if (isSignUp && !displayName.trim()) {
+      Alert.alert('שגיאה', 'יש להזין שם משתמש');
       return;
     }
 
     setLoading(true);
     try {
       if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email, password);
-        Alert.alert('Success', 'Account created successfully!');
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        // Update the user's profile with the display name
+        await updateProfile(userCredential.user, {
+          displayName: displayName.trim()
+        });
+        Alert.alert('הצלחה', 'החשבון נוצר בהצלחה!');
       } else {
         await signInWithEmailAndPassword(auth, email, password);
       }
     } catch (error) {
-      Alert.alert('Error', error.message);
+      Alert.alert('שגיאה', error.message);
     } finally {
       setLoading(false);
     }
@@ -45,15 +145,37 @@ export default function LoginScreen() {
       style={styles.container} 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <View style={styles.formContainer}>
-        <Text style={styles.title}>🧗‍♂️ Climbing Gym</Text>
-        <Text style={styles.subtitle}>
-          {isSignUp ? 'Create Account' : 'Welcome Back'}
-        </Text>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#3498db']}
+            tintColor='#3498db'
+          />
+        }
+      >
+        <View style={styles.formContainer}>
+          <Text style={styles.title}>🧗‍♂️ Climbing Gym</Text>
+          <Text style={styles.subtitle}>
+            {isSignUp ? 'Create Account' : 'Welcome Back'}
+          </Text>
+
+        {isSignUp && (
+          <TextInput
+            style={styles.input}
+            placeholder="שם משתמש"
+            value={displayName}
+            onChangeText={setDisplayName}
+            autoCapitalize="words"
+            autoCorrect={false}
+          />
+        )}
 
         <TextInput
           style={styles.input}
-          placeholder="Email"
+          placeholder="מייל"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -63,7 +185,7 @@ export default function LoginScreen() {
 
         <TextInput
           style={styles.input}
-          placeholder="Password"
+          placeholder="סיסמה"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -80,10 +202,7 @@ export default function LoginScreen() {
           </Text>
         </TouchableOpacity>
 
-        {/* ✅ Google Sign-In Button */}
-        <View style={{ marginVertical: 10 }}>
-          <GoogleLoginButton />
-        </View>
+        <GoogleLoginButton />
 
         <TouchableOpacity
           style={styles.switchButton}
@@ -96,74 +215,8 @@ export default function LoginScreen() {
             }
           </Text>
         </TouchableOpacity>
-      </View>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-    justifyContent: 'center',
-  },
-  formContainer: {
-    padding: 20,
-    margin: 20,
-    backgroundColor: 'white',
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 10,
-    color: '#2c3e50',
-  },
-  subtitle: {
-    fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 30,
-    color: '#7f8c8d',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
-    fontSize: 16,
-    backgroundColor: '#f9f9f9',
-  },
-  button: {
-    backgroundColor: '#3498db',
-    padding: 15,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  buttonDisabled: {
-    backgroundColor: '#bdc3c7',
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  switchButton: {
-    alignItems: 'center',
-    padding: 10,
-  },
-  switchText: {
-    color: '#3498db',
-    fontSize: 14,
-  },
-});

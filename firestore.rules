@@ -1,0 +1,30 @@
+// Firestore Security Rules
+// Copy these rules to your Firebase Console -> Firestore Database -> Rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow read/write access to routes collection for authenticated users
+    match /routes/{routeId} {
+      allow read, write: if request.auth != null;
+      
+      // Allow read/write access to feedbacks subcollection for authenticated users
+      match /feedbacks/{feedbackId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+    
+    // Allow read/write access to users collection for authenticated users
+    match /users/{userId} {
+      // Allow users to read their own data and write to their own document
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow authenticated users to read public profile information of other users
+      allow read: if request.auth != null;
+    }
+    
+    // Deny access to all other documents
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
