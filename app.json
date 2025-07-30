@@ -29,9 +29,7 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      "expo-web-browser"
-    ],
+    "plugins": [],
     "extra": {
       "eas": {
         "projectId": "314d40f3-b56b-4919-9dfe-817d3f8a0540"
@@ -39,6 +37,12 @@
       "expoClientId": "720872675049-lpr4j4qvprtk8g19l36tr5qla8ebs33l.apps.googleusercontent.com",
       "androidClientId": "720872675049-ubhok243tvh36cut4ptchnubsckulj04.apps.googleusercontent.com",
       "iosClientId": "720872675049-e0du1dtbe53puak85sr4da6c8i0gjhak.apps.googleusercontent.com"
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/314d40f3-b56b-4919-9dfe-817d3f8a0540"
     }
   }
 }
