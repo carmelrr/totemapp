@@ -1,5 +1,5 @@
 // services/holdDetectionService.js
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase-config';
 
 /**

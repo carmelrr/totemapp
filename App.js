@@ -133,15 +133,17 @@ export default function App() {
   if (!user) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <NavigationContainer>
-          <Stack.Navigator>
-            <Stack.Screen 
-              name="Login" 
-              component={LoginScreen}
-              options={{ headerShown: false }}
-            />
-          </Stack.Navigator>
-        </NavigationContainer>
+        <ThemeProvider>
+          <NavigationContainer>
+            <Stack.Navigator>
+              <Stack.Screen 
+                name="Login" 
+                component={LoginScreen}
+                options={{ headerShown: false }}
+              />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </ThemeProvider>
       </GestureHandlerRootView>
     );
   }

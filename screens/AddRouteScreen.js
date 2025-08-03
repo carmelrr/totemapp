@@ -86,12 +86,16 @@ export default function AddRouteScreen() {
       // שמירה לא הצליחה - נמשיך
     }
   }, []);
-
   const handleGradePress = useCallback((grade) => {
-    setSelectedGrade(grade);
+    console.log('Grade pressed:', grade); // Debug log
+    setSelectedGrade(prevGrade => {
+      console.log('Previous grade:', prevGrade, 'New grade:', grade); // Debug log
+      return grade;
+    });
   }, []);
 
   const handleColorPress = useCallback((colorValue) => {
+    console.log('Color pressed:', colorValue); // Debug log
     // אם במצב עריכה, הצג דיאלוג מחיקה לכל צבע
     if (isEditMode) {
       handleColorDelete(colorValue);
@@ -99,8 +103,11 @@ export default function AddRouteScreen() {
     }
     
     // אחרת, בחר את הצבע כרגיל
-    setSelectedColor(colorValue);
-  }, [isEditMode]);
+    setSelectedColor(prevColor => {
+      console.log('Previous color:', prevColor, 'New color:', colorValue); // Debug log
+      return colorValue;
+    });
+  }, [isEditMode, handleColorDelete]);
 
   const addTempColor = useCallback((colorValue) => {
     setTempColors(prev => 
@@ -334,7 +341,6 @@ export default function AddRouteScreen() {
       ]
     );
   }, [saveDeletedDefaultColors]);
-
   const renderGradeItem = useCallback(({ item, index }) => {
     const isSelected = selectedGrade === item;
     
@@ -345,8 +351,13 @@ export default function AddRouteScreen() {
           isSelected && styles.gradeButtonSelected,
           pressed && styles.gradeButtonPressed
         ]}
-        onPress={() => handleGradePress(item)}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        onPress={() => {
+          console.log('Grade button pressed:', item); // Debug log
+          handleGradePress(item);
+        }}
+        hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+        android_disableSound={false}
+        unstable_pressDelay={0}
       >
         <Text style={[
           styles.gradeButtonText,
@@ -361,7 +372,7 @@ export default function AddRouteScreen() {
         )}
       </Pressable>
     );
-  }, [selectedGrade, handleGradePress]);
+  }, [selectedGrade, handleGradePress, styles]);
 
   const renderColorItem = useCallback(({ item, index }) => {
     const isSelected = selectedColor === item.value;
@@ -379,14 +390,18 @@ export default function AddRouteScreen() {
           isTempColor && styles.colorButtonTemp,
           pressed && styles.colorButtonPressed,
           isCustomColor && styles.customColorButton
-        ]}
-        onPress={() => handleColorPress(item.value)}
+        ]}        onPress={() => {
+          console.log('Color button pressed:', item.value); // Debug log
+          handleColorPress(item.value);
+        }}
         onLongPress={() => {
           if (!isEditMode) {
+            console.log('Color button long pressed:', item.value); // Debug log
             addTempColor(item.value);
           }
         }}
-        android_disableSound={true}
+        android_disableSound={false}
+        unstable_pressDelay={0}
         hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
         pressRetentionOffset={{ top: 20, left: 20, right: 20, bottom: 20 }}
       >
@@ -440,15 +455,12 @@ export default function AddRouteScreen() {
 
       <ScrollView 
         style={styles.content} 
-        showsVerticalScrollIndicator={false}
-        refreshControl={
+        showsVerticalScrollIndicator={false}        refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
             colors={['#007AFF']}
             tintColor="#007AFF"
-            title="משיכה לרענון..."
-            titleColor="#007AFF"
           />
         }
       >
@@ -460,16 +472,14 @@ export default function AddRouteScreen() {
                 <View style={styles.selectedBadge}>
                   <Text style={styles.selectedBadgeText}>{selectedGrade}</Text>
                 </View>
-              )}
+              )}            </View>
+            <View style={styles.gradeGrid}>
+              {V_GRADES.map((item, index) => (
+                <View key={item} style={styles.gradeItemWrapper}>
+                  {renderGradeItem({ item, index })}
+                </View>
+              ))}
             </View>
-            <FlatList
-              data={V_GRADES}
-              renderItem={renderGradeItem}
-              keyExtractor={(item) => item}
-              numColumns={6}
-              scrollEnabled={false}
-              contentContainerStyle={styles.gradeGrid}
-            />
           </View>
 
           {/* בחירת צבע */}
@@ -508,16 +518,14 @@ export default function AddRouteScreen() {
                     </View>
                   )}
                 </View>
-              </View>
+              </View>            </View>
+            <View style={styles.colorGrid}>
+              {allColors.map((item, index) => (
+                <View key={`${item.value}-${index}`} style={styles.colorItemWrapper}>
+                  {renderColorItem({ item, index })}
+                </View>
+              ))}
             </View>
-            <FlatList
-              data={allColors}
-              renderItem={renderColorItem}
-              keyExtractor={(item, index) => `${item.value}-${index}`}
-              numColumns={2}
-              scrollEnabled={false}
-              contentContainerStyle={styles.colorGrid}
-            />
             {isEditMode && (
               <View style={styles.editModeButtons}>
                 <View style={styles.addColorButtonContainer}>
@@ -629,9 +637,7 @@ export default function AddRouteScreen() {
                 💡 טיפ: לחץ לחיצה ארוכה על צבע כדי להוסיף אותו לרשימה הזמנית
               </Text>
             </View>
-          )}
-
-          {/* כפתור שמירה */}
+          )}          {/* כפתור שמירה */}
           {!isEditMode && (
             <Pressable 
               style={({ pressed }) => [
@@ -640,8 +646,14 @@ export default function AddRouteScreen() {
                 loading && styles.saveButtonLoading,
                 pressed && selectedGrade && selectedColor && !loading && styles.saveButtonPressed
               ]} 
-              onPress={handleSave}
+              onPress={() => {
+                console.log('Save button pressed. Grade:', selectedGrade, 'Color:', selectedColor); // Debug log
+                handleSave();
+              }}
               disabled={loading || !selectedGrade || !selectedColor}
+              android_disableSound={false}
+              unstable_pressDelay={0}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
             >
               <View style={styles.saveButtonContent}>
                 <Text style={styles.saveButtonIcon}>🧗‍♂️</Text>
@@ -742,7 +754,14 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: '600',
   },
   gradeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
+    justifyContent: 'space-between',
+  },
+  gradeItemWrapper: {
+    width: '15%', // 6 columns approximately
+    aspectRatio: 1,
   },
   gradeButton: {
     flex: 1,
@@ -781,7 +800,10 @@ const createStyles = (theme) => StyleSheet.create({
     color: '#ffffff',
   },
   colorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 10,
+    justifyContent: 'space-between',
   },
   colorButton: {
     flex: 1,

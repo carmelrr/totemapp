@@ -68,22 +68,60 @@ npm install
 
 ```javascript
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getReactNativePersistence, initializeAuth } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+import { getAnalytics } from 'firebase/analytics';
 
 const firebaseConfig = {
   apiKey: "your-api-key",
   authDomain: "your-project.firebaseapp.com",
   projectId: "your-project-id",
-  storageBucket: "your-project.appspot.com",
+  storageBucket: "your-project.firebasestorage.app",
   messagingSenderId: "your-sender-id",
-  appId: "your-app-id"
+  appId: "your-app-id",
+  measurementId: "your-measurement-id"
 };
 
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
+
+const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage),
+});
+
+const db = getFirestore(app);
+const storage = getStorage(app);
+const analytics = getAnalytics(app);
+
+export { auth, db, storage, analytics };
 ```
 
 **Important:** Replace all the "your-*" values with your actual Firebase configuration values.
+
+#### Setup Firestore Security Rules:
+1. Go to your Firebase Console → Firestore Database → Rules
+2. Copy the content from `firestore-security-rules.rules` file
+3. Paste it in the Firebase Console rules editor
+4. Click "Publish"
+
+#### Setup Storage Security Rules:
+1. Go to your Firebase Console → Storage → Rules
+2. Copy the content from `storage-security-rules.rules` file
+3. Paste it in the Firebase Console rules editor
+4. Click "Publish"
+
+#### Setup Admin Access (Optional):
+To enable admin features, create a document in Firestore:
+- Collection: `admin`
+- Document ID: `admins`
+- Field: `userIds` (array) - Add the UIDs of users who should have admin access
+
+#### Enable Required Firebase Services:
+1. **Authentication**: Go to Authentication → Sign-in method → Enable "Email/Password"
+2. **Firestore**: Go to Firestore Database → Create database (start in test mode, then apply security rules)
+3. **Storage**: Go to Storage → Get started (start in test mode, then apply security rules)
+4. **Analytics** (Optional): Go to Analytics → Enable Google Analytics
 
 ### 4. Run the App
 

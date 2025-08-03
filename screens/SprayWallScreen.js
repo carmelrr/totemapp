@@ -227,24 +227,24 @@ export default function SprayWallScreen() {
                    sortBy === 'grade' ? 'לפי דירוג' : 'פופולרי'}
             </Text>
           </TouchableOpacity>
-        </View>
-
-        {/* Routes List */}
+        </View>        {/* Routes List */}
         <View style={styles.routesContainer}>
           <Text style={styles.routesTitle}>מסלולי ספריי ({filteredAndSortedRoutes.length})</Text>
-          <FlatList
-            data={filteredAndSortedRoutes}
-            renderItem={renderRouteItem}
-            keyExtractor={(item) => item.id}
-            scrollEnabled={false}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            ListEmptyComponent={() => (
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>אין מסלולים להצגה</Text>
-                <Text style={styles.emptySubtext}>היה הראשון להוסיף מסלול!</Text>
-              </View>
-            )}
-          />
+          {filteredAndSortedRoutes.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>אין מסלולים להצגה</Text>
+              <Text style={styles.emptySubtext}>היה הראשון להוסיף מסלול!</Text>
+            </View>
+          ) : (
+            <View>
+              {filteredAndSortedRoutes.map((item, index) => (
+                <View key={item.id}>
+                  {renderRouteItem({ item, index })}
+                  {index < filteredAndSortedRoutes.length - 1 && <View style={styles.separator} />}
+                </View>
+              ))}
+            </View>
+          )}
         </View>
       </ScrollView>
 

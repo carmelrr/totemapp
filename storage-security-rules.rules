@@ -1,0 +1,43 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // User profile images
+    match /users/{userId}/profile/{fileName} {
+      allow read: if true; // Public read access for profile images
+      allow write: if request.auth != null && 
+        request.auth.uid == userId &&
+        isValidImage() &&
+        resource.size < 5 * 1024 * 1024; // Max 5MB
+    }
+    
+    // Spray wall images - only admins can upload
+    match /sprayWalls/{sprayWallId}/{fileName} {
+      allow read: if true; // Public read access
+      allow write: if request.auth != null && 
+        isAdmin() &&
+        isValidImage() &&
+        resource.size < 20 * 1024 * 1024; // Max 20MB for spray wall images
+    }
+    
+    // Route images (optional feature)
+    match /routes/{routeId}/{fileName} {
+      allow read: if true; // Public read access
+      allow write: if request.auth != null && 
+        isValidImage() &&
+        resource.size < 10 * 1024 * 1024; // Max 10MB
+    }
+    
+    // Validation functions
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*') &&
+        request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp'];
+    }
+    
+    function isAdmin() {
+      return request.auth != null && 
+        firestore.exists(/databases/(default)/documents/admin/admins) &&
+        request.auth.uid in firestore.get(/databases/(default)/documents/admin/admins).data.userIds;
+    }
+  }
+}

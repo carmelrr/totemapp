@@ -36,12 +36,10 @@ export default function UploadSprayWallScreen() {
       if (status !== 'granted') {
         Alert.alert('שגיאה', 'נדרשת הרשאה לגישה לגלריה');
         return;
-      }
-
-      // Launch image picker with improved config
+      }      // Launch image picker with improved config
       console.log('Launching image picker...');
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaType.Images,
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [3, 4], // 3:4 aspect ratio for spray walls (portrait)
         quality: 0.9, // High quality for better hold detection

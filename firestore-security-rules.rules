@@ -1,0 +1,129 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users collection - users can read and write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // Allow other authenticated users to read basic profile info (for social features)
+      allow read: if request.auth != null && 
+        resource != null &&
+        ('displayName' in resource.data || 'photoURL' in resource.data);
+    }
+    
+    // Routes collection - public read, authenticated write
+    match /routes/{routeId} {
+      allow read: if true; // Public read access
+      allow create: if request.auth != null && 
+        request.auth.uid == resource.data.createdBy &&
+        validateRouteData();
+      allow update: if request.auth != null && 
+        (request.auth.uid == resource.data.createdBy || isAdmin()) &&
+        validateRouteData();
+      allow delete: if request.auth != null && 
+        (request.auth.uid == resource.data.createdBy || isAdmin());
+        
+      // Route feedbacks subcollection
+      match /feedbacks/{feedbackId} {
+        allow read: if true; // Public read access
+        allow create: if request.auth != null && 
+          request.auth.uid == resource.data.userId &&
+          validateFeedbackData();
+        allow update: if request.auth != null && 
+          (request.auth.uid == resource.data.userId || isAdmin()) &&
+          validateFeedbackData();
+        allow delete: if request.auth != null && 
+          (request.auth.uid == resource.data.userId || isAdmin());
+      }
+    }
+    
+    // Spray Walls collection
+    match /sprayWalls/{sprayWallId} {
+      allow read: if true; // Public read access
+      allow create: if request.auth != null && isAdmin();
+      allow update: if request.auth != null && isAdmin();
+      allow delete: if request.auth != null && isAdmin();
+      
+      // Hold grid subcollection
+      match /holdGrid/{document=**} {
+        allow read: if true; // Public read access
+        allow write: if request.auth != null && isAdmin();
+      }
+      
+      // Spray routes subcollection
+      match /routes/{sprayRouteId} {
+        allow read: if true; // Public read access
+        allow create: if request.auth != null && 
+          request.auth.uid == resource.data.createdBy &&
+          validateSprayRouteData();
+        allow update: if request.auth != null && 
+          (request.auth.uid == resource.data.createdBy || isAdmin()) &&
+          validateSprayRouteData();
+        allow delete: if request.auth != null && 
+          (request.auth.uid == resource.data.createdBy || isAdmin());
+          
+        // Spray route feedbacks
+        match /feedbacks/{feedbackId} {
+          allow read: if true; // Public read access
+          allow create: if request.auth != null && 
+            request.auth.uid == resource.data.userId &&
+            validateFeedbackData();
+          allow update: if request.auth != null && 
+            (request.auth.uid == resource.data.userId || isAdmin()) &&
+            validateFeedbackData();
+          allow delete: if request.auth != null && 
+            (request.auth.uid == resource.data.userId || isAdmin());
+        }
+      }
+    }
+    
+    // Notifications collection
+    match /notifications/{notificationId} {
+      allow read: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+      allow delete: if request.auth != null && 
+        request.auth.uid == resource.data.userId;
+    }
+    
+    // Admin collection - only admins can access
+    match /admin/{document=**} {
+      allow read, write: if request.auth != null && isAdmin();
+    }
+    
+    // Validation functions
+    function validateRouteData() {
+      return request.resource.data.keys().hasAll(['grade', 'color', 'x', 'y', 'createdBy']) &&
+        request.resource.data.grade is string &&
+        request.resource.data.color is string &&
+        request.resource.data.x is number &&
+        request.resource.data.y is number &&
+        request.resource.data.x >= 0 && request.resource.data.x <= 1 &&
+        request.resource.data.y >= 0 && request.resource.data.y <= 1;
+    }
+    
+    function validateSprayRouteData() {
+      return request.resource.data.keys().hasAll(['name', 'grade', 'holds', 'createdBy']) &&
+        request.resource.data.name is string &&
+        request.resource.data.grade is string &&
+        request.resource.data.holds is map &&
+        request.resource.data.name.size() <= 100; // Limit name length
+    }
+    
+    function validateFeedbackData() {
+      return request.resource.data.keys().hasAll(['userId', 'starRating']) &&
+        request.resource.data.starRating is number &&
+        request.resource.data.starRating >= 1 && request.resource.data.starRating <= 5 &&
+        (!('comment' in request.resource.data) || 
+         (request.resource.data.comment is string && request.resource.data.comment.size() <= 1000));
+    }
+    
+    function isAdmin() {
+      return request.auth != null && 
+        exists(/databases/$(database)/documents/admin/admins) &&
+        request.auth.uid in get(/databases/$(database)/documents/admin/admins).data.userIds;
+    }
+  }
+}

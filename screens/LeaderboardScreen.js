@@ -225,11 +225,10 @@ export default function LeaderboardScreen() {
         </View>
         
         <Image source={avatarSource} style={styles.userAvatar} />
-        
-        <View style={styles.userInfo}>
+          <View style={styles.userInfo}>
           <Text style={[styles.userName, isCurrentUser && styles.currentUserName]}>
             {item.displayName || 'משתמש'}
-            {isCurrentUser && ' (אתה)'}
+            {isCurrentUser && <Text> (אתה)</Text>}
           </Text>
           <Text style={styles.userStat}>
             {item.points} נקודות

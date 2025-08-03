@@ -1,47 +1,135 @@
-// Firestore Security Rules
-// Copy these rules to your Firebase Console -> Firestore Database -> Rules
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow read/write access to routes collection for authenticated users
-    match /routes/{routeId} {
-      allow read, write: if request.auth != null;
+    // חוקים עבור משתמשים
+    match /users/{userId} {
+      // רק המשתמש יכול לקרוא ולעדכן את הפרופיל שלו
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      // אפשר לכל המשתמשים לקרוא פרופילים ציבוריים
+      allow read: if request.auth != null;
       
-      // Allow read/write access to feedbacks subcollection for authenticated users
+      // גישה למנהלים
+      allow read, write: if request.auth != null && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+
+    // חוקים עבור מסלולים רגילים
+    match /routes/{routeId} {
+      allow read: if request.auth != null;
+      // מאפשר לכל משתמש מחובר ליצור מסלול חדש
+      allow create: if request.auth != null;
+      // מאפשר ליוצר המסלול או למנהל לעדכן ולמחוק
+      allow update, delete: if request.auth != null && (
+        request.auth.uid == resource.data.createdBy ||
+        isAdmin()
+      );
+
+      // פידבקים על מסלולים
       match /feedbacks/{feedbackId} {
-        allow read, write: if request.auth != null;
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && 
+          request.auth.uid == request.resource.data.userId;
+        allow update, delete: if request.auth != null && (
+          request.auth.uid == resource.data.userId ||
+          isAdmin()
+        );
       }
     }
-    
-    // Allow read/write access to sprayWalls collection for authenticated users
+
+    // חוקים עבור קירות ספריי
     match /sprayWalls/{sprayWallId} {
       allow read: if request.auth != null;
-      // Only authenticated users can write (admin check will be done in app logic)
-      allow write: if request.auth != null;
-    }
-    
-    // Allow read/write access to sprayRoutes collection for authenticated users
-    match /sprayRoutes/{sprayRouteId} {
-      allow read, write: if request.auth != null;
-      
-      // Allow read/write access to feedbacks subcollection for authenticated users
-      match /feedbacks/{feedbackId} {
-        allow read, write: if request.auth != null;
+      allow create, update, delete: if request.auth != null && isAdmin();
+
+      // גריד אחיזות
+      match /holdGrid/{holdGridId} {
+        allow read: if request.auth != null;
+        allow write: if request.auth != null && isAdmin();
       }
     }
-    
-    // Allow read/write access to users collection for authenticated users
-    match /users/{userId} {
-      // Allow users to read their own data and write to their own document
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-      // Allow authenticated users to read public profile information of other users
+
+    // חוקים עבור מסלולי ספריי
+    match /sprayRoutes/{sprayRouteId} {
       allow read: if request.auth != null;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.createdBy;
+      allow update, delete: if request.auth != null && (
+        request.auth.uid == resource.data.createdBy ||
+        isAdmin()
+      );
+
+      // פידבקים על מסלולי ספריי
+      match /feedbacks/{feedbackId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && 
+          request.auth.uid == request.resource.data.userId;
+        allow update, delete: if request.auth != null && (
+          request.auth.uid == resource.data.userId ||
+          isAdmin()
+        );
+      }
     }
-    
-    // Deny access to all other documents
-    match /{document=**} {
-      allow read, write: if false;
+
+    // חוקים עבור מסלולי ספריי בתוך קירות ספריי
+    match /sprayWalls/{sprayWallId}/routes/{routeId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.createdBy;
+      allow update, delete: if request.auth != null && (
+        request.auth.uid == resource.data.createdBy ||
+        isAdmin()
+      );
+
+      // פידבקים
+      match /feedbacks/{feedbackId} {
+        allow read: if request.auth != null;
+        allow create: if request.auth != null && 
+          request.auth.uid == request.resource.data.userId;
+        allow update, delete: if request.auth != null && (
+          request.auth.uid == resource.data.userId ||
+          isAdmin()
+        );
+      }
+    }
+
+    // חוקים עבור לידרבורד
+    match /leaderboard/{leaderboardId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // חוקים עבור מעקבים חברתיים
+    match /following/{followId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && 
+        request.auth.uid == request.resource.data.followerId;
+      allow delete: if request.auth != null && 
+        request.auth.uid == resource.data.followerId;
+    }
+
+    // חוקים עבור נתוני מערכת
+    match /system/{systemId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && isAdmin();
+    }
+
+    // חוקים עבור סטטיסטיקות כלליות
+    match /stats/{statId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // חוקים עבור מטא-דטה של מסלולים
+    match /routeMetadata/{routeId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // פונקציה לבדיקת הרשאות מנהל
+    function isAdmin() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
   }
 }

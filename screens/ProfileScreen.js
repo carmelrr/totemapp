@@ -3,10 +3,9 @@ import { View, Text, StyleSheet, Image, Button, TouchableOpacity, TextInput, Act
 import * as ImagePicker from 'expo-image-picker';
 import { signOut, updateProfile } from 'firebase/auth';
 import { useNavigation } from '@react-navigation/native';
-import { auth, db } from '../firebase-config';
+import { auth, db, storage } from '../firebase-config';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
-import { storage } from '../firebase-config';
 import { subscribeToRoutes, updateUserProfile, getUserProfile, migrateFeedbacksWithDisplayName } from '../routesService';
 import { 
   searchUsers, 
@@ -412,18 +411,20 @@ export default function ProfileScreen() {
       Alert.alert('שגיאה', 'אירעה שגיאה בפתיחת בורר התמונות');
     }
   };
-
   const uploadImage = async (uri) => {
     try {
       setLoading(true);
       
+      // שמור את התמונה הישנה לפני ההעלאה החדשה
+      const currentPhotoURL = photoURL;      
       const data = new FormData();
       data.append('file', {
         uri: uri,
         type: 'image/jpeg',
-        name: 'profile.jpg',
+        name: `profile_${user.uid}_${Date.now()}.jpg`, // שם ייחודי לכל משתמש
       });
       data.append('upload_preset', 'totem_unsigned'); // מתוך Cloudinary
+      data.append('folder', 'profile_images'); // מארגן תמונות פרופיל בתיקיה נפרדת
 
       const res = await fetch('https://api.cloudinary.com/v1_1/dfpkhezq6/image/upload', {
         method: 'POST',
@@ -433,8 +434,21 @@ export default function ProfileScreen() {
       const result = await res.json();
       
       if (result.secure_url) {
+        // עדכן למצב החדש
         setPhotoURL(result.secure_url);
         await setDoc(doc(db, 'users', user.uid), { photoURL: result.secure_url }, { merge: true });
+        
+        // מחק את התמונה הישנה אם קיימת
+        if (currentPhotoURL && currentPhotoURL.includes('cloudinary.com')) {
+          try {
+            await deleteOldProfileImage(currentPhotoURL);
+          } catch (deleteError) {
+            console.warn('Failed to delete old profile image:', deleteError);
+            // לא מעצירים את התהליך אם המחיקה נכשלה
+          }
+        }
+        
+        Alert.alert('הצלחה', 'תמונת הפרופיל עודכנה בהצלחה!');
       } else {
         throw new Error('No secure URL returned from Cloudinary. Full response: ' + JSON.stringify(result));
       }
@@ -443,6 +457,93 @@ export default function ProfileScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // פונקציה למחיקת תמונת פרופיל ישנה
+  const deleteOldProfileImage = async (imageUrl) => {
+    try {
+      console.log('Deleting old profile image:', imageUrl);
+      
+      // חילוץ public_id מכתובת הURL של Cloudinary
+      const urlParts = imageUrl.split('/');
+      const fileWithExtension = urlParts[urlParts.length - 1];
+      const fileName = fileWithExtension.split('.')[0];
+      const folder = urlParts[urlParts.length - 2];
+      const publicId = `${folder}/${fileName}`;
+      
+      console.log('Extracted public_id for deletion:', publicId);
+      
+      const timestamp = Math.round(Date.now() / 1000);
+      
+      const data = new FormData();
+      data.append('public_id', publicId);
+      data.append('timestamp', timestamp.toString());
+      data.append('api_key', '979154617635853');
+      
+      const response = await fetch('https://api.cloudinary.com/v1_1/dfpkhezq6/image/destroy', {
+        method: 'POST',
+        body: data,
+      });
+
+      const result = await response.json();
+      console.log('Old profile image deletion result:', result);
+      
+      if (result.result === 'ok') {
+        console.log('Old profile image deleted successfully');
+      } else {
+        console.warn('Failed to delete old profile image:', result);
+      }    } catch (error) {
+      console.error('Error deleting old profile image:', error);
+      throw error;
+    }
+  };
+
+  // פונקציה להסרת תמונת פרופיל
+  const removeProfileImage = async () => {
+    Alert.alert(
+      'הסרת תמונת פרופיל',
+      'האם אתה בטוח שברצונך להסיר את תמונת הפרופיל שלך?',
+      [
+        {
+          text: 'ביטול',
+          style: 'cancel'
+        },
+        {
+          text: 'הסר',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              
+              const currentPhotoURL = photoURL;
+              
+              // עדכן לתמונת ברירת מחדל
+              setPhotoURL(null);
+              await setDoc(doc(db, 'users', user.uid), { photoURL: null }, { merge: true });
+              
+              // עדכן גם ב-Firebase Authentication
+              await updateProfile(user, { photoURL: null });
+              
+              // מחק את התמונה מ-Cloudinary
+              if (currentPhotoURL && currentPhotoURL.includes('cloudinary.com')) {
+                try {
+                  await deleteOldProfileImage(currentPhotoURL);
+                } catch (deleteError) {
+                  console.warn('Failed to delete image from Cloudinary:', deleteError);
+                }
+              }
+              
+              Alert.alert('הצלחה', 'תמונת הפרופיל הוסרה בהצלחה');
+            } catch (error) {
+              console.error('Error removing profile image:', error);
+              Alert.alert('שגיאה', 'לא ניתן להסיר את תמונת הפרופיל');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   const handleSave = async () => {
@@ -795,14 +896,10 @@ export default function ProfileScreen() {
                 value={searchTerm}
                 onChangeText={handleSearch}
                 textAlign="right"
-              />
-              {searchResults.length > 0 && (
-                <FlatList
-                  data={searchResults}
-                  keyExtractor={(item) => item.id}
-                  style={styles.userList}
-                  renderItem={({ item }) => (
-                    <View style={styles.userItem}>
+              />              {searchResults.length > 0 && (
+                <View style={styles.userList}>
+                  {searchResults.map((item) => (
+                    <View key={item.id} style={styles.userItem}>
                       <TouchableOpacity 
                         style={styles.userInfo}
                         onPress={() => showUserProfile(item)}
@@ -822,20 +919,15 @@ export default function ProfileScreen() {
                         </Text>
                       </TouchableOpacity>
                     </View>
-                  )}
-                />
+                  ))}
+                </View>
               )}
             </View>
-          )}
-
-          {socialActiveTab === 'following' && (
+          )}          {socialActiveTab === 'following' && (
             <View style={styles.socialContent}>
-              <FlatList
-                data={following}
-                keyExtractor={(item) => item.id}
-                style={styles.userList}
-                renderItem={({ item }) => (
-                  <View style={styles.userItem}>
+              <View style={styles.userList}>
+                {following.map((item) => (
+                  <View key={item.id} style={styles.userItem}>
                     <TouchableOpacity 
                       style={styles.userInfo}
                       onPress={() => showUserProfile(item)}
@@ -852,20 +944,17 @@ export default function ProfileScreen() {
                     >
                       <Text style={styles.unfollowButtonText}>בטל מעקב</Text>
                     </TouchableOpacity>
-                  </View>
-                )}
-              />
+                  </View>                ))}
+              </View>
             </View>
           )}
 
           {socialActiveTab === 'followers' && (
             <View style={styles.socialContent}>
-              <FlatList
-                data={followers}
-                keyExtractor={(item) => item.id}
-                style={styles.userList}
-                renderItem={({ item }) => (
+              <View style={styles.userList}>
+                {followers.map((item) => (
                   <TouchableOpacity 
+                    key={item.id}
                     style={styles.userItem}
                     onPress={() => showUserProfile(item)}
                   >
@@ -877,8 +966,8 @@ export default function ProfileScreen() {
                       <Text style={styles.userName}>{item.displayName || item.email}</Text>
                     </View>
                   </TouchableOpacity>
-                )}
-              />
+                ))}
+              </View>
             </View>
           )}
         </View>
@@ -911,9 +1000,7 @@ export default function ProfileScreen() {
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
             <Text style={styles.sidePanelTitle}>הגדרות פרופיל</Text>
-          </View>
-
-          {/* Avatar and Profile Info */}
+          </View>          {/* Avatar and Profile Info */}
           <View style={styles.avatarSection}>
             <TouchableOpacity onPress={pickImage} disabled={loading}>
               <Image source={avatarSource} style={styles.sideAvatar} />
@@ -923,9 +1010,16 @@ export default function ProfileScreen() {
                 </View>
               )}
             </TouchableOpacity>
-            <TouchableOpacity onPress={pickImage} disabled={loading}>
-              <Text style={styles.editPhoto}>📸 ערוך תמונה</Text>
-            </TouchableOpacity>
+            <View style={styles.avatarButtons}>
+              <TouchableOpacity onPress={pickImage} disabled={loading}>
+                <Text style={styles.editPhoto}>📸 ערוך תמונה</Text>
+              </TouchableOpacity>
+              {photoURL && (
+                <TouchableOpacity onPress={removeProfileImage} disabled={loading}>
+                  <Text style={styles.removePhoto}>🗑️ הסר תמונה</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* Profile Edit */}
@@ -1270,8 +1364,7 @@ const createStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 15,
-  },
-  closeButtonText: {
+  },  closeButtonText: {
     fontSize: 18,
     color: '#7f8c8d',
     fontWeight: 'bold',
@@ -1303,11 +1396,23 @@ const createStyles = (theme) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  avatarButtons: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 15,
+    marginTop: 10,
+  },
   editPhoto: {
     color: '#667eea',
     fontWeight: '600',
     textAlign: 'center',
-    marginTop: 10,
+    fontSize: 14,
+  },
+  removePhoto: {
+    color: '#e74c3c',
+    fontWeight: '600',
+    textAlign: 'center',
     fontSize: 14,
   },
   // Profile edit section
