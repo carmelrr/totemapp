@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, Pressable } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { Pressable } from 'react-native-gesture-handler';
 import { useTheme } from '../context/ThemeContext';
 
 // טבלת צבעים מקיפה עם מספר רב של צבעים ושמות

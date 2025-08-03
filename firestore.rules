@@ -14,6 +14,23 @@ service cloud.firestore {
       }
     }
     
+    // Allow read/write access to sprayWalls collection for authenticated users
+    match /sprayWalls/{sprayWallId} {
+      allow read: if request.auth != null;
+      // Only authenticated users can write (admin check will be done in app logic)
+      allow write: if request.auth != null;
+    }
+    
+    // Allow read/write access to sprayRoutes collection for authenticated users
+    match /sprayRoutes/{sprayRouteId} {
+      allow read, write: if request.auth != null;
+      
+      // Allow read/write access to feedbacks subcollection for authenticated users
+      match /feedbacks/{feedbackId} {
+        allow read, write: if request.auth != null;
+      }
+    }
+    
     // Allow read/write access to users collection for authenticated users
     match /users/{userId} {
       // Allow users to read their own data and write to their own document

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, StyleSheet, Dimensions, Alert, Text, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { GestureHandlerRootView, PanGestureHandler, PinchGestureHandler, TapGestureHandler, LongPressGestureHandler } from 'react-native-gesture-handler';
+import { PanGestureHandler, PinchGestureHandler, TapGestureHandler, LongPressGestureHandler } from 'react-native-gesture-handler';
 import Animated, {
   useAnimatedGestureHandler,
   useAnimatedStyle,
@@ -323,7 +323,7 @@ export default function WallMap({
   const styles = createStyles(theme);
 
   return (
-    <GestureHandlerRootView style={[styles.container, { height: hideZoomBar ? MAP_HEIGHT : MAP_HEIGHT + 42 }]}>
+    <View style={[styles.container, { height: hideZoomBar ? MAP_HEIGHT : MAP_HEIGHT + 42 }]}>
       <View style={styles.mapBox}>
         <TapGestureHandler 
           ref={longPressRef}
@@ -456,7 +456,7 @@ export default function WallMap({
           setSelectedRouteForDialog(null);
         }}
       />
-    </GestureHandlerRootView>
+    </View>
   );
 }
 
