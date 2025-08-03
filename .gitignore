@@ -25,7 +25,7 @@ expo-debug.log
 
 # Firebase credentials (אם יש קבצים נוספים עם מידע רגיש)
 firebase-debug.log
-firebase-config.js
+# firebase-config.js - uncommented to include in build
 
 # TypeScript build artifacts (למקרה שתשתמש ב־tsc בהמשך)
 *.tsbuildinfo

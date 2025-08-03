@@ -7,6 +7,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "jsEngine": "hermes",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
@@ -17,19 +18,33 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourdomain.climbinggymapp"
+      "bundleIdentifier": "com.yourdomain.climbinggymapp",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "אפליקציה זו זקוקה לגישה לגלריה כדי להעלות תמונות של קירות טיפוס"
+      }
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "com.yourdomain.climbinggymapp"
+      "package": "com.yourdomain.climbinggymapp",
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [],
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "אפליקציה זו זקוקה לגישה לגלריה כדי להעלות תמונות של קירות טיפוס"
+        }
+      ]
+    ],
     "extra": {
       "eas": {
         "projectId": "314d40f3-b56b-4919-9dfe-817d3f8a0540"

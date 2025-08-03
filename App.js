@@ -13,6 +13,9 @@ import LoginScreen from './screens/LoginScreen';
 import AddRouteScreen from './screens/AddRouteScreen';
 import ColorPickerScreen from './screens/ColorPickerScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
+import SprayWallScreen from './screens/SprayWallScreen';
+import AddSprayRouteScreen from './screens/AddSprayRouteScreen';
+import UploadSprayWallScreen from './screens/UploadSprayWallScreen';
 import { UserProvider } from './context/UserContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 
@@ -73,6 +76,21 @@ function ThemedNavigator({ isAdmin }) {
           name="LeaderboardScreen" 
           component={LeaderboardScreen}
           options={{ title: 'לוחות מובילים' }}
+        />
+        <Stack.Screen 
+          name="SprayWallScreen" 
+          component={SprayWallScreen}
+          options={{ title: 'ספריי וול' }}
+        />
+        <Stack.Screen 
+          name="AddSprayRouteScreen" 
+          component={AddSprayRouteScreen}
+          options={{ title: 'הוספת מסלול ספריי' }}
+        />
+        <Stack.Screen 
+          name="UploadSprayWallScreen" 
+          component={UploadSprayWallScreen}
+          options={{ title: 'העלאת קיר ספריי חדש' }}
         />
       </Stack.Navigator>
     </NavigationContainer>

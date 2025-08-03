@@ -54,6 +54,10 @@ export default function HomeScreen() {
       <TouchableOpacity style={[styles.button, { backgroundColor: theme.buttonTertiary }]} onPress={() => navigation.navigate('LeaderboardScreen')}>
         <Text style={styles.buttonText}>לוחות מובילים 🏆</Text>
       </TouchableOpacity>
+
+      <TouchableOpacity style={[styles.button, { backgroundColor: '#E91E63' }]} onPress={() => navigation.navigate('SprayWallScreen')}>
+        <Text style={styles.buttonText}>ספריי וול 🎯</Text>
+      </TouchableOpacity>
     </View>
   );
 }

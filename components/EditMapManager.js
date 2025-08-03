@@ -1,6 +1,5 @@
 import React from 'react';
-import { Alert, Pressable } from 'react-native';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { Alert, Pressable, View } from 'react-native';
 import RouteCircle from './RouteCircle';
 
 /**
@@ -49,7 +48,7 @@ export default function EditMapManager({
   };
 
   return (
-    <GestureHandlerRootView style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
       {routes.map(route => (
         <Pressable
           key={route.id}
@@ -67,6 +66,6 @@ export default function EditMapManager({
           />
         </Pressable>
       ))}
-    </GestureHandlerRootView>
+    </View>
   );
 }

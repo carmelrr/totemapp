@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, Alert, ScrollView, FlatList, Dimensions, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Alert, ScrollView, FlatList, Dimensions, RefreshControl, Pressable } from 'react-native';
 import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
-import { GestureHandlerRootView, Pressable } from 'react-native-gesture-handler';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { addRoute } from '../routesService';
 import { auth } from '../firebase-config';
@@ -425,35 +424,34 @@ export default function AddRouteScreen() {
   const styles = createStyles(theme);
 
   return (
-    <GestureHandlerRootView style={{flex: 1}}>
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Add New Route</Text>
-          <Pressable 
-            onPress={() => navigation.navigate('WallMapScreen')}
-            style={({ pressed }) => [
-              styles.headerButton,
-              pressed && styles.headerButtonPressed
-            ]}
-          >
-            <Text style={styles.closeButton}>Cancel</Text>
-          </Pressable>
-        </View>
-
-        <ScrollView 
-          style={styles.content} 
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={['#007AFF']}
-              tintColor="#007AFF"
-              title="משיכה לרענון..."
-              titleColor="#007AFF"
-            />
-          }
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Add New Route</Text>
+        <Pressable 
+          onPress={() => navigation.navigate('WallMapScreen')}
+          style={({ pressed }) => [
+            styles.headerButton,
+            pressed && styles.headerButtonPressed
+          ]}
         >
+          <Text style={styles.closeButton}>Cancel</Text>
+        </Pressable>
+      </View>
+
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#007AFF']}
+            tintColor="#007AFF"
+            title="משיכה לרענון..."
+            titleColor="#007AFF"
+          />
+        }
+      >
           {/* בחירת דירוג */}
           <View style={styles.sectionContainer}>
             <View style={styles.sectionHeader}>
@@ -655,9 +653,8 @@ export default function AddRouteScreen() {
           )}
         </ScrollView>
       </View>
-    </GestureHandlerRootView>
-  );
-}
+    );
+  }
 
 const createStyles = (theme) => StyleSheet.create({
   container: {
