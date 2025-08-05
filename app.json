@@ -2,7 +2,7 @@
   "expo": {
     "name": "Climbing Gym App",
     "slug": "climbing-gym-app",
-    "scheme": "totemapp",
+    "scheme": "climbing-gym-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

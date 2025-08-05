@@ -5,7 +5,7 @@ import { signOut, updateProfile } from 'firebase/auth';
 import { useNavigation } from '@react-navigation/native';
 import { auth, db, storage } from '../firebase-config';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes } from 'firebase/storage';
+import { getDownloadURL, ref, uploadBytes, deleteObject } from 'firebase/storage';
 import { subscribeToRoutes, updateUserProfile, getUserProfile, migrateFeedbacksWithDisplayName } from '../routesService';
 import { 
   searchUsers, 
@@ -416,84 +416,65 @@ export default function ProfileScreen() {
       setLoading(true);
       
       // שמור את התמונה הישנה לפני ההעלאה החדשה
-      const currentPhotoURL = photoURL;      
-      const data = new FormData();
-      data.append('file', {
-        uri: uri,
-        type: 'image/jpeg',
-        name: `profile_${user.uid}_${Date.now()}.jpg`, // שם ייחודי לכל משתמש
-      });
-      data.append('upload_preset', 'totem_unsigned'); // מתוך Cloudinary
-      data.append('folder', 'profile_images'); // מארגן תמונות פרופיל בתיקיה נפרדת
-
-      const res = await fetch('https://api.cloudinary.com/v1_1/dfpkhezq6/image/upload', {
-        method: 'POST',
-        body: data,
-      });
-
-      const result = await res.json();
+      const currentPhotoURL = photoURL;
       
-      if (result.secure_url) {
-        // עדכן למצב החדש
-        setPhotoURL(result.secure_url);
-        await setDoc(doc(db, 'users', user.uid), { photoURL: result.secure_url }, { merge: true });
-        
-        // מחק את התמונה הישנה אם קיימת
-        if (currentPhotoURL && currentPhotoURL.includes('cloudinary.com')) {
-          try {
-            await deleteOldProfileImage(currentPhotoURL);
-          } catch (deleteError) {
-            console.warn('Failed to delete old profile image:', deleteError);
-            // לא מעצירים את התהליך אם המחיקה נכשלה
-          }
+      // יצירת שם קובץ ייחודי
+      const fileName = `profile_${user.uid}_${Date.now()}.jpg`;
+      const imageRef = ref(storage, `users/${user.uid}/profile/${fileName}`);
+      
+      // המרת URI לקובץ blob עבור Firebase Storage
+      const response = await fetch(uri);
+      const blob = await response.blob();
+      
+      // העלאה לFirebase Storage
+      console.log('Uploading image to Firebase Storage...');
+      const snapshot = await uploadBytes(imageRef, blob);
+      
+      // קבלת URL להורדה
+      const downloadURL = await getDownloadURL(snapshot.ref);
+      console.log('Image uploaded successfully:', downloadURL);
+      
+      // עדכון המצב החדש
+      setPhotoURL(downloadURL);
+      await setDoc(doc(db, 'users', user.uid), { photoURL: downloadURL }, { merge: true });
+      
+      // מחיקת התמונה הישנה אם קיימת (רק אם זה Firebase Storage URL)
+      if (currentPhotoURL && currentPhotoURL.includes('firebasestorage.googleapis.com')) {
+        try {
+          await deleteOldFirebaseImage(currentPhotoURL);
+        } catch (deleteError) {
+          console.warn('Failed to delete old profile image:', deleteError);
+          // לא מעצירים את התהליך אם המחיקה נכשלה
         }
-        
-        Alert.alert('הצלחה', 'תמונת הפרופיל עודכנה בהצלחה!');
-      } else {
-        throw new Error('No secure URL returned from Cloudinary. Full response: ' + JSON.stringify(result));
       }
+      
+      Alert.alert('הצלחה', 'תמונת הפרופיל עודכנה בהצלחה!');
     } catch (e) {
+      console.error('Error uploading image:', e);
       Alert.alert('שגיאה', 'לא ניתן להעלות תמונה: ' + (e.message || e));
     } finally {
       setLoading(false);
     }
   };
 
-  // פונקציה למחיקת תמונת פרופיל ישנה
-  const deleteOldProfileImage = async (imageUrl) => {
+  // פונקציה למחיקת תמונה ישנה מFirebase Storage
+  const deleteOldFirebaseImage = async (imageUrl) => {
     try {
-      console.log('Deleting old profile image:', imageUrl);
+      console.log('Deleting old image from Firebase Storage:', imageUrl);
       
-      // חילוץ public_id מכתובת הURL של Cloudinary
-      const urlParts = imageUrl.split('/');
-      const fileWithExtension = urlParts[urlParts.length - 1];
-      const fileName = fileWithExtension.split('.')[0];
-      const folder = urlParts[urlParts.length - 2];
-      const publicId = `${folder}/${fileName}`;
+      // חילוץ הנתיב מה-URL של Firebase Storage
+      // URL format: https://firebasestorage.googleapis.com/v0/b/bucket/o/path%2Fto%2Ffile?alt=media&token=...
+      const urlParts = imageUrl.split('/o/')[1].split('?')[0];
+      const filePath = decodeURIComponent(urlParts);
       
-      console.log('Extracted public_id for deletion:', publicId);
+      console.log('Extracted file path for deletion:', filePath);
       
-      const timestamp = Math.round(Date.now() / 1000);
+      const imageRef = ref(storage, filePath);
+      await deleteObject(imageRef);
       
-      const data = new FormData();
-      data.append('public_id', publicId);
-      data.append('timestamp', timestamp.toString());
-      data.append('api_key', '979154617635853');
-      
-      const response = await fetch('https://api.cloudinary.com/v1_1/dfpkhezq6/image/destroy', {
-        method: 'POST',
-        body: data,
-      });
-
-      const result = await response.json();
-      console.log('Old profile image deletion result:', result);
-      
-      if (result.result === 'ok') {
-        console.log('Old profile image deleted successfully');
-      } else {
-        console.warn('Failed to delete old profile image:', result);
-      }    } catch (error) {
-      console.error('Error deleting old profile image:', error);
+      console.log('Old image deleted successfully from Firebase Storage');
+    } catch (error) {
+      console.error('Error deleting old image from Firebase Storage:', error);
       throw error;
     }
   };
@@ -524,12 +505,12 @@ export default function ProfileScreen() {
               // עדכן גם ב-Firebase Authentication
               await updateProfile(user, { photoURL: null });
               
-              // מחק את התמונה מ-Cloudinary
-              if (currentPhotoURL && currentPhotoURL.includes('cloudinary.com')) {
+              // מחק את התמונה מFirebase Storage
+              if (currentPhotoURL && currentPhotoURL.includes('firebasestorage.googleapis.com')) {
                 try {
-                  await deleteOldProfileImage(currentPhotoURL);
+                  await deleteOldFirebaseImage(currentPhotoURL);
                 } catch (deleteError) {
-                  console.warn('Failed to delete image from Cloudinary:', deleteError);
+                  console.warn('Failed to delete image from Firebase Storage:', deleteError);
                 }
               }
               

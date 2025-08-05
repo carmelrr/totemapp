@@ -322,7 +322,9 @@ export async function updateRouteAverages(routeId) {
 
 // Get display grade (calculated grade if available, otherwise original)
 export function getDisplayGrade(route) {
-  return route.calculatedGrade || route.grade;
+  if (!route) return '';
+  const grade = route.calculatedGrade || route.grade;
+  return grade ? String(grade) : '';
 }
 
 // Get display star rating

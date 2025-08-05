@@ -39,23 +39,56 @@ export default function HomeScreen() {
   const { theme } = useTheme();
   const styles = createStyles(theme);
 
+  const handleNavigation = (screenName) => {
+    console.log(`🖱️ Navigating to: ${screenName}`);
+    try {
+      navigation.navigate(screenName);
+    } catch (error) {
+      console.error(`❌ Navigation error: ${error.message}`);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>ברוך הבא לאפליקציית הטיפוס 🧗‍♀️</Text>
       
-      <TouchableOpacity style={[styles.button, { backgroundColor: theme.buttonPrimary }]} onPress={() => navigation.navigate('WallMapScreen')}>
+      <TouchableOpacity 
+        style={[styles.button, { backgroundColor: theme.buttonPrimary }]} 
+        onPress={() => handleNavigation('WallMapScreen')}
+        activeOpacity={0.7}
+        delayPressIn={0}
+        delayPressOut={100}
+      >
         <Text style={styles.buttonText}>מפת הקיר 🧗</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, { backgroundColor: theme.buttonSecondary }]} onPress={() => navigation.navigate('ProfileScreen')}>
+      <TouchableOpacity 
+        style={[styles.button, { backgroundColor: theme.buttonSecondary }]} 
+        onPress={() => handleNavigation('ProfileScreen')}
+        activeOpacity={0.7}
+        delayPressIn={0}
+        delayPressOut={100}
+      >
         <Text style={styles.buttonText}>הפרופיל שלי 👤</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, { backgroundColor: theme.buttonTertiary }]} onPress={() => navigation.navigate('LeaderboardScreen')}>
+      <TouchableOpacity 
+        style={[styles.button, { backgroundColor: theme.buttonTertiary }]} 
+        onPress={() => handleNavigation('LeaderboardScreen')}
+        activeOpacity={0.7}
+        delayPressIn={0}
+        delayPressOut={100}
+      >
         <Text style={styles.buttonText}>לוחות מובילים 🏆</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.button, { backgroundColor: '#E91E63' }]} onPress={() => navigation.navigate('SprayWallScreen')}>
+      <TouchableOpacity 
+        style={[styles.button, { backgroundColor: '#E91E63' }]} 
+        onPress={() => handleNavigation('SprayWallScreen')}
+        activeOpacity={0.7}
+        delayPressIn={0}
+        delayPressOut={100}
+      >
         <Text style={styles.buttonText}>ספריי וול 🎯</Text>
       </TouchableOpacity>
     </View>

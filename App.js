@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { AccessibilityInfo } from 'react-native';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase-config';
@@ -18,6 +19,24 @@ import AddSprayRouteScreen from './screens/AddSprayRouteScreen';
 import UploadSprayWallScreen from './screens/UploadSprayWallScreen';
 import { UserProvider } from './context/UserContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+
+// ✅ הגדרה להפחתת אנימציות נבחרות בלבד
+if (__DEV__) {
+  // בדיקה אם הפחתת תנועה מופעלת במכשיר
+  AccessibilityInfo.isReduceMotionEnabled().then(reduceMotionEnabled => {
+    if (reduceMotionEnabled) {
+      console.log('Reduce motion is enabled - limiting complex animations only');
+      // הגדרת Reanimated לצמצום אנימציות מסוימות בלבד
+      if (global._WORKLET) {
+        global._reduceMotion = true;
+      }
+    }
+  });
+  
+  // Debug לחיצות - הוספת לוג לכל לחיצה
+  const originalTouchableOpacity = require('react-native').TouchableOpacity;
+  console.log('🔧 Touch debugging enabled');
+}
 
 const Stack = createNativeStackNavigator();
 

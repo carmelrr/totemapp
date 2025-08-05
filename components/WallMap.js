@@ -481,6 +481,9 @@ const createStyles = (theme) => StyleSheet.create({
     top: 0,
     left: 0,
     overflow: 'hidden', // חזרה ל-hidden כדי לשמור על גבולות המפה
+    // iOS ספציפי - שיפור איכות ה-rendering
+    shouldRasterizeIOS: true,
+    renderToHardwareTextureAndroid: true,
   },
   zoomBarContainer: {
     flexDirection: 'row',

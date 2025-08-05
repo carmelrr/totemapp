@@ -1,4 +1,4 @@
-import { db, auth } from '../firebase-config';
+import { db, auth, storage } from '../firebase-config';
 import {
   collection,
   doc,
@@ -15,6 +15,7 @@ import {
   increment,
   serverTimestamp,
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 // Spray Wall Management
 export async function createSprayWall(sprayWallData) {
@@ -28,13 +29,13 @@ export async function createSprayWall(sprayWallData) {
     await archivePreviousSprayWall();
 
     // Upload image to Cloudinary first
-    console.log('Uploading image to Cloudinary...');
-    const cloudinaryUrl = await uploadImageToCloudinary(sprayWallData.imageUri);
-    console.log('Image uploaded to Cloudinary:', cloudinaryUrl);
+    console.log('Uploading image to Firebase Storage...');
+    const firebaseStorageUrl = await uploadImageToFirebaseStorage(sprayWallData.imageUri);
+    console.log('Image uploaded to Firebase Storage:', firebaseStorageUrl);
 
-    // Create new spray wall document with the Cloudinary URL
+    // Create new spray wall document with the Firebase Storage URL
     const wallData = {
-      imageUrl: cloudinaryUrl, // השם הנכון לשדה התמונה
+      imageUrl: firebaseStorageUrl, // השם הנכון לשדה התמונה
       description: sprayWallData.description,
       width: sprayWallData.width,
       height: sprayWallData.height,
@@ -73,82 +74,57 @@ export async function getSprayWallWithHolds(sprayWallId) {
   }
 }
 
-// Helper function to upload image to Cloudinary
-async function uploadImageToCloudinary(imageUri) {
+// Helper function to upload image to Firebase Storage
+async function uploadImageToFirebaseStorage(imageUri) {
   try {
-    console.log('Uploading image to Cloudinary:', imageUri);
+    console.log('Uploading image to Firebase Storage:', imageUri);
     
-    const data = new FormData();
-    data.append('file', {
-      uri: imageUri,
-      type: 'image/jpeg',
-      name: `spray_wall_${Date.now()}.jpg`,
-    });
-    data.append('upload_preset', 'totem_unsigned'); // מתוך Cloudinary
-    data.append('folder', 'spray_walls'); // מארגן את התמונות בתיקיה
-
-    const response = await fetch('https://api.cloudinary.com/v1_1/dfpkhezq6/image/upload', {
-      method: 'POST',
-      body: data,
-    });
-
-    const result = await response.json();
-    console.log('Cloudinary upload result:', result);
+    // יצירת שם קובץ ייחודי
+    const fileName = `spray_wall_${Date.now()}.jpg`;
+    const imageRef = ref(storage, `sprayWalls/${fileName}`);
     
-    if (result.secure_url) {
-      return result.secure_url;
-    } else {
-      throw new Error('No secure URL returned from Cloudinary. Response: ' + JSON.stringify(result));
-    }
+    // המרת URI לקובץ blob
+    const response = await fetch(imageUri);
+    const blob = await response.blob();
+    
+    // העלאה לFirebase Storage
+    const snapshot = await uploadBytes(imageRef, blob);
+    
+    // קבלת URL להורדה
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    console.log('Firebase Storage upload successful:', downloadURL);
+    
+    return downloadURL;
   } catch (error) {
-    console.error('Error uploading to Cloudinary:', error);
-    throw new Error('Failed to upload image: ' + error.message);
+    console.error('Error uploading to Firebase Storage:', error);
+    throw new Error('Failed to upload image to Firebase Storage: ' + error.message);
   }
 }
 
-// Helper function to delete image from Cloudinary
-async function deleteImageFromCloudinary(imageUrl) {
+// Helper function to delete image from Firebase Storage
+async function deleteImageFromFirebaseStorage(imageUrl) {
   try {
     if (!imageUrl) return;
     
-    console.log('Deleting image from Cloudinary:', imageUrl);
+    console.log('Deleting image from Firebase Storage:', imageUrl);
     
-    // Extract public_id from Cloudinary URL
-    // URL format: https://res.cloudinary.com/dfpkhezq6/image/upload/v1234567890/spray_walls/filename.jpg
-    const urlParts = imageUrl.split('/');
-    const fileWithExtension = urlParts[urlParts.length - 1];
-    const fileName = fileWithExtension.split('.')[0];
-    const folder = urlParts[urlParts.length - 2];
-    const publicId = `${folder}/${fileName}`;
-    
-    console.log('Extracted public_id:', publicId);
-    
-    // Create signature for deletion (using timestamp)
-    const timestamp = Math.round(Date.now() / 1000);
-    
-    const data = new FormData();
-    data.append('public_id', publicId);
-    data.append('timestamp', timestamp.toString());
-    data.append('api_key', '979154617635853'); // מתוך Cloudinary
-    
-    // Note: במצב production צריך לחשב signature עם API secret, 
-    // אבל לבינתיים ננסה בלי signature
-    
-    const response = await fetch('https://api.cloudinary.com/v1_1/dfpkhezq6/image/destroy', {
-      method: 'POST',
-      body: data,
-    });
-
-    const result = await response.json();
-    console.log('Cloudinary delete result:', result);
-    
-    if (result.result === 'ok') {
-      console.log('Image deleted successfully from Cloudinary');
+    // חילוץ הנתיב מה-URL של Firebase Storage
+    // URL format: https://firebasestorage.googleapis.com/v0/b/bucket/o/path%2Fto%2Ffile?alt=media&token=...
+    if (imageUrl.includes('firebasestorage.googleapis.com')) {
+      const urlParts = imageUrl.split('/o/')[1].split('?')[0];
+      const filePath = decodeURIComponent(urlParts);
+      
+      console.log('Extracted file path for deletion:', filePath);
+      
+      const imageRef = ref(storage, filePath);
+      await deleteObject(imageRef);
+      
+      console.log('Image deleted successfully from Firebase Storage');
     } else {
-      console.warn('Failed to delete image from Cloudinary:', result);
+      console.log('Image URL is not from Firebase Storage, skipping deletion');
     }
   } catch (error) {
-    console.error('Error deleting from Cloudinary:', error);
+    console.error('Error deleting from Firebase Storage:', error);
     // Don't throw error - deletion failure shouldn't block the upload
   }
 }
@@ -186,7 +162,7 @@ async function archivePreviousSprayWall() {
       // Delete the old image from Cloudinary before archiving
       if (currentWall.imageUrl) {
         console.log('Deleting old image from Cloudinary:', currentWall.imageUrl);
-        await deleteImageFromCloudinary(currentWall.imageUrl);
+        await deleteImageFromFirebaseStorage(currentWall.imageUrl);
       }
       
       // Archive the wall

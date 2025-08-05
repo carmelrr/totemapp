@@ -109,6 +109,14 @@ export default React.memo(function RouteCircle({
   // עכשיו scale הוא number רגיל - לא צריך useAnimatedReaction
   const currentScale = scale || 1;
   
+  // Debug logging for text scaling
+  console.log('RouteCircle Debug:', {
+    routeId: route.id || 'unknown',
+    scale: currentScale,
+    baseFontSize: fontSize,
+    calculatedFontSize: Math.max(8, fontSize / currentScale)
+  });
+  
   // Gesture handler for dragging when in moving mode
   const gestureHandler = useAnimatedGestureHandler({
     onStart: () => {
@@ -202,9 +210,9 @@ export default React.memo(function RouteCircle({
     const visualMoveX = translateX.value / scaleValue;
     const visualMoveY = translateY.value / scaleValue;
     
-    // הוסף אפקט קנה מידה קל במהלך הגרירה
+    // הוסף אפקט קנה מידה קל במהלך הגרירה - מותאם לגודל החדש
     const isDraggingActive = isDragging.value === 1;
-    const scaleEffect = isDraggingActive ? 1.1 : 1;
+    const scaleEffect = isDraggingActive ? 1.05 : 1; // פחות אגרסיבי מ-1.1
     
     return {
       transform: [
@@ -214,6 +222,21 @@ export default React.memo(function RouteCircle({
       ],
     };
   }, [isMovingRoute, isDragging, currentScale]);
+
+  // Calculate text color outside the worklet
+  const textColor = getTextColor(route.color);
+  
+  // Animated style for text to ensure it responds to scale changes
+  const textStyle = useAnimatedStyle(() => {
+    'worklet';
+    const calculatedFontSize = Math.max(8, fontSize / currentScale);
+    
+    return {
+      color: textColor,
+      fontWeight: 'bold',
+      fontSize: calculatedFontSize,
+    };
+  }, [currentScale, fontSize, textColor]);
 
   const animatedStyle = useAnimatedStyle(() => {
     'worklet';
@@ -229,7 +252,14 @@ export default React.memo(function RouteCircle({
       };
     }
 
-    const inverseScale = 1 / scaleValue;
+    // במקום inverseScale, נחשב את הגודל הנדרש באופן ישיר
+    const baseSize = CIRCLE_RADIUS * 2;
+    const optimalSize = baseSize / scaleValue;
+    
+    // גבול מינימלי וגדול מקסימלי לגודל
+    const minSize = baseSize * 0.3; // לא יותר קטן מ-30% מהגודל המקורי
+    const maxSize = baseSize * 2.5; // לא יותר גדול מפי 2.5 מהגודל המקורי
+    const finalSize = Math.max(minSize, Math.min(maxSize, optimalSize));
 
     try {
       // תמיכה אוטומטית בשני פורמטים: יחס (0-1) או פיקסלים
@@ -240,28 +270,22 @@ export default React.memo(function RouteCircle({
       const x = xNorm * mapWidth;
       const y = yNorm * mapHeight;
 
-      const actualSize = CIRCLE_RADIUS * 2 * inverseScale;
-      
-      // בדיקה אם הגודל גדול מדי (יותר מפי 4 מהגודל הרגיל)
-      if (actualSize > CIRCLE_RADIUS * 4) {
-        return {
-          opacity: 0.5,
-          transform: [{ scale: 1 }],
-        };
-      }
+      // חשב את הגבולות של הגדלה מדי (פיקסל מדויק)
+      const borderWidth = isSelected ? Math.max(2, 4 / scaleValue) : Math.max(1, 2 / scaleValue);
+      const radius = finalSize / 2;
 
       return {
         position: 'absolute',
-        left: x - CIRCLE_RADIUS,
-        top: y - CIRCLE_RADIUS,
-        width: CIRCLE_RADIUS * 2,
-        height: CIRCLE_RADIUS * 2,
-        borderRadius: CIRCLE_RADIUS,
+        left: x - radius,
+        top: y - radius,
+        width: finalSize,
+        height: finalSize,
+        borderRadius: radius,
         backgroundColor: route.color || 'red',
         justifyContent: 'center',
         alignItems: 'center',
-        transform: [{ scale: inverseScale }],
-        borderWidth: isSelected ? 4 : 2,
+        // ללא transform scale - גודל ישיר
+        borderWidth: borderWidth,
         borderColor: isSelected ? (isMovingRoute ? '#f39c12' : '#3498db') : 'white',
         elevation: isSelected ? 10 : (isMovingRoute ? 8 : 5),
         zIndex: isSelected ? 2000 : 1000,
@@ -270,6 +294,9 @@ export default React.memo(function RouteCircle({
         shadowColor: isMovingRoute ? '#000' : 'transparent',
         shadowOpacity: isMovingRoute ? 0.3 : 0,
         shadowRadius: isMovingRoute ? 8 : 0,
+        // iOS מיוחד - שיפור איכות ה-rendering
+        shouldRasterizeIOS: true,
+        renderToHardwareTextureAndroid: true,
       };
     } catch (error) {
       return {
@@ -299,26 +326,18 @@ export default React.memo(function RouteCircle({
               flex: 1, 
               justifyContent: 'center', 
               alignItems: 'center',
-              borderRadius: CIRCLE_RADIUS,
+              borderRadius: 50, // גבוה מספיק לכל גודל
             }}
             activeOpacity={0.8}
           >
-            <Text style={{ 
-              color: getTextColor(route.color), 
-              fontWeight: 'bold',
-              fontSize: fontSize 
-            }}>
-              {getDisplayGrade(route)}
-            </Text>
+            <Animated.Text style={textStyle}>
+              {getDisplayGrade(route) || 'N/A'}
+            </Animated.Text>
           </TouchableOpacity>
         ) : (
-          <Text style={{ 
-            color: getTextColor(route.color), 
-            fontWeight: 'bold',
-            fontSize: fontSize 
-          }}>
-            {getDisplayGrade(route)}
-          </Text>
+          <Animated.Text style={textStyle}>
+            {getDisplayGrade(route) || 'N/A'}
+          </Animated.Text>
         )}
       </Animated.View>
     </PanGestureHandler>
