@@ -25,6 +25,7 @@ import {
 } from 'firebase/firestore';
 import SprayWallLeaderboard from '../components/SprayWallLeaderboard';
 import SprayRouteItem from '../components/SprayRouteItem';
+import RetroFlashAddRoute from '../components/RetroFlashAddRoute';
 import { getSprayWallRoutes, getCurrentSprayWall } from '../services/sprayWallService';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -45,6 +46,7 @@ export default function SprayWallScreen() {
     creator: 'all'
   });
   const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'grade' | 'popular'
+  const [showRetroFlashAddRoute, setShowRetroFlashAddRoute] = useState(false);
 
   const styles = createStyles(theme);
 
@@ -82,10 +84,9 @@ export default function SprayWallScreen() {
       Alert.alert('שגיאה', 'לא נמצא קיר ספריי פעיל');
       return;
     }
-    navigation.navigate('AddSprayRouteScreen', { 
-      sprayWallId: currentSprayWall.id,
-      sprayWallImage: currentSprayWall.imageUrl 
-    });
+    
+    // Use the new Retro Flash style interface
+    setShowRetroFlashAddRoute(true);
   };
 
   const handleUploadNewWall = () => {
@@ -304,6 +305,25 @@ export default function SprayWallScreen() {
           />
         </View>
       </Modal>
+
+      {/* Retro Flash Add Route Interface */}
+      {showRetroFlashAddRoute && currentSprayWall && (
+        <Modal
+          visible={showRetroFlashAddRoute}
+          animationType="slide"
+          presentationStyle="fullScreen"
+          onRequestClose={() => setShowRetroFlashAddRoute(false)}
+        >
+          <RetroFlashAddRoute
+            wallImage={currentSprayWall.imageUrl}
+            onClose={() => setShowRetroFlashAddRoute(false)}
+            onRouteAdded={() => {
+              setShowRetroFlashAddRoute(false);
+              loadSprayRoutes(); // Refresh routes list
+            }}
+          />
+        </Modal>
+      )}
     </View>
   );
 }

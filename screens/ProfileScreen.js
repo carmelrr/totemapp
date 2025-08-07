@@ -1,12 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Image, Button, TouchableOpacity, TextInput, ActivityIndicator, Alert, Switch, ScrollView, RefreshControl, Dimensions, Modal, FlatList, Animated } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  Image, 
+  Button, 
+  TouchableOpacity, 
+  TextInput, 
+  ActivityIndicator, 
+  Alert, 
+  Switch, 
+  ScrollView, 
+  RefreshControl, 
+  Dimensions, 
+  Modal, 
+  FlatList, 
+  Animated 
+} from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { signOut, updateProfile } from 'firebase/auth';
 import { useNavigation } from '@react-navigation/native';
 import { auth, db, storage } from '../firebase-config';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes, deleteObject } from 'firebase/storage';
-import { subscribeToRoutes, updateUserProfile, getUserProfile, migrateFeedbacksWithDisplayName } from '../routesService';
+import { 
+  subscribeToRoutes, 
+  updateUserProfile, 
+  getUserProfile, 
+  migrateFeedbacksWithDisplayName 
+} from '../routesService';
 import { 
   searchUsers, 
   followUser, 
@@ -877,7 +899,8 @@ export default function ProfileScreen() {
                 value={searchTerm}
                 onChangeText={handleSearch}
                 textAlign="right"
-              />              {searchResults.length > 0 && (
+              />
+              {searchResults.length > 0 && (
                 <View style={styles.userList}>
                   {searchResults.map((item) => (
                     <View key={item.id} style={styles.userItem}>
@@ -981,7 +1004,9 @@ export default function ProfileScreen() {
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
             <Text style={styles.sidePanelTitle}>הגדרות פרופיל</Text>
-          </View>          {/* Avatar and Profile Info */}
+          </View>
+          
+          {/* Avatar and Profile Info */}
           <View style={styles.avatarSection}>
             <TouchableOpacity onPress={pickImage} disabled={loading}>
               <Image source={avatarSource} style={styles.sideAvatar} />

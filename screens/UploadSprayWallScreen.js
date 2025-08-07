@@ -15,6 +15,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
 import { createSprayWall } from '../services/sprayWallService';
 import { generateHoldGrid } from '../services/holdDetectionService';
+import FlexibleCropper from '../components/FlexibleCropper';
 
 export default function UploadSprayWallScreen() {
   const navigation = useNavigation();
@@ -22,6 +23,8 @@ export default function UploadSprayWallScreen() {
   const [selectedImage, setSelectedImage] = useState(null);
   const [description, setDescription] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [cropData, setCropData] = useState(null);
+  const [showCropper, setShowCropper] = useState(false);
 
   const styles = createStyles(theme);
 
@@ -36,12 +39,12 @@ export default function UploadSprayWallScreen() {
       if (status !== 'granted') {
         Alert.alert('שגיאה', 'נדרשת הרשאה לגישה לגלריה');
         return;
-      }      // Launch image picker with improved config
+      }
+      
+      // Launch image picker with improved config
       console.log('Launching image picker...');
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [3, 4], // 3:4 aspect ratio for spray walls (portrait)
+        allowsEditing: false, // Disable built-in editing to use our flexible cropper
         quality: 0.9, // High quality for better hold detection
         allowsMultipleSelection: false,
         base64: false, // Don't include base64 to avoid memory issues
@@ -63,6 +66,7 @@ export default function UploadSprayWallScreen() {
         });
         
         setSelectedImage(selectedAsset);
+        setShowCropper(true); // Open the flexible cropper
       } else {
         console.log('Image selection was canceled or no assets found');
       }
@@ -70,6 +74,25 @@ export default function UploadSprayWallScreen() {
       console.error('Error in pickImage:', error);
       Alert.alert('שגיאה', `שגיאה בבחירת תמונה: ${error.message}`);
     }
+  };
+
+  const handleCropSave = (croppedData) => {
+    setShowCropper(false);
+    setCropData(croppedData);
+    console.log('Crop saved with data:', croppedData);
+    
+    // Update selectedImage with cropped image URI
+    setSelectedImage({
+      ...selectedImage,
+      uri: croppedData.uri,
+      cropped: true
+    });
+  };
+
+  const handleCropCancel = () => {
+    setShowCropper(false);
+    setSelectedImage(null);
+    setCropData(null);
   };
 
   const handleUpload = async () => {
@@ -238,6 +261,17 @@ export default function UploadSprayWallScreen() {
           </Text>
         </View>
       </View>
+
+      {/* Flexible Image Cropper Modal */}
+      {showCropper && selectedImage && (
+        <View style={StyleSheet.absoluteFillObject}>
+          <FlexibleCropper
+            imageUri={selectedImage.uri}
+            onSave={handleCropSave}
+            onCancel={handleCropCancel}
+          />
+        </View>
+      )}
     </SafeAreaView>
   );
 }

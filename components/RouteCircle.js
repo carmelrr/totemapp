@@ -109,14 +109,6 @@ export default React.memo(function RouteCircle({
   // עכשיו scale הוא number רגיל - לא צריך useAnimatedReaction
   const currentScale = scale || 1;
   
-  // Debug logging for text scaling
-  console.log('RouteCircle Debug:', {
-    routeId: route.id || 'unknown',
-    scale: currentScale,
-    baseFontSize: fontSize,
-    calculatedFontSize: Math.max(8, fontSize / currentScale)
-  });
-  
   // Gesture handler for dragging when in moving mode
   const gestureHandler = useAnimatedGestureHandler({
     onStart: () => {
@@ -229,12 +221,29 @@ export default React.memo(function RouteCircle({
   // Animated style for text to ensure it responds to scale changes
   const textStyle = useAnimatedStyle(() => {
     'worklet';
-    const calculatedFontSize = Math.max(8, fontSize / currentScale);
+    const scaleValue = currentScale;
+    if (!scaleValue || scaleValue <= 0) {
+      return {
+        color: textColor,
+        fontWeight: 'bold',
+        fontSize: fontSize,
+      };
+    }
+    
+    // חישוב גודל פונט מותאם שנשאר קריא ויחסי
+    // ככל שמקרבים (zoom גדל), הפונט צריך להקטן באופן מבוקר
+    const adjustedFontSize = fontSize / Math.pow(scaleValue, 0.3); // חזקה קטנה יותר לשינוי עדין
+    
+    // גבולות לגודל הפונט
+    const minFontSize = fontSize * 0.5; // לא יותר קטן מחצי מהגודל המקורי
+    const maxFontSize = fontSize * 1.5; // לא יותר גדול מפי 1.5 מהגודל המקורי
+    
+    const finalFontSize = Math.max(minFontSize, Math.min(maxFontSize, adjustedFontSize));
     
     return {
       color: textColor,
       fontWeight: 'bold',
-      fontSize: calculatedFontSize,
+      fontSize: finalFontSize,
     };
   }, [currentScale, fontSize, textColor]);
 

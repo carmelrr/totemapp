@@ -15,7 +15,12 @@ import {
   increment,
   serverTimestamp,
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { 
+  ref, 
+  uploadBytes, 
+  getDownloadURL, 
+  deleteObject 
+} from 'firebase/storage';
 
 // Spray Wall Management
 export async function createSprayWall(sprayWallData) {
@@ -23,19 +28,15 @@ export async function createSprayWall(sprayWallData) {
     const user = auth.currentUser;
     if (!user) throw new Error('User not authenticated');
 
-    console.log('Creating spray wall with data:', sprayWallData);
-
     // Archive previous spray wall if exists
     await archivePreviousSprayWall();
 
-    // Upload image to Cloudinary first
-    console.log('Uploading image to Firebase Storage...');
-    const firebaseStorageUrl = await uploadImageToFirebaseStorage(sprayWallData.imageUri);
-    console.log('Image uploaded to Firebase Storage:', firebaseStorageUrl);
+    // Upload image to Firebase Storage
+    const firebaseUrl = await uploadImageToFirebase(sprayWallData.imageUri);
 
     // Create new spray wall document with the Firebase Storage URL
     const wallData = {
-      imageUrl: firebaseStorageUrl, // השם הנכון לשדה התמונה
+      imageUrl: firebaseUrl,
       description: sprayWallData.description,
       width: sprayWallData.width,
       height: sprayWallData.height,
@@ -45,12 +46,10 @@ export async function createSprayWall(sprayWallData) {
       season: generateSeasonName(),
     };
 
-    console.log('Creating spray wall document:', wallData);
     const docRef = await addDoc(collection(db, 'sprayWalls'), wallData);
     
     return { id: docRef.id, ...wallData };
   } catch (error) {
-    console.error('Error creating spray wall:', error);
     throw error;
   }
 }
@@ -75,57 +74,48 @@ export async function getSprayWallWithHolds(sprayWallId) {
 }
 
 // Helper function to upload image to Firebase Storage
-async function uploadImageToFirebaseStorage(imageUri) {
+async function uploadImageToFirebase(imageUri) {
   try {
-    console.log('Uploading image to Firebase Storage:', imageUri);
-    
-    // יצירת שם קובץ ייחודי
-    const fileName = `spray_wall_${Date.now()}.jpg`;
-    const imageRef = ref(storage, `sprayWalls/${fileName}`);
-    
-    // המרת URI לקובץ blob
+    const user = auth.currentUser;
+    if (!user) throw new Error('User not authenticated');
+
+    // Create unique filename
+    const filename = `spray_wall_${user.uid}_${Date.now()}.jpg`;
+    const imageRef = ref(storage, `sprayWalls/${filename}`);
+
+    // Convert image URI to blob
     const response = await fetch(imageUri);
     const blob = await response.blob();
+
+    // Upload to Firebase Storage
+    await uploadBytes(imageRef, blob);
     
-    // העלאה לFirebase Storage
-    const snapshot = await uploadBytes(imageRef, blob);
-    
-    // קבלת URL להורדה
-    const downloadURL = await getDownloadURL(snapshot.ref);
-    console.log('Firebase Storage upload successful:', downloadURL);
-    
+    // Get download URL
+    const downloadURL = await getDownloadURL(imageRef);
     return downloadURL;
   } catch (error) {
-    console.error('Error uploading to Firebase Storage:', error);
-    throw new Error('Failed to upload image to Firebase Storage: ' + error.message);
+    throw new Error(`Failed to upload image to Firebase: ${error.message}`);
   }
 }
 
 // Helper function to delete image from Firebase Storage
-async function deleteImageFromFirebaseStorage(imageUrl) {
+async function deleteImageFromFirebase(imageUrl) {
   try {
-    if (!imageUrl) return;
+    if (!imageUrl || !imageUrl.includes('firebase')) {
+      return; // Not a Firebase URL, skip deletion
+    }
     
-    console.log('Deleting image from Firebase Storage:', imageUrl);
-    
-    // חילוץ הנתיב מה-URL של Firebase Storage
-    // URL format: https://firebasestorage.googleapis.com/v0/b/bucket/o/path%2Fto%2Ffile?alt=media&token=...
-    if (imageUrl.includes('firebasestorage.googleapis.com')) {
-      const urlParts = imageUrl.split('/o/')[1].split('?')[0];
-      const filePath = decodeURIComponent(urlParts);
-      
-      console.log('Extracted file path for deletion:', filePath);
-      
+    // Extract file path from Firebase Storage URL
+    const url = new URL(imageUrl);
+    const pathMatch = url.pathname.match(/\/o\/(.*?)\?/);
+    if (pathMatch && pathMatch[1]) {
+      const filePath = decodeURIComponent(pathMatch[1]);
       const imageRef = ref(storage, filePath);
       await deleteObject(imageRef);
-      
-      console.log('Image deleted successfully from Firebase Storage');
-    } else {
-      console.log('Image URL is not from Firebase Storage, skipping deletion');
     }
   } catch (error) {
-    console.error('Error deleting from Firebase Storage:', error);
-    // Don't throw error - deletion failure shouldn't block the upload
+    // Silently handle deletion errors - image might already be deleted
+    console.warn('Failed to delete image from Firebase Storage:', error.message);
   }
 }
 
@@ -157,12 +147,9 @@ async function archivePreviousSprayWall() {
   try {
     const currentWall = await getCurrentSprayWall();
     if (currentWall) {
-      console.log('Archiving previous spray wall:', currentWall.id);
-      
-      // Delete the old image from Cloudinary before archiving
+      // Delete the old image from Firebase Storage before archiving
       if (currentWall.imageUrl) {
-        console.log('Deleting old image from Cloudinary:', currentWall.imageUrl);
-        await deleteImageFromFirebaseStorage(currentWall.imageUrl);
+        await deleteImageFromFirebase(currentWall.imageUrl);
       }
       
       // Archive the wall

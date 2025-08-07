@@ -45,7 +45,7 @@ export const generateHoldGrid = async (sprayWallId, imageWidth, imageHeight) => 
           type: 'available', // סוג מיוחד לאחיזות זמינות
           confidence: calculateConfidence(relativeX, relativeY), // רמת ביטחון בהתבסס על מיקום
           generated: true,
-          createdAt: serverTimestamp()
+          createdAt: new Date().toISOString() // Use ISO string instead of serverTimestamp in array
         });
         
         holdIndex++;

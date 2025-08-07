@@ -26,7 +26,7 @@ export function UserProvider({ children, isAdmin }) {
             }
           }
         } catch (error) {
-          console.error('Error loading user preferences:', error);
+          // Error loading user preferences - silently handled
         }
       }
     };
@@ -43,7 +43,7 @@ export function UserProvider({ children, isAdmin }) {
         await setDoc(docRef, { circleSize: newSize }, { merge: true });
         setCircleSize(newSize);
       } catch (error) {
-        console.error('Error saving circle size preference:', error);
+        // Error saving circle size preference - silently handled
       }
     }
   };

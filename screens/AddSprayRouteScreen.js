@@ -28,9 +28,6 @@ export default function AddSprayRouteScreen() {
   const { theme } = useTheme();
   const { sprayWallId, sprayWallImage } = route.params;
 
-  // Debug log to check if image URL is received
-  console.log('AddSprayRouteScreen params:', { sprayWallId, sprayWallImage });
-
   const [holds, setHolds] = useState([]);
   const [availableHolds, setAvailableHolds] = useState([]); // אחיזות זמינות מהגריד האוטומטי
   const [footRule, setFootRule] = useState('feet_follow_hands'); // 'feet_follow_hands' | 'open_feet' | 'no_feet'
@@ -53,12 +50,10 @@ export default function AddSprayRouteScreen() {
   // טעינת האחיזות הזמינות מהגריד האוטומטי
   const loadAvailableHolds = async () => {
     try {
-      console.log('Loading available holds for spray wall:', sprayWallId);
       const holds = await getAvailableHolds(sprayWallId);
       setAvailableHolds(holds);
-      console.log(`Loaded ${holds.length} available holds`);
     } catch (error) {
-      console.error('Error loading available holds:', error);
+      // Silent fail
     }
   };
 
