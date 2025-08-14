@@ -19,7 +19,6 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { useTheme } from '../context/ThemeContext';
-import { sprayWallService } from '../services/sprayWallService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -45,7 +44,7 @@ export default function AdminWallSetupScreen() {
   const selectImage = async () => {
     // TODO: Implement image picker
     // For now, use a test image
-    const testImageUrl = "https://res.cloudinary.com/dfpkhezq6/image/upload/v1754052283/spray_walls/erxuqs7sf8lrwlto3vzp.jpg";
+    const testImageUrl = "https://res.cloudinary.com/dfpkhezq6/image/upload/v1754052283/walls/test_wall.jpg";
     setSelectedImage(testImageUrl);
   };
 
@@ -128,7 +127,7 @@ export default function AdminWallSetupScreen() {
     
     try {
       const wallData = {
-        name: `Spray Wall ${Date.now()}`,
+        name: `Wall ${Date.now()}`,
         imageUrl: selectedImage,
         presetHolds: holds,
         imageDimensions,
@@ -138,8 +137,7 @@ export default function AdminWallSetupScreen() {
 
       console.log('Saving wall data:', wallData);
       
-      // TODO: Save to Firestore
-      // const wallId = await sprayWallService.createSprayWall(wallData);
+      // TODO: Save to Firestore - wall functionality for regular routes
       
       Alert.alert(
         'הצלחה!', 

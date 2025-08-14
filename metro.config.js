@@ -10,6 +10,12 @@ config.resolver.sourceExts.push('cjs');
 config.resolver.assetExts = config.resolver.assetExts.filter(ext => ext !== 'svg');
 config.resolver.sourceExts.push('svg');
 
+// ✅ Fix for module resolution issues
+config.resolver.platforms = ['ios', 'android', 'native', 'web'];
+
+// ✅ Reset cache on restart to avoid stale module references
+config.resetCache = true;
+
 // ✅ הגדרות רשת לחיבור יציב עם Expo Go
 config.server = {
   ...config.server,

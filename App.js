@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AccessibilityInfo } from 'react-native';
+import { enableScreens } from 'react-native-screens';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from './firebase-config';
@@ -14,11 +15,13 @@ import LoginScreen from './screens/LoginScreen';
 import AddRouteScreen from './screens/AddRouteScreen';
 import ColorPickerScreen from './screens/ColorPickerScreen';
 import LeaderboardScreen from './screens/LeaderboardScreen';
-import SprayWallScreen from './screens/SprayWallScreen';
-import AddSprayRouteScreen from './screens/AddSprayRouteScreen';
-import UploadSprayWallScreen from './screens/UploadSprayWallScreen';
+import SprayNavigator from './navigation/SprayNavigator';
 import { UserProvider } from './context/UserContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import ErrorBoundary from './components/ErrorBoundary';
+
+// Enable React Native Screens for better performance and native feel
+enableScreens();
 
 // ✅ הגדרה להפחתת אנימציות נבחרות בלבד
 if (__DEV__) {
@@ -97,19 +100,9 @@ function ThemedNavigator({ isAdmin }) {
           options={{ title: 'לוחות מובילים' }}
         />
         <Stack.Screen 
-          name="SprayWallScreen" 
-          component={SprayWallScreen}
-          options={{ title: 'ספריי וול' }}
-        />
-        <Stack.Screen 
-          name="AddSprayRouteScreen" 
-          component={AddSprayRouteScreen}
-          options={{ title: 'הוספת מסלול ספריי' }}
-        />
-        <Stack.Screen 
-          name="UploadSprayWallScreen" 
-          component={UploadSprayWallScreen}
-          options={{ title: 'העלאת קיר ספריי חדש' }}
+          name="SprayWall" 
+          component={SprayNavigator}
+          options={{ headerShown: false }}
         />
       </Stack.Navigator>
     </NavigationContainer>
@@ -168,12 +161,14 @@ export default function App() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <UserProvider isAdmin={isAdmin}>
-          <ThemedNavigator isAdmin={isAdmin} />
-        </UserProvider>
-      </ThemeProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <ThemeProvider>
+          <UserProvider isAdmin={isAdmin}>
+            <ThemedNavigator isAdmin={isAdmin} />
+          </UserProvider>
+        </ThemeProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

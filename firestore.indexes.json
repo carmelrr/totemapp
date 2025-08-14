@@ -1,33 +1,4 @@
 {
-  "indexes": [
-    {
-      "collectionGroup": "sprayWalls",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "isActive",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    },
-    {
-      "collectionGroup": "sprayRoutes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "sprayWallId",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "createdAt",
-          "order": "DESCENDING"
-        }
-      ]
-    }
-  ],
+  "indexes": [],
   "fieldOverrides": []
 }

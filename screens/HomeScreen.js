@@ -83,13 +83,13 @@ export default function HomeScreen() {
       </TouchableOpacity>
 
       <TouchableOpacity 
-        style={[styles.button, { backgroundColor: '#E91E63' }]} 
-        onPress={() => handleNavigation('SprayWallScreen')}
+        style={[styles.button, { backgroundColor: '#8E4EC6' }]} 
+        onPress={() => handleNavigation('SprayWall')}
         activeOpacity={0.7}
         delayPressIn={0}
         delayPressOut={100}
       >
-        <Text style={styles.buttonText}>ספריי וול 🎯</Text>
+        <Text style={styles.buttonText}>Spray Wall 🧗‍♂️</Text>
       </TouchableOpacity>
     </View>
   );
