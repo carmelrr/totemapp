@@ -12,7 +12,6 @@
 - ✅ הוספת כפתור להסרת תמונת פרופיל
 - ✅ שמות קבצים ייחודיים: `profile_{userId}_{timestamp}.jpg`
 - ✅ נתיב אחסון: `users/{userId}/profile/{fileName}`
-
 ### 2. תמונות קירות ספריי (Spray Wall Images)
 **קובץ:** `services/sprayWallService.js`
 
