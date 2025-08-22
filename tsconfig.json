@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": { "@/*": ["src/*"] },
+    "allowJs": true,
+    "checkJs": false,
+    "skipLibCheck": true
+  },
+  "extends": "expo/tsconfig.base",
+  "include": ["**/*"]
+}
