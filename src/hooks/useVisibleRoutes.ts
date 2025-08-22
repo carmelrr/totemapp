@@ -1,6 +1,6 @@
 
 import { useMemo } from 'react';
-import { isRouteVisibleOnScreen } from '../utils/mapUtils';
+import { isRouteVisibleOnScreen } from '@/utils/'mapUtils';
 
 export default function useVisibleRoutes(routes, scale, translateX, translateY, mapWidth, mapHeight, circleRadius = 15) {
   return useMemo(() => {

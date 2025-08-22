@@ -1,7 +1,7 @@
 // components/ui/FloatingPanel.tsx
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
-import { THEME_COLORS } from '../../constants/colors';
+import { THEME_COLORS } from '@/constants/colors';
 
 interface FloatingPanelProps {
   children: React.ReactNode;

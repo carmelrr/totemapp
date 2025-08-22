@@ -2,7 +2,7 @@ import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
 import * as Google from 'expo-auth-session/providers/google';
 import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-import { auth } from './firebase-config';
+import { auth } from '@/features/data/firebase';
 import Constants from 'expo-constants';
 
 export default function GoogleLoginButton() {

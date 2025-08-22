@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { auth, db } from '../firebase-config';
+import { auth, db } from '@/features/data/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
 export const checkIsAdmin = async () => {

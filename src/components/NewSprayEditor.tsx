@@ -1,11 +1,11 @@
 // src/components/NewSprayEditor.tsx
 import React, { useRef, useEffect } from 'react';
 import { View, StyleSheet, Dimensions, PanResponder } from 'react-native';
-import { useNewSprayEditor } from '../hooks/useNewSprayEditor';
+import { useNewSprayEditor } from '@/hooks/'useNewSprayEditor';
 import { BottomToolbar } from './ui/BottomToolbar';
 import { FloatingPanel } from './ui/FloatingPanel';
 import { ToolButton } from './ui/ToolButton';
-import { ROLE_ORDER, HOLD_ROLE_CONFIG } from '../constants/roles';
+import { ROLE_ORDER, HOLD_ROLE_CONFIG } from '@/constants/'roles';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 

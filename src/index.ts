@@ -1,12 +1,12 @@
 // src/index.ts - מרכז ייצואים לארכיטקטורה החדשה
 
 // ===== SCREENS =====
-export { SprayWallScreen } from './screens/SprayWall/SprayWallScreen';
-export { AddOrReplaceWallScreen } from './screens/SprayWall/AddOrReplaceWallScreen';
-export { CropAndRectifyScreen } from './screens/SprayWall/CropAndRectifyScreen';
-export { GridAlignScreen } from './screens/SprayWall/GridAlignScreen';
-export { NewRouteScreen } from './screens/Routes/NewRouteScreen';
-export { NewSprayEditorDemoScreen } from './screens/SprayWall/NewSprayEditorDemoScreen';
+export { SprayWallScreen } from '@/screens/SprayWall/SprayWallScreen';
+export { AddOrReplaceWallScreen } from '@/screens/SprayWall/AddOrReplaceWallScreen';
+export { CropAndRectifyScreen } from '@/screens/SprayWall/CropAndRectifyScreen';
+export { GridAlignScreen } from '@/screens/SprayWall/GridAlignScreen';
+export { NewRouteScreen } from '@/screens/Routes/NewRouteScreen';
+export { NewSprayEditorDemoScreen } from '@/screens/SprayWall/NewSprayEditorDemoScreen';
 
 // ===== COMPONENTS =====
 export { NewSprayEditor } from './components/NewSprayEditor';

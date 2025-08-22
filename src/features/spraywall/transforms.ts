@@ -1,7 +1,7 @@
 // features/spraywall/transforms.ts
 import { Vec2, Transform } from './types';
-import { screenToCanonical, canonicalToScreen } from '../../utils/matrix';
-import { isPointInCircle, getScreenConstantRadius } from '../../utils/geometry';
+import { screenToCanonical, canonicalToScreen } from '@/utils/matrix';
+import { isPointInCircle, getScreenConstantRadius } from '@/utils/geometry';
 import { Hold } from '../routes/types';
 
 // ניהול Pan/Zoom למסך מגע

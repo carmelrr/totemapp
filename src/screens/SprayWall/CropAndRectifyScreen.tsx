@@ -11,8 +11,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PanGestureHandler, PinchGestureHandler } from 'react-native-gesture-handler';
-import { createRectifyHomography } from '../../features/image/homography';
-import { THEME_COLORS } from '../../constants/colors';
+import { createRectifyHomography } from '@/features/image/homography';
+import { THEME_COLORS } from '@/constants/colors';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 

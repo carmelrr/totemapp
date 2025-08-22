@@ -11,8 +11,8 @@ import Animated, {
   useAnimatedReaction,
   runOnUI
 } from 'react-native-reanimated';
-import { getDisplayGrade } from '../routesService';
-import { useUser } from '../context/UserContext';
+import { getDisplayGrade } from '@/features/routes/routesService';
+import { useUser } from '@/features/auth/UserContext';
 
 const ORIGINAL_MAP_WIDTH = 2560;
 const ORIGINAL_MAP_HEIGHT = 1600;

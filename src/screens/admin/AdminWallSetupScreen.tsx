@@ -18,7 +18,7 @@ import Animated, {
   withSpring,
   runOnJS,
 } from 'react-native-reanimated';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 

@@ -12,16 +12,16 @@ import Animated, {
   useAnimatedReaction,
   Easing,
 } from 'react-native-reanimated';
-import WallMapSVG from '../assets/WallMapSVG';
+import WallMapSVG from '@/assets/'WallMapSVG';
 import Slider from '@react-native-community/slider';
 
 import RouteCircle from './RouteCircle';
 import EditRouteModal from './EditRouteModal';
 import RouteDialog from './RouteDialog';
-import { subscribeToRoutes, addRoute, deleteRoute, updateRoute } from '../routesService';
-import { useUser } from '../context/UserContext';
-import { useTheme } from '../context/ThemeContext';
-import { toRelativeCoords } from '../utils/mapUtils';
+import { subscribeToRoutes, addRoute, deleteRoute, updateRoute } from '@/features/routes/routesService';
+import { useUser } from '@/features/auth/UserContext';
+import { useTheme } from '@/features/theme/ThemeContext';
+import { toRelativeCoords } from '@/utils/'mapUtils';
 
 const window = Dimensions.get('window');
 const MAP_WIDTH = window.width;

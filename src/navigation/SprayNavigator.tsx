@@ -1,9 +1,9 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import SprayWallHomeScreen from '../screens/spray/SprayWallHomeScreen';
-import SprayResetScreen from '../screens/spray/SprayResetScreen';
-import SprayEditorScreen from '../screens/spray/SprayEditorScreen';
-import SprayLeaderboardScreen from '../screens/spray/SprayLeaderboardScreen';
+import SprayWallHomeScreen from '@/screens/spray/SprayWallHomeScreen';
+import SprayResetScreen from '@/screens/spray/SprayResetScreen';
+import SprayEditorScreen from '@/screens/spray/SprayEditorScreen';
+import SprayLeaderboardScreen from '@/screens/spray/SprayLeaderboardScreen';
 
 const Stack = createNativeStackNavigator();
 

@@ -3,7 +3,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ToolButton } from './ToolButton';
-import { THEME_COLORS } from '../../constants/colors';
+import { THEME_COLORS } from '@/constants/colors';
 
 interface BottomToolbarProps {
   selectedTool: string;

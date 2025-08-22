@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator, Alert, ScrollView, RefreshControl, Dimensions, Modal, Switch } from 'react-native';
-import { auth, db } from '../firebase-config';
+import { auth, db } from '@/features/data/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { followUser, unfollowUser, getUserFollowers, getUserFollowing } from '../services/socialService';
-import defaultAvatar from '../assets/default-avatar.png';
-import { useTheme } from '../context/ThemeContext';
+import { followUser, unfollowUser, getUserFollowers, getUserFollowing } from '@/features/social/socialService';
+import defaultAvatar from '@/assets/'default-avatar.png';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 

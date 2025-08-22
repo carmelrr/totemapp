@@ -11,9 +11,9 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import Simple4x3Viewer from '../../components/spray/Simple4x3Viewer';
-import { sprayApi } from '../../services/spray/sprayApi';
-import { checkIsAdmin } from '../../utils/permissions';
+import Simple4x3Viewer from '@/components/spray/Simple4x3Viewer';
+import { sprayApi } from '@/features/spraywall/sprayApi';
+import { checkIsAdmin } from '@/features/auth/permissions';
 
 const SprayResetScreen = ({ navigation, route }) => {
   const { wallId, currentSeason } = route.params;

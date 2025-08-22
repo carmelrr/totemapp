@@ -2,7 +2,7 @@
 import React from 'react';
 import { StyleSheet, Dimensions } from 'react-native';
 import Animated from 'react-native-reanimated';
-import WallMapSVG from '../assets/WallMapSVG';
+import WallMapSVG from '@/assets/'WallMapSVG';
 
 const window = Dimensions.get('window');
 const MAP_WIDTH = window.width;

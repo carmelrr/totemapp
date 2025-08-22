@@ -10,10 +10,10 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { pickImage, PickImageResult } from '../../features/image/picker';
-import { fixImageOrientation } from '../../features/image/exif';
-import { resizeImage } from '../../features/image/resize';
-import { THEME_COLORS } from '../../constants/colors';
+import { pickImage, PickImageResult } from '@/features/image/picker';
+import { fixImageOrientation } from '@/features/image/exif';
+import { resizeImage } from '@/features/image/resize';
+import { THEME_COLORS } from '@/constants/colors';
 
 interface AddOrReplaceWallScreenProps {
   navigation: any;

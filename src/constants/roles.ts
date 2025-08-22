@@ -1,5 +1,5 @@
 // constants/roles.ts
-import { HoldRole } from '../features/routes/types';
+import { HoldRole } from '@/features/'routes/types';
 import { HOLD_COLORS } from './colors';
 
 export const HOLD_ROLE_CONFIG = {

@@ -10,7 +10,7 @@ import {
   Alert,
   Dimensions
 } from 'react-native';
-import { auth } from '../firebase-config';
+import { auth } from '@/features/data/firebase';
 import { 
   addFeedbackToRoute, 
   subscribeFeedbacksForRoute, 
@@ -18,8 +18,8 @@ import {
   updateFeedback,
   getUserFeedbackForRoute,
   calculateSmartAverageGrade
-} from '../routesService';
-import { useUser } from '../context/UserContext';
+} from '@/features/routes/routesService';
+import { useUser } from '@/features/auth/UserContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 

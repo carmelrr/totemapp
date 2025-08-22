@@ -1,6 +1,6 @@
 // features/image/homography.ts
 import { Vec2, Homography } from '../spraywall/types';
-import { Matrix3x3, invertMatrix3x3, transformPoint } from '../../utils/matrix';
+import { Matrix3x3, invertMatrix3x3, transformPoint } from '@/utils/matrix';
 
 // חישוב הומוגרפיה בין 4 נקודות מקור ל-4 נקודות יעד
 export function computeHomography(src: Vec2[], dst: Vec2[]): Homography {

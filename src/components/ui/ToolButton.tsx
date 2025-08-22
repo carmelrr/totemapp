@@ -1,7 +1,7 @@
 // components/ui/ToolButton.tsx
 import React from 'react';
 import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { THEME_COLORS } from '../../constants/colors';
+import { THEME_COLORS } from '@/constants/colors';
 
 interface ToolButtonProps {
   title: string;

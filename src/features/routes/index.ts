@@ -1,2 +1,2 @@
 // src/features/routes/index.ts
-export * from './routesService';
+export * from '@/features/routes/routesService';

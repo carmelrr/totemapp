@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl } from 'react-native';
 import RouteDialog from './RouteDialog';
-import { getDisplayGrade, getDisplayStarRating, getCompletionCount } from '../routesService';
+import { getDisplayGrade, getDisplayStarRating, getCompletionCount } from '@/features/routes/routesService';
 
 export default function RouteList({ routes, refreshing, onRefresh, onRouteSelect, isEditMode = false, editingRoute = null }) {
   const [selectedRoute, setSelectedRoute] = useState(null);

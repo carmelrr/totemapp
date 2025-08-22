@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 export default function HoldsLegend() {
   const { theme } = useTheme();

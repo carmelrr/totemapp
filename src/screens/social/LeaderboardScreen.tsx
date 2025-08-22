@@ -12,10 +12,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, RefreshControl, Dimensions, ScrollView } from 'react-native';
-import { auth, db } from '../firebase-config';
+import { auth, db } from '@/features/data/firebase';
 import { collection, getDocs, query, where } from 'firebase/firestore';
-import defaultAvatar from '../assets/default-avatar.png';
-import { useTheme } from '../context/ThemeContext';
+import defaultAvatar from '@/assets/'default-avatar.png';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 

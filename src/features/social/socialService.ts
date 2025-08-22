@@ -1,4 +1,4 @@
-import { db, auth } from '../firebase-config';
+import { db, auth } from '@/features/data/firebase';
 import { collection, doc, getDoc, setDoc, updateDoc, deleteDoc, query, where, getDocs, arrayUnion, arrayRemove, onSnapshot, addDoc, orderBy, limit } from 'firebase/firestore';
 
 // Follow/Unfollow users

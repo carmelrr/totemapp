@@ -20,7 +20,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { signOut, updateProfile } from 'firebase/auth';
 import { useNavigation } from '@react-navigation/native';
-import { auth, db, storage } from '../firebase-config';
+import { auth, db, storage } from '@/features/data/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { getDownloadURL, ref, uploadBytes, deleteObject } from 'firebase/storage';
 import { 
@@ -28,17 +28,17 @@ import {
   updateUserProfile, 
   getUserProfile, 
   migrateFeedbacksWithDisplayName 
-} from '../routesService';
+} from '@/features/routes/routesService';
 import { 
   searchUsers, 
   followUser, 
   unfollowUser, 
   getUserFollowers, 
   getUserFollowing
-} from '../services/socialService';
-import { useUser } from '../context/UserContext';
-import { useTheme } from '../context/ThemeContext';
-import defaultAvatar from '../assets/default-avatar.png';
+} from '@/features/social/socialService';
+import { useUser } from '@/features/auth/UserContext';
+import { useTheme } from '@/features/theme/ThemeContext';
+import defaultAvatar from '@/assets/'default-avatar.png';
 
 const { width: screenWidth } = Dimensions.get('window');
 

@@ -1,11 +1,11 @@
 // src/hooks/useNewSprayEditor.ts
 import { useState, useCallback, useRef } from 'react';
-import { useRouteStore } from '../features/routes/store';
-import { useSprayWallStore } from '../features/spraywall/store';
-import { CanvasTransform } from '../features/spraywall/transforms';
-import { HoldRole, Hold } from '../features/routes/types';
-import { HOLD_ROLE_CONFIG } from '../constants/roles';
-import { validateHold } from '../features/routes/validators';
+import { useRouteStore } from '@/features/'routes/store';
+import { useSprayWallStore } from '@/features/'spraywall/store';
+import { CanvasTransform } from '@/features/'spraywall/transforms';
+import { HoldRole, Hold } from '@/features/'routes/types';
+import { HOLD_ROLE_CONFIG } from '@/constants/'roles';
+import { validateHold } from '@/features/'routes/validators';
 
 export interface UseNewSprayEditorOptions {
   canvasWidth: number;

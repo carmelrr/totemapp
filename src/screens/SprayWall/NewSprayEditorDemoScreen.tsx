@@ -2,8 +2,8 @@
 import React from 'react';
 import { View, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { NewSprayEditor } from '../../components/NewSprayEditor';
-import { THEME_COLORS } from '../../constants/colors';
+import { NewSprayEditor } from '@/components/NewSprayEditor';
+import { THEME_COLORS } from '@/constants/colors';
 
 interface NewSprayEditorDemoScreenProps {
   navigation: any;

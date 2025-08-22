@@ -2,11 +2,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StyleSheet, Dimensions, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { BottomToolbar } from '../../components/ui/BottomToolbar';
-import { FloatingPanel } from '../../components/ui/FloatingPanel';
-import { ToolButton } from '../../components/ui/ToolButton';
-import { THEME_COLORS } from '../../constants/colors';
-import { screenToCanonical, canonicalToScreen } from '../../utils/matrix';
+import { BottomToolbar } from '@/components/ui/BottomToolbar';
+import { FloatingPanel } from '@/components/ui/FloatingPanel';
+import { ToolButton } from '@/components/ui/ToolButton';
+import { THEME_COLORS } from '@/constants/colors';
+import { screenToCanonical, canonicalToScreen } from '@/utils/matrix';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 

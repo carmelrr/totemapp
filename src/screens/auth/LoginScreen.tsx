@@ -12,9 +12,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { auth } from '../firebase-config';
-import GoogleLoginButton from '../GoogleAuth';
-import { useTheme } from '../context/ThemeContext';
+import { auth } from '@/features/data/firebase';
+import GoogleLoginButton from '@/features/auth/GoogleAuth';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 const createStyles = (theme) => StyleSheet.create({
   container: {

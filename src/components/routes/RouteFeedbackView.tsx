@@ -15,7 +15,7 @@ import {
   KeyboardAvoidingView,
   Platform
 } from 'react-native';
-import { auth } from '../firebase-config';
+import { auth } from '@/features/data/firebase';
 import { 
   addFeedbackToRoute, 
   subscribeFeedbacksForRoute, 
@@ -27,9 +27,9 @@ import {
   getDisplayStarRating,
   getCompletionCount,
   migrateFeedbacksWithDisplayName
-} from '../routesService';
-import { searchUsers, tagUsersInFeedback } from '../services/socialService';
-import { useUser } from '../context/UserContext';
+} from '@/features/routes/routesService';
+import { searchUsers, tagUsersInFeedback } from '@/features/social/socialService';
+import { useUser } from '@/features/auth/UserContext';
 
 const { width: screenWidth } = Dimensions.get('window');
 

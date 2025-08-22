@@ -10,15 +10,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSharedValue } from 'react-native-reanimated';
-import ZoomableImage from '../../components/spray/ZoomableImage';
-import HoldRing from '../../components/spray/HoldRing';
-import GlobalHoldEditor from '../../components/spray/GlobalHoldEditor';
-import HoldTypeSelector from '../../components/spray/HoldTypeSelector';
-import Toolbar from '../../components/spray/Toolbar';
-import { useSprayEditor } from '../../state/spray/useSprayEditor';
-import { sprayApi } from '../../services/spray/sprayApi';
-import { validateRouteData, denormalizeHoldPosition } from '../../services/spray/validations';
-import { auth } from '../../firebase-config';
+import ZoomableImage from '@/components/spray/ZoomableImage';
+import HoldRing from '@/components/spray/HoldRing';
+import GlobalHoldEditor from '@/components/spray/GlobalHoldEditor';
+import HoldTypeSelector from '@/components/spray/HoldTypeSelector';
+import Toolbar from '@/components/spray/Toolbar';
+import { useSprayEditor } from '@/features/spraywall/useSprayEditor';
+import { sprayApi } from '@/features/spraywall/sprayApi';
+import { validateRouteData, denormalizeHoldPosition } from '@/features/spraywall/validations';
+import { auth } from '@/features/data/firebase';
 
 const SprayEditorScreen = ({ navigation, route }) => {
   const { wallId, seasonId, season } = route.params;
