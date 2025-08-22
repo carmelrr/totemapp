@@ -1,5 +1,5 @@
 // features/routes/outline.ts
-import { Vec2 } from "../spraywall/types";
+import { Vec2 } from "@/features/spraywall/types";
 import { Hold } from "./types";
 
 // Convex Hull פשוט (Andrew's monotone chain algorithm)

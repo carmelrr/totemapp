@@ -1,14 +1,18 @@
 # FIREBASE MAP - Final Report
+
 Generated: 2025-08-22
 
 ## Firebase Configuration
+
 **Location**: `src/features/data/firebase.ts`
+
 - Consolidated from old `firebase-config.js`
 - Includes app initialization, auth persistence, and exports
 
 ## Collections Structure
 
 ### Primary Collections
+
 1. **routes** - Main climbing routes
    - Access: `src/features/routes/routesService.ts`
    - Operations: CRUD for climbing routes, feedback management
@@ -34,12 +38,14 @@ Generated: 2025-08-22
    - Operations: Star ratings, difficulty suggestions, route closures
 
 ### Authentication
+
 - **Provider**: Firebase Auth with Google OAuth
 - **Implementation**: `src/features/auth/GoogleAuth.tsx`
 - **Context**: `src/features/auth/UserContext.tsx`
 - **Persistence**: React Native AsyncStorage integration
 
 ### Storage
+
 - **Images**: Firebase Storage
 - **Path Structure**:
   - `/spray_walls/{wallId}/seasons/{seasonId}/wall_image.jpg`
@@ -49,24 +55,29 @@ Generated: 2025-08-22
 ## Access Patterns
 
 ### Direct Firebase Access
+
 - `src/features/data/firebase.ts` - Core configuration and wall operations
 - `src/features/routes/routesService.ts` - Route CRUD operations
 - `src/features/spraywall/sprayApi.ts` - Spray wall operations
 - `src/features/social/socialService.ts` - Social features
 
 ### Service Layer
+
 All screens access Firebase through dedicated service layers:
+
 - **Routes**: Through `routesService.ts`
 - **Spray Wall**: Through `sprayApi.ts`
 - **Social**: Through `socialService.ts`
 - **Auth**: Through `UserContext.tsx` and `GoogleAuth.tsx`
 
 ## Real-time Subscriptions
+
 - **Routes**: `subscribeToRoutes()` in routesService
 - **Spray Routes**: `subscribeToSprayRoutes()` in sprayApi
 - **Feedback**: `subscribeFeedbacksForRoute()` in routesService
 
 ## Security
+
 - **Rules**: `firestore.rules`, `storage.rules`
 - **Permissions**: `src/features/auth/permissions.ts`
 - **Role-based Access**: Admin detection and enforcement

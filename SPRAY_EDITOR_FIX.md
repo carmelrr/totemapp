@@ -1,6 +1,7 @@
 # תיקון תצוגת התמונה במסך הוספת מסלול - Spray Editor
 
 ## הבעיה שתוקנה:
+
 - התמונה במסך הוספת מסלול לא הוצגה ביחס 4:3
 - התמונה נחתכה בגלל שימוש ב-`contentFit="cover"`
 - התמונה מילאה את כל השטח הזמין (flex: 1) ללא שמירה על יחס
@@ -8,6 +9,7 @@
 ## השינויים שבוצעו:
 
 ### 1. SprayEditorScreen.js
+
 ```javascript
 // לפני:
 imageContainer: {
@@ -32,6 +34,7 @@ zoomableImage: {
 ```
 
 ### 2. ZoomableImage.js
+
 ```javascript
 // שינוי 1: contentFit
 contentFit="contain" // במקום "cover"

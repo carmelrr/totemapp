@@ -1,13 +1,15 @@
 import * as React from "react";
 import Svg, { Path, Circle, Text } from "react-native-svg";
 
-export default function WallMapSVG({ width, height, routes = [], ...props }) {
+export default function WallMapSVG(props: React.ComponentProps<typeof Svg>) {
+  const { width = '100%', height = undefined, ...rest } = props;
   return (
     <Svg
-      viewBox="0 0 2560 1600"
-      width={props.width}
-      height={props.height}
-      {...props}
+      viewBox="0 0 2560 1600"   // viewBox אמיתי של המפה
+      width={width}             // ✅ להשתמש ב־width/height מתוך ה־destructuring
+      height={height}
+      preserveAspectRatio="xMidYMid meet"
+      {...rest}
     >
       <Path
         fill="#01467D"

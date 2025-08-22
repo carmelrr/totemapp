@@ -1,29 +1,37 @@
 # DEPENDENCY GRAPH - Automated Analysis
+
 Generated: 2025-08-22T09:18:44.034Z
 
 ## Problematic Dependencies
 
 ### Files with Deep Relative Imports
+
 #### state\spray\useSprayWall.js
+
 - `../../services/spray/sprayApi`
 
 #### services\spray\sprayApi.js
+
 - `../../firebase-config`
 
 #### screens\spray\SprayWallHomeScreen.js
+
 - `../../components/spray/SprayHeader`
 - `../../state/spray/useSprayWall`
 - `../../utils/permissions`
 
 #### screens\spray\SprayResetScreen.js
+
 - `../../components/spray/Simple4x3Viewer`
 - `../../services/spray/sprayApi`
 - `../../utils/permissions`
 
 #### screens\spray\SprayLeaderboardScreen.js
+
 - `../../services/spray/sprayApi`
 
 #### screens\spray\SprayEditorScreen.js
+
 - `../../components/spray/ZoomableImage`
 - `../../components/spray/HoldRing`
 - `../../components/spray/GlobalHoldEditor`
@@ -35,19 +43,24 @@ Generated: 2025-08-22T09:18:44.034Z
 - `../../firebase-config`
 
 #### components\spray\SprayHeader.js
+
 - `../../assets/spray/placeholder.jpg`
 
 #### src\features\spraywall\transforms.ts
+
 - `../../utils/matrix`
 - `../../utils/geometry`
 
 #### src\features\image\homography.ts
+
 - `../../utils/matrix`
 
 #### src\features\data\firebase.ts
+
 - `../../../firebase-config`
 
 #### src\screens\SprayWall\SprayWallScreen.tsx
+
 - `../../components/ui/BottomToolbar`
 - `../../components/ui/FloatingPanel`
 - `../../components/ui/ToolButton`
@@ -55,41 +68,49 @@ Generated: 2025-08-22T09:18:44.034Z
 - `../../utils/matrix`
 
 #### src\screens\SprayWall\NewSprayEditorDemoScreen.tsx
+
 - `../../components/NewSprayEditor`
 - `../../constants/colors`
 
 #### src\screens\SprayWall\GridAlignScreen.tsx
+
 - `../../constants/colors`
 
 #### src\screens\SprayWall\CropAndRectifyScreen.tsx
+
 - `../../features/image/homography`
 - `../../constants/colors`
 
 #### src\screens\SprayWall\AddOrReplaceWallScreen.tsx
+
 - `../../features/image/picker`
 - `../../features/image/exif`
 - `../../features/image/resize`
 - `../../constants/colors`
 
 #### src\screens\Routes\NewRouteScreen.tsx
+
 - `../../features/routes/store`
 - `../../constants/colors`
 - `../../constants/roles`
 - `../../features/routes/validators`
 
 #### src\components\ui\ToolButton.tsx
+
 - `../../constants/colors`
 
 #### src\components\ui\FloatingPanel.tsx
+
 - `../../constants/colors`
 
 #### src\components\ui\BottomToolbar.tsx
+
 - `../../constants/colors`
 
-### Cross-Feature Dependencies  
-
+### Cross-Feature Dependencies
 
 ## Full Dependency Graph
+
 ```
 test-firebase-connection.js depends on:
   - ./firebase-config.js

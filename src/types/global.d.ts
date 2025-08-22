@@ -17,3 +17,9 @@ declare module "@env" {
   export const EXPO_PUBLIC_API_BASE: string;
   // add more as needed
 }
+
+declare global {
+  var _WORKLET: boolean | undefined;
+  var _reduceMotion: boolean | undefined;
+  var __isAdmin: boolean | undefined;
+}

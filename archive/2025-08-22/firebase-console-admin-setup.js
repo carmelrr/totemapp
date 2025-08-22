@@ -2,10 +2,10 @@
 // לחץ על "Switch to Console tab" ולחסום את הקוד
 
 // הגדרת מנהל ראשון - להפעלה ב-Firebase Console
-const adminUserId = '3wMPGiXFKmRmLzmU60DV8nLbiXC3'; // החלף עם ה-UID האמיתי שלך
+const adminUserId = "3wMPGiXFKmRmLzmU60DV8nLbiXC3"; // החלף עם ה-UID האמיתי שלך
 const adminData = {
-  email: 'carmel@razroemo.net', // החלף עם המייל שלך
-  displayName: 'CarmelRR', // החלף עם השם שלך
+  email: "carmel@razroemo.net", // החלף עם המייל שלך
+  displayName: "CarmelRR", // החלף עם השם שלך
   isAdmin: true,
   createdAt: firebase.firestore.Timestamp.now(),
   privacy: {
@@ -15,24 +15,28 @@ const adminData = {
     showFeedbackCount: true,
     showAverageRating: true,
     showGradeStats: true,
-    showJoinDate: true
+    showJoinDate: true,
   },
   stats: {
     totalRoutesSent: 0,
     highestGrade: null,
     totalFeedbacks: 0,
-    averageStarRating: 0
-  }
+    averageStarRating: 0,
+  },
 };
 
 // הפעל את הקוד הזה:
-firebase.firestore().collection('users').doc(adminUserId).set(adminData)
+firebase
+  .firestore()
+  .collection("users")
+  .doc(adminUserId)
+  .set(adminData)
   .then(() => {
-    console.log('✅ מנהל ראשון הוגדר בהצלחה!');
-    console.log('עכשיו תוכל להתחבר לאפליקציה עם הרשאות מנהל');
+    console.log("✅ מנהל ראשון הוגדר בהצלחה!");
+    console.log("עכשיו תוכל להתחבר לאפליקציה עם הרשאות מנהל");
   })
   .catch((error) => {
-    console.error('❌ שגיאה בהגדרת המנהל:', error);
+    console.error("❌ שגיאה בהגדרת המנהל:", error);
   });
 
 // הוראות:

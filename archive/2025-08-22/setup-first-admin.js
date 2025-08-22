@@ -1,8 +1,8 @@
 // הגדרת מנהל ראשון - הפעל קוד זה פעם אחת אחרי יצירת המשתמש הראשון
 // קובץ זה לא חלק מהאפליקציה - הוא רק לעזרה בהגדרה ראשונית
 
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, serverTimestamp } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDCClgfCWH9megeAsPydnR9MknrbSV2ToM",
@@ -11,7 +11,7 @@ const firebaseConfig = {
   storageBucket: "totemapp-464009.firebasestorage.app",
   messagingSenderId: "720872675049",
   appId: "1:720872675049:web:410665ffdf49999f07c278",
-  measurementId: "G-2T1NVDPG50"
+  measurementId: "G-2T1NVDPG50",
 };
 
 const app = initializeApp(firebaseConfig);
@@ -19,10 +19,10 @@ const db = getFirestore(app);
 
 // פונקציה להגדרת מנהל ראשון
 async function setupFirstAdmin() {
-  const adminUserId = '3wMPGiXFKmRmLzmU60DV8nLbiXC3'; // החלף עם ה-UID האמיתי שלך
+  const adminUserId = "3wMPGiXFKmRmLzmU60DV8nLbiXC3"; // החלף עם ה-UID האמיתי שלך
   const adminData = {
-    email: 'carmel@razromeo.net', // החלף עם המייל שלך
-    displayName: 'CarmelRR', // החלף עם השם שלך
+    email: "carmel@razromeo.net", // החלף עם המייל שלך
+    displayName: "CarmelRR", // החלף עם השם שלך
     isAdmin: true,
     createdAt: serverTimestamp(),
     privacy: {
@@ -32,22 +32,22 @@ async function setupFirstAdmin() {
       showFeedbackCount: true,
       showAverageRating: true,
       showGradeStats: true,
-      showJoinDate: true
+      showJoinDate: true,
     },
     stats: {
       totalRoutesSent: 0,
       highestGrade: null,
       totalFeedbacks: 0,
-      averageStarRating: 0
-    }
+      averageStarRating: 0,
+    },
   };
 
   try {
-    await setDoc(doc(db, 'users', adminUserId), adminData);
-    console.log('✅ מנהל ראשון הוגדר בהצלחה!');
-    console.log('עכשיו תוכל להתחבר לאפליקציה עם הרשאות מנהל');
+    await setDoc(doc(db, "users", adminUserId), adminData);
+    console.log("✅ מנהל ראשון הוגדר בהצלחה!");
+    console.log("עכשיו תוכל להתחבר לאפליקציה עם הרשאות מנהל");
   } catch (error) {
-    console.error('❌ שגיאה בהגדרת המנהל:', error);
+    console.error("❌ שגיאה בהגדרת המנהל:", error);
   }
 }
 
@@ -58,4 +58,3 @@ async function setupFirstAdmin() {
 
 // אם אתה רוצה להפעיל ישירות:
 setupFirstAdmin();
-

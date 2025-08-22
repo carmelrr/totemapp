@@ -1,17 +1,21 @@
 # מדריך מעבר מהארכיטקטורה הישנה לחדשה
 
 ## סקירה כללית
+
 המדריך הזה מתאר איך לעבור באופן הדרגתי מהקוד הנוכחי לארכיטקטורה החדשה ללא שבירת הפונקציונליות הקיימת.
 
 ## שלב 1: התקנת תלויות חדשות
+
 ```bash
 npm install zustand react-native-gesture-handler @react-native-community/slider expo-media-library expo-sharing
 ```
 
 ## שלב 2: הוספת המבנה החדש במקביל
+
 הארכיטקטורה החדשה נמצאת ב-`src/` והיא עובדת במקביל לקוד הקיים.
 
 ### קבצים חדשים שנוספו:
+
 ```
 src/
 ├── features/
@@ -46,12 +50,13 @@ src/
 ## שלב 3: שימוש במערכת החדשה
 
 ### במקום useSprayEditor הישן:
+
 ```typescript
 // ישן
-import { useSprayEditor } from '../state/spray/useSprayEditor';
+import { useSprayEditor } from "../state/spray/useSprayEditor";
 
 // חדש
-import { useNewSprayEditor } from '../src/hooks/useNewSprayEditor';
+import { useNewSprayEditor } from "../src/hooks/useNewSprayEditor";
 
 const editor = useNewSprayEditor({
   canvasWidth: screenWidth,
@@ -62,39 +67,44 @@ const editor = useNewSprayEditor({
 ```
 
 ### במקום הרכיבים הישנים:
+
 ```typescript
 // ישן
-import { SprayEditorScreen } from '../screens/spray/SprayEditorScreen';
+import { SprayEditorScreen } from "../screens/spray/SprayEditorScreen";
 
 // חדש
-import { NewSprayEditorDemoScreen } from '../src/screens/SprayWall/NewSprayEditorDemoScreen';
+import { NewSprayEditorDemoScreen } from "../src/screens/SprayWall/NewSprayEditorDemoScreen";
 ```
 
 ## שלב 4: מעבר הדרגתי
 
 ### 4.1 התחלה עם דף דמו
+
 הוסף נתיב חדש ב-navigation:
+
 ```typescript
 // RootNavigator.tsx
 import { NewSprayEditorDemoScreen } from './src/screens/SprayWall/NewSprayEditorDemoScreen';
 
 // בתוך Stack.Navigator
-<Stack.Screen 
-  name="NewSprayEditorDemo" 
-  component={NewSprayEditorDemoScreen} 
+<Stack.Screen
+  name="NewSprayEditorDemo"
+  component={NewSprayEditorDemoScreen}
   options={{ title: 'עורך חדש - דמו' }}
 />
 ```
 
 ### 4.2 הוספת כפתור לעורך החדש
+
 במסך הספריי הקיים:
+
 ```typescript
 // SprayWallScreen.js
-<TouchableOpacity 
+<TouchableOpacity
   style={styles.newEditorButton}
-  onPress={() => navigation.navigate('NewSprayEditorDemo', { 
+  onPress={() => navigation.navigate('NewSprayEditorDemo', {
     wallId: currentSprayWall?.id,
-    wallImageUri: currentSprayWall?.imageUrl 
+    wallImageUri: currentSprayWall?.imageUrl
   })}
 >
   <Text>נסה עורך חדש (בטא)</Text>
@@ -102,43 +112,47 @@ import { NewSprayEditorDemoScreen } from './src/screens/SprayWall/NewSprayEditor
 ```
 
 ### 4.3 מעבר מהקובץ הישן לחדש
+
 כאשר אתה מוכן לעבור מסך ספציפי:
 
 1. **העתק את הלוגיקה החשובה**:
+
    ```typescript
    // מ-useSprayEditor.js
    const oldEditor = useSprayEditor();
-   
+
    // ל-useNewSprayEditor.ts
    const newEditor = useNewSprayEditor(options);
    ```
 
 2. **התאם את מבני הנתונים**:
+
    ```typescript
    // ישן
    const hold = {
-     type: 'start',
+     type: "start",
      x: 0.5,
      y: 0.5,
-     r: 0.02
+     r: 0.02,
    };
-   
-   // חדש  
+
+   // חדש
    const hold: Hold = {
      id: generateId(),
-     role: 'start',
+     role: "start",
      x: 0.5,
      y: 0.5,
      size: 0.02,
-     color: HOLD_COLORS.start
+     color: HOLD_COLORS.start,
    };
    ```
 
 3. **עדכן את הפונקציות**:
+
    ```typescript
    // ישן
    addHold(xPx, yPx, imageWidth, imageHeight);
-   
+
    // חדש
    handleCanvasTouch(screenX, screenY); // הכול אוטומטי
    ```
@@ -146,9 +160,10 @@ import { NewSprayEditorDemoScreen } from './src/screens/SprayWall/NewSprayEditor
 ## שלב 5: שילוב עם Firebase הקיים
 
 ### שמירת מסלולים
+
 ```typescript
 // השתמש ב-firebase.ts החדש
-import { saveRoute } from '../src/features/data/firebase';
+import { saveRoute } from "../src/features/data/firebase";
 
 const handleSave = async () => {
   const route: Route = {
@@ -160,12 +175,13 @@ const handleSave = async () => {
     createdAt: Date.now(),
     createdBy: currentUser.uid,
   };
-  
+
   await saveRoute(route);
 };
 ```
 
 ### טעינת נתונים קיימים
+
 ```typescript
 // המרה מפורמט ישן לחדש
 const convertOldHoldToNew = (oldHold: any): Hold => ({
@@ -181,20 +197,23 @@ const convertOldHoldToNew = (oldHold: any): Hold => ({
 ## שלב 6: בדיקות ומעבר מלא
 
 ### 6.1 בדיקת תאימות
+
 ```typescript
 // יצירת טסט להשוואה
 const testCompatibility = () => {
   const oldData = useSprayEditor();
   const newData = useNewSprayEditor(options);
-  
+
   // השווה תוצאות
-  console.log('Old holds:', oldData.holds);
-  console.log('New holds:', newData.route.holds);
+  console.log("Old holds:", oldData.holds);
+  console.log("New holds:", newData.route.holds);
 };
 ```
 
 ### 6.2 מעבר מלא
+
 כאשר הכל עובד:
+
 1. החלף את הייבוא בכל הקבצים
 2. עדכן את ה-navigation
 3. מחק את הקבצים הישנים בזהירות
@@ -202,22 +221,26 @@ const testCompatibility = () => {
 ## שלב 7: ניקיון
 
 ### קבצים שניתן למחוק בסופו של דבר:
+
 - `state/spray/useSprayEditor.js`
 - `screens/spray/SprayEditorScreen.js` (אם הוחלף)
 - רכיבים ישנים שלא בשימוש
 
 ### קבצים שכדאי לשמור:
+
 - `services/sprayWallService.js` (עד שה-firebase החדש יהיה מוכן לחלוטין)
 - נתוני Firebase קיימים
 
 ## טיפים למעבר
 
 ### 1. עבוד בשכבות
+
 - תחילה הוסף את המבנה החדש
 - ואז החלף מסך אחד בכל פעם
 - בדוק שהכל עובד לפני מעבר למסך הבא
 
 ### 2. שמור על תאימות לאחור
+
 ```typescript
 // פונקציה שעובדת עם שני הפורמטים
 const getHolds = (data: any) => {
@@ -225,30 +248,35 @@ const getHolds = (data: any) => {
   if (data.holds && Array.isArray(data.holds)) {
     return data.holds.map(convertOldHoldToNew);
   }
-  
+
   // אם זה פורמט חדש
   return data.route?.holds || [];
 };
 ```
 
 ### 3. הוסף לוגים
+
 ```typescript
-console.log('Using new spray editor architecture');
+console.log("Using new spray editor architecture");
 ```
 
 ### 4. בדוק ביצועים
+
 השווה ביצועים בין הגרסה הישנה והחדשה, במיוחד עם הרבה אחיזות.
 
 ## פתרון בעיות נפוצות
 
 ### 1. בעיות imports
+
 אם יש שגיאות import:
+
 ```typescript
 // וודא שהנתיבים נכונים
-import { useNewSprayEditor } from '../../src/hooks/useNewSprayEditor';
+import { useNewSprayEditor } from "../../src/hooks/useNewSprayEditor";
 ```
 
 ### 2. בעיות טיפוסים
+
 ```typescript
 // הוסף any זמנית אם נדרש
 const holdData: any = oldHoldData;
@@ -256,10 +284,11 @@ const newHold: Hold = convertHold(holdData);
 ```
 
 ### 3. בעיות state
+
 ```typescript
 // וודא שה-stores מאותחלים
 useEffect(() => {
-  routeStore.setRoute({ wallId: 'test' });
+  routeStore.setRoute({ wallId: "test" });
 }, []);
 ```
 

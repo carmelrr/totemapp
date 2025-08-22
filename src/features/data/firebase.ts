@@ -45,7 +45,7 @@ let auth;
 try {
   // Check if we're in React Native environment
   const isReactNative =
-    typeof navigator !== "undefined" && navigator.product === "ReactNative";
+    typeof globalThis.navigator !== "undefined" && (globalThis.navigator as any).product === "ReactNative";
 
   if (isReactNative) {
     // Import React Native specific modules dynamically
@@ -77,8 +77,8 @@ const storage = getStorage(app);
 // Export configured instances
 export { auth, db, storage };
 
-import { Wall } from "../spraywall/types";
-import { Route } from "../routes/types";
+import { Wall } from "@/features/spraywall/types";
+import { Route } from "@/features/routes/types";
 
 // ===== WALL MANAGEMENT =====
 

@@ -1,15 +1,23 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import SprayWallHomeScreen from "@/screens/spray/SprayWallHomeScreen";
-import SprayResetScreen from "@/screens/spray/SprayResetScreen";
-import SprayEditorScreen from "@/screens/spray/SprayEditorScreen";
-import SprayLeaderboardScreen from "@/screens/spray/SprayLeaderboardScreen";
+import SprayWallHomeScreen from "@/screens/SprayWall/SprayWallHomeScreen";
+import SprayResetScreen from "@/screens/SprayWall/SprayResetScreen";
+import SprayEditorScreen from "@/screens/SprayWall/SprayEditorScreen";
+import SprayLeaderboardScreen from "@/screens/SprayWall/SprayLeaderboardScreen";
 
-const Stack = createNativeStackNavigator();
+type SprayStackParamList = {
+  SprayWallHome: undefined;
+  SprayReset: undefined;
+  SprayEditor: undefined;
+  SprayLeaderboard: undefined;
+};
+
+const Stack = createNativeStackNavigator<SprayStackParamList>();
 
 const SprayNavigator = () => {
   return (
     <Stack.Navigator
+      id={undefined}
       screenOptions={{
         headerShown: false,
       }}

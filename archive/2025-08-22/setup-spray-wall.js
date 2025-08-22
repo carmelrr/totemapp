@@ -10,21 +10,23 @@ const setupSprayWall = async () => {
     angle: 35,
     currentSeasonId: null,
     createdAt: new Date(),
-    updatedAt: new Date()
+    updatedAt: new Date(),
   };
-  
+
   // This should be created manually in Firebase console:
   // Collection: sprayWalls
   // Document ID: totem-35
   // Data: sprayWallData
-  
-  console.log('Create this document in Firebase Console:');
-  console.log('Collection: sprayWalls');
-  console.log('Document ID: totem-35');
-  console.log('Data:', JSON.stringify(sprayWallData, null, 2));
-  
+
+  console.log("Create this document in Firebase Console:");
+  console.log("Collection: sprayWalls");
+  console.log("Document ID: totem-35");
+  console.log("Data:", JSON.stringify(sprayWallData, null, 2));
+
   // Also ensure you have an admin user
-  console.log('\nEnsure you have an admin user with role: "admin" in users collection');
+  console.log(
+    '\nEnsure you have an admin user with role: "admin" in users collection',
+  );
 };
 
 setupSprayWall();

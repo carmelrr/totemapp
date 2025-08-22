@@ -1,6 +1,6 @@
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, getDoc } from 'firebase/firestore';
-import { getAuth } from 'firebase/auth';
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, getDoc } from "firebase/firestore";
+import { getAuth } from "firebase/auth";
 
 // Import your Firebase config
 const firebaseConfig = {
@@ -13,51 +13,54 @@ const auth = getAuth(app);
 
 async function setupSprayWall() {
   try {
-    console.log('Setting up Spray Wall...');
-    
+    console.log("Setting up Spray Wall...");
+
     // 1. Create spray wall document
     const sprayWallData = {
       name: "Totem Spray 35°",
       angle: 35,
       currentSeasonId: null,
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
-    
-    await setDoc(doc(db, 'sprayWalls', 'totem-35'), sprayWallData);
-    console.log('✅ Spray wall document created');
-    
+
+    await setDoc(doc(db, "sprayWalls", "totem-35"), sprayWallData);
+    console.log("✅ Spray wall document created");
+
     // 2. Check current user and make admin
     const user = auth.currentUser;
     if (user) {
-      const userRef = doc(db, 'users', user.uid);
+      const userRef = doc(db, "users", user.uid);
       const userDoc = await getDoc(userRef);
-      
+
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        await setDoc(userRef, {
-          ...userData,
-          role: 'admin'
-        }, { merge: true });
+        await setDoc(
+          userRef,
+          {
+            ...userData,
+            role: "admin",
+          },
+          { merge: true },
+        );
         console.log(`✅ User ${user.email} is now admin`);
       } else {
         // Create user document
         await setDoc(userRef, {
-          role: 'admin',
+          role: "admin",
           email: user.email,
           displayName: user.displayName || user.email,
-          createdAt: new Date()
+          createdAt: new Date(),
         });
         console.log(`✅ Created admin user: ${user.email}`);
       }
     } else {
-      console.log('❌ No user logged in. Please login first.');
+      console.log("❌ No user logged in. Please login first.");
     }
-    
-    console.log('🎉 Setup complete!');
-    
+
+    console.log("🎉 Setup complete!");
   } catch (error) {
-    console.error('❌ Setup failed:', error);
+    console.error("❌ Setup failed:", error);
   }
 }
 

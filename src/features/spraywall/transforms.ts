@@ -2,7 +2,7 @@
 import { Vec2, Transform } from "./types";
 import { screenToCanonical, canonicalToScreen } from "@/utils/matrix";
 import { isPointInCircle, getScreenConstantRadius } from "@/utils/geometry";
-import { Hold } from "../routes/types";
+import { Hold } from "@/features/routes/types";
 
 // ניהול Pan/Zoom למסך מגע
 export class CanvasTransform {

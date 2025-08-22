@@ -1,14 +1,18 @@
 # FINAL MOVE PLAN - Automated Implementation
+
 Generated: 2025-08-22
 
 ## Core App Structure Moves
+
 - `App.js` → Keep at root (entry point)
 - `firebase-config.js` → `src/features/data/firebase.ts`
 - `routesService.js` → `src/features/routes/routesService.ts`
 - `GoogleAuth.js` → `src/features/auth/GoogleAuth.tsx`
 
 ## Screen Reorganization
+
 ### Main Screens
+
 - `screens/HomeScreen.js` → `src/screens/HomeScreen.tsx`
 - `screens/LoginScreen.js` → `src/screens/auth/LoginScreen.tsx`
 - `screens/ProfileScreen.js` → `src/screens/profile/ProfileScreen.tsx`
@@ -22,17 +26,21 @@ Generated: 2025-08-22
 - `screens/AdminWallSetupScreen.js` → `src/screens/admin/AdminWallSetupScreen.tsx`
 
 ### Spray Wall Screens
+
 - `screens/spray/SprayWallHomeScreen.js` → `src/screens/SprayWall/SprayWallHomeScreen.tsx`
 - `screens/spray/SprayEditorScreen.js` → `src/screens/SprayWall/SprayEditorScreen.tsx`
 - `screens/spray/SprayLeaderboardScreen.js` → `src/screens/SprayWall/SprayLeaderboardScreen.tsx`
 - `screens/spray/SprayResetScreen.js` → `src/screens/SprayWall/SprayResetScreen.tsx`
 
 ## Component Reorganization
+
 ### Core Components
+
 - `components/ErrorBoundary.js` → `src/components/ui/ErrorBoundary.tsx`
 - `components/DimOverlay.js` → `src/components/ui/DimOverlay.tsx`
 
 ### Route-Related Components
+
 - `components/AddRouteModal.js` → `src/components/routes/AddRouteModal.tsx`
 - `components/EditRouteModal.js` → `src/components/routes/EditRouteModal.tsx`
 - `components/RouteDialog.js` → `src/components/routes/RouteDialog.tsx`
@@ -45,15 +53,18 @@ Generated: 2025-08-22
 - `components/HoldsLegend.js` → `src/components/routes/HoldsLegend.tsx`
 
 ### Canvas/Map Components
+
 - `components/WallMap.js` → `src/components/canvas/WallMap.tsx`
 - `components/MapBackground.js` → `src/components/canvas/MapBackground.tsx`
 - `components/EditMapManager.js` → `src/components/canvas/EditMapManager.tsx`
 
 ### Image Processing Components
+
 - `components/FlexibleCropper.js` → `src/components/image/FlexibleCropper.tsx`
 - `components/SimpleImageCropper.js` → `src/components/image/SimpleImageCropper.tsx`
 
 ### Spray Wall Components
+
 - `components/spray/SprayHeader.js` → `src/components/spray/SprayHeader.tsx`
 - `components/spray/ZoomableImage.js` → `src/components/spray/ZoomableImage.tsx`
 - `components/spray/Toolbar.js` → `src/components/spray/Toolbar.tsx`
@@ -65,18 +76,22 @@ Generated: 2025-08-22
 - `components/spray/Simple4x3Viewer.js` → `src/components/spray/Simple4x3Viewer.tsx`
 
 ### UI Components
+
 - `components/FilterSortModal.js` → `src/components/ui/FilterSortModal.tsx`
 
 ## Context & Hooks Reorganization
+
 - `context/UserContext.js` → `src/features/auth/UserContext.tsx`
 - `context/ThemeContext.js` → `src/features/theme/ThemeContext.tsx`
 - `hooks/MapTransformState.js` → `src/hooks/MapTransformState.ts`
 - `hooks/useVisibleRoutes.js` → `src/hooks/useVisibleRoutes.ts`
 
 ## Navigation
+
 - `navigation/SprayNavigator.js` → `src/navigation/SprayNavigator.tsx`
 
 ## Services & State
+
 - `services/socialService.js` → `src/features/social/socialService.ts`
 - `services/spray/sprayApi.js` → `src/features/spraywall/sprayApi.ts`
 - `services/spray/validations.js` → `src/features/spraywall/validations.ts`
@@ -84,10 +99,12 @@ Generated: 2025-08-22
 - `state/spray/useSprayEditor.js` → `src/features/spraywall/useSprayEditor.ts`
 
 ## Utilities
+
 - `utils/permissions.js` → `src/features/auth/permissions.ts`
 - `utils/mapUtils.js` → `src/utils/mapUtils.ts`
 
 ## Assets
+
 - `assets/WallMapSVG.js` → `src/assets/WallMapSVG.tsx`
 - `assets/spray/placeholder.jpg` → `src/assets/spray/placeholder.jpg`
 - `assets/default-avatar.png` → `src/assets/default-avatar.png`
@@ -96,7 +113,9 @@ Generated: 2025-08-22
 - `assets/splash.png` → `src/assets/splash.png`
 
 ## Archive Legacy/Unused Files
+
 ### Setup Scripts (to archive/2025-08-22/)
+
 - `setup-firebase-spray.js` → `archive/2025-08-22/setup-firebase-spray.js`
 - `setup-first-admin.js` → `archive/2025-08-22/setup-first-admin.js`
 - `setup-first-admin-with-auth.js` → `archive/2025-08-22/setup-first-admin-with-auth.js`
@@ -105,16 +124,20 @@ Generated: 2025-08-22
 - `firebase-setup-spray.js` → `archive/2025-08-22/firebase-setup-spray.js`
 
 ### Test Scripts (to archive/2025-08-22/)
+
 - `test-firebase-connection.js` → `archive/2025-08-22/test-firebase-connection.js`
 - `test-cropper-deps.js` → `archive/2025-08-22/test-cropper-deps.js`
 
 ### Discovery Script (temporary)
+
 - `discovery-script.js` → DELETE (temporary analysis tool)
 
 ## Duplication Resolution
+
 No duplicates detected in current analysis. All files are unique.
 
 ## Barrel Files to Create
+
 - `src/components/index.ts` (re-export all component categories)
 - `src/components/spray/index.ts`
 - `src/components/routes/index.ts`
@@ -132,12 +155,16 @@ No duplicates detected in current analysis. All files are unique.
 - `src/utils/index.ts`
 
 ## Import Fixes Needed
+
 Files with deep relative imports that need path alias conversion:
+
 - `state/spray/useSprayWall.js` → Update to `@/features/spraywall/sprayApi`
 - `services/spray/sprayApi.js` → Update to `@/features/data/firebase`
 - All screen files → Update to `@/components/*`, `@/features/*`
 - All component files → Update cross-component imports to `@/components/*`
 
 ## Total Files to Move: 81
+
 ## Total Archive Files: 8
+
 ## Files to Delete: 1 (discovery-script.js)

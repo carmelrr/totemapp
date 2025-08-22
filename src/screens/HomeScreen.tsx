@@ -36,7 +36,7 @@ const createStyles = (theme) =>
   });
 
 export default function HomeScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<any>();
   const { theme } = useTheme();
   const styles = createStyles(theme);
 
@@ -61,6 +61,16 @@ export default function HomeScreen() {
         delayPressOut={100}
       >
         <Text style={styles.buttonText}>מפת הקיר 🧗</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: "#22c55e" }]}
+        onPress={() => handleNavigation("RoutesMap")}
+        activeOpacity={0.7}
+        delayPressIn={0}
+        delayPressOut={100}
+      >
+        <Text style={styles.buttonText}>Routes Map (New) 🗺️</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
