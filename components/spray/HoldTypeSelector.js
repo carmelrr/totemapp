@@ -10,6 +10,26 @@ const HOLD_TYPES = [
 const HoldTypeSelector = ({ selectedType, onTypeSelect }) => {
   return (
     <View style={styles.container}>
+      {/* Clear selection button */}
+      <TouchableOpacity
+        style={[
+          styles.typeButton,
+          styles.clearButton,
+          {
+            backgroundColor: !selectedType ? '#666' : 'transparent',
+            borderColor: '#666',
+          }
+        ]}
+        onPress={() => onTypeSelect(null)}
+      >
+        <Text style={[
+          styles.typeText,
+          { color: !selectedType ? 'white' : '#666' }
+        ]}>
+          Pan/Zoom
+        </Text>
+      </TouchableOpacity>
+      
       {HOLD_TYPES.map(({ type, label, color }) => (
         <TouchableOpacity
           key={type}
@@ -47,6 +67,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     borderRadius: 20,
     borderWidth: 2,
+  },
+  clearButton: {
+    marginRight: 12,
   },
   typeText: {
     fontSize: 14,

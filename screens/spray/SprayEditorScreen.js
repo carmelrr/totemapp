@@ -9,7 +9,6 @@ import {
   TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import ZoomableImage from '../../components/spray/ZoomableImage';
 import HoldRing from '../../components/spray/HoldRing';
 import HoldTypeSelector from '../../components/spray/HoldTypeSelector';
@@ -44,9 +43,20 @@ const SprayEditorScreen = ({ navigation, route }) => {
     confirmCurrentHold,
   } = useSprayEditor();
 
+  const handleImageLayout = (layout) => {
+    console.log('Image layout received:', layout);
+    setImageLayout(layout);
+  };
+
   const handleImagePress = (x, y, imageWidth, imageHeight) => {
-    setImageLayout({ width: imageWidth, height: imageHeight });
-    addHold(x, y, imageWidth, imageHeight);
+    // Only add hold if a hold type is selected
+    if (selectedHoldType) {
+      console.log('Adding hold:', { x, y, imageWidth, imageHeight, type: selectedHoldType });
+      addHold(x, y, imageWidth, imageHeight);
+      console.log('Hold added successfully');
+    } else {
+      console.log('No hold type selected, ignoring press');
+    }
   };
 
   const handleHoldUpdate = (index, updates) => {
@@ -137,8 +147,15 @@ const SprayEditorScreen = ({ navigation, route }) => {
   };
 
   const renderHolds = () => {
+    console.log('Rendering holds:', holds, 'imageLayout:', imageLayout);
+    
+    if (!imageLayout.width || !imageLayout.height) {
+      console.log('No image layout yet, skipping hold rendering');
+      return null;
+    }
+    
     return holds.map((hold, index) => {
-      const denormalized = denormalizeHoldPosition(hold, imageLayout.width, imageLayout.height);
+      console.log('Rendering hold:', index, hold);
       
       return (
         <HoldRing
@@ -158,28 +175,39 @@ const SprayEditorScreen = ({ navigation, route }) => {
   };
 
   return (
-    <GestureHandlerRootView style={styles.container}>
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Add Route</Text>
-          <TouchableOpacity onPress={handleNext}>
-            <Text style={styles.nextText}>Next</Text>
-          </TouchableOpacity>
-        </View>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.cancelText}>Cancel</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Add Route</Text>
+        <TouchableOpacity onPress={handleNext}>
+          <Text style={styles.nextText}>Next</Text>
+        </TouchableOpacity>
+      </View>
 
         <HoldTypeSelector
           selectedType={selectedHoldType}
           onTypeSelect={setSelectedHoldType}
         />
 
+        {/* Mode indicator */}
+        <View style={styles.modeIndicator}>
+          <Text style={styles.modeText}>
+            {selectedHoldType 
+              ? `Tap to place ${selectedHoldType.toLowerCase()} holds` 
+              : 'Pan & zoom mode - Select hold type to add holds'
+            }
+          </Text>
+        </View>
+
         <View style={styles.imageContainer}>
           <ZoomableImage
             source={{ uri: season.imageURL }}
             onImagePress={handleImagePress}
+            onImageLayout={handleImageLayout}
             showDimming={true}
+            allowPanning={!selectedHoldType} // Allow panning only when no hold type is selected
             style={styles.zoomableImage}
           >
             {renderHolds()}
@@ -268,8 +296,7 @@ const SprayEditorScreen = ({ navigation, route }) => {
             </View>
           </SafeAreaView>
         </Modal>
-      </SafeAreaView>
-    </GestureHandlerRootView>
+    </SafeAreaView>
   );
 };
 
@@ -302,9 +329,14 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#000',
   },
   zoomableImage: {
-    flex: 1,
+    width: '95%',
+    aspectRatio: 4/3, // Force 4:3 aspect ratio
+    maxHeight: '80%',
   },
   modalContainer: {
     flex: 1,
@@ -375,6 +407,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginBottom: 4,
+  },
+  modeIndicator: {
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 122, 255, 0.3)',
+  },
+  modeText: {
+    fontSize: 14,
+    color: '#007AFF',
+    textAlign: 'center',
+    fontWeight: '600',
   },
 });
 

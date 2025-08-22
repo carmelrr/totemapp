@@ -1,43 +1,51 @@
 import { useState } from 'react';
-import { normalizeHoldPosition, denormalizeHoldPosition } from '../../services/spray/validations';
+
+// helper function for clamping values between 0 and 1
+const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
 export const useSprayEditor = () => {
   const [holds, setHolds] = useState([]);
-  const [selectedHoldType, setSelectedHoldType] = useState('START');
+  const [selectedHoldType, setSelectedHoldType] = useState(null); // Start with no type selected
   const [selectedHoldIndex, setSelectedHoldIndex] = useState(-1);
   const [tapes, setTapes] = useState({ start: 0, top: 0, feet: 0 });
   const [numbersEnabled, setNumbersEnabled] = useState(false);
 
-  const addHold = (x, y, imageWidth, imageHeight, radius = 30) => {
-    const normalizedHold = normalizeHoldPosition(x, y, radius, imageWidth, imageHeight);
+  const addHold = (xPx, yPx, imageWidth, imageHeight) => {
+    console.log('addHold called:', { xPx, yPx, imageWidth, imageHeight, selectedHoldType });
+    
+    const basePx = 24; // רדיוס התחלתי בפיקסלים
     const newHold = {
       id: Date.now().toString(),
       type: selectedHoldType,
-      ...normalizedHold
+      x: clamp01(xPx / imageWidth),
+      y: clamp01(yPx / imageHeight),
+      r: Math.max(0.01, basePx / Math.min(imageWidth, imageHeight)),
     };
     
-    setHolds(prev => [...prev, newHold]);
+    console.log('Creating new hold:', newHold);
+    
+    setHolds(prev => {
+      const newHolds = [...prev, newHold];
+      console.log('Updated holds array:', newHolds);
+      return newHolds;
+    });
     setSelectedHoldIndex(holds.length);
   };
 
-  const updateHold = (index, updates, imageWidth, imageHeight) => {
-    setHolds(prev => prev.map((hold, i) => {
-      if (i === index) {
-        if (updates.x !== undefined || updates.y !== undefined || updates.r !== undefined) {
-          // Normalize position updates
-          const normalized = normalizeHoldPosition(
-            updates.x || denormalizeHoldPosition(hold, imageWidth, imageHeight).x,
-            updates.y || denormalizeHoldPosition(hold, imageWidth, imageHeight).y,
-            updates.r || denormalizeHoldPosition(hold, imageWidth, imageHeight).r,
-            imageWidth,
-            imageHeight
-          );
-          return { ...hold, ...normalized };
-        }
-        return { ...hold, ...updates };
-      }
-      return hold;
-    }));
+  const updateHold = (index, { x, y, r }, imageWidth, imageHeight) => {
+    console.log('updateHold called:', { index, x, y, r, imageWidth, imageHeight });
+    
+    setHolds(prev => {
+      const next = [...prev];
+      next[index] = {
+        ...next[index],
+        x: clamp01(x / imageWidth),
+        y: clamp01(y / imageHeight),
+        r: Math.max(0.005, r / Math.min(imageWidth, imageHeight)),
+      };
+      console.log('Updated hold:', next[index]);
+      return next;
+    });
   };
 
   const removeHold = (index) => {

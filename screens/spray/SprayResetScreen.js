@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Image } from 'expo-image';
-import RobustCropper4x3 from '../../components/spray/RobustCropper4x3';
+import Simple4x3Viewer from '../../components/spray/Simple4x3Viewer';
 import { sprayApi } from '../../services/spray/sprayApi';
 import { checkIsAdmin } from '../../utils/permissions';
 
@@ -154,10 +154,10 @@ const SprayResetScreen = ({ navigation, route }) => {
           </View>
         ) : !croppedImage ? (
           <View style={styles.cropContainer}>
-            <Text style={styles.stepText}>Step 2: Crop to 4:3 ratio</Text>
-            <RobustCropper4x3
+            <Text style={styles.stepText}>Step 2: Process to 4:3 ratio</Text>
+            <Simple4x3Viewer
               imageUri={selectedImage.uri}
-              onCropComplete={handleCropComplete}
+              onImageReady={handleCropComplete}
               style={styles.cropper}
             />
           </View>
