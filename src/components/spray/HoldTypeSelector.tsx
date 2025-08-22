@@ -1,10 +1,10 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 
 const HOLD_TYPES = [
-  { type: 'START', label: 'Start/Top', color: '#FF4444' },
-  { type: 'MID', label: 'Mid', color: '#4444FF' },
-  { type: 'FOOT', label: 'Foot', color: '#FFFF44' }
+  { type: "START", label: "Start/Top", color: "#FF4444" },
+  { type: "MID", label: "Mid", color: "#4444FF" },
+  { type: "FOOT", label: "Foot", color: "#FFFF44" },
 ];
 
 const HoldTypeSelector = ({ selectedType, onTypeSelect }) => {
@@ -16,36 +16,37 @@ const HoldTypeSelector = ({ selectedType, onTypeSelect }) => {
           styles.typeButton,
           styles.clearButton,
           {
-            backgroundColor: !selectedType ? '#666' : 'transparent',
-            borderColor: '#666',
-          }
+            backgroundColor: !selectedType ? "#666" : "transparent",
+            borderColor: "#666",
+          },
         ]}
         onPress={() => onTypeSelect(null)}
       >
-        <Text style={[
-          styles.typeText,
-          { color: !selectedType ? 'white' : '#666' }
-        ]}>
+        <Text
+          style={[styles.typeText, { color: !selectedType ? "white" : "#666" }]}
+        >
           Pan/Zoom
         </Text>
       </TouchableOpacity>
-      
+
       {HOLD_TYPES.map(({ type, label, color }) => (
         <TouchableOpacity
           key={type}
           style={[
             styles.typeButton,
             {
-              backgroundColor: selectedType === type ? color : 'transparent',
+              backgroundColor: selectedType === type ? color : "transparent",
               borderColor: color,
-            }
+            },
           ]}
           onPress={() => onTypeSelect(type)}
         >
-          <Text style={[
-            styles.typeText,
-            { color: selectedType === type ? 'white' : color }
-          ]}>
+          <Text
+            style={[
+              styles.typeText,
+              { color: selectedType === type ? "white" : color },
+            ]}
+          >
             {label}
           </Text>
         </TouchableOpacity>
@@ -56,10 +57,10 @@ const HoldTypeSelector = ({ selectedType, onTypeSelect }) => {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     paddingVertical: 10,
-    backgroundColor: 'rgba(0,0,0,0.1)',
+    backgroundColor: "rgba(0,0,0,0.1)",
   },
   typeButton: {
     paddingHorizontal: 16,
@@ -73,7 +74,7 @@ const styles = StyleSheet.create({
   },
   typeText: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
 });
 

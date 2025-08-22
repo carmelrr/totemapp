@@ -1,21 +1,21 @@
-import React, { useState, useEffect, memo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import React, { useState, useEffect, memo } from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
   runOnJS,
   useAnimatedProps,
-} from 'react-native-reanimated';
-import Svg, { Circle } from 'react-native-svg';
+} from "react-native-reanimated";
+import Svg, { Circle } from "react-native-svg";
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 const HOLD_COLORS = {
-  START: '#FF4444',
-  TOP: '#FF4444',
-  MID: '#4444FF',
-  FOOT: '#FFFF44',
+  START: "#FF4444",
+  TOP: "#FF4444",
+  MID: "#4444FF",
+  FOOT: "#FFFF44",
 };
 
 const HoldRing = ({
@@ -32,7 +32,7 @@ const HoldRing = ({
   onResizeEnd,
   // חדש: כשtrue – כל המגעים הולכים ל-Overlay הגלובלי
   globalEditingActive = false,
-  // SharedValues חיצוניים למיקום וגודל "חיים" 
+  // SharedValues חיצוניים למיקום וגודל "חיים"
   externalTranslateX,
   externalTranslateY,
   externalRadius,
@@ -61,7 +61,7 @@ const HoldRing = ({
   const isResizing = useSharedValue(false);
 
   const clampCenterToBounds = (r) => {
-    'worklet';
+    "worklet";
     const minX = r;
     const maxX = imageWidth - r;
     const minY = r;
@@ -112,7 +112,10 @@ const HoldRing = ({
     .onUpdate((event) => {
       const MIN_R = 12;
       const MAX_R = Math.min(imageWidth, imageHeight) / 3;
-      const nextR = Math.max(MIN_R, Math.min(MAX_R, baseRadius.value * event.scale));
+      const nextR = Math.max(
+        MIN_R,
+        Math.min(MAX_R, baseRadius.value * event.scale),
+      );
 
       radius.value = nextR;
       currentRadiusShared.value = nextR; // עדכון חלק יותר
@@ -132,31 +135,46 @@ const HoldRing = ({
 
   const composedGestures = Gesture.Simultaneous(panGesture, pinchGesture);
 
-  const positionStyle = useAnimatedStyle(() => ({
-    transform: [
-      { 
-        translateX: (externalTranslateX ? externalTranslateX.value : translateX.value) - 
-                   (externalRadius ? externalRadius.value : currentRadiusShared.value)
-      },
-      { 
-        translateY: (externalTranslateY ? externalTranslateY.value : translateY.value) - 
-                   (externalRadius ? externalRadius.value : currentRadiusShared.value)
-      },
-    ],
-  }), [externalTranslateX, externalTranslateY, externalRadius]);
+  const positionStyle = useAnimatedStyle(
+    () => ({
+      transform: [
+        {
+          translateX:
+            (externalTranslateX ? externalTranslateX.value : translateX.value) -
+            (externalRadius ? externalRadius.value : currentRadiusShared.value),
+        },
+        {
+          translateY:
+            (externalTranslateY ? externalTranslateY.value : translateY.value) -
+            (externalRadius ? externalRadius.value : currentRadiusShared.value),
+        },
+      ],
+    }),
+    [externalTranslateX, externalTranslateY, externalRadius],
+  );
 
-  const sizeStyle = useAnimatedStyle(() => ({
-    width: (externalRadius ? externalRadius.value : currentRadiusShared.value) * 2,
-    height: (externalRadius ? externalRadius.value : currentRadiusShared.value) * 2,
-  }), [externalRadius]);
+  const sizeStyle = useAnimatedStyle(
+    () => ({
+      width:
+        (externalRadius ? externalRadius.value : currentRadiusShared.value) * 2,
+      height:
+        (externalRadius ? externalRadius.value : currentRadiusShared.value) * 2,
+    }),
+    [externalRadius],
+  );
 
   // Animated style for SVG content
-  const svgStyle = useAnimatedStyle(() => ({
-    width: (externalRadius ? externalRadius.value : currentRadiusShared.value) * 2,
-    height: (externalRadius ? externalRadius.value : currentRadiusShared.value) * 2,
-  }), [externalRadius]);
+  const svgStyle = useAnimatedStyle(
+    () => ({
+      width:
+        (externalRadius ? externalRadius.value : currentRadiusShared.value) * 2,
+      height:
+        (externalRadius ? externalRadius.value : currentRadiusShared.value) * 2,
+    }),
+    [externalRadius],
+  );
 
-  const holdColor = HOLD_COLORS[hold.type] || '#888888';
+  const holdColor = HOLD_COLORS[hold.type] || "#888888";
   const strokeWidth = isSelected ? 4 : 2;
 
   // Animated props for SVG Circle
@@ -200,13 +218,17 @@ const HoldRing = ({
 };
 
 const styles = StyleSheet.create({
-  container: { position: 'absolute', zIndex: 20 },
+  container: { position: "absolute", zIndex: 20 },
   numberContainer: {
-    position: 'absolute',
-    width: 20, height: 20, borderRadius: 10,
-    justifyContent: 'center', alignItems: 'center', zIndex: 21,
+    position: "absolute",
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 21,
   },
-  numberText: { color: 'white', fontSize: 12, fontWeight: 'bold' },
+  numberText: { color: "white", fontSize: 12, fontWeight: "bold" },
 });
 
 export default memo(HoldRing);

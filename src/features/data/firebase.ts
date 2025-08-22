@@ -1,23 +1,28 @@
 // features/data/firebase.ts
-import { initializeApp } from 'firebase/app';
-import { getAuth, initializeAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
-import { 
-  collection, 
-  doc, 
-  getDoc, 
-  setDoc, 
-  updateDoc, 
-  deleteDoc, 
-  query, 
-  where, 
-  orderBy, 
-  getDocs, 
+import { initializeApp } from "firebase/app";
+import { getAuth, initializeAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
+import {
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  where,
+  orderBy,
+  getDocs,
   onSnapshot,
-  serverTimestamp 
-} from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+  serverTimestamp,
+} from "firebase/firestore";
+import {
+  ref,
+  uploadBytes,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
 
 // ===== FIREBASE CONFIGURATION =====
 
@@ -29,7 +34,7 @@ const firebaseConfig = {
   storageBucket: "totemapp-464009.firebasestorage.app",
   messagingSenderId: "720872675049",
   appId: "1:720872675049:web:410665ffdf49999f07c278",
-  measurementId: "G-2T1NVDPG50"
+  measurementId: "G-2T1NVDPG50",
 };
 
 // Initialize Firebase
@@ -39,13 +44,15 @@ const app = initializeApp(firebaseConfig);
 let auth;
 try {
   // Check if we're in React Native environment
-  const isReactNative = typeof navigator !== 'undefined' && navigator.product === 'ReactNative';
-  
+  const isReactNative =
+    typeof navigator !== "undefined" && navigator.product === "ReactNative";
+
   if (isReactNative) {
     // Import React Native specific modules dynamically
-    const AsyncStorage = require('@react-native-async-storage/async-storage').default;
-    const { getReactNativePersistence } = require('firebase/auth');
-    
+    const AsyncStorage =
+      require("@react-native-async-storage/async-storage").default;
+    const { getReactNativePersistence } = require("firebase/auth");
+
     auth = initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage),
     });
@@ -54,12 +61,12 @@ try {
     auth = getAuth(app);
   }
 } catch (error) {
-  console.warn('Auth initialization failed, using fallback:', error.message);
+  console.warn("Auth initialization failed, using fallback:", error.message);
   // Fallback to default auth
   try {
     auth = getAuth(app);
   } catch (fallbackError) {
-    console.error('Fallback auth initialization also failed:', fallbackError);
+    console.error("Fallback auth initialization also failed:", fallbackError);
     throw fallbackError;
   }
 }
@@ -70,52 +77,55 @@ const storage = getStorage(app);
 // Export configured instances
 export { auth, db, storage };
 
-import { Wall } from '../spraywall/types';
-import { Route } from '../routes/types';
+import { Wall } from "../spraywall/types";
+import { Route } from "../routes/types";
 
 // ===== WALL MANAGEMENT =====
 
 export async function saveWall(wall: Wall): Promise<void> {
   try {
-    await setDoc(doc(db, 'walls', wall.id), {
+    await setDoc(doc(db, "walls", wall.id), {
       ...wall,
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     });
   } catch (error) {
-    console.error('Error saving wall:', error);
-    throw new Error('Failed to save wall');
+    console.error("Error saving wall:", error);
+    throw new Error("Failed to save wall");
   }
 }
 
 export async function getWall(id: string): Promise<Wall | null> {
   try {
-    const docRef = doc(db, 'walls', id);
+    const docRef = doc(db, "walls", id);
     const docSnap = await getDoc(docRef);
-    
+
     if (docSnap.exists()) {
       return { id: docSnap.id, ...docSnap.data() } as Wall;
     }
-    
+
     return null;
   } catch (error) {
-    console.error('Error getting wall:', error);
-    throw new Error('Failed to get wall');
+    console.error("Error getting wall:", error);
+    throw new Error("Failed to get wall");
   }
 }
 
-export async function uploadWallImage(imageUri: string, wallId: string): Promise<string> {
+export async function uploadWallImage(
+  imageUri: string,
+  wallId: string,
+): Promise<string> {
   try {
     const response = await fetch(imageUri);
     const blob = await response.blob();
-    
+
     const imageRef = ref(storage, `walls/${wallId}/image.jpg`);
     await uploadBytes(imageRef, blob);
-    
+
     const downloadUrl = await getDownloadURL(imageRef);
     return downloadUrl;
   } catch (error) {
-    console.error('Error uploading wall image:', error);
-    throw new Error('Failed to upload image');
+    console.error("Error uploading wall image:", error);
+    throw new Error("Failed to upload image");
   }
 }
 
@@ -124,7 +134,7 @@ export async function deleteWallImage(imageUrl: string): Promise<void> {
     const imageRef = ref(storage, imageUrl);
     await deleteObject(imageRef);
   } catch (error) {
-    console.error('Error deleting wall image:', error);
+    console.error("Error deleting wall image:", error);
     // לא זורק שגיאה כי זה לא קריטי
   }
 }
@@ -133,64 +143,64 @@ export async function deleteWallImage(imageUrl: string): Promise<void> {
 
 export async function saveRoute(route: Route): Promise<void> {
   try {
-    await setDoc(doc(db, 'routes', route.id), {
+    await setDoc(doc(db, "routes", route.id), {
       ...route,
-      createdAt: route.createdAt || Date.now()
+      createdAt: route.createdAt || Date.now(),
     });
   } catch (error) {
-    console.error('Error saving route:', error);
-    throw new Error('Failed to save route');
+    console.error("Error saving route:", error);
+    throw new Error("Failed to save route");
   }
 }
 
 export async function getRoute(id: string): Promise<Route | null> {
   try {
-    const docRef = doc(db, 'routes', id);
+    const docRef = doc(db, "routes", id);
     const docSnap = await getDoc(docRef);
-    
+
     if (docSnap.exists()) {
       return { id: docSnap.id, ...docSnap.data() } as Route;
     }
-    
+
     return null;
   } catch (error) {
-    console.error('Error getting route:', error);
-    throw new Error('Failed to get route');
+    console.error("Error getting route:", error);
+    throw new Error("Failed to get route");
   }
 }
 
 export async function getWallRoutes(wallId: string): Promise<Route[]> {
   try {
     const q = query(
-      collection(db, 'routes'),
-      where('wallId', '==', wallId),
-      orderBy('createdAt', 'desc')
+      collection(db, "routes"),
+      where("wallId", "==", wallId),
+      orderBy("createdAt", "desc"),
     );
-    
+
     const querySnapshot = await getDocs(q);
     const routes: Route[] = [];
-    
+
     querySnapshot.forEach((doc) => {
       routes.push({ id: doc.id, ...doc.data() } as Route);
     });
-    
+
     return routes;
   } catch (error) {
-    console.error('Error getting wall routes:', error);
-    throw new Error('Failed to get routes');
+    console.error("Error getting wall routes:", error);
+    throw new Error("Failed to get routes");
   }
 }
 
 export function listenToWallRoutes(
-  wallId: string, 
-  callback: (routes: Route[]) => void
+  wallId: string,
+  callback: (routes: Route[]) => void,
 ): () => void {
   const q = query(
-    collection(db, 'routes'),
-    where('wallId', '==', wallId),
-    orderBy('createdAt', 'desc')
+    collection(db, "routes"),
+    where("wallId", "==", wallId),
+    orderBy("createdAt", "desc"),
   );
-  
+
   return onSnapshot(q, (snapshot) => {
     const routes: Route[] = [];
     snapshot.forEach((doc) => {
@@ -202,10 +212,10 @@ export function listenToWallRoutes(
 
 export async function deleteRoute(id: string): Promise<void> {
   try {
-    await deleteDoc(doc(db, 'routes', id));
+    await deleteDoc(doc(db, "routes", id));
   } catch (error) {
-    console.error('Error deleting route:', error);
-    throw new Error('Failed to delete route');
+    console.error("Error deleting route:", error);
+    throw new Error("Failed to delete route");
   }
 }
 
@@ -222,17 +232,17 @@ export function generateRouteId(): string {
 // ===== EXPORT UTILITIES =====
 
 export async function saveExportedImage(
-  imageBlob: Blob, 
-  routeId: string
+  imageBlob: Blob,
+  routeId: string,
 ): Promise<string> {
   try {
     const imageRef = ref(storage, `exports/${routeId}/route_image.png`);
     await uploadBytes(imageRef, imageBlob);
-    
+
     const downloadUrl = await getDownloadURL(imageRef);
     return downloadUrl;
   } catch (error) {
-    console.error('Error saving exported image:', error);
-    throw new Error('Failed to save exported image');
+    console.error("Error saving exported image:", error);
+    throw new Error("Failed to save exported image");
   }
 }

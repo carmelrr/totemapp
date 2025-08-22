@@ -1,6 +1,6 @@
-import React from 'react';
-import { Alert, Pressable, View } from 'react-native';
-import RouteCircle from './RouteCircle';
+import React from "react";
+import { Alert, Pressable, View } from "react-native";
+import RouteCircle from "./RouteCircle";
 
 /**
  * רכיב שאחראי על ניהול הוספה ומחיקה של מסלולים כאשר מצב עריכה פעיל.
@@ -27,33 +27,31 @@ export default function EditMapManager({
   if (!isEditMode) return null;
 
   const handleRoutePress = (routeId) => {
-    Alert.alert(
-      'מחיקת מסלול',
-      'האם אתה בטוח שברצונך למחוק את המסלול הזה?',
-      [
-        { text: 'ביטול', style: 'cancel' },
-        {
-          text: 'מחק',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await onDeleteRoute(routeId);
-            } catch (e) {
-              Alert.alert('שגיאה', 'לא ניתן למחוק מסלול');
-            }
-          },
+    Alert.alert("מחיקת מסלול", "האם אתה בטוח שברצונך למחוק את המסלול הזה?", [
+      { text: "ביטול", style: "cancel" },
+      {
+        text: "מחק",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await onDeleteRoute(routeId);
+          } catch (e) {
+            Alert.alert("שגיאה", "לא ניתן למחוק מסלול");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
-      {routes.map(route => (
+    <View
+      style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+    >
+      {routes.map((route) => (
         <Pressable
           key={route.id}
           onPress={() => handleRoutePress(route.id)}
-          style={{ position: 'absolute', left: 0, top: 0 }}
+          style={{ position: "absolute", left: 0, top: 0 }}
         >
           <RouteCircle
             route={route}

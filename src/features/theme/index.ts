@@ -1,2 +1,2 @@
 // src/features/theme/index.ts
-export { ThemeProvider, useTheme } from './ThemeContext';
+export { ThemeProvider, useTheme } from "./ThemeContext";

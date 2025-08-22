@@ -1,13 +1,13 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 
-export default function RouteEditPanel({ 
-  route, 
-  isMovingRoute, 
-  onStartMove, 
-  onStopMove, 
-  onDelete, 
-  onClose 
+export default function RouteEditPanel({
+  route,
+  isMovingRoute,
+  onStartMove,
+  onStopMove,
+  onDelete,
+  onClose,
 }) {
   if (!route) {
     return null;
@@ -15,16 +15,16 @@ export default function RouteEditPanel({
 
   const handleDelete = () => {
     Alert.alert(
-      'מחיקת מסלול',
+      "מחיקת מסלול",
       `האם אתה בטוח שברצונך למחוק את המסלול ${route.grade}?`,
       [
-        { text: 'ביטול', style: 'cancel' },
+        { text: "ביטול", style: "cancel" },
         {
-          text: 'מחק',
-          style: 'destructive',
-          onPress: () => onDelete()
-        }
-      ]
+          text: "מחק",
+          style: "destructive",
+          onPress: () => onDelete(),
+        },
+      ],
     );
   };
 
@@ -36,7 +36,7 @@ export default function RouteEditPanel({
           <Text style={styles.closeButtonText}>✕</Text>
         </TouchableOpacity>
       </View>
-      
+
       <View style={styles.content}>
         <View style={styles.routeInfo}>
           <Text style={styles.infoText}>צבע: {route.color}</Text>
@@ -45,17 +45,26 @@ export default function RouteEditPanel({
         </View>
 
         <View style={styles.buttonsContainer}>
-          <TouchableOpacity 
-            style={[styles.button, styles.moveButton, isMovingRoute && styles.moveButtonActive]} 
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.moveButton,
+              isMovingRoute && styles.moveButtonActive,
+            ]}
             onPress={isMovingRoute ? onStopMove : onStartMove}
           >
-            <Text style={[styles.buttonText, isMovingRoute && styles.moveButtonTextActive]}>
-              {isMovingRoute ? '✓ סיים הזזה' : '🔄 הזז מסלול'}
+            <Text
+              style={[
+                styles.buttonText,
+                isMovingRoute && styles.moveButtonTextActive,
+              ]}
+            >
+              {isMovingRoute ? "✓ סיים הזזה" : "🔄 הזז מסלול"}
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.button, styles.deleteButton]} 
+          <TouchableOpacity
+            style={[styles.button, styles.deleteButton]}
             onPress={handleDelete}
           >
             <Text style={styles.buttonText}>🗑️ מחק מסלול</Text>
@@ -76,44 +85,44 @@ export default function RouteEditPanel({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopWidth: 2,
-    borderTopColor: '#3498db',
+    borderTopColor: "#3498db",
     paddingBottom: 20,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 15,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderBottomWidth: 1,
-    borderBottomColor: '#dee2e6',
+    borderBottomColor: "#dee2e6",
   },
   title: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    textAlign: 'right',
+    fontWeight: "bold",
+    color: "#2c3e50",
+    textAlign: "right",
   },
   closeButton: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: '#e74c3c',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#e74c3c",
+    justifyContent: "center",
+    alignItems: "center",
   },
   closeButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   content: {
     padding: 15,
   },
   routeInfo: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     padding: 15,
     borderRadius: 8,
     marginBottom: 15,
@@ -121,8 +130,8 @@ const styles = StyleSheet.create({
   infoText: {
     fontSize: 16,
     marginBottom: 5,
-    color: '#495057',
-    textAlign: 'right',
+    color: "#495057",
+    textAlign: "right",
   },
   buttonsContainer: {
     gap: 10,
@@ -131,43 +140,43 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     paddingHorizontal: 20,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 10,
   },
   moveButton: {
-    backgroundColor: '#f39c12',
+    backgroundColor: "#f39c12",
     borderWidth: 2,
-    borderColor: '#e67e22',
+    borderColor: "#e67e22",
   },
   moveButtonActive: {
-    backgroundColor: '#27ae60',
-    borderColor: '#2ecc71',
+    backgroundColor: "#27ae60",
+    borderColor: "#2ecc71",
   },
   deleteButton: {
-    backgroundColor: '#e74c3c',
+    backgroundColor: "#e74c3c",
     borderWidth: 2,
-    borderColor: '#c0392b',
+    borderColor: "#c0392b",
   },
   buttonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'right',
+    fontWeight: "bold",
+    textAlign: "right",
   },
   moveButtonTextActive: {
-    color: 'white',
+    color: "white",
   },
   instructionsContainer: {
-    backgroundColor: '#fff3cd',
+    backgroundColor: "#fff3cd",
     padding: 12,
     borderRadius: 8,
     borderLeftWidth: 4,
-    borderLeftColor: '#ffc107',
+    borderLeftColor: "#ffc107",
     marginTop: 10,
   },
   instructionsText: {
     fontSize: 14,
-    color: '#856404',
-    textAlign: 'right',
+    color: "#856404",
+    textAlign: "right",
   },
 });

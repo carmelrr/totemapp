@@ -1,9 +1,9 @@
-import React from 'react';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import SprayWallHomeScreen from '@/screens/spray/SprayWallHomeScreen';
-import SprayResetScreen from '@/screens/spray/SprayResetScreen';
-import SprayEditorScreen from '@/screens/spray/SprayEditorScreen';
-import SprayLeaderboardScreen from '@/screens/spray/SprayLeaderboardScreen';
+import React from "react";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import SprayWallHomeScreen from "@/screens/spray/SprayWallHomeScreen";
+import SprayResetScreen from "@/screens/spray/SprayResetScreen";
+import SprayEditorScreen from "@/screens/spray/SprayEditorScreen";
+import SprayLeaderboardScreen from "@/screens/spray/SprayLeaderboardScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -14,34 +14,34 @@ const SprayNavigator = () => {
         headerShown: false,
       }}
     >
-      <Stack.Screen 
-        name="SprayWallHome" 
+      <Stack.Screen
+        name="SprayWallHome"
         component={SprayWallHomeScreen}
         options={{
-          title: 'Spray Wall',
+          title: "Spray Wall",
         }}
       />
-      <Stack.Screen 
-        name="SprayReset" 
+      <Stack.Screen
+        name="SprayReset"
         component={SprayResetScreen}
         options={{
-          title: 'Reset Spray Wall',
-          presentation: 'modal',
+          title: "Reset Spray Wall",
+          presentation: "modal",
         }}
       />
-      <Stack.Screen 
-        name="SprayEditor" 
+      <Stack.Screen
+        name="SprayEditor"
         component={SprayEditorScreen}
         options={{
-          title: 'Add Route',
-          presentation: 'fullScreenModal',
+          title: "Add Route",
+          presentation: "fullScreenModal",
         }}
       />
-      <Stack.Screen 
-        name="SprayLeaderboard" 
+      <Stack.Screen
+        name="SprayLeaderboard"
         component={SprayLeaderboardScreen}
         options={{
-          title: 'Leaderboard',
+          title: "Leaderboard",
         }}
       />
     </Stack.Navigator>

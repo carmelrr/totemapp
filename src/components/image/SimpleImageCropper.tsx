@@ -1,5 +1,5 @@
 // SimpleImageCropper.js
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -10,15 +10,22 @@ import {
   ActivityIndicator,
   Image as RNImage,
   Platform,
-} from 'react-native';
-import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
-import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
-import { Image as ExpoImage } from 'expo-image';
+} from "react-native";
+import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+} from "react-native-reanimated";
+import { Image as ExpoImage } from "expo-image";
 
 const AnimatedExpoImage = Animated.createAnimatedComponent(ExpoImage);
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get("window");
 
 export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
   const [processing, setProcessing] = useState(false);
@@ -39,38 +46,52 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
   const natW = useSharedValue(0);
   const natH = useSharedValue(0);
   const baseScale = useSharedValue(1); // התאמה למסגרת (cover)
-  const scale = useSharedValue(1);     // זום משתמש
+  const scale = useSharedValue(1); // זום משתמש
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const ready = useSharedValue(false);
 
-  const initFromSize = useCallback((w, h) => {
-    console.log('[Cropper] getSize ->', w, h);
-    
-    // התאמת תמונה כך שתכסה את המסגרת
-    const s = Math.max(frameWidth / w, frameHeight / h);
-    baseScale.value = s;
-    scale.value = 1;
+  const initFromSize = useCallback(
+    (w, h) => {
+      console.log("[Cropper] getSize ->", w, h);
 
-    // מרכז המסגרת
-    const dispW = w * s;
-    const dispH = h * s;
-    tx.value = (frameWidth - dispW) / 2;
-    ty.value = (frameHeight - dispH) / 2;
+      // התאמת תמונה כך שתכסה את המסגרת
+      const s = Math.max(frameWidth / w, frameHeight / h);
+      baseScale.value = s;
+      scale.value = 1;
 
-    natW.value = w;
-    natH.value = h;
+      // מרכז המסגרת
+      const dispW = w * s;
+      const dispH = h * s;
+      tx.value = (frameWidth - dispW) / 2;
+      ty.value = (frameHeight - dispH) / 2;
 
-    setDisplayW(w);
-    setDisplayH(h);
-    setDisplayUri(imageUri);
+      natW.value = w;
+      natH.value = h;
 
-    ready.value = true;
-    setIsReady(true);
-    setImageLoading(false);
-    
-    console.log('[Cropper] ready ->', true);
-  }, [frameWidth, frameHeight, baseScale, scale, tx, ty, natW, natH, ready, imageUri]);
+      setDisplayW(w);
+      setDisplayH(h);
+      setDisplayUri(imageUri);
+
+      ready.value = true;
+      setIsReady(true);
+      setImageLoading(false);
+
+      console.log("[Cropper] ready ->", true);
+    },
+    [
+      frameWidth,
+      frameHeight,
+      baseScale,
+      scale,
+      tx,
+      ty,
+      natW,
+      natH,
+      ready,
+      imageUri,
+    ],
+  );
 
   // מדידת תמונה (פשוט בלי downscale)
   useEffect(() => {
@@ -88,17 +109,17 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
       imageUri,
       (w, h) => initFromSize(w, h),
       () => {
-        console.warn('getSize failed, falling back to onLoad');
+        console.warn("getSize failed, falling back to onLoad");
         // נמדוד דרך onLoad של תמונה נסתרת
         // השאר imageLoading=true כדי שה-RNImage הנסתר ירונדר וימדוד ב-onLoad
-      }
+      },
     );
   }, [imageUri, initFromSize, ready]);
 
   // אם getSize נכשל – נמדוד ב־onLoad של תמונה נסתרת
   const handleHiddenLoad = (e) => {
     const src = e?.nativeEvent?.source;
-    console.log('onLoad measured:', src?.width, src?.height);
+    console.log("onLoad measured:", src?.width, src?.height);
     const w = src?.width;
     const h = src?.height;
     if (w && h && !natW.value) {
@@ -108,7 +129,7 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
 
   // קלאמפ לתרגומים – רץ ב־UI thread ולכן משתמש רק ב־shared values
   const clampTranslations = () => {
-    'worklet';
+    "worklet";
     if (!ready.value) return;
     const totalScale = baseScale.value * scale.value;
     const dispW = natW.value * totalScale;
@@ -161,7 +182,8 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
   const handleSave = async () => {
     try {
       setProcessing(true);
-      if (!imageUri || !natW.value || !natH.value) throw new Error('Image not ready');
+      if (!imageUri || !natW.value || !natH.value)
+        throw new Error("Image not ready");
 
       const totalScale = baseScale.value * scale.value;
       const originX = Math.max(0, -tx.value) / totalScale;
@@ -176,10 +198,10 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
         height: Math.round(height),
       };
 
-      console.log('[Cropper] saving crop ->', cropData);
+      console.log("[Cropper] saving crop ->", cropData);
 
       let sourceUri = imageUri;
-      
+
       // בלם זכרון: אם התמונה גדולה מדי, הקטן אותה קודם
       const maxSide = Math.max(natW.value, natH.value);
       if (maxSide > 6000) {
@@ -187,15 +209,15 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
         const ratio = targetMaxSide / maxSide;
         const newW = Math.round(natW.value * ratio);
         const newH = Math.round(natH.value * ratio);
-        
+
         const resized = await manipulateAsync(
           imageUri,
           [{ resize: { width: newW, height: newH } }],
-          { compress: 0.9, format: SaveFormat.JPEG }
+          { compress: 0.9, format: SaveFormat.JPEG },
         );
-        
+
         sourceUri = resized.uri;
-        
+
         // התאם את נתוני החיתוך ליחס החדש
         cropData = {
           originX: Math.round(cropData.originX * ratio),
@@ -209,7 +231,7 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
       const cropped = await manipulateAsync(
         sourceUri,
         [{ crop: cropData }, { resize: { width: 1200 } }],
-        { compress: 0.8, format: SaveFormat.JPEG }
+        { compress: 0.8, format: SaveFormat.JPEG },
       );
 
       onSave({
@@ -217,11 +239,11 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
         width: cropped.width,
         height: cropped.height,
         crop: cropData,
-        aspect: '4:3',
+        aspect: "4:3",
       });
     } catch (e) {
-      console.error('Error cropping image:', e);
-      alert('שגיאה בחיתוך התמונה');
+      console.error("Error cropping image:", e);
+      alert("שגיאה בחיתוך התמונה");
     } finally {
       setProcessing(false);
     }
@@ -239,11 +261,11 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
           {!!imageUri && (
             <RNImage
               source={{ uri: imageUri }}
-              style={{ width: 1, height: 1, opacity: 0, position: 'absolute' }}
+              style={{ width: 1, height: 1, opacity: 0, position: "absolute" }}
               onLoad={handleHiddenLoad}
               onError={(e) => {
-                console.warn('Hidden image load error', e?.nativeEvent);
-                setError('שגיאה בטעינת התמונה');
+                console.warn("Hidden image load error", e?.nativeEvent);
+                setError("שגיאה בטעינת התמונה");
                 setImageLoading(false);
               }}
             />
@@ -260,12 +282,12 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
           גרור עם אצבע כדי להזיז, צבוט (פינץ') כדי לבצע זום. שמור לחיתוך 4:3.
         </Text>
 
-        <View
-          style={styles.imageContainer}
-          collapsable={false}
-        >
+        <View style={styles.imageContainer} collapsable={false}>
           <View
-            style={[styles.cropFrame, { width: frameWidth, height: frameHeight }]}
+            style={[
+              styles.cropFrame,
+              { width: frameWidth, height: frameHeight },
+            ]}
             collapsable={false}
           >
             {/* ספינר קטן בתוך המסגרת עד שהתמונה מוכנה */}
@@ -283,14 +305,18 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
                 {!!displayUri && isReady && displayW > 0 && (
                   <AnimatedExpoImage
                     source={{ uri: displayUri }}
-                    style={[{ width: displayW, height: displayH }, animatedImageStyle, { position: 'absolute', left: 0, top: 0 }]}
+                    style={[
+                      { width: displayW, height: displayH },
+                      animatedImageStyle,
+                      { position: "absolute", left: 0, top: 0 },
+                    ]}
                     contentFit="cover"
                     transition={100}
                     recyclingKey={displayUri}
                     onLoad={() => setIsReady(true)}
                     onError={(e) => {
-                      console.warn('Image load error', e?.nativeEvent);
-                      setError('שגיאה בטעינת התמונה');
+                      console.warn("Image load error", e?.nativeEvent);
+                      setError("שגיאה בטעינת התמונה");
                     }}
                   />
                 )}
@@ -313,11 +339,15 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
             onPress={handleSave}
             disabled={processing || !isReady}
           >
-            <Text style={styles.saveButtonText}>{processing ? 'חותך...' : '✓ שמור'}</Text>
+            <Text style={styles.saveButtonText}>
+              {processing ? "חותך..." : "✓ שמור"}
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {!!error && <Text style={{ color: 'tomato', marginTop: 8 }}>{error}</Text>}
+        {!!error && (
+          <Text style={{ color: "tomato", marginTop: 8 }}>{error}</Text>
+        )}
       </SafeAreaView>
     </GestureHandlerRootView>
   );
@@ -326,100 +356,100 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#000",
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: 12,
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   loadingText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
     marginTop: 16,
   },
   instructions: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 20,
     paddingHorizontal: 20,
     lineHeight: 22,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   imageContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   cropFrame: {
-    backgroundColor: '#111',
-    borderRadius: Platform.OS === 'ios' ? 10 : 0,
-    overflow: Platform.OS === 'ios' ? 'hidden' : 'visible',
-    position: 'relative',
+    backgroundColor: "#111",
+    borderRadius: Platform.OS === "ios" ? 10 : 0,
+    overflow: Platform.OS === "ios" ? "hidden" : "visible",
+    position: "relative",
     borderWidth: 3,
-    borderColor: '#00FFC2',
+    borderColor: "#00FFC2",
   },
   inlineLoader: {
     ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   cropOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 10,
     right: 10,
-    backgroundColor: 'rgba(0, 255, 194, 0.8)',
+    backgroundColor: "rgba(0, 255, 194, 0.8)",
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
   },
   overlayText: {
-    color: '#000',
+    color: "#000",
     fontSize: 12,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   controls: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     gap: 16,
-    width: '100%',
+    width: "100%",
     paddingVertical: 20,
   },
   cancelButton: {
-    backgroundColor: 'rgba(255, 0, 0, 0.7)',
+    backgroundColor: "rgba(255, 0, 0, 0.7)",
     paddingHorizontal: 30,
     paddingVertical: 15,
     borderRadius: 25,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: "#fff",
     flex: 1,
   },
   saveButton: {
-    backgroundColor: 'rgba(0, 200, 0, 0.7)',
+    backgroundColor: "rgba(0, 200, 0, 0.7)",
     paddingHorizontal: 30,
     paddingVertical: 15,
     borderRadius: 25,
     borderWidth: 2,
-    borderColor: '#fff',
+    borderColor: "#fff",
     flex: 1,
   },
   saveButtonDisabled: {
-    backgroundColor: 'rgba(128, 128, 128, 0.7)',
+    backgroundColor: "rgba(128, 128, 128, 0.7)",
   },
   cancelButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
   },
   saveButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontWeight: "bold",
+    textAlign: "center",
   },
 });

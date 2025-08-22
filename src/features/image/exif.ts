@@ -1,5 +1,5 @@
 // features/image/exif.ts
-import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImageManipulator from "expo-image-manipulator";
 
 export interface ExifInfo {
   orientation: number;
@@ -26,12 +26,12 @@ export async function fixImageOrientation(uri: string): Promise<string> {
       {
         compress: 1,
         format: ImageManipulator.SaveFormat.JPEG,
-      }
+      },
     );
-    
+
     return result.uri;
   } catch (error) {
-    console.error('Error fixing image orientation:', error);
+    console.error("Error fixing image orientation:", error);
     return uri; // Return original if fixing fails
   }
 }

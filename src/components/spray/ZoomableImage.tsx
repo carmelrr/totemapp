@@ -1,6 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
-import { PinchGestureHandler, PanGestureHandler, TapGestureHandler, State } from 'react-native-gesture-handler';
+import React, { useState, useEffect } from "react";
+import { View, StyleSheet, Dimensions } from "react-native";
+import {
+  PinchGestureHandler,
+  PanGestureHandler,
+  TapGestureHandler,
+  State,
+} from "react-native-gesture-handler";
 import Animated, {
   useAnimatedGestureHandler,
   useAnimatedStyle,
@@ -8,20 +13,20 @@ import Animated, {
   withSpring,
   withTiming,
   runOnJS,
-} from 'react-native-reanimated';
-import { Image } from 'expo-image';
+} from "react-native-reanimated";
+import { Image } from "expo-image";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
-const ZoomableImage = ({ 
-  source, 
-  style, 
+const ZoomableImage = ({
+  source,
+  style,
   onImagePress,
   onImageLayout, // New prop to pass layout back to parent
   children,
   showDimming = false,
   allowPanning = true, // New prop to control panning behavior
-  globalEditingActive = false // New prop to control children container pointer events
+  globalEditingActive = false, // New prop to control children container pointer events
 }) => {
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -38,56 +43,79 @@ const ZoomableImage = ({
     }
   }, [allowPanning]);
 
-  const pinchGestureHandler = useAnimatedGestureHandler({
-    onActive: (event) => {
-      scale.value = Math.max(0.5, Math.min(3, event.scale));
+  const pinchGestureHandler = useAnimatedGestureHandler(
+    {
+      onActive: (event) => {
+        scale.value = Math.max(0.5, Math.min(3, event.scale));
+      },
+      onEnd: () => {
+        if (scale.value < 1) {
+          scale.value = withSpring(1);
+          translateX.value = withSpring(0);
+          translateY.value = withSpring(0);
+        }
+      },
     },
-    onEnd: () => {
-      if (scale.value < 1) {
-        scale.value = withSpring(1);
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
-      }
-    },
-  }, [], false); // Disable native driver
+    [],
+    false,
+  ); // Disable native driver
 
-  const panGestureHandler = useAnimatedGestureHandler({
-    onStart: () => {
-      runOnJS(setIsPanning)(true);
+  const panGestureHandler = useAnimatedGestureHandler(
+    {
+      onStart: () => {
+        runOnJS(setIsPanning)(true);
+      },
+      onActive: (event) => {
+        if (allowPanning) {
+          translateX.value = event.translationX;
+          translateY.value = event.translationY;
+        }
+      },
+      onEnd: () => {
+        runOnJS(setIsPanning)(false);
+        // Reset position if scale is 1
+        if (scale.value <= 1) {
+          translateX.value = withSpring(0);
+          translateY.value = withSpring(0);
+        }
+      },
     },
-    onActive: (event) => {
-      if (allowPanning) {
-        translateX.value = event.translationX;
-        translateY.value = event.translationY;
-      }
-    },
-    onEnd: () => {
-      runOnJS(setIsPanning)(false);
-      // Reset position if scale is 1
-      if (scale.value <= 1) {
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
-      }
-    },
-  }, [], false); // Disable native driver
+    [],
+    false,
+  ); // Disable native driver
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { scale: scale.value },
-      ],
-    };
-  }, [], false); // Disable native driver
+  const animatedStyle = useAnimatedStyle(
+    () => {
+      return {
+        transform: [
+          { translateX: translateX.value },
+          { translateY: translateY.value },
+          { scale: scale.value },
+        ],
+      };
+    },
+    [],
+    false,
+  ); // Disable native driver
 
   const handleImagePress = (event) => {
-    console.log('Image pressed, isPanning:', isPanning, 'allowPanning:', allowPanning);
-    
+    console.log(
+      "Image pressed, isPanning:",
+      isPanning,
+      "allowPanning:",
+      allowPanning,
+    );
+
     // Only trigger onImagePress if we're not panning and panning is disabled (hold type selected)
     if (onImagePress && !isPanning && !allowPanning) {
       const { locationX, locationY } = event.nativeEvent;
-      console.log('Image press coordinates:', locationX, locationY, 'Image layout:', imageLayout);
+      console.log(
+        "Image press coordinates:",
+        locationX,
+        locationY,
+        "Image layout:",
+        imageLayout,
+      );
       onImagePress(locationX, locationY, imageLayout.width, imageLayout.height);
     }
   };
@@ -96,7 +124,13 @@ const ZoomableImage = ({
     if (nativeEvent.state === State.END && onImagePress) {
       // נקודות יחסיות למשטח התמונה (100% מהמסגרת)
       const { x, y } = nativeEvent;
-      console.log('Tap gesture coordinates:', x, y, 'Image layout:', imageLayout);
+      console.log(
+        "Tap gesture coordinates:",
+        x,
+        y,
+        "Image layout:",
+        imageLayout,
+      );
       onImagePress(x, y, imageLayout.width, imageLayout.height);
     }
   };
@@ -105,9 +139,15 @@ const ZoomableImage = ({
     <View style={[styles.container, style]}>
       {allowPanning ? (
         // Pan/Zoom mode - use gesture handlers
-        <PanGestureHandler enabled={allowPanning} onGestureEvent={panGestureHandler}>
+        <PanGestureHandler
+          enabled={allowPanning}
+          onGestureEvent={panGestureHandler}
+        >
           <Animated.View style={styles.gestureContainer}>
-            <PinchGestureHandler enabled={allowPanning} onGestureEvent={pinchGestureHandler}>
+            <PinchGestureHandler
+              enabled={allowPanning}
+              onGestureEvent={pinchGestureHandler}
+            >
               <Animated.View style={animatedStyle}>
                 <Image
                   source={source}
@@ -115,14 +155,14 @@ const ZoomableImage = ({
                   contentFit="contain"
                   onLayout={(event) => {
                     const { width, height } = event.nativeEvent.layout;
-                    console.log('Image layout updated:', { width, height });
+                    console.log("Image layout updated:", { width, height });
                     setImageLayout({ width, height });
                     if (onImageLayout) {
                       onImageLayout({ width, height });
                     }
                   }}
                 />
-                
+
                 {/* Dimming overlay */}
                 {showDimming && (
                   <View pointerEvents="none" style={styles.dimmingOverlay} />
@@ -148,14 +188,14 @@ const ZoomableImage = ({
                 contentFit="contain"
                 onLayout={(event) => {
                   const { width, height } = event.nativeEvent.layout;
-                  console.log('Image layout updated:', { width, height });
+                  console.log("Image layout updated:", { width, height });
                   setImageLayout({ width, height });
                   if (onImageLayout) {
                     onImageLayout({ width, height });
                   }
                 }}
               />
-              
+
               {/* Dimming overlay */}
               {showDimming && (
                 <View pointerEvents="none" style={styles.dimmingOverlay} />
@@ -164,12 +204,14 @@ const ZoomableImage = ({
           </Animated.View>
         </TapGestureHandler>
       )}
-      
+
       {/* Children (holds, etc.) - outside of transforms */}
-      <View style={[
-        styles.overlayContainer,
-        { pointerEvents: globalEditingActive ? 'auto' : 'box-none' }
-      ]}>
+      <View
+        style={[
+          styles.overlayContainer,
+          { pointerEvents: globalEditingActive ? "auto" : "box-none" },
+        ]}
+      >
         {children}
       </View>
     </View>
@@ -178,27 +220,27 @@ const ZoomableImage = ({
 
 const styles = StyleSheet.create({
   container: {
-    overflow: 'hidden',
+    overflow: "hidden",
     borderRadius: 8,
-    backgroundColor: '#000',
+    backgroundColor: "#000",
   },
   gestureContainer: {
     flex: 1,
   },
   image: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   dimmingOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: "rgba(0, 0, 0, 0.3)",
   },
   overlayContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,

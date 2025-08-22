@@ -1,8 +1,14 @@
 // hooks/MapTransformState.js
-import { useSharedValue, useDerivedValue, useAnimatedStyle, useAnimatedGestureHandler, runOnJS } from 'react-native-reanimated';
-import { Dimensions } from 'react-native';
+import {
+  useSharedValue,
+  useDerivedValue,
+  useAnimatedStyle,
+  useAnimatedGestureHandler,
+  runOnJS,
+} from "react-native-reanimated";
+import { Dimensions } from "react-native";
 
-const window = Dimensions.get('window');
+const window = Dimensions.get("window");
 const MAP_WIDTH = window.width;
 const MAP_HEIGHT = window.width * 0.65;
 
@@ -11,19 +17,19 @@ export function useMapTransform(scale, onTranslateXChange, onTranslateYChange) {
   const translateY = useSharedValue(0);
 
   useDerivedValue(() => {
-    'worklet';
+    "worklet";
     if (onTranslateXChange) runOnJS(onTranslateXChange)(translateX.value);
     if (onTranslateYChange) runOnJS(onTranslateYChange)(translateY.value);
   });
 
   const panHandler = useAnimatedGestureHandler({
     onStart: (_, ctx) => {
-      'worklet';
+      "worklet";
       ctx.startX = translateX.value;
       ctx.startY = translateY.value;
     },
     onActive: (event, ctx) => {
-      'worklet';
+      "worklet";
       const scaledWidth = MAP_WIDTH * scale;
       const scaledHeight = MAP_HEIGHT * scale;
 
@@ -44,7 +50,7 @@ export function useMapTransform(scale, onTranslateXChange, onTranslateYChange) {
   });
 
   const combinedStyle = useAnimatedStyle(() => {
-    'worklet';
+    "worklet";
     return {
       transform: [
         { translateX: translateX.value },

@@ -1,6 +1,6 @@
 // src/components/index.ts
-export * from './ui';
-export * from './routes';
-export * from './canvas';
-export * from './image';
-export * from './spray';
+export * from "./ui";
+export * from "./routes";
+export * from "./canvas";
+export * from "./image";
+export * from "./spray";

@@ -1,25 +1,51 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, ActivityIndicator, Alert, ScrollView, RefreshControl, Dimensions, Modal, Switch } from 'react-native';
-import { auth, db } from '@/features/data/firebase';
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
-import { followUser, unfollowUser, getUserFollowers, getUserFollowing } from '@/features/social/socialService';
-import defaultAvatar from '@/assets/'default-avatar.png';
-import { useTheme } from '@/features/theme/ThemeContext';
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  Image,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  RefreshControl,
+  Dimensions,
+  Modal,
+  Switch,
+} from "react-native";
+import { auth, db } from "@/features/data/firebase";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  collection,
+  query,
+  where,
+  getDocs,
+} from "firebase/firestore";
+import {
+  followUser,
+  unfollowUser,
+  getUserFollowers,
+  getUserFollowing,
+} from "@/features/social/socialService";
+import defaultAvatar from "@/assets/default-avatar.png";
+import { useTheme } from "@/features/theme/ThemeContext";
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get("window");
 
 export default function UserProfileScreen({ route, navigation }) {
   const { userId, autoEdit = false } = route.params;
   const currentUserId = auth.currentUser?.uid;
   const { theme } = useTheme();
-  
+
   const [userProfile, setUserProfile] = useState(null);
   const [userStats, setUserStats] = useState({
     totalRoutesSent: 0,
-    highestGrade: 'N/A',
+    highestGrade: "N/A",
     totalFeedbacks: 0,
     averageStarRating: 0,
-    joinDate: null
+    joinDate: null,
   });
   const [gradeStats, setGradeStats] = useState({});
   const [showStatsModal, setShowStatsModal] = useState(false);
@@ -36,7 +62,7 @@ export default function UserProfileScreen({ route, navigation }) {
     showFeedbackCount: true,
     showAverageRating: true,
     showGradeStats: true,
-    showJoinDate: true
+    showJoinDate: true,
   });
 
   useEffect(() => {
@@ -52,7 +78,7 @@ export default function UserProfileScreen({ route, navigation }) {
 
   // Listen for route params changes (when navigating back to the same screen)
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+    const unsubscribe = navigation.addListener("focus", () => {
       const { autoEdit: newAutoEdit } = route.params;
       if (newAutoEdit && currentUserId === userId) {
         setIsEditingPrivacy(true);
@@ -69,11 +95,11 @@ export default function UserProfileScreen({ route, navigation }) {
         fetchUserProfile(),
         fetchUserStats(),
         calculateGradeStats(),
-        checkFollowStatus()
+        checkFollowStatus(),
       ]);
     } catch (error) {
-      console.error('Error loading user profile:', error);
-      Alert.alert('שגיאה', 'לא ניתן לטעון פרופיל משתמש');
+      console.error("Error loading user profile:", error);
+      Alert.alert("שגיאה", "לא ניתן לטעון פרופיל משתמש");
     } finally {
       setLoading(false);
     }
@@ -84,53 +110,53 @@ export default function UserProfileScreen({ route, navigation }) {
     try {
       await loadUserProfile();
     } catch (error) {
-      Alert.alert('שגיאה', 'נכשל ברענון הנתונים');
+      Alert.alert("שגיאה", "נכשל ברענון הנתונים");
     } finally {
       setRefreshing(false);
     }
   };
 
   const fetchUserProfile = async () => {
-    const docRef = doc(db, 'users', userId);
+    const docRef = doc(db, "users", userId);
     const docSnap = await getDoc(docRef);
-    
+
     if (docSnap.exists()) {
       const userData = docSnap.data();
       setUserProfile(userData);
-      
+
       // Load privacy settings only if it's the current user's profile
       if (userData.privacySettings && currentUserId === userId) {
         setPrivacySettings(userData.privacySettings);
       } else if (userData.privacySettings) {
         setPrivacySettings(userData.privacySettings);
       }
-      
+
       // Get followers and following
       const [followersData, followingData] = await Promise.all([
         getUserFollowers(userId),
-        getUserFollowing(userId)
+        getUserFollowing(userId),
       ]);
-      
+
       setFollowers(followersData);
       setFollowing(followingData);
     }
   };
 
   const fetchUserStats = async () => {
-    const userDoc = await getDoc(doc(db, 'users', userId));
-    
+    const userDoc = await getDoc(doc(db, "users", userId));
+
     if (userDoc.exists()) {
       const userData = userDoc.data();
       const persistentStats = userData.stats || {};
-      
+
       setUserStats({
         totalRoutesSent: persistentStats.totalRoutesSent || 0,
-        highestGrade: persistentStats.highestGrade || 'N/A',
+        highestGrade: persistentStats.highestGrade || "N/A",
         totalFeedbacks: persistentStats.totalFeedbacks || 0,
         averageStarRating: persistentStats.averageStarRating || 0,
-        joinDate: userData.createdAt 
+        joinDate: userData.createdAt
           ? new Date(userData.createdAt.seconds * 1000)
-          : null
+          : null,
       });
     }
   };
@@ -138,65 +164,71 @@ export default function UserProfileScreen({ route, navigation }) {
   const calculateGradeStats = async () => {
     try {
       // Get all routes
-      const routesSnapshot = await getDocs(collection(db, 'routes'));
+      const routesSnapshot = await getDocs(collection(db, "routes"));
       const routes = [];
-      routesSnapshot.forEach(doc => {
+      routesSnapshot.forEach((doc) => {
         routes.push({ id: doc.id, ...doc.data() });
       });
-      
+
       setAllRoutes(routes);
-      
+
       // Count routes by grade
       const routesByGrade = {};
-      routes.forEach(route => {
-        const grade = route.grade || 'לא מוגדר';
+      routes.forEach((route) => {
+        const grade = route.grade || "לא מוגדר";
         routesByGrade[grade] = (routesByGrade[grade] || 0) + 1;
       });
-      
+
       // Count completed routes by grade for this user
       const completedByGrade = {};
-      
+
       for (const route of routes) {
-        const feedbacksRef = collection(db, 'routes', route.id, 'feedbacks');
-        const userFeedbackQuery = query(feedbacksRef, where('userId', '==', userId), where('closedRoute', '==', true));
+        const feedbacksRef = collection(db, "routes", route.id, "feedbacks");
+        const userFeedbackQuery = query(
+          feedbacksRef,
+          where("userId", "==", userId),
+          where("closedRoute", "==", true),
+        );
         const userFeedbackSnapshot = await getDocs(userFeedbackQuery);
-        
+
         if (!userFeedbackSnapshot.empty) {
-          const grade = route.grade || 'לא מוגדר';
+          const grade = route.grade || "לא מוגדר";
           completedByGrade[grade] = (completedByGrade[grade] || 0) + 1;
         }
       }
-      
+
       // Calculate percentages
       const stats = {};
-      Object.keys(routesByGrade).forEach(grade => {
+      Object.keys(routesByGrade).forEach((grade) => {
         const total = routesByGrade[grade];
         const completed = completedByGrade[grade] || 0;
-        const percentage = total > 0 ? ((completed / total) * 100).toFixed(1) : '0.0';
-        
+        const percentage =
+          total > 0 ? ((completed / total) * 100).toFixed(1) : "0.0";
+
         stats[grade] = {
           total,
           completed,
-          percentage: parseFloat(percentage)
+          percentage: parseFloat(percentage),
         };
       });
-      
+
       setGradeStats(stats);
-      
     } catch (error) {
-      console.error('Error calculating grade stats:', error);
+      console.error("Error calculating grade stats:", error);
     }
   };
 
   const checkFollowStatus = async () => {
     if (!currentUserId) return;
-    
+
     try {
       const followersData = await getUserFollowers(userId);
-      const isCurrentUserFollowing = followersData.some(follower => follower.id === currentUserId);
+      const isCurrentUserFollowing = followersData.some(
+        (follower) => follower.id === currentUserId,
+      );
       setIsFollowed(isCurrentUserFollowing);
     } catch (error) {
-      console.error('Error checking follow status:', error);
+      console.error("Error checking follow status:", error);
     }
   };
 
@@ -204,19 +236,23 @@ export default function UserProfileScreen({ route, navigation }) {
   const savePrivacySettings = async (newSettings) => {
     if (!currentUserId || currentUserId !== userId) return;
     try {
-      await setDoc(doc(db, 'users', userId), {
-        privacySettings: newSettings
-      }, { merge: true });
+      await setDoc(
+        doc(db, "users", userId),
+        {
+          privacySettings: newSettings,
+        },
+        { merge: true },
+      );
       setPrivacySettings(newSettings);
     } catch (error) {
-      console.error('Error saving privacy settings:', error);
-      Alert.alert('שגיאה', 'לא ניתן לשמור הגדרות פרטיות');
+      console.error("Error saving privacy settings:", error);
+      Alert.alert("שגיאה", "לא ניתן לשמור הגדרות פרטיות");
     }
   };
 
   const handleFollowToggle = async () => {
     if (!currentUserId) return;
-    
+
     try {
       if (isFollowed) {
         await unfollowUser(currentUserId, userId);
@@ -225,13 +261,13 @@ export default function UserProfileScreen({ route, navigation }) {
         await followUser(currentUserId, userId);
         setIsFollowed(true);
       }
-      
+
       // Refresh followers list
       const followersData = await getUserFollowers(userId);
       setFollowers(followersData);
     } catch (error) {
-      console.error('Error toggling follow:', error);
-      Alert.alert('שגיאה', 'לא ניתן לבצע פעולה');
+      console.error("Error toggling follow:", error);
+      Alert.alert("שגיאה", "לא ניתן לבצע פעולה");
     }
   };
 
@@ -242,13 +278,30 @@ export default function UserProfileScreen({ route, navigation }) {
     }
 
     const sortedGrades = Object.keys(gradeStats).sort((a, b) => {
-      const gradeOrder = { 'V1': 1, 'V2': 2, 'V3': 3, 'V4': 4, 'V5': 5, 'V6': 6, 'V7': 7, 'V8': 8, 'V9': 9, 'V10': 10 };
+      const gradeOrder = {
+        V1: 1,
+        V2: 2,
+        V3: 3,
+        V4: 4,
+        V5: 5,
+        V6: 6,
+        V7: 7,
+        V8: 8,
+        V9: 9,
+        V10: 10,
+      };
       return (gradeOrder[a] || 999) - (gradeOrder[b] || 999);
     });
 
     const totalRoutes = allRoutes.length;
-    const totalCompleted = Object.values(gradeStats).reduce((sum, stat) => sum + stat.completed, 0);
-    const overallPercentage = totalRoutes > 0 ? ((totalCompleted / totalRoutes) * 100).toFixed(1) : '0.0';
+    const totalCompleted = Object.values(gradeStats).reduce(
+      (sum, stat) => sum + stat.completed,
+      0,
+    );
+    const overallPercentage =
+      totalRoutes > 0
+        ? ((totalCompleted / totalRoutes) * 100).toFixed(1)
+        : "0.0";
 
     return (
       <Modal
@@ -260,7 +313,7 @@ export default function UserProfileScreen({ route, navigation }) {
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>📈 אחוזי סגירה לפי דירוג</Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.modalCloseButton}
               onPress={() => setShowStatsModal(false)}
             >
@@ -270,37 +323,46 @@ export default function UserProfileScreen({ route, navigation }) {
 
           <View style={styles.overallStatsContainer}>
             <Text style={styles.overallStatsText}>
-              סיכום כללי: {totalCompleted} מתוך {totalRoutes} מסלולים ({overallPercentage}%)
+              סיכום כללי: {totalCompleted} מתוך {totalRoutes} מסלולים (
+              {overallPercentage}%)
             </Text>
           </View>
 
           <ScrollView style={styles.modalContent}>
-            {sortedGrades.map(grade => {
+            {sortedGrades.map((grade) => {
               const stat = gradeStats[grade];
               const progressWidth = stat.percentage;
-              
+
               return (
                 <View key={grade} style={styles.gradeStatRow}>
                   <View style={styles.gradeStatHeader}>
                     <Text style={styles.gradeLabel}>{grade}</Text>
-                    <Text style={styles.gradePercentage}>{stat.percentage}%</Text>
+                    <Text style={styles.gradePercentage}>
+                      {stat.percentage}%
+                    </Text>
                   </View>
-                  
+
                   <View style={styles.progressBarContainer}>
-                    <View 
+                    <View
                       style={[
-                        styles.progressBar, 
-                        { 
+                        styles.progressBar,
+                        {
                           width: `${progressWidth}%`,
-                          backgroundColor: progressWidth === 100 ? '#28a745' : 
-                                         progressWidth >= 75 ? '#ffc107' : 
-                                         progressWidth >= 50 ? '#fd7e14' : 
-                                         progressWidth >= 25 ? '#17a2b8' : '#dc3545'
-                        }
-                      ]} 
+                          backgroundColor:
+                            progressWidth === 100
+                              ? "#28a745"
+                              : progressWidth >= 75
+                                ? "#ffc107"
+                                : progressWidth >= 50
+                                  ? "#fd7e14"
+                                  : progressWidth >= 25
+                                    ? "#17a2b8"
+                                    : "#dc3545",
+                        },
+                      ]}
                     />
                   </View>
-                  
+
                   <Text style={styles.gradeStatDetails}>
                     {stat.completed} מתוך {stat.total} מסלולים
                   </Text>
@@ -314,12 +376,26 @@ export default function UserProfileScreen({ route, navigation }) {
   };
 
   // Statistics Cards Component
-  const StatCard = ({ title, value, icon, color = '#007AFF', onPress = null, isVisible = true, settingKey = null }) => {
+  const StatCard = ({
+    title,
+    value,
+    icon,
+    color = "#007AFF",
+    onPress = null,
+    isVisible = true,
+    settingKey = null,
+  }) => {
     const isOwner = currentUserId === userId;
-    
+
     if (!isVisible && !isOwner) {
       return (
-        <View style={[styles.statCard, styles.hiddenStatCard, { borderLeftColor: color }]}>
+        <View
+          style={[
+            styles.statCard,
+            styles.hiddenStatCard,
+            { borderLeftColor: color },
+          ]}
+        >
           <View style={styles.statContent}>
             <Text style={styles.statIcon}>🔒</Text>
             <View style={styles.statTextContainer}>
@@ -333,21 +409,21 @@ export default function UserProfileScreen({ route, navigation }) {
 
     return (
       <View style={[styles.statCard, { borderLeftColor: color }]}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.statContent}
           onPress={onPress}
           disabled={!onPress}
         >
           <Text style={styles.statIcon}>{icon}</Text>
           <View style={styles.statTextContainer}>
-            <Text style={styles.statValue}>{isVisible || isOwner ? value : 'פרטי'}</Text>
+            <Text style={styles.statValue}>
+              {isVisible || isOwner ? value : "פרטי"}
+            </Text>
             <Text style={styles.statTitle}>{title}</Text>
           </View>
-          {onPress && (
-            <Text style={styles.statArrow}>›</Text>
-          )}
+          {onPress && <Text style={styles.statArrow}>›</Text>}
         </TouchableOpacity>
-        
+
         {/* Privacy Toggle for Owner */}
         {isOwner && isEditingPrivacy && settingKey && (
           <View style={styles.privacyToggleContainer}>
@@ -358,8 +434,8 @@ export default function UserProfileScreen({ route, navigation }) {
                 const newSettings = { ...privacySettings, [settingKey]: value };
                 savePrivacySettings(newSettings);
               }}
-              trackColor={{ false: '#ccc', true: '#27ae60' }}
-              thumbColor={privacySettings[settingKey] ? '#27ae60' : '#f4f3f4'}
+              trackColor={{ false: "#ccc", true: "#27ae60" }}
+              thumbColor={privacySettings[settingKey] ? "#27ae60" : "#f4f3f4"}
               style={styles.privacySwitch}
             />
           </View>
@@ -371,28 +447,45 @@ export default function UserProfileScreen({ route, navigation }) {
   // Stats Dashboard Component
   const StatsDashboard = () => {
     const totalRoutes = allRoutes.length;
-    const totalCompleted = Object.values(gradeStats).reduce((sum, stat) => sum + stat.completed, 0);
-    const overallPercentage = totalRoutes > 0 ? ((totalCompleted / totalRoutes) * 100).toFixed(1) : '0.0';
+    const totalCompleted = Object.values(gradeStats).reduce(
+      (sum, stat) => sum + stat.completed,
+      0,
+    );
+    const overallPercentage =
+      totalRoutes > 0
+        ? ((totalCompleted / totalRoutes) * 100).toFixed(1)
+        : "0.0";
     const isOwner = currentUserId === userId;
 
     return (
       <View style={styles.statsContainer}>
         <View style={styles.statsHeader}>
           <Text style={styles.statsTitle}>
-            📊 {isOwner ? 'הסטטיסטיקות שלי' : `הסטטיסטיקות של ${userProfile?.displayName}`}
+            📊{" "}
+            {isOwner
+              ? "הסטטיסטיקות שלי"
+              : `הסטטיסטיקות של ${userProfile?.displayName}`}
           </Text>
           {isOwner && (
             <TouchableOpacity
-              style={[styles.editButton, isEditingPrivacy && styles.editButtonActive]}
+              style={[
+                styles.editButton,
+                isEditingPrivacy && styles.editButtonActive,
+              ]}
               onPress={() => setIsEditingPrivacy(!isEditingPrivacy)}
             >
-              <Text style={[styles.editButtonText, isEditingPrivacy && styles.editButtonTextActive]}>
-                {isEditingPrivacy ? '✓ סיום עריכה' : '⚙️ עריכה'}
+              <Text
+                style={[
+                  styles.editButtonText,
+                  isEditingPrivacy && styles.editButtonTextActive,
+                ]}
+              >
+                {isEditingPrivacy ? "✓ סיום עריכה" : "⚙️ עריכה"}
               </Text>
             </TouchableOpacity>
           )}
         </View>
-        
+
         {/* Auto-edit notification */}
         {isOwner && isEditingPrivacy && autoEdit && (
           <View style={styles.autoEditNotification}>
@@ -401,9 +494,9 @@ export default function UserProfileScreen({ route, navigation }) {
             </Text>
           </View>
         )}
-        
+
         <View style={styles.statsGrid}>
-          <StatCard 
+          <StatCard
             title="מסלולים שסגר"
             value={userStats.totalRoutesSent}
             icon="🎯"
@@ -411,8 +504,8 @@ export default function UserProfileScreen({ route, navigation }) {
             isVisible={privacySettings.showTotalRoutes}
             settingKey="showTotalRoutes"
           />
-          
-          <StatCard 
+
+          <StatCard
             title="דירוג הכי גבוה"
             value={userStats.highestGrade}
             icon="🏆"
@@ -420,8 +513,8 @@ export default function UserProfileScreen({ route, navigation }) {
             isVisible={privacySettings.showHighestGrade}
             settingKey="showHighestGrade"
           />
-          
-          <StatCard 
+
+          <StatCard
             title="סה״כ פידבקים"
             value={userStats.totalFeedbacks}
             icon="💬"
@@ -429,8 +522,8 @@ export default function UserProfileScreen({ route, navigation }) {
             isVisible={privacySettings.showFeedbackCount}
             settingKey="showFeedbackCount"
           />
-          
-          <StatCard 
+
+          <StatCard
             title="דירוג כוכבים ממוצע"
             value={userStats.averageStarRating.toFixed(1)}
             icon="⭐"
@@ -438,23 +531,27 @@ export default function UserProfileScreen({ route, navigation }) {
             isVisible={privacySettings.showAverageRating}
             settingKey="showAverageRating"
           />
-          
-          <StatCard 
+
+          <StatCard
             title="אחוזי סגירה לכל הקיר"
             value={`${overallPercentage}%`}
             icon="📈"
             color="#8e44ad"
-            onPress={privacySettings.showGradeStats || isOwner ? () => setShowStatsModal(true) : null}
+            onPress={
+              privacySettings.showGradeStats || isOwner
+                ? () => setShowStatsModal(true)
+                : null
+            }
             isVisible={privacySettings.showGradeStats}
             settingKey="showGradeStats"
           />
         </View>
-        
+
         {userStats.joinDate && (privacySettings.showJoinDate || isOwner) && (
           <View style={styles.joinDateContainer}>
             <View style={styles.joinDateContent}>
               <Text style={styles.joinDateText}>
-                🗓️ חבר מאז: {userStats.joinDate.toLocaleDateString('he-IL')}
+                🗓️ חבר מאז: {userStats.joinDate.toLocaleDateString("he-IL")}
               </Text>
               {isOwner && isEditingPrivacy && (
                 <View style={styles.joinDatePrivacy}>
@@ -462,11 +559,16 @@ export default function UserProfileScreen({ route, navigation }) {
                   <Switch
                     value={privacySettings.showJoinDate}
                     onValueChange={(value) => {
-                      const newSettings = { ...privacySettings, showJoinDate: value };
+                      const newSettings = {
+                        ...privacySettings,
+                        showJoinDate: value,
+                      };
                       savePrivacySettings(newSettings);
                     }}
-                    trackColor={{ false: '#ccc', true: '#27ae60' }}
-                    thumbColor={privacySettings.showJoinDate ? '#27ae60' : '#f4f3f4'}
+                    trackColor={{ false: "#ccc", true: "#27ae60" }}
+                    thumbColor={
+                      privacySettings.showJoinDate ? "#27ae60" : "#f4f3f4"
+                    }
                     style={styles.privacySwitch}
                   />
                 </View>
@@ -491,14 +593,19 @@ export default function UserProfileScreen({ route, navigation }) {
     return (
       <View style={styles.errorContainer}>
         <Text style={styles.errorText}>לא ניתן למצוא משתמש</Text>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
           <Text style={styles.backButtonText}>חזור</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
-  const avatarSource = userProfile.photoURL ? { uri: userProfile.photoURL } : defaultAvatar;
+  const avatarSource = userProfile.photoURL
+    ? { uri: userProfile.photoURL }
+    : defaultAvatar;
 
   return (
     <ScrollView
@@ -508,8 +615,8 @@ export default function UserProfileScreen({ route, navigation }) {
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
-          colors={['#8e44ad']}
-          tintColor='#8e44ad'
+          colors={["#8e44ad"]}
+          tintColor="#8e44ad"
         />
       }
     >
@@ -519,23 +626,33 @@ export default function UserProfileScreen({ route, navigation }) {
           <View style={styles.avatarContainer}>
             <Image source={avatarSource} style={styles.avatar} />
           </View>
-          
+
           <View style={styles.profileInfo}>
-            <Text style={styles.name}>{userProfile.displayName || 'משתמש'}</Text>
-            
+            <Text style={styles.name}>
+              {userProfile.displayName || "משתמש"}
+            </Text>
+
             <View style={styles.followStats}>
               <Text style={styles.followStat}>{followers.length} עוקבים</Text>
               <Text style={styles.followStat}> • </Text>
               <Text style={styles.followStat}>{following.length} עוקב</Text>
             </View>
-            
+
             {currentUserId !== userId && (
               <TouchableOpacity
-                style={[styles.followButton, isFollowed && styles.unfollowButton]}
+                style={[
+                  styles.followButton,
+                  isFollowed && styles.unfollowButton,
+                ]}
                 onPress={handleFollowToggle}
               >
-                <Text style={[styles.followButtonText, isFollowed && styles.unfollowButtonText]}>
-                  {isFollowed ? 'ביטול מעקב' : 'מעקב'}
+                <Text
+                  style={[
+                    styles.followButtonText,
+                    isFollowed && styles.unfollowButtonText,
+                  ]}
+                >
+                  {isFollowed ? "ביטול מעקב" : "מעקב"}
                 </Text>
               </TouchableOpacity>
             )}
@@ -545,7 +662,7 @@ export default function UserProfileScreen({ route, navigation }) {
         {/* Stats Dashboard */}
         <StatsDashboard />
       </View>
-      
+
       {/* Grade Statistics Modal */}
       <GradeStatsModal />
     </ScrollView>
@@ -555,7 +672,7 @@ export default function UserProfileScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
   },
   scrollContent: {
     flexGrow: 1,
@@ -566,103 +683,103 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: '#7f8c8d',
+    color: "#7f8c8d",
   },
   errorContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f8f9fa',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f8f9fa",
   },
   errorText: {
     fontSize: 18,
-    color: '#e74c3c',
+    color: "#e74c3c",
     marginBottom: 20,
   },
   backButton: {
-    backgroundColor: '#8e44ad',
+    backgroundColor: "#8e44ad",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   backButtonText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: "#fff",
+    fontWeight: "600",
     fontSize: 16,
   },
   profileHeader: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 3,
   },
   avatarContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 20,
   },
   avatar: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#eee',
+    backgroundColor: "#eee",
     borderWidth: 4,
-    borderColor: '#8e44ad',
+    borderColor: "#8e44ad",
   },
   profileInfo: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   name: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2c3e50',
+    fontWeight: "bold",
+    color: "#2c3e50",
     marginBottom: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
   followStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: 16,
   },
   followStat: {
     fontSize: 16,
-    color: '#7f8c8d',
-    fontWeight: '500',
+    color: "#7f8c8d",
+    fontWeight: "500",
   },
   followButton: {
-    backgroundColor: '#8e44ad',
+    backgroundColor: "#8e44ad",
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   followButtonText: {
-    color: '#fff',
-    fontWeight: '600',
+    color: "#fff",
+    fontWeight: "600",
     fontSize: 16,
   },
   unfollowButton: {
-    backgroundColor: '#e74c3c',
+    backgroundColor: "#e74c3c",
   },
   unfollowButtonText: {
-    color: '#fff',
+    color: "#fff",
   },
   statsContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 20,
     marginBottom: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -670,74 +787,74 @@ const styles = StyleSheet.create({
   },
   statsTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2c3e50',
+    fontWeight: "bold",
+    color: "#2c3e50",
     flex: 1,
   },
   statsHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 20,
   },
   editButton: {
-    backgroundColor: '#e8f4f8',
+    backgroundColor: "#e8f4f8",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#8e44ad',
+    borderColor: "#8e44ad",
   },
   editButtonActive: {
-    backgroundColor: '#8e44ad',
+    backgroundColor: "#8e44ad",
   },
   editButtonText: {
-    color: '#8e44ad',
+    color: "#8e44ad",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   editButtonTextActive: {
-    color: '#fff',
+    color: "#fff",
   },
   autoEditNotification: {
-    backgroundColor: '#e8f5e8',
+    backgroundColor: "#e8f5e8",
     padding: 10,
     borderRadius: 8,
     marginBottom: 15,
     borderLeftWidth: 3,
-    borderLeftColor: '#27ae60',
+    borderLeftColor: "#27ae60",
   },
   autoEditText: {
     fontSize: 13,
-    color: '#27ae60',
-    fontWeight: '500',
-    textAlign: 'center',
+    color: "#27ae60",
+    fontWeight: "500",
+    textAlign: "center",
   },
   statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
   statCard: {
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     width: (screenWidth - 60) / 2,
     borderLeftWidth: 4,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 4,
     elevation: 2,
   },
   hiddenStatCard: {
-    backgroundColor: '#f0f0f0',
+    backgroundColor: "#f0f0f0",
     opacity: 0.7,
   },
   statContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   statIcon: {
     fontSize: 24,
@@ -748,100 +865,100 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
+    fontWeight: "bold",
+    color: "#2c3e50",
   },
   statTitle: {
     fontSize: 12,
-    color: '#7f8c8d',
+    color: "#7f8c8d",
     marginTop: 2,
   },
   statArrow: {
     fontSize: 20,
-    color: '#8e44ad',
-    fontWeight: 'bold',
+    color: "#8e44ad",
+    fontWeight: "bold",
     marginLeft: 8,
   },
   privacyToggleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: "#e0e0e0",
   },
   privacyToggleLabel: {
     fontSize: 11,
-    color: '#7f8c8d',
-    fontWeight: '500',
+    color: "#7f8c8d",
+    fontWeight: "500",
   },
   privacySwitch: {
     transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
   },
   joinDateContainer: {
-    backgroundColor: '#e8f4f8',
+    backgroundColor: "#e8f4f8",
     padding: 12,
     borderRadius: 8,
     marginTop: 10,
   },
   joinDateContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   joinDateText: {
     fontSize: 14,
-    color: '#2c3e50',
-    fontWeight: '500',
+    color: "#2c3e50",
+    fontWeight: "500",
     flex: 1,
   },
   joinDatePrivacy: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
   },
   modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#8e44ad',
+    backgroundColor: "#8e44ad",
     paddingTop: 50,
   },
   modalTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: 'white',
+    fontWeight: "bold",
+    color: "white",
     flex: 1,
   },
   modalCloseButton: {
     width: 30,
     height: 30,
     borderRadius: 15,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalCloseText: {
-    color: 'white',
+    color: "white",
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   modalContent: {
     flex: 1,
     padding: 20,
   },
   overallStatsContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 15,
     marginHorizontal: 20,
     marginTop: 10,
     borderRadius: 8,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -849,51 +966,51 @@ const styles = StyleSheet.create({
   },
   overallStatsText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#2c3e50',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#2c3e50",
+    textAlign: "center",
   },
   gradeStatRow: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 15,
     marginBottom: 10,
     borderRadius: 8,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 1,
   },
   gradeStatHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 8,
   },
   gradeLabel: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2c3e50',
+    fontWeight: "bold",
+    color: "#2c3e50",
   },
   gradePercentage: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#8e44ad',
+    fontWeight: "bold",
+    color: "#8e44ad",
   },
   progressBarContainer: {
     height: 8,
-    backgroundColor: '#ecf0f1',
+    backgroundColor: "#ecf0f1",
     borderRadius: 4,
     marginBottom: 8,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   progressBar: {
-    height: '100%',
+    height: "100%",
     borderRadius: 4,
   },
   gradeStatDetails: {
     fontSize: 12,
-    color: '#7f8c8d',
-    textAlign: 'center',
+    color: "#7f8c8d",
+    textAlign: "center",
   },
 });

@@ -1,5 +1,5 @@
 // screens/SprayWall/GridAlignScreen.tsx
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,10 +7,10 @@ import {
   TouchableOpacity,
   Image,
   Alert,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import Slider from '@react-native-community/slider';
-import { THEME_COLORS } from '@/constants/colors';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Slider from "@react-native-community/slider";
+import { THEME_COLORS } from "@/constants/colors";
 
 interface GridAlignScreenProps {
   navigation: any;
@@ -30,13 +30,16 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
   navigation,
   route: routeParams,
 }) => {
-  const { imageUri, homography, canonW, canonH, wallId, isReplace } = routeParams.params;
-  
+  const { imageUri, homography, canonW, canonH, wallId, isReplace } =
+    routeParams.params;
+
   const [gridSpacing, setGridSpacing] = useState(100); // בפיקסלים
   const [gridRotation, setGridRotation] = useState(0); // ברדיאנים
   const [gridOriginX, setGridOriginX] = useState(0);
   const [gridOriginY, setGridOriginY] = useState(0);
-  const [gridPattern, setGridPattern] = useState<'square' | 'staggered'>('square');
+  const [gridPattern, setGridPattern] = useState<"square" | "staggered">(
+    "square",
+  );
   const [gridVisible, setGridVisible] = useState(true);
 
   const handleCancel = () => {
@@ -51,7 +54,7 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
       pattern: gridPattern,
     };
 
-    navigation.navigate('SymmetryToolsScreen', {
+    navigation.navigate("SymmetryToolsScreen", {
       imageUri,
       homography,
       canonW,
@@ -70,11 +73,14 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
   const saveWallAndFinish = async (gridSpec: any) => {
     try {
       // TODO: שמירת הקיר עם הרשת ב-Firebase
-      Alert.alert('הצלחה', 'הקיר נשמר בהצלחה', [
-        { text: 'אישור', onPress: () => navigation.navigate('SprayWallScreen', { wallId }) }
+      Alert.alert("הצלחה", "הקיר נשמר בהצלחה", [
+        {
+          text: "אישור",
+          onPress: () => navigation.navigate("SprayWallScreen", { wallId }),
+        },
       ]);
     } catch (error) {
-      Alert.alert('שגיאה', 'לא ניתן לשמור את הקיר');
+      Alert.alert("שגיאה", "לא ניתן לשמור את הקיר");
     }
   };
 
@@ -83,7 +89,7 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
     setGridRotation(0);
     setGridOriginX(0);
     setGridOriginY(0);
-    setGridPattern('square');
+    setGridPattern("square");
   };
 
   return (
@@ -108,8 +114,12 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
 
       {/* Image with Grid Overlay */}
       <View style={styles.imageContainer}>
-        <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
-        
+        <Image
+          source={{ uri: imageUri }}
+          style={styles.image}
+          resizeMode="contain"
+        />
+
         {/* Grid Overlay */}
         {gridVisible && (
           <View style={styles.gridOverlay}>
@@ -120,7 +130,7 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
                 מרווח: {Math.round(gridSpacing)}px
               </Text>
               <Text style={styles.gridInfo}>
-                זווית: {Math.round(gridRotation * 180 / Math.PI)}°
+                זווית: {Math.round((gridRotation * 180) / Math.PI)}°
               </Text>
             </View>
           </View>
@@ -135,8 +145,13 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
             style={[styles.toggleButton, gridVisible && styles.activeToggle]}
             onPress={() => setGridVisible(!gridVisible)}
           >
-            <Text style={[styles.toggleText, gridVisible && styles.activeToggleText]}>
-              {gridVisible ? '👁️ הסתר רשת' : '👁️‍🗨️ הצג רשת'}
+            <Text
+              style={[
+                styles.toggleText,
+                gridVisible && styles.activeToggleText,
+              ]}
+            >
+              {gridVisible ? "👁️ הסתר רשת" : "👁️‍🗨️ הצג רשת"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -148,28 +163,32 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
             <TouchableOpacity
               style={[
                 styles.patternButton,
-                gridPattern === 'square' && styles.activePatternButton
+                gridPattern === "square" && styles.activePatternButton,
               ]}
-              onPress={() => setGridPattern('square')}
+              onPress={() => setGridPattern("square")}
             >
-              <Text style={[
-                styles.patternButtonText,
-                gridPattern === 'square' && styles.activePatternButtonText
-              ]}>
+              <Text
+                style={[
+                  styles.patternButtonText,
+                  gridPattern === "square" && styles.activePatternButtonText,
+                ]}
+              >
                 רגילה
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.patternButton,
-                gridPattern === 'staggered' && styles.activePatternButton
+                gridPattern === "staggered" && styles.activePatternButton,
               ]}
-              onPress={() => setGridPattern('staggered')}
+              onPress={() => setGridPattern("staggered")}
             >
-              <Text style={[
-                styles.patternButtonText,
-                gridPattern === 'staggered' && styles.activePatternButtonText
-              ]}>
+              <Text
+                style={[
+                  styles.patternButtonText,
+                  gridPattern === "staggered" && styles.activePatternButtonText,
+                ]}
+              >
                 מזוזזת
               </Text>
             </TouchableOpacity>
@@ -178,7 +197,9 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
 
         {/* Spacing Slider */}
         <View style={styles.controlRow}>
-          <Text style={styles.controlLabel}>מרווח: {Math.round(gridSpacing)}px</Text>
+          <Text style={styles.controlLabel}>
+            מרווח: {Math.round(gridSpacing)}px
+          </Text>
           <Slider
             style={styles.slider}
             minimumValue={50}
@@ -193,7 +214,7 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
         {/* Rotation Slider */}
         <View style={styles.controlRow}>
           <Text style={styles.controlLabel}>
-            זווית: {Math.round(gridRotation * 180 / Math.PI)}°
+            זווית: {Math.round((gridRotation * 180) / Math.PI)}°
           </Text>
           <Slider
             style={styles.slider}
@@ -208,7 +229,9 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
 
         {/* Origin X Slider */}
         <View style={styles.controlRow}>
-          <Text style={styles.controlLabel}>מיקום X: {Math.round(gridOriginX)}</Text>
+          <Text style={styles.controlLabel}>
+            מיקום X: {Math.round(gridOriginX)}
+          </Text>
           <Slider
             style={styles.slider}
             minimumValue={-50}
@@ -222,7 +245,9 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
 
         {/* Origin Y Slider */}
         <View style={styles.controlRow}>
-          <Text style={styles.controlLabel}>מיקום Y: {Math.round(gridOriginY)}</Text>
+          <Text style={styles.controlLabel}>
+            מיקום Y: {Math.round(gridOriginY)}
+          </Text>
           <Slider
             style={styles.slider}
             minimumValue={-50}
@@ -240,7 +265,10 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
         <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
           <Text style={styles.skipButtonText}>דלג</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+        <TouchableOpacity
+          style={styles.continueButton}
+          onPress={handleContinue}
+        >
           <Text style={styles.continueButtonText}>המשך</Text>
         </TouchableOpacity>
       </View>
@@ -254,9 +282,9 @@ const styles = StyleSheet.create({
     backgroundColor: THEME_COLORS.background,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: THEME_COLORS.surface,
@@ -266,11 +294,11 @@ const styles = StyleSheet.create({
   headerButton: {
     fontSize: 16,
     color: THEME_COLORS.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: THEME_COLORS.text,
   },
   instructions: {
@@ -283,21 +311,21 @@ const styles = StyleSheet.create({
   instructionsText: {
     fontSize: 14,
     color: THEME_COLORS.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
   },
   imageContainer: {
     flex: 1,
     margin: 16,
     borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
+    overflow: "hidden",
+    position: "relative",
   },
   image: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   gridOverlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -305,13 +333,13 @@ const styles = StyleSheet.create({
   },
   gridPlaceholder: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 123, 255, 0.1)",
   },
   gridText: {
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: THEME_COLORS.primary,
     marginBottom: 8,
   },
@@ -329,7 +357,7 @@ const styles = StyleSheet.create({
   },
   controlLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: THEME_COLORS.text,
   },
   toggleButton: {
@@ -338,7 +366,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: THEME_COLORS.border,
-    alignItems: 'center',
+    alignItems: "center",
   },
   activeToggle: {
     backgroundColor: THEME_COLORS.primary,
@@ -346,14 +374,14 @@ const styles = StyleSheet.create({
   },
   toggleText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: THEME_COLORS.text,
   },
   activeToggleText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   patternButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   patternButton: {
@@ -363,7 +391,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: THEME_COLORS.border,
-    alignItems: 'center',
+    alignItems: "center",
   },
   activePatternButton: {
     backgroundColor: THEME_COLORS.primary,
@@ -371,17 +399,17 @@ const styles = StyleSheet.create({
   },
   patternButtonText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: THEME_COLORS.text,
   },
   activePatternButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   slider: {
     height: 40,
   },
   bottomActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 20,
     gap: 12,
   },
@@ -390,13 +418,13 @@ const styles = StyleSheet.create({
     backgroundColor: THEME_COLORS.surface,
     borderRadius: 12,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
     borderColor: THEME_COLORS.border,
   },
   skipButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: THEME_COLORS.text,
   },
   continueButton: {
@@ -404,11 +432,11 @@ const styles = StyleSheet.create({
     backgroundColor: THEME_COLORS.primary,
     borderRadius: 12,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   continueButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });

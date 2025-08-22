@@ -1,5 +1,5 @@
 // screens/SprayWall/AddOrReplaceWallScreen.tsx
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,12 +8,12 @@ import {
   Alert,
   Image,
   ScrollView,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { pickImage, PickImageResult } from '@/features/image/picker';
-import { fixImageOrientation } from '@/features/image/exif';
-import { resizeImage } from '@/features/image/resize';
-import { THEME_COLORS } from '@/constants/colors';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { pickImage, PickImageResult } from "@/features/image/picker";
+import { fixImageOrientation } from "@/features/image/exif";
+import { resizeImage } from "@/features/image/resize";
+import { THEME_COLORS } from "@/constants/colors";
 
 interface AddOrReplaceWallScreenProps {
   navigation: any;
@@ -29,46 +29,48 @@ export const AddOrReplaceWallScreen: React.FC<AddOrReplaceWallScreenProps> = ({
   navigation,
   route,
 }) => {
-  const [selectedImage, setSelectedImage] = useState<PickImageResult | null>(null);
+  const [selectedImage, setSelectedImage] = useState<PickImageResult | null>(
+    null,
+  );
   const [isProcessing, setIsProcessing] = useState(false);
 
   const isReplace = route.params?.isReplace || false;
 
   const handlePickFromCamera = async () => {
     try {
-      const result = await pickImage({ source: 'camera' });
+      const result = await pickImage({ source: "camera" });
       if (!result.cancelled) {
         await processImage(result);
       }
     } catch (error) {
-      Alert.alert('שגיאה', 'לא ניתן לצלם תמונה');
+      Alert.alert("שגיאה", "לא ניתן לצלם תמונה");
     }
   };
 
   const handlePickFromGallery = async () => {
     try {
-      const result = await pickImage({ source: 'library' });
+      const result = await pickImage({ source: "library" });
       if (!result.cancelled) {
         await processImage(result);
       }
     } catch (error) {
-      Alert.alert('שגיאה', 'לא ניתן לבחור תמונה');
+      Alert.alert("שגיאה", "לא ניתן לבחור תמונה");
     }
   };
 
   const processImage = async (imageResult: PickImageResult) => {
     setIsProcessing(true);
-    
+
     try {
       // תקן כיוון EXIF
       const fixedUri = await fixImageOrientation(imageResult.uri);
-      
+
       // שנה גודל אם נדרש
       const resizedImage = await resizeImage(
         fixedUri,
         imageResult.width,
         imageResult.height,
-        { maxWidth: 4000, maxHeight: 4000, quality: 0.8 }
+        { maxWidth: 4000, maxHeight: 4000, quality: 0.8 },
       );
 
       setSelectedImage({
@@ -78,7 +80,7 @@ export const AddOrReplaceWallScreen: React.FC<AddOrReplaceWallScreenProps> = ({
         height: resizedImage.height,
       });
     } catch (error) {
-      Alert.alert('שגיאה', 'לא ניתן לעבד את התמונה');
+      Alert.alert("שגיאה", "לא ניתן לעבד את התמונה");
     } finally {
       setIsProcessing(false);
     }
@@ -86,12 +88,12 @@ export const AddOrReplaceWallScreen: React.FC<AddOrReplaceWallScreenProps> = ({
 
   const handleContinue = () => {
     if (!selectedImage) {
-      Alert.alert('שגיאה', 'אנא בחר תמונה תחילה');
+      Alert.alert("שגיאה", "אנא בחר תמונה תחילה");
       return;
     }
 
     // עבור למסך חיתוך והתאמה
-    navigation.navigate('CropAndRectifyScreen', {
+    navigation.navigate("CropAndRectifyScreen", {
       imageUri: selectedImage.uri,
       imageWidth: selectedImage.width,
       imageHeight: selectedImage.height,
@@ -108,7 +110,7 @@ export const AddOrReplaceWallScreen: React.FC<AddOrReplaceWallScreenProps> = ({
     <SafeAreaView style={styles.container}>
       <ScrollView style={styles.content}>
         <Text style={styles.title}>
-          {isReplace ? 'החלפת תמונת קיר' : 'הוספת קיר ספריי חדש'}
+          {isReplace ? "החלפת תמונת קיר" : "הוספת קיר ספריי חדש"}
         </Text>
 
         <Text style={styles.subtitle}>
@@ -140,7 +142,10 @@ export const AddOrReplaceWallScreen: React.FC<AddOrReplaceWallScreenProps> = ({
         {selectedImage && (
           <View style={styles.previewContainer}>
             <Text style={styles.previewTitle}>תמונה נבחרה:</Text>
-            <Image source={{ uri: selectedImage.uri }} style={styles.previewImage} />
+            <Image
+              source={{ uri: selectedImage.uri }}
+              style={styles.previewImage}
+            />
             <Text style={styles.imageDimensions}>
               {selectedImage.width} × {selectedImage.height} פיקסלים
             </Text>
@@ -171,7 +176,10 @@ export const AddOrReplaceWallScreen: React.FC<AddOrReplaceWallScreenProps> = ({
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.continueButton, !selectedImage && styles.disabledButton]}
+          style={[
+            styles.continueButton,
+            !selectedImage && styles.disabledButton,
+          ]}
           onPress={handleContinue}
           disabled={!selectedImage || isProcessing}
         >
@@ -193,15 +201,15 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: THEME_COLORS.text,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
     color: THEME_COLORS.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 32,
     lineHeight: 22,
   },
@@ -213,10 +221,10 @@ const styles = StyleSheet.create({
     backgroundColor: THEME_COLORS.surface,
     borderRadius: 12,
     padding: 20,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 2,
     borderColor: THEME_COLORS.border,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
   },
   buttonIcon: {
     fontSize: 32,
@@ -224,7 +232,7 @@ const styles = StyleSheet.create({
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: THEME_COLORS.text,
   },
   previewContainer: {
@@ -232,11 +240,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     marginBottom: 24,
-    alignItems: 'center',
+    alignItems: "center",
   },
   previewTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: THEME_COLORS.text,
     marginBottom: 12,
   },
@@ -254,13 +262,13 @@ const styles = StyleSheet.create({
     backgroundColor: THEME_COLORS.surface,
     borderRadius: 12,
     padding: 20,
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 24,
   },
   processingText: {
     fontSize: 16,
     color: THEME_COLORS.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   tipsContainer: {
     backgroundColor: THEME_COLORS.surface,
@@ -270,7 +278,7 @@ const styles = StyleSheet.create({
   },
   tipsTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: THEME_COLORS.text,
     marginBottom: 12,
   },
@@ -281,7 +289,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   bottomActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     padding: 20,
     gap: 12,
   },
@@ -290,13 +298,13 @@ const styles = StyleSheet.create({
     backgroundColor: THEME_COLORS.surface,
     borderRadius: 12,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 1,
     borderColor: THEME_COLORS.border,
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: THEME_COLORS.text,
   },
   continueButton: {
@@ -304,12 +312,12 @@ const styles = StyleSheet.create({
     backgroundColor: THEME_COLORS.primary,
     borderRadius: 12,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   continueButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   disabledButton: {
     opacity: 0.5,

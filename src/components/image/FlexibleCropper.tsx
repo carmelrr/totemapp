@@ -1,13 +1,12 @@
-import React from 'react';
-import SimpleImageCropper from './SimpleImageCropper';
+import React from "react";
+import SimpleImageCropper from "./SimpleImageCropper";
 
 export default function FlexibleCropper({ imageUri, onSave, onCancel }) {
   return (
-    <SimpleImageCropper 
+    <SimpleImageCropper
       imageUri={imageUri}
       onSave={onSave}
       onCancel={onCancel}
     />
   );
 }
-

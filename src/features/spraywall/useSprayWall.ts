@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { sprayApi } from './sprayApi';
+import { useState, useEffect } from "react";
+import { sprayApi } from "./sprayApi";
 
 export const useSprayWall = (wallId) => {
   const [currentSeason, setCurrentSeason] = useState(null);
@@ -15,14 +15,18 @@ export const useSprayWall = (wallId) => {
         setLoading(true);
         const season = await sprayApi.getCurrentSeason(wallId);
         setCurrentSeason(season);
-        
+
         if (season) {
           // Listen to routes for current season
-          const unsubscribe = sprayApi.listenRoutes(wallId, season.id, (routesData) => {
-            setRoutes(routesData);
-            setLoading(false);
-          });
-          
+          const unsubscribe = sprayApi.listenRoutes(
+            wallId,
+            season.id,
+            (routesData) => {
+              setRoutes(routesData);
+              setLoading(false);
+            },
+          );
+
           return unsubscribe;
         } else {
           setRoutes([]);
@@ -35,9 +39,9 @@ export const useSprayWall = (wallId) => {
     };
 
     const unsubscribe = loadSeason();
-    
+
     return () => {
-      if (unsubscribe && typeof unsubscribe === 'function') {
+      if (unsubscribe && typeof unsubscribe === "function") {
         unsubscribe();
       }
     };
@@ -57,6 +61,6 @@ export const useSprayWall = (wallId) => {
     routes,
     loading,
     error,
-    refreshSeason
+    refreshSeason,
   };
 };

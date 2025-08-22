@@ -1,11 +1,11 @@
 // features/image/resize.ts
-import * as ImageManipulator from 'expo-image-manipulator';
+import * as ImageManipulator from "expo-image-manipulator";
 
 export interface ResizeOptions {
   maxWidth?: number;
   maxHeight?: number;
   quality?: number;
-  format?: 'jpeg' | 'png';
+  format?: "jpeg" | "png";
 }
 
 export interface ResizeResult {
@@ -17,22 +17,22 @@ export interface ResizeResult {
 }
 
 export async function resizeImage(
-  uri: string, 
+  uri: string,
   originalWidth: number,
   originalHeight: number,
-  options: ResizeOptions = {}
+  options: ResizeOptions = {},
 ): Promise<ResizeResult> {
   const {
     maxWidth = 4000,
     maxHeight = 4000,
     quality = 0.8,
-    format = 'jpeg'
+    format = "jpeg",
   } = options;
 
   try {
     // בדוק אם צריך לשנות גודל
     const needsResize = originalWidth > maxWidth || originalHeight > maxHeight;
-    
+
     if (!needsResize) {
       return {
         uri,
@@ -60,11 +60,21 @@ export async function resizeImage(
 
     const result = await ImageManipulator.manipulateAsync(
       uri,
-      [{ resize: { width: Math.round(newWidth), height: Math.round(newHeight) } }],
+      [
+        {
+          resize: {
+            width: Math.round(newWidth),
+            height: Math.round(newHeight),
+          },
+        },
+      ],
       {
         compress: quality,
-        format: format === 'jpeg' ? ImageManipulator.SaveFormat.JPEG : ImageManipulator.SaveFormat.PNG,
-      }
+        format:
+          format === "jpeg"
+            ? ImageManipulator.SaveFormat.JPEG
+            : ImageManipulator.SaveFormat.PNG,
+      },
     );
 
     return {
@@ -75,7 +85,7 @@ export async function resizeImage(
       originalHeight,
     };
   } catch (error) {
-    console.error('Error resizing image:', error);
+    console.error("Error resizing image:", error);
     // Return original if resize fails
     return {
       uri,

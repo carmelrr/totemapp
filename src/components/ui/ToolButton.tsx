@@ -1,7 +1,13 @@
 // components/ui/ToolButton.tsx
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { THEME_COLORS } from '@/constants/colors';
+import React from "react";
+import {
+  TouchableOpacity,
+  Text,
+  StyleSheet,
+  ViewStyle,
+  TextStyle,
+} from "react-native";
+import { THEME_COLORS } from "@/constants/colors";
 
 interface ToolButtonProps {
   title: string;
@@ -57,9 +63,9 @@ const styles = StyleSheet.create({
     backgroundColor: THEME_COLORS.surface,
     borderWidth: 1,
     borderColor: THEME_COLORS.border,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
     gap: 8,
   },
   selectedButton: {
@@ -71,11 +77,11 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     color: THEME_COLORS.text,
   },
   selectedText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   disabledText: {
     color: THEME_COLORS.textSecondary,

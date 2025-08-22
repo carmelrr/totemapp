@@ -1,14 +1,20 @@
 // features/spraywall/transforms.ts
-import { Vec2, Transform } from './types';
-import { screenToCanonical, canonicalToScreen } from '@/utils/matrix';
-import { isPointInCircle, getScreenConstantRadius } from '@/utils/geometry';
-import { Hold } from '../routes/types';
+import { Vec2, Transform } from "./types";
+import { screenToCanonical, canonicalToScreen } from "@/utils/matrix";
+import { isPointInCircle, getScreenConstantRadius } from "@/utils/geometry";
+import { Hold } from "../routes/types";
 
 // ניהול Pan/Zoom למסך מגע
 export class CanvasTransform {
   private transform: Transform = { scale: 1, tx: 0, ty: 0 };
-  private canvasSize: { width: number; height: number } = { width: 0, height: 0 };
-  private imageSize: { width: number; height: number } = { width: 0, height: 0 };
+  private canvasSize: { width: number; height: number } = {
+    width: 0,
+    height: 0,
+  };
+  private imageSize: { width: number; height: number } = {
+    width: 0,
+    height: 0,
+  };
 
   constructor(canvasWidth: number, canvasHeight: number) {
     this.setCanvasSize(canvasWidth, canvasHeight);
@@ -48,12 +54,12 @@ export class CanvasTransform {
   // Zoom (פינץ')
   zoom(scaleFactor: number, focalX: number, focalY: number) {
     const newScale = this.transform.scale * scaleFactor;
-    
+
     // הגבל זום
     const minScale = 0.1;
     const maxScale = 5.0;
     const clampedScale = Math.max(minScale, Math.min(maxScale, newScale));
-    
+
     if (clampedScale === this.transform.scale) return;
 
     // זום סביב נקודת המוקד
@@ -61,7 +67,7 @@ export class CanvasTransform {
     this.transform.tx = focalX - (focalX - this.transform.tx) * ratio;
     this.transform.ty = focalY - (focalY - this.transform.ty) * ratio;
     this.transform.scale = clampedScale;
-    
+
     this.clampTransform();
   }
 
@@ -83,44 +89,48 @@ export class CanvasTransform {
   // המרות קואורדינטות
   screenToCanonical(screenX: number, screenY: number): Vec2 {
     return screenToCanonical(
-      screenX, 
-      screenY, 
-      this.transform.tx, 
-      this.transform.ty, 
-      this.transform.scale
+      screenX,
+      screenY,
+      this.transform.tx,
+      this.transform.ty,
+      this.transform.scale,
     );
   }
 
   canonicalToScreen(canonicalX: number, canonicalY: number): Vec2 {
     return canonicalToScreen(
-      canonicalX, 
-      canonicalY, 
-      this.transform.tx, 
-      this.transform.ty, 
-      this.transform.scale
+      canonicalX,
+      canonicalY,
+      this.transform.tx,
+      this.transform.ty,
+      this.transform.scale,
     );
   }
 
   // בדיקת hit-testing לאחיזות
   hitTestHold(screenX: number, screenY: number, hold: Hold): boolean {
     const screenPos = this.canonicalToScreen(hold.x, hold.y);
-    const screenRadius = getScreenConstantRadius(hold.size * 1000, this.transform.scale, 15);
-    
-    return isPointInCircle(
-      { x: screenX, y: screenY },
-      screenPos,
-      screenRadius
+    const screenRadius = getScreenConstantRadius(
+      hold.size * 1000,
+      this.transform.scale,
+      15,
     );
+
+    return isPointInCircle({ x: screenX, y: screenY }, screenPos, screenRadius);
   }
 
   // מציאת כל האחיזות תחת נקודה
   getHoldsAtPoint(screenX: number, screenY: number, holds: Hold[]): Hold[] {
-    return holds.filter(hold => this.hitTestHold(screenX, screenY, hold));
+    return holds.filter((hold) => this.hitTestHold(screenX, screenY, hold));
   }
 
   // קבלת רדיוס שמשמר גודל על המסך
   getScreenRadius(canonicalRadius: number): number {
-    return getScreenConstantRadius(canonicalRadius * 1000, this.transform.scale, 8);
+    return getScreenConstantRadius(
+      canonicalRadius * 1000,
+      this.transform.scale,
+      8,
+    );
   }
 
   // איפוס זום ופאן
@@ -144,7 +154,7 @@ export class CanvasTransform {
 export function createAnimatedTransform(
   from: Transform,
   to: Transform,
-  progress: number // 0-1
+  progress: number, // 0-1
 ): Transform {
   return {
     scale: from.scale + (to.scale - from.scale) * progress,
@@ -157,7 +167,7 @@ export function createAnimatedTransform(
 export function getImageBounds(
   imageWidth: number,
   imageHeight: number,
-  transform: Transform
+  transform: Transform,
 ): { x: number; y: number; width: number; height: number } {
   return {
     x: transform.tx,

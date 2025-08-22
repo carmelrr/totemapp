@@ -1,5 +1,5 @@
 // screens/SprayWall/CropAndRectifyScreen.tsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from "react";
 import {
   View,
   Text,
@@ -8,13 +8,16 @@ import {
   Image,
   Alert,
   Dimensions,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { PanGestureHandler, PinchGestureHandler } from 'react-native-gesture-handler';
-import { createRectifyHomography } from '@/features/image/homography';
-import { THEME_COLORS } from '@/constants/colors';
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  PanGestureHandler,
+  PinchGestureHandler,
+} from "react-native-gesture-handler";
+import { createRectifyHomography } from "@/features/image/homography";
+import { THEME_COLORS } from "@/constants/colors";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 interface CropAndRectifyScreenProps {
   navigation: any;
@@ -39,23 +42,24 @@ export const CropAndRectifyScreen: React.FC<CropAndRectifyScreenProps> = ({
   navigation,
   route: routeParams,
 }) => {
-  const { imageUri, imageWidth, imageHeight, wallId, isReplace } = routeParams.params;
-  
+  const { imageUri, imageWidth, imageHeight, wallId, isReplace } =
+    routeParams.params;
+
   // 4 פינות להומוגרפיה
   const [corners, setCorners] = useState<Corner[]>([
-    { id: 'top-left', x: 50, y: 50 },
-    { id: 'top-right', x: screenWidth - 50, y: 50 },
-    { id: 'bottom-right', x: screenWidth - 50, y: 400 },
-    { id: 'bottom-left', x: 50, y: 400 },
+    { id: "top-left", x: 50, y: 50 },
+    { id: "top-right", x: screenWidth - 50, y: 50 },
+    { id: "bottom-right", x: screenWidth - 50, y: 400 },
+    { id: "bottom-left", x: 50, y: 400 },
   ]);
 
   const [selectedCorner, setSelectedCorner] = useState<string | null>(null);
 
   const handleCornerDrag = (cornerId: string, x: number, y: number) => {
-    setCorners(prevCorners =>
-      prevCorners.map(corner =>
-        corner.id === cornerId ? { ...corner, x, y } : corner
-      )
+    setCorners((prevCorners) =>
+      prevCorners.map((corner) =>
+        corner.id === cornerId ? { ...corner, x, y } : corner,
+      ),
     );
   };
 
@@ -65,10 +69,10 @@ export const CropAndRectifyScreen: React.FC<CropAndRectifyScreenProps> = ({
 
   const handleReset = () => {
     setCorners([
-      { id: 'top-left', x: 50, y: 50 },
-      { id: 'top-right', x: screenWidth - 50, y: 50 },
-      { id: 'bottom-right', x: screenWidth - 50, y: 400 },
-      { id: 'bottom-left', x: 50, y: 400 },
+      { id: "top-left", x: 50, y: 50 },
+      { id: "top-right", x: screenWidth - 50, y: 50 },
+      { id: "bottom-right", x: screenWidth - 50, y: 400 },
+      { id: "bottom-left", x: 50, y: 400 },
     ]);
   };
 
@@ -76,26 +80,43 @@ export const CropAndRectifyScreen: React.FC<CropAndRectifyScreenProps> = ({
     try {
       // חשב הומוגרפיה
       const canonicalWidth = 2048;
-      const canonicalHeight = Math.round((canonicalWidth * imageHeight) / imageWidth);
-      
-      const srcCorners = corners.map(c => ({ x: c.x, y: c.y }));
-      const homography = createRectifyHomography(srcCorners, canonicalWidth, canonicalHeight);
-
-      Alert.alert(
-        'הומוגרפיה מחושבת',
-        'המשך להגדרת רשת וסימטריה?',
-        [
-          { text: 'דלג', onPress: () => saveWallAndFinish(homography, canonicalWidth, canonicalHeight) },
-          { text: 'המשך', onPress: () => navigateToGridAlign(homography, canonicalWidth, canonicalHeight) },
-        ]
+      const canonicalHeight = Math.round(
+        (canonicalWidth * imageHeight) / imageWidth,
       );
+
+      const srcCorners = corners.map((c) => ({ x: c.x, y: c.y }));
+      const homography = createRectifyHomography(
+        srcCorners,
+        canonicalWidth,
+        canonicalHeight,
+      );
+
+      Alert.alert("הומוגרפיה מחושבת", "המשך להגדרת רשת וסימטריה?", [
+        {
+          text: "דלג",
+          onPress: () =>
+            saveWallAndFinish(homography, canonicalWidth, canonicalHeight),
+        },
+        {
+          text: "המשך",
+          onPress: () =>
+            navigateToGridAlign(homography, canonicalWidth, canonicalHeight),
+        },
+      ]);
     } catch (error) {
-      Alert.alert('שגיאה', 'לא ניתן לחשב הומוגרפיה. בדוק שהפינות יוצרות מלבן תקין.');
+      Alert.alert(
+        "שגיאה",
+        "לא ניתן לחשב הומוגרפיה. בדוק שהפינות יוצרות מלבן תקין.",
+      );
     }
   };
 
-  const navigateToGridAlign = (homography: any, canonW: number, canonH: number) => {
-    navigation.navigate('GridAlignScreen', {
+  const navigateToGridAlign = (
+    homography: any,
+    canonW: number,
+    canonH: number,
+  ) => {
+    navigation.navigate("GridAlignScreen", {
       imageUri,
       homography,
       canonW,
@@ -105,14 +126,21 @@ export const CropAndRectifyScreen: React.FC<CropAndRectifyScreenProps> = ({
     });
   };
 
-  const saveWallAndFinish = async (homography: any, canonW: number, canonH: number) => {
+  const saveWallAndFinish = async (
+    homography: any,
+    canonW: number,
+    canonH: number,
+  ) => {
     try {
       // TODO: שמירת הקיר ב-Firebase
-      Alert.alert('הצלחה', 'הקיר נשמר בהצלחה', [
-        { text: 'אישור', onPress: () => navigation.navigate('SprayWallScreen', { wallId }) }
+      Alert.alert("הצלחה", "הקיר נשמר בהצלחה", [
+        {
+          text: "אישור",
+          onPress: () => navigation.navigate("SprayWallScreen", { wallId }),
+        },
       ]);
     } catch (error) {
-      Alert.alert('שגיאה', 'לא ניתן לשמור את הקיר');
+      Alert.alert("שגיאה", "לא ניתן לשמור את הקיר");
     }
   };
 
@@ -125,7 +153,7 @@ export const CropAndRectifyScreen: React.FC<CropAndRectifyScreenProps> = ({
           left: corner.x - 15,
           top: corner.y - 15,
         },
-        selectedCorner === corner.id && styles.selectedCorner
+        selectedCorner === corner.id && styles.selectedCorner,
       ]}
       onPress={() => setSelectedCorner(corner.id)}
       // TODO: הוסף gesture handlers לגרירה
@@ -156,12 +184,16 @@ export const CropAndRectifyScreen: React.FC<CropAndRectifyScreenProps> = ({
 
       {/* Image with Corners */}
       <View style={styles.imageContainer}>
-        <Image source={{ uri: imageUri }} style={styles.image} resizeMode="contain" />
-        
+        <Image
+          source={{ uri: imageUri }}
+          style={styles.image}
+          resizeMode="contain"
+        />
+
         {/* Overlay with corners */}
         <View style={styles.overlay}>
           {corners.map(renderCorner)}
-          
+
           {/* Connection lines */}
           <View style={styles.linesContainer}>
             {/* TODO: הוסף קווי חיבור בין הפינות */}
@@ -171,7 +203,10 @@ export const CropAndRectifyScreen: React.FC<CropAndRectifyScreenProps> = ({
 
       {/* Bottom Actions */}
       <View style={styles.bottomActions}>
-        <TouchableOpacity style={styles.continueButton} onPress={handleContinue}>
+        <TouchableOpacity
+          style={styles.continueButton}
+          onPress={handleContinue}
+        >
           <Text style={styles.continueButtonText}>המשך</Text>
         </TouchableOpacity>
       </View>
@@ -180,12 +215,14 @@ export const CropAndRectifyScreen: React.FC<CropAndRectifyScreenProps> = ({
       {selectedCorner && (
         <View style={styles.cornerInfo}>
           <Text style={styles.cornerInfoText}>
-            פינה נבחרת: {
-              selectedCorner === 'top-left' ? 'שמאל עליון' :
-              selectedCorner === 'top-right' ? 'ימין עליון' :
-              selectedCorner === 'bottom-right' ? 'ימין תחתון' :
-              'שמאל תחתון'
-            }
+            פינה נבחרת:{" "}
+            {selectedCorner === "top-left"
+              ? "שמאל עליון"
+              : selectedCorner === "top-right"
+                ? "ימין עליון"
+                : selectedCorner === "bottom-right"
+                  ? "ימין תחתון"
+                  : "שמאל תחתון"}
           </Text>
         </View>
       )}
@@ -199,9 +236,9 @@ const styles = StyleSheet.create({
     backgroundColor: THEME_COLORS.background,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingVertical: 16,
     backgroundColor: THEME_COLORS.surface,
@@ -211,11 +248,11 @@ const styles = StyleSheet.create({
   headerButton: {
     fontSize: 16,
     color: THEME_COLORS.primary,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: THEME_COLORS.text,
   },
   instructions: {
@@ -228,37 +265,37 @@ const styles = StyleSheet.create({
   instructionsText: {
     fontSize: 14,
     color: THEME_COLORS.textSecondary,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: 20,
   },
   imageContainer: {
     flex: 1,
     margin: 16,
     borderRadius: 12,
-    overflow: 'hidden',
-    position: 'relative',
+    overflow: "hidden",
+    position: "relative",
   },
   image: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   overlay: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
   },
   corner: {
-    position: 'absolute',
+    position: "absolute",
     width: 30,
     height: 30,
     borderRadius: 15,
     backgroundColor: THEME_COLORS.primary,
     borderWidth: 3,
-    borderColor: '#FFFFFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+    borderColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
     shadowColor: THEME_COLORS.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
@@ -273,10 +310,10 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
   },
   linesContainer: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -289,26 +326,26 @@ const styles = StyleSheet.create({
     backgroundColor: THEME_COLORS.primary,
     borderRadius: 12,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   continueButtonText: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   cornerInfo: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 100,
     left: 20,
     right: 20,
     backgroundColor: THEME_COLORS.surface,
     borderRadius: 8,
     padding: 12,
-    alignItems: 'center',
+    alignItems: "center",
   },
   cornerInfoText: {
     fontSize: 14,
     color: THEME_COLORS.text,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

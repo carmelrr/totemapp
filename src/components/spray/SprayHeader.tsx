@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Image } from 'expo-image';
-import { LinearGradient } from 'expo-linear-gradient';
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 
 const SprayHeader = ({ imageUrl, wallName = "Spray Wall", angle = "35°" }) => {
   // For now, we'll use a solid color background when no image is available
@@ -19,7 +19,7 @@ const SprayHeader = ({ imageUrl, wallName = "Spray Wall", angle = "35°" }) => {
         <View style={styles.placeholderImage} />
       )}
       <LinearGradient
-        colors={['transparent', 'rgba(0,0,0,0.6)']}
+        colors={["transparent", "rgba(0,0,0,0.6)"]}
         style={styles.gradient}
       />
       <View style={styles.textContainer}>
@@ -33,42 +33,42 @@ const SprayHeader = ({ imageUrl, wallName = "Spray Wall", angle = "35°" }) => {
 const styles = StyleSheet.create({
   container: {
     height: 200,
-    position: 'relative',
+    position: "relative",
   },
   image: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   placeholderImage: {
-    width: '100%',
-    height: '100%',
-    backgroundColor: '#8E9AAF',
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#8E9AAF",
   },
   gradient: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     height: 100,
   },
   textContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 20,
     left: 20,
   },
   wallName: {
-    color: 'white',
+    color: "white",
     fontSize: 24,
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    fontWeight: "bold",
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
     textShadowOffset: { width: -1, height: 1 },
     textShadowRadius: 10,
   },
   angle: {
-    color: 'white',
+    color: "white",
     fontSize: 18,
     opacity: 0.9,
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowColor: "rgba(0, 0, 0, 0.75)",
     textShadowOffset: { width: -1, height: 1 },
     textShadowRadius: 10,
   },

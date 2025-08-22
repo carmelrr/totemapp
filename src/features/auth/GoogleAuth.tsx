@@ -1,9 +1,9 @@
-import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
-import * as Google from 'expo-auth-session/providers/google';
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-import { auth } from '@/features/data/firebase';
-import Constants from 'expo-constants';
+import React from "react";
+import { TouchableOpacity, Text, StyleSheet, Alert } from "react-native";
+import * as Google from "expo-auth-session/providers/google";
+import { GoogleAuthProvider, signInWithCredential } from "firebase/auth";
+import { auth } from "@/features/data/firebase";
+import Constants from "expo-constants";
 
 export default function GoogleLoginButton() {
   const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
@@ -13,19 +13,19 @@ export default function GoogleLoginButton() {
   });
 
   React.useEffect(() => {
-    if (response?.type === 'success') {
+    if (response?.type === "success") {
       const { id_token } = response.params;
       const credential = GoogleAuthProvider.credential(id_token);
-      
+
       signInWithCredential(auth, credential)
         .then((result) => {
-          Alert.alert('הצלחה', `ברוך הבא ${result.user.displayName}!`);
+          Alert.alert("הצלחה", `ברוך הבא ${result.user.displayName}!`);
         })
         .catch((error) => {
-          Alert.alert('שגיאה', 'נכשל בהתחברות: ' + error.message);
+          Alert.alert("שגיאה", "נכשל בהתחברות: " + error.message);
         });
-    } else if (response?.type === 'error') {
-      Alert.alert('שגיאה', 'נכשל בהתחברות Google');
+    } else if (response?.type === "error") {
+      Alert.alert("שגיאה", "נכשל בהתחברות Google");
     }
   }, [response]);
 
@@ -33,13 +33,13 @@ export default function GoogleLoginButton() {
     try {
       await promptAsync();
     } catch (error) {
-      Alert.alert('שגיאה', 'נכשל בפתיחת Google Login: ' + error.message);
+      Alert.alert("שגיאה", "נכשל בפתיחת Google Login: " + error.message);
     }
   };
 
   return (
-    <TouchableOpacity 
-      style={styles.googleButton} 
+    <TouchableOpacity
+      style={styles.googleButton}
       onPress={handleGoogleLogin}
       disabled={!request}
     >
@@ -50,19 +50,19 @@ export default function GoogleLoginButton() {
 
 const styles = StyleSheet.create({
   googleButton: {
-    backgroundColor: '#db4437',
+    backgroundColor: "#db4437",
     padding: 15,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
     marginVertical: 10,
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
   },
   googleButtonText: {
-    color: 'white',
+    color: "white",
     fontSize: 16,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginLeft: 5,
-    textAlign: 'right',
+    textAlign: "right",
   },
 });

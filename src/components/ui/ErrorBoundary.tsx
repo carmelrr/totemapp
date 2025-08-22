@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React from "react";
+import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -14,10 +14,10 @@ class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     // Log the error to console for debugging
-    console.error('Error caught by boundary:', error, errorInfo);
+    console.error("Error caught by boundary:", error, errorInfo);
     this.setState({
       error,
-      errorInfo
+      errorInfo,
     });
   }
 
@@ -35,11 +35,12 @@ class ErrorBoundary extends React.Component {
             אירעה שגיאה בלתי צפויה. אנא נסה שוב.
           </Text>
           {this.state.error && (
-            <Text style={styles.errorText}>
-              {this.state.error.toString()}
-            </Text>
+            <Text style={styles.errorText}>{this.state.error.toString()}</Text>
           )}
-          <TouchableOpacity style={styles.retryButton} onPress={this.handleRetry}>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={this.handleRetry}
+          >
             <Text style={styles.retryButtonText}>נסה שוב</Text>
           </TouchableOpacity>
         </View>
@@ -53,45 +54,45 @@ class ErrorBoundary extends React.Component {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: "#f8f9fa",
   },
   title: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#dc3545',
+    fontWeight: "bold",
+    color: "#dc3545",
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: "center",
   },
   message: {
     fontSize: 16,
-    color: '#6c757d',
-    textAlign: 'center',
+    color: "#6c757d",
+    textAlign: "center",
     marginBottom: 20,
     lineHeight: 24,
   },
   errorText: {
     fontSize: 12,
-    color: '#dc3545',
-    textAlign: 'center',
+    color: "#dc3545",
+    textAlign: "center",
     marginBottom: 20,
-    fontFamily: 'monospace',
-    backgroundColor: '#f8f9fa',
+    fontFamily: "monospace",
+    backgroundColor: "#f8f9fa",
     padding: 10,
     borderRadius: 8,
   },
   retryButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: "#007bff",
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
   retryButtonText: {
-    color: '#ffffff',
+    color: "#ffffff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
 

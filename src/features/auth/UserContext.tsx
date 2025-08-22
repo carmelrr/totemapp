@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { auth, db } from '@/features/data/firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { auth, db } from "@/features/data/firebase";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
-const UserContext = createContext({ 
-  isAdmin: false, 
-  circleSize: 15, 
-  setCircleSize: () => {} 
+const UserContext = createContext({
+  isAdmin: false,
+  circleSize: 15,
+  setCircleSize: () => {},
 });
 
 export function UserProvider({ children, isAdmin }) {
@@ -17,7 +17,7 @@ export function UserProvider({ children, isAdmin }) {
       const user = auth.currentUser;
       if (user) {
         try {
-          const docRef = doc(db, 'users', user.uid);
+          const docRef = doc(db, "users", user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
             const userData = docSnap.data();
@@ -39,7 +39,7 @@ export function UserProvider({ children, isAdmin }) {
     const user = auth.currentUser;
     if (user) {
       try {
-        const docRef = doc(db, 'users', user.uid);
+        const docRef = doc(db, "users", user.uid);
         await setDoc(docRef, { circleSize: newSize }, { merge: true });
         setCircleSize(newSize);
       } catch (error) {
@@ -49,11 +49,13 @@ export function UserProvider({ children, isAdmin }) {
   };
 
   return (
-    <UserContext.Provider value={{ 
-      isAdmin, 
-      circleSize, 
-      setCircleSize: saveCircleSize 
-    }}>
+    <UserContext.Provider
+      value={{
+        isAdmin,
+        circleSize,
+        setCircleSize: saveCircleSize,
+      }}
+    >
       {children}
     </UserContext.Provider>
   );

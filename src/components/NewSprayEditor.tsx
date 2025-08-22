@@ -1,13 +1,13 @@
 // src/components/NewSprayEditor.tsx
-import React, { useRef, useEffect } from 'react';
-import { View, StyleSheet, Dimensions, PanResponder } from 'react-native';
-import { useNewSprayEditor } from '@/hooks/'useNewSprayEditor';
-import { BottomToolbar } from './ui/BottomToolbar';
-import { FloatingPanel } from './ui/FloatingPanel';
-import { ToolButton } from './ui/ToolButton';
-import { ROLE_ORDER, HOLD_ROLE_CONFIG } from '@/constants/'roles';
+import React, { useRef, useEffect } from "react";
+import { View, StyleSheet, Dimensions, PanResponder } from "react-native";
+import { useNewSprayEditor } from "@/hooks/useNewSprayEditor";
+import { BottomToolbar } from "./ui/BottomToolbar";
+import { FloatingPanel } from "./ui/FloatingPanel";
+import { ToolButton } from "./ui/ToolButton";
+import { ROLE_ORDER, HOLD_ROLE_CONFIG } from "@/constants/roles";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 interface NewSprayEditorProps {
   wallImageUri?: string;
@@ -23,7 +23,7 @@ export const NewSprayEditor: React.FC<NewSprayEditorProps> = ({
   onCancel,
 }) => {
   const canvasHeight = screenHeight - 200; // השאר מקום לטולבר
-  
+
   const editor = useNewSprayEditor({
     canvasWidth: screenWidth,
     canvasHeight: canvasHeight,
@@ -36,12 +36,12 @@ export const NewSprayEditor: React.FC<NewSprayEditorProps> = ({
     PanResponder.create({
       onStartShouldSetPanResponder: () => true,
       onMoveShouldSetPanResponder: () => true,
-      
+
       onPanResponderGrant: (evt) => {
         const { locationX, locationY } = evt.nativeEvent;
         editor.handleCanvasTouch(locationX, locationY);
       },
-      
+
       onPanResponderMove: (evt, gestureState) => {
         if (gestureState.numberActiveTouches === 1) {
           // Pan עם אצבע אחת
@@ -51,18 +51,18 @@ export const NewSprayEditor: React.FC<NewSprayEditorProps> = ({
           // צריך logic נוסף לחישוב מרחק ומוקד
         }
       },
-      
+
       onPanResponderRelease: () => {
         // סיום מגע
       },
-    })
+    }),
   ).current;
 
   const tools = [
-    { id: 'circle', title: 'טבעת', icon: '⭕' },
-    { id: 'dot', title: 'נקודה', icon: '⚫' },
-    { id: 'volume', title: 'נפח', icon: '📦', disabled: true },
-    { id: 'outline', title: 'קו מתאר', icon: '🔲', disabled: true },
+    { id: "circle", title: "טבעת", icon: "⭕" },
+    { id: "dot", title: "נקודה", icon: "⚫" },
+    { id: "volume", title: "נפח", icon: "📦", disabled: true },
+    { id: "outline", title: "קו מתאר", icon: "🔲", disabled: true },
   ];
 
   const handleToolSelect = (toolId: string) => {
@@ -76,10 +76,10 @@ export const NewSprayEditor: React.FC<NewSprayEditorProps> = ({
   const handleSave = () => {
     const validation = editor.validateRoute();
     if (!validation.isValid) {
-      console.warn('Route validation failed:', validation.errors);
+      console.warn("Route validation failed:", validation.errors);
       return;
     }
-    
+
     onSave?.(editor.route);
   };
 
@@ -89,10 +89,7 @@ export const NewSprayEditor: React.FC<NewSprayEditorProps> = ({
   return (
     <View style={styles.container}>
       {/* Canvas Area */}
-      <View 
-        style={styles.canvas} 
-        {...panResponder.panHandlers}
-      >
+      <View style={styles.canvas} {...panResponder.panHandlers}>
         {/* TODO: כאן יהיה קנבס Skia עם תמונת הקיר והאחיזות */}
         <View style={styles.placeholder}>
           {/* רנדור זמני של אחיזות */}
@@ -100,7 +97,7 @@ export const NewSprayEditor: React.FC<NewSprayEditorProps> = ({
             const screenPos = editor.getHoldScreenPosition(hold);
             const radius = editor.getHoldScreenRadius(hold);
             const isSelected = index === editor.selectedHoldIndex;
-            
+
             return (
               <View
                 key={hold.id}
@@ -112,9 +109,9 @@ export const NewSprayEditor: React.FC<NewSprayEditorProps> = ({
                     width: radius * 2,
                     height: radius * 2,
                     backgroundColor: hold.color,
-                    borderColor: isSelected ? '#FFD700' : '#FFFFFF',
+                    borderColor: isSelected ? "#FFD700" : "#FFFFFF",
                     borderWidth: isSelected ? 3 : 1,
-                  }
+                  },
                 ]}
               />
             );
@@ -187,17 +184,9 @@ export const NewSprayEditor: React.FC<NewSprayEditorProps> = ({
       <FloatingPanel position="bottom-right">
         <View style={styles.savePanel}>
           {onCancel && (
-            <ToolButton
-              title="ביטול"
-              icon="❌"
-              onPress={onCancel}
-            />
+            <ToolButton title="ביטול" icon="❌" onPress={onCancel} />
           )}
-          <ToolButton
-            title="שמור"
-            icon="💾"
-            onPress={handleSave}
-          />
+          <ToolButton title="שמור" icon="💾" onPress={handleSave} />
         </View>
       </FloatingPanel>
 
@@ -214,22 +203,22 @@ export const NewSprayEditor: React.FC<NewSprayEditorProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F0F0',
+    backgroundColor: "#F0F0F0",
   },
   canvas: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     margin: 16,
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   placeholder: {
     flex: 1,
-    backgroundColor: '#E5E5E5',
-    position: 'relative',
+    backgroundColor: "#E5E5E5",
+    position: "relative",
   },
   hold: {
-    position: 'absolute',
+    position: "absolute",
     borderRadius: 50,
     opacity: 0.8,
   },
@@ -240,14 +229,14 @@ const styles = StyleSheet.create({
     minWidth: 60,
   },
   actionsPanel: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
   holdInfo: {
     gap: 8,
   },
   savePanel: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 8,
   },
 });

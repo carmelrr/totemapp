@@ -1,8 +1,8 @@
-import React from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
-import Svg, { Defs, Mask, Rect, Circle } from 'react-native-svg';
+import React from "react";
+import { View, StyleSheet, Dimensions } from "react-native";
+import Svg, { Defs, Mask, Rect, Circle } from "react-native-svg";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 export default function DimOverlay({ highlightAreas = [] }) {
   return (
@@ -24,7 +24,7 @@ export default function DimOverlay({ highlightAreas = [] }) {
             ))}
           </Mask>
         </Defs>
-        
+
         {/* Dark overlay with holes for highlights */}
         <Rect
           width="100%"
@@ -33,7 +33,7 @@ export default function DimOverlay({ highlightAreas = [] }) {
           mask="url(#highlight-mask)"
         />
       </Svg>
-      
+
       {/* Bright highlight rings around selected holds */}
       {highlightAreas.map((area, index) => (
         <View
@@ -46,7 +46,7 @@ export default function DimOverlay({ highlightAreas = [] }) {
               width: (area.r + 15) * 2,
               height: (area.r + 15) * 2,
               borderRadius: area.r + 15,
-            }
+            },
           ]}
         />
       ))}
@@ -56,9 +56,9 @@ export default function DimOverlay({ highlightAreas = [] }) {
 
 const styles = StyleSheet.create({
   highlightRing: {
-    position: 'absolute',
+    position: "absolute",
     borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.9)',
-    backgroundColor: 'transparent',
+    borderColor: "rgba(255,255,255,0.9)",
+    backgroundColor: "transparent",
   },
 });
