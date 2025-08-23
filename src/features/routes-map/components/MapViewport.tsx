@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, LayoutChangeEvent, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
@@ -14,6 +14,15 @@ interface MapViewportProps {
   children?: React.ReactNode;
   onMeasured?: (dimensions: { imgW: number; imgH: number }) => void;
   onTransformChange?: (transforms: MapTransforms) => void;
+  // ✅ חדש: חשיפת SharedValues החוצה למרקרים
+  onTransformsReady?: (transforms: {
+    scale: Animated.SharedValue<number>;
+    translateX: Animated.SharedValue<number>;
+    translateY: Animated.SharedValue<number>;
+    zoomIn: () => void;
+    zoomOut: () => void;
+    resetView: () => void;
+  }) => void;
   debug?: boolean;
 }
 
@@ -22,12 +31,15 @@ const SVG_WIDTH = 2560;
 const SVG_HEIGHT = 1600;
 const SVG_ASPECT_RATIO = SVG_HEIGHT / SVG_WIDTH;
 
-export default function MapViewport({
+function MapViewport({
   children,
   onMeasured,
   onTransformChange,
+  onTransformsReady,
   debug = false,
 }: MapViewportProps) {
+  console.log('🔍 MapViewport render start');
+  
   const [containerDimensions, setContainerDimensions] = useState({
     width: 0,
     height: 0,
@@ -38,6 +50,12 @@ export default function MapViewport({
   });
   const [isReady, setIsReady] = useState(false);
 
+  console.log('🔍 MapViewport state:', {
+    containerDimensions,
+    imageDimensions,
+    isReady
+  });
+
   const transforms = useMapTransforms({
     screenWidth: containerDimensions.width,
     screenHeight: containerDimensions.height,
@@ -45,9 +63,42 @@ export default function MapViewport({
     imageHeight: imageDimensions.imgH,
     onTransformChange,
   });
+  console.log('🔍 MapViewport transforms created');
+
+  // Expose only stable references to the parent to avoid loops
+  const stableTransforms = useMemo(() => ({
+    scale: transforms.scale,
+    translateX: transforms.translateX,
+    translateY: transforms.translateY,
+    zoomIn: transforms.zoomIn,
+    zoomOut: transforms.zoomOut,
+    resetView: transforms.resetView,
+  }), [
+    transforms.scale,
+    transforms.translateX,
+    transforms.translateY,
+    transforms.zoomIn,
+    transforms.zoomOut,
+    transforms.resetView,
+  ]);
+
+  // ✅ חשיפת SharedValues החוצה למרקרים
+  const notifyParent = useCallback(() => {
+    onTransformsReady?.(stableTransforms);
+  }, [onTransformsReady, stableTransforms]);
+
+  useEffect(() => {
+    notifyParent();
+  }, [notifyParent]);
+
+  // Memoize handler arrays at top level to avoid hooks order issues
+  const panSimultaneousHandlers = useMemo(() => [transforms.pinchRef], [transforms.pinchRef]);
+  const panWaitFor = useMemo(() => [transforms.pinchRef], [transforms.pinchRef]);
+  const pinchSimultaneousHandlers = useMemo(() => [transforms.panRef], [transforms.panRef]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
+    console.log('🔍 MapViewport handleLayout:', { width, height });
     
     // Only update if dimensions actually changed to prevent loops
     if (width !== containerDimensions.width || height !== containerDimensions.height) {
@@ -82,10 +133,14 @@ export default function MapViewport({
 
   return (
     <View style={styles.container} onLayout={handleLayout}>
+      {/** Memoized handler arrays to avoid new references every render */}
+      {/** These arrays are stable thanks to useMemo above */}
+      {/** Note: refs themselves are stable */}
       <PanGestureHandler
         ref={transforms.panRef}
         onGestureEvent={transforms.panGestureHandler}
-        simultaneousHandlers={[transforms.pinchRef]}
+        simultaneousHandlers={panSimultaneousHandlers}
+        waitFor={panWaitFor}
         minPointers={1}
         maxPointers={1}
       >
@@ -93,7 +148,7 @@ export default function MapViewport({
           <PinchGestureHandler
             ref={transforms.pinchRef}
             onGestureEvent={transforms.pinchGestureHandler}
-            simultaneousHandlers={[transforms.panRef]}
+            simultaneousHandlers={pinchSimultaneousHandlers}
           >
             <Animated.View style={styles.gestureContainer}>
               <TapGestureHandler
@@ -143,3 +198,5 @@ const styles = StyleSheet.create({
     color: '#666',
   },
 });
+
+export default React.memo(MapViewport);

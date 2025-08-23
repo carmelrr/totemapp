@@ -17,12 +17,22 @@ export default function RouteMarker({
   onPress,
   selected = false,
 }: RouteMarkerProps) {
+  console.log('🔍 RouteMarker render:', {
+    routeId: route?.id,
+    routeGrade: route?.grade,
+    scaleExists: !!scale,
+    selected
+  });
+
   // Compensate for scale to keep constant size with safety guards
   const compensatedStyle = useAnimatedStyle(() => {
+    console.log('🔍 RouteMarker useAnimatedStyle called');
     // guard + clamping
     const raw = scale?.value ?? 1;
+    console.log('🔍 RouteMarker raw scale:', raw);
     // אל תאפשר 0/NaN/Infinity, הצמד לטווח סביר
     const s = Number.isFinite(raw) && raw > 0 ? Math.min(Math.max(raw, 0.5), 8) : 1;
+    console.log('🔍 RouteMarker safe scale:', s, 'compensated:', 1/s);
     return { transform: [{ scale: 1 / s }] } as any;
   });
 

@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useCallback, useMemo } from 'react';
 import {
   useSharedValue,
   useAnimatedStyle,
@@ -37,6 +37,11 @@ export function useMapTransforms({
   imageHeight,
   onTransformChange,
 }: UseMapTransformsConfig) {
+  const LOG = __DEV__ && false; // הפוך ל-true כשצריך דיבוג
+  if (LOG) console.log('🔍 useMapTransforms init:', {
+    minScale, maxScale, screenWidth, screenHeight, imageWidth, imageHeight
+  });
+
   // ✅ Safety: וידוא שכל הפרמטרים תקינים
   const safeMinScale = Math.max(0.1, isFinite(minScale) ? minScale : 0.5);
   const safeMaxScale = Math.max(safeMinScale, isFinite(maxScale) ? maxScale : 4);
@@ -45,6 +50,24 @@ export function useMapTransforms({
   const safeImageWidth = Math.max(1, isFinite(imageWidth) ? imageWidth : 1);
   const safeImageHeight = Math.max(1, isFinite(imageHeight) ? imageHeight : 1);
   
+  if (LOG) console.log('🔍 useMapTransforms safe values:', {
+    safeMinScale, safeMaxScale, safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight
+  });
+
+  // ✅ הגנה מפני ping-pong - זוכר ערכים אחרונים שנשלחו
+  const lastSentRef = useRef<MapTransforms>({ scale: 1, translateX: 0, translateY: 0 });
+  const EPS = 0.08; // סבילות קטנה לרעידות
+
+  const onTransformChangeGuarded = useCallback((t: MapTransforms) => {
+    const p = lastSentRef.current;
+    const near = (a: number, b: number) => Math.abs(a - b) < EPS;
+    if (near(p.scale, t.scale) && near(p.translateX, t.translateX) && near(p.translateY, t.translateY)) {
+      return; // אל תטריג loop
+    }
+    lastSentRef.current = t;
+    onTransformChange?.(t);
+  }, [onTransformChange]);
+
   // Shared values for transforms - initialize with safe values
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -94,7 +117,7 @@ export function useMapTransforms({
     translateY.value = isFinite(clamped.translateY) ? clamped.translateY : 0;
     
     if (onTransformChange) {
-      runOnJS(onTransformChange)({
+      runOnJS(onTransformChangeGuarded)({
         scale: scale.value,
         translateX: translateX.value,
         translateY: translateY.value,
@@ -116,19 +139,19 @@ export function useMapTransforms({
       // Clamp on gesture end with animation
       const clamped = clampViewport(
         { scale: scale.value, translateX: translateX.value, translateY: translateY.value },
-        screenWidth,
-        screenHeight,
-        imageWidth,
-        imageHeight,
-        minScale,
-        maxScale
+        safeScreenWidth,
+        safeScreenHeight,
+        safeImageWidth,
+        safeImageHeight,
+        safeMinScale,
+        safeMaxScale
       );
       
       translateX.value = withTiming(clamped.translateX);
       translateY.value = withTiming(clamped.translateY);
       
       if (onTransformChange) {
-        runOnJS(onTransformChange)(clamped);
+        runOnJS(onTransformChangeGuarded)(clamped);
       }
     },
   });
@@ -136,34 +159,39 @@ export function useMapTransforms({
   // Pinch gesture handler
   const pinchGestureHandler = useAnimatedGestureHandler<PinchGestureHandlerGestureEvent>({
     onStart: (event) => {
+      if (LOG) console.log('🔍 Pinch onStart');
       baseScale.value = scale.value;
       baseTranslateX.value = translateX.value;
       baseTranslateY.value = translateY.value;
       focalX.value = event.focalX;
       focalY.value = event.focalY;
     },
-    onActive: (event) => {
-      const newScale = baseScale.value * event.scale;
+    onUpdate: (event) => {
+      // ✅ קלמפ מיידי של ה-scale החדש
+      const rawScale = baseScale.value * (event.scale ?? 1);
+      const clampedScale = Math.max(safeMinScale, Math.min(safeMaxScale, rawScale));
       
-      // Zoom around focal point
-      const scaleDiff = newScale - baseScale.value;
-      const fx = focalX.value;
-      const fy = focalY.value;
+      // ✅ Zoom around focal point - מתרגמים focal לעולם התמונה
+      const currentScale = scale.value || 1;
+      const fxImg = (focalX.value - translateX.value) / currentScale;
+      const fyImg = (focalY.value - translateY.value) / currentScale;
       
-      translateX.value = baseTranslateX.value - (fx - baseTranslateX.value) * scaleDiff / baseScale.value;
-      translateY.value = baseTranslateY.value - (fy - baseTranslateY.value) * scaleDiff / baseScale.value;
-      scale.value = newScale;
+      // עדכון עם ה-scale המקולמפ
+      scale.value = clampedScale;
+      translateX.value = focalX.value - fxImg * clampedScale;
+      translateY.value = focalY.value - fyImg * clampedScale;
     },
     onEnd: () => {
+      if (LOG) console.log('🔍 Pinch onEnd - final clamp');
       // Clamp on gesture end with animation
       const clamped = clampViewport(
         { scale: scale.value, translateX: translateX.value, translateY: translateY.value },
-        screenWidth,
-        screenHeight,
-        imageWidth,
-        imageHeight,
-        minScale,
-        maxScale
+        safeScreenWidth,
+        safeScreenHeight,
+        safeImageWidth,
+        safeImageHeight,
+        safeMinScale,
+        safeMaxScale
       );
       
       scale.value = withTiming(clamped.scale);
@@ -171,7 +199,7 @@ export function useMapTransforms({
       translateY.value = withTiming(clamped.translateY);
       
       if (onTransformChange) {
-        runOnJS(onTransformChange)(clamped);
+        runOnJS(onTransformChangeGuarded)(clamped);
       }
     },
   });
@@ -221,15 +249,15 @@ export function useMapTransforms({
     translateY.value = withTiming(0);
     
     if (onTransformChange) {
-      onTransformChange({ scale: 1, translateX: 0, translateY: 0 });
+      onTransformChangeGuarded({ scale: 1, translateX: 0, translateY: 0 });
     }
   };
 
   // Manual zoom functions
   const zoomIn = () => {
-    const newScale = Math.min(maxScale, scale.value * 1.5);
-    const centerX = screenWidth / 2;
-    const centerY = screenHeight / 2;
+    const newScale = Math.min(safeMaxScale, scale.value * 1.5);
+    const centerX = safeScreenWidth / 2;
+    const centerY = safeScreenHeight / 2;
     
     // Zoom around center
     const scaleDiff = newScale - scale.value;
@@ -238,12 +266,12 @@ export function useMapTransforms({
     
     const clamped = clampViewport(
       { scale: newScale, translateX: newTranslateX, translateY: newTranslateY },
-      screenWidth,
-      screenHeight,
-      imageWidth,
-      imageHeight,
-      minScale,
-      maxScale
+      safeScreenWidth,
+      safeScreenHeight,
+      safeImageWidth,
+      safeImageHeight,
+      safeMinScale,
+      safeMaxScale
     );
     
     scale.value = withTiming(clamped.scale);
@@ -251,14 +279,14 @@ export function useMapTransforms({
     translateY.value = withTiming(clamped.translateY);
     
     if (onTransformChange) {
-      onTransformChange(clamped);
+      onTransformChangeGuarded(clamped);
     }
   };
 
   const zoomOut = () => {
-    const newScale = Math.max(minScale, scale.value / 1.5);
-    const centerX = screenWidth / 2;
-    const centerY = screenHeight / 2;
+    const newScale = Math.max(safeMinScale, scale.value / 1.5);
+    const centerX = safeScreenWidth / 2;
+    const centerY = safeScreenHeight / 2;
     
     // Zoom around center
     const scaleDiff = newScale - scale.value;
@@ -267,12 +295,12 @@ export function useMapTransforms({
     
     const clamped = clampViewport(
       { scale: newScale, translateX: newTranslateX, translateY: newTranslateY },
-      screenWidth,
-      screenHeight,
-      imageWidth,
-      imageHeight,
-      minScale,
-      maxScale
+      safeScreenWidth,
+      safeScreenHeight,
+      safeImageWidth,
+      safeImageHeight,
+      safeMinScale,
+      safeMaxScale
     );
     
     scale.value = withTiming(clamped.scale);
@@ -280,11 +308,12 @@ export function useMapTransforms({
     translateY.value = withTiming(clamped.translateY);
     
     if (onTransformChange) {
-      onTransformChange(clamped);
+      onTransformChangeGuarded(clamped);
     }
   };
 
-  return {
+  // Memoize the returned object to keep a stable reference where possible
+  return useMemo(() => ({
     // Shared values
     scale,
     translateX,
@@ -311,5 +340,21 @@ export function useMapTransforms({
     // Config
     minScale,
     maxScale,
-  };
+  }), [
+    panGestureHandler,
+    pinchGestureHandler,
+    doubleTapGestureHandler,
+    mapContainerStyle,
+    resetView,
+    zoomIn,
+    zoomOut,
+    minScale,
+    maxScale,
+    scale,
+    translateX,
+    translateY,
+    panRef,
+    pinchRef,
+    doubleTapRef,
+  ]);
 }

@@ -36,13 +36,30 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
   },
   fromFirestore(snapshot: QueryDocumentSnapshot, options): RouteDoc {
     const data = snapshot.data(options);
+    
+    // ✅ מידות viewBox של WallMapSVG - עדכן לפי הקובץ שלך
+    const VIEWBOX_W = 2560;
+    const VIEWBOX_H = 1600;
+    
+    // ✅ המרה אוטומטית מ-x/y ל-xNorm/yNorm אם חסרים
+    let xNorm = data.xNorm;
+    let yNorm = data.yNorm;
+    
+    // אם אין נורמליזציה אבל יש קורדינטות מוחלטות - המר
+    if ((xNorm == null || yNorm == null) && 
+        Number.isFinite(data.x) && Number.isFinite(data.y)) {
+      xNorm = Math.min(Math.max(data.x / VIEWBOX_W, 0), 1);
+      yNorm = Math.min(Math.max(data.y / VIEWBOX_H, 0), 1);
+      console.log(`🔍 Route ${snapshot.id}: converted x=${data.x}, y=${data.y} to xNorm=${xNorm}, yNorm=${yNorm}`);
+    }
+    
     return {
       id: snapshot.id,
       name: data.name || '',
       grade: data.grade || 'V0',
       color: data.color || '#ef4444',
-      xNorm: data.xNorm || 0,
-      yNorm: data.yNorm || 0,
+      xNorm: Number.isFinite(xNorm) ? xNorm : 0,
+      yNorm: Number.isFinite(yNorm) ? yNorm : 0,
       createdAt: data.createdAt,
       status: data.status || 'active',
       rating: data.rating || 0,
