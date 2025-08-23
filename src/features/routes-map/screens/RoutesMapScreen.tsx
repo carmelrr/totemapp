@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,7 +8,6 @@ import {
   Dimensions,
   FlatList,
 } from 'react-native';
-import Animated from 'react-native-reanimated';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
@@ -20,7 +19,6 @@ import RouteBottomSheet from '../components/RouteBottomSheet';
 
 import { useFirebaseRoutes } from '../hooks/useFirebaseRoutes';
 import { useVisibleRoutes, useRouteFilters } from '../hooks/useVisibleRoutes';
-import { useMapTransforms } from '../hooks/useMapTransforms';
 
 import { RouteDoc, RouteFilters, RouteSortBy, MapTransforms } from '../types/route';
 import { RoutesService } from '../services/RoutesService';
@@ -35,8 +33,6 @@ type RootStackParamList = {
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'RoutesMap'>;
 
 export default function RoutesMapScreen() {
-  console.log('🔍 RoutesMapScreen render start');
-  
   const navigation = useNavigation<NavigationProp>();
   const [screenDimensions, setScreenDimensions] = useState({
     width: SCREEN_WIDTH,
@@ -58,16 +54,6 @@ export default function RoutesMapScreen() {
   const [showBottomSheet, setShowBottomSheet] = useState(false);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
 
-  // ✅ State לקבלת טרנספורמציות מ-MapViewport (מקור האמת היחיד)
-  const [mapTransforms, setMapTransforms] = useState<{
-    scale: Animated.SharedValue<number>;
-    translateX: Animated.SharedValue<number>;
-    translateY: Animated.SharedValue<number>;
-    zoomIn: () => void;
-    zoomOut: () => void;
-    resetView: () => void;
-  } | null>(null);
-
   // Filters and sorting
   const defaultFilters = useRouteFilters();
   const [filters, setFilters] = useState<RouteFilters>(defaultFilters);
@@ -75,10 +61,16 @@ export default function RoutesMapScreen() {
 
   // Data
   const { routes, isLoading, error } = useFirebaseRoutes();
-  console.log('🔍 RoutesMapScreen data:', { routesCount: routes?.length, isLoading, error });
 
-  // ✅ Fix: הסרת useMapTransforms כפול - MapViewport יהיה מקור האמת היחיד
-  // MapViewport ינהל את הטרנספורמציות ויחשוף אותן החוצה
+
+  /**
+   * Holds the transform handlers returned by MapViewport's useMapTransforms.  This
+   * includes the shared values (scale, translateX, translateY) and the
+   * imperative actions (zoomIn, zoomOut, resetView).  It is populated via
+   * the onTransformsReady callback provided to MapViewport.  Initially null
+   * until MapViewport mounts and provides the handlers.
+   */
+  const [mapControls, setMapControls] = useState<any>(null);
 
   // Visible routes based on viewport and filters
   const visibleRoutes = useVisibleRoutes({
@@ -94,43 +86,36 @@ export default function RoutesMapScreen() {
 
   // Handlers
   const handleMapMeasured = useCallback((dimensions: { imgW: number; imgH: number }) => {
-    console.log('🔍 RoutesMapScreen handleMapMeasured:', dimensions);
+    console.log('Map measured:', dimensions);
     setImageDimensions(dimensions);
   }, []);
 
-  // ✅ הגנה מפני ping-pong loop - לא לעדכן state אם לא באמת השתנה
-  const EPS = 0.08; // סבילות קטנה לרעידות
+  /**
+   * Update currentTransforms state when the map's translation or scale actually
+   * changes.  This guard prevents React from entering an infinite update
+   * loop by ignoring tiny differences that can occur during animations.  The
+   * epsilon value determines the tolerance for change detection.
+   */
   const handleTransformChange = useCallback((next: MapTransforms) => {
-    setCurrentTransforms(prev => {
+    const EPS = 0.05;
+    setCurrentTransforms((prev) => {
       const near = (a: number, b: number) => Math.abs(a - b) < EPS;
-      if (
-        near(prev.scale, next.scale) &&
-        near(prev.translateX, next.translateX) &&
-        near(prev.translateY, next.translateY)
-      ) {
-        // אין שינוי ממשי ⇒ אל תגרום לרנדר מחדש
+      if (near(prev.scale, next.scale) && near(prev.translateX, next.translateX) && near(prev.translateY, next.translateY)) {
         return prev;
       }
-      console.log('🔍 Transform change accepted:', next);
       return next;
     });
   }, []);
 
-  // ✅ Handler לקבלת טרנספורמציות מ-MapViewport
-  const handleTransformsReady = useCallback((transforms: {
-    scale: Animated.SharedValue<number>;
-    translateX: Animated.SharedValue<number>;
-    translateY: Animated.SharedValue<number>;
-    zoomIn: () => void;
-    zoomOut: () => void;
-    resetView: () => void;
-  }) => {
-    console.log('🔍 RoutesMapScreen: Transforms ready from MapViewport');
-    setMapTransforms(prev => (prev === transforms ? prev : transforms));
+  /**
+   * Capture the transforms and action handlers from MapViewport.  Memoize
+   * to avoid unnecessary renders when the same object reference is passed.
+   */
+  const handleTransformsReady = useCallback((transforms: any) => {
+    setMapControls(transforms);
   }, []);
 
   const handleMarkerPress = useCallback((route: RouteDoc) => {
-    console.log('🔍 RoutesMapScreen handleMarkerPress:', route?.id);
     setSelectedRoute(route);
     setSelectedRouteId(route.id);
     setShowBottomSheet(true);
@@ -211,14 +196,14 @@ export default function RoutesMapScreen() {
           onTransformChange={handleTransformChange}
           onTransformsReady={handleTransformsReady}
         >
-          {isMapReady && mapTransforms && (
+          {isMapReady && (
             <RouteMarkersLayer
               routes={visibleRoutes}
               imageWidth={imageDimensions.imgW}
               imageHeight={imageDimensions.imgH}
-              scale={mapTransforms.scale}
-              translateX={mapTransforms.translateX}
-              translateY={mapTransforms.translateY}
+              scale={mapControls?.scale ?? { value: 1 }}
+              translateX={mapControls?.translateX ?? { value: 0 }}
+              translateY={mapControls?.translateY ?? { value: 0 }}
               onMarkerPress={handleMarkerPress}
               selectedRouteId={selectedRouteId}
             />
@@ -226,13 +211,11 @@ export default function RoutesMapScreen() {
         </MapViewport>
 
         {/* Map Controls */}
-        {mapTransforms && (
-          <MapControls
-            onZoomIn={mapTransforms.zoomIn}
-            onZoomOut={mapTransforms.zoomOut}
-            onReset={mapTransforms.resetView}
-          />
-        )}
+        <MapControls
+          onZoomIn={mapControls?.zoomIn || (() => {})}
+          onZoomOut={mapControls?.zoomOut || (() => {})}
+          onReset={mapControls?.resetView || (() => {})}
+        />
 
         {/* Header Buttons */}
         <View style={styles.headerButtons}>

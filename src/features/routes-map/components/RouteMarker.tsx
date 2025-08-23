@@ -17,23 +17,18 @@ export default function RouteMarker({
   onPress,
   selected = false,
 }: RouteMarkerProps) {
-  console.log('🔍 RouteMarker render:', {
-    routeId: route?.id,
-    routeGrade: route?.grade,
-    scaleExists: !!scale,
-    selected
-  });
-
-  // Compensate for scale to keep constant size with safety guards
+  // Compensate for scale to keep constant size
   const compensatedStyle = useAnimatedStyle(() => {
-    console.log('🔍 RouteMarker useAnimatedStyle called');
-    // guard + clamping
+    // If no scale shared value is provided, default to unit scaling.
     const raw = scale?.value ?? 1;
-    console.log('🔍 RouteMarker raw scale:', raw);
-    // אל תאפשר 0/NaN/Infinity, הצמד לטווח סביר
-    const s = Number.isFinite(raw) && raw > 0 ? Math.min(Math.max(raw, 0.5), 8) : 1;
-    console.log('🔍 RouteMarker safe scale:', s, 'compensated:', 1/s);
-    return { transform: [{ scale: 1 / s }] } as any;
+    // Clamp raw to a reasonable range to avoid Infinity/NaN values.  If raw
+    // becomes zero (during initialization) or not finite, default to 1.  The
+    // chosen bounds (0.5–8) prevent the marker from shrinking to nothing or
+    // exploding in size.
+    const safeRaw = Number.isFinite(raw) && raw > 0 ? Math.min(Math.max(raw, 0.5), 8) : 1;
+    return {
+      transform: [{ scale: 1 / safeRaw }],
+    } as any;
   });
 
   const textColor = getContrastTextColor(route.color);

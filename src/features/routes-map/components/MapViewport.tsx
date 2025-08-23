@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { View, Text, LayoutChangeEvent, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
 import {
@@ -14,15 +14,15 @@ interface MapViewportProps {
   children?: React.ReactNode;
   onMeasured?: (dimensions: { imgW: number; imgH: number }) => void;
   onTransformChange?: (transforms: MapTransforms) => void;
-  // ✅ חדש: חשיפת SharedValues החוצה למרקרים
-  onTransformsReady?: (transforms: {
-    scale: Animated.SharedValue<number>;
-    translateX: Animated.SharedValue<number>;
-    translateY: Animated.SharedValue<number>;
-    zoomIn: () => void;
-    zoomOut: () => void;
-    resetView: () => void;
-  }) => void;
+  /**
+   * Callback to expose the internal transform handlers from useMapTransforms to
+   * the parent. This is useful for controlling zoom/pan from outside the
+   * viewport without creating a second set of transform values. It will be
+   * invoked whenever a new transforms object is created. The returned object
+   * contains shared values (scale, translateX, translateY) as well as
+   * imperative actions (zoomIn, zoomOut, resetView).
+   */
+  onTransformsReady?: (transforms: any) => void;
   debug?: boolean;
 }
 
@@ -31,15 +31,13 @@ const SVG_WIDTH = 2560;
 const SVG_HEIGHT = 1600;
 const SVG_ASPECT_RATIO = SVG_HEIGHT / SVG_WIDTH;
 
-function MapViewport({
+export default function MapViewport({
   children,
   onMeasured,
   onTransformChange,
   onTransformsReady,
   debug = false,
 }: MapViewportProps) {
-  console.log('🔍 MapViewport render start');
-  
   const [containerDimensions, setContainerDimensions] = useState({
     width: 0,
     height: 0,
@@ -50,12 +48,6 @@ function MapViewport({
   });
   const [isReady, setIsReady] = useState(false);
 
-  console.log('🔍 MapViewport state:', {
-    containerDimensions,
-    imageDimensions,
-    isReady
-  });
-
   const transforms = useMapTransforms({
     screenWidth: containerDimensions.width,
     screenHeight: containerDimensions.height,
@@ -63,42 +55,31 @@ function MapViewport({
     imageHeight: imageDimensions.imgH,
     onTransformChange,
   });
-  console.log('🔍 MapViewport transforms created');
 
-  // Expose only stable references to the parent to avoid loops
-  const stableTransforms = useMemo(() => ({
-    scale: transforms.scale,
-    translateX: transforms.translateX,
-    translateY: transforms.translateY,
-    zoomIn: transforms.zoomIn,
-    zoomOut: transforms.zoomOut,
-    resetView: transforms.resetView,
-  }), [
-    transforms.scale,
-    transforms.translateX,
-    transforms.translateY,
-    transforms.zoomIn,
-    transforms.zoomOut,
-    transforms.resetView,
-  ]);
-
-  // ✅ חשיפת SharedValues החוצה למרקרים
-  const notifyParent = useCallback(() => {
-    onTransformsReady?.(stableTransforms);
-  }, [onTransformsReady, stableTransforms]);
-
-  useEffect(() => {
-    notifyParent();
-  }, [notifyParent]);
-
-  // Memoize handler arrays at top level to avoid hooks order issues
-  const panSimultaneousHandlers = useMemo(() => [transforms.pinchRef], [transforms.pinchRef]);
-  const panWaitFor = useMemo(() => [transforms.pinchRef], [transforms.pinchRef]);
-  const pinchSimultaneousHandlers = useMemo(() => [transforms.panRef], [transforms.panRef]);
+  /*
+   * Inform parent components about the newly created transforms.  We don't
+   * include transforms as a dependency here because useMapTransforms returns a
+   * fresh object on each render by design (it contains shared values and
+   * handlers). Wrapping this in a useEffect prevents us from calling the
+   * callback every render unless the reference actually changes.  The parent
+   * should memoize its handler with useCallback to avoid re-creating it
+   * unnecessarily.
+   */
+  const didNotifyRef = React.useRef(false);
+  React.useEffect(() => {
+    // Notify only once to avoid infinite loops.  The transforms object
+    // contains stable shared values and functions, so subsequent re-renders
+    // don't require updating the parent controls.  Should the screen
+    // dimensions or image dimensions change, the parent must re-mount
+    // MapViewport to receive a new transforms object.
+    if (!didNotifyRef.current && onTransformsReady) {
+      didNotifyRef.current = true;
+      onTransformsReady(transforms);
+    }
+  }, [onTransformsReady, transforms]);
 
   const handleLayout = (event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
-    console.log('🔍 MapViewport handleLayout:', { width, height });
     
     // Only update if dimensions actually changed to prevent loops
     if (width !== containerDimensions.width || height !== containerDimensions.height) {
@@ -133,14 +114,10 @@ function MapViewport({
 
   return (
     <View style={styles.container} onLayout={handleLayout}>
-      {/** Memoized handler arrays to avoid new references every render */}
-      {/** These arrays are stable thanks to useMemo above */}
-      {/** Note: refs themselves are stable */}
       <PanGestureHandler
         ref={transforms.panRef}
         onGestureEvent={transforms.panGestureHandler}
-        simultaneousHandlers={panSimultaneousHandlers}
-        waitFor={panWaitFor}
+        simultaneousHandlers={[transforms.pinchRef]}
         minPointers={1}
         maxPointers={1}
       >
@@ -148,7 +125,7 @@ function MapViewport({
           <PinchGestureHandler
             ref={transforms.pinchRef}
             onGestureEvent={transforms.pinchGestureHandler}
-            simultaneousHandlers={pinchSimultaneousHandlers}
+            simultaneousHandlers={[transforms.panRef]}
           >
             <Animated.View style={styles.gestureContainer}>
               <TapGestureHandler
@@ -198,5 +175,3 @@ const styles = StyleSheet.create({
     color: '#666',
   },
 });
-
-export default React.memo(MapViewport);
