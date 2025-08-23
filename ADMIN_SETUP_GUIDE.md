@@ -1,6 +1,7 @@
 # 🚀 הגדרת מנהל ראשון - מדריך שלב אחר שלב
 
 ## ✅ **מה כבר עשינו:**
+
 - Firebase configuration מעודכן
 - Firestore security rules פרוסים
 - התיקונים לקוד הושלמו
@@ -19,9 +20,9 @@
 3. **רשום את ה-UID** שיופיע בלוגים או ב-Firebase Console > Authentication
 4. **ערוך את `setup-first-admin-with-auth.js`:**
    ```javascript
-   const adminEmail = 'your-email@example.com'; // המייל שלך
-   const adminPassword = 'your-password'; // הסיסמה שלך
-   const adminDisplayName = 'Your Name'; // השם שלך
+   const adminEmail = "your-email@example.com"; // המייל שלך
+   const adminPassword = "your-password"; // הסיסמה שלך
+   const adminDisplayName = "Your Name"; // השם שלך
    ```
 5. **הסר את ההערה** מהשורה האחרונה: `// setupFirstAdminWithAuth();`
 6. **הפעל**: `node setup-first-admin-with-auth.js`
@@ -74,11 +75,13 @@
 ## 📍 **איך לגלות את ה-UID שלך:**
 
 ### דרך Firebase Console:
+
 1. עבור ל-Authentication: https://console.firebase.google.com/project/totemapp-464009/authentication/users
 2. תמצא את המשתמש שלך ברשימה
 3. העתק את ה-User UID
 
 ### דרך האפליקציה:
+
 1. התחבר לאפליקציה
 2. בלוגים תמצא שורה כמו: `User logged in: [UID]`
 
@@ -90,10 +93,10 @@
 ✅ **Security Rules**: פרוסים  
 ✅ **App Building**: עובד בהצלחה  
 ✅ **Text Component Error**: תוקן  
-✅ **Auth Initialization Error**: תוקן  
+✅ **Auth Initialization Error**: תוקן
 
 🔲 **Admin Setup**: המשך כאן ↑  
-🔲 **Runtime Testing**: לאחר הגדרת מנהל  
+🔲 **Runtime Testing**: לאחר הגדרת מנהל
 
 ---
 
@@ -109,7 +112,7 @@
 
 **"PERMISSION_DENIED"**: Security rules עובדים - צריך אימות  
 **"User not found"**: צור קודם משתמש באפליקציה  
-**"Wrong password"**: בדוק סיסמה בסקריפט  
+**"Wrong password"**: בדוק סיסמה בסקריפט
 
 ---
 

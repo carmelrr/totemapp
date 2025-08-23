@@ -34,47 +34,6 @@ service cloud.firestore {
           validateFeedbackData();
         allow delete: if request.auth != null && 
           (request.auth.uid == resource.data.userId || isAdmin());
-      }
-    }
-    
-    // Spray Walls collection
-    match /sprayWalls/{sprayWallId} {
-      allow read: if true; // Public read access
-      allow create: if request.auth != null && isAdmin();
-      allow update: if request.auth != null && isAdmin();
-      allow delete: if request.auth != null && isAdmin();
-      
-      // Hold grid subcollection
-      match /holdGrid/{document=**} {
-        allow read: if true; // Public read access
-        allow write: if request.auth != null && isAdmin();
-      }
-      
-      // Spray routes subcollection
-      match /routes/{sprayRouteId} {
-        allow read: if true; // Public read access
-        allow create: if request.auth != null && 
-          request.auth.uid == resource.data.createdBy &&
-          validateSprayRouteData();
-        allow update: if request.auth != null && 
-          (request.auth.uid == resource.data.createdBy || isAdmin()) &&
-          validateSprayRouteData();
-        allow delete: if request.auth != null && 
-          (request.auth.uid == resource.data.createdBy || isAdmin());
-          
-        // Spray route feedbacks
-        match /feedbacks/{feedbackId} {
-          allow read: if true; // Public read access
-          allow create: if request.auth != null && 
-            request.auth.uid == resource.data.userId &&
-            validateFeedbackData();
-          allow update: if request.auth != null && 
-            (request.auth.uid == resource.data.userId || isAdmin()) &&
-            validateFeedbackData();
-          allow delete: if request.auth != null && 
-            (request.auth.uid == resource.data.userId || isAdmin());
-        }
-      }
     }
     
     // Notifications collection
@@ -102,14 +61,6 @@ service cloud.firestore {
         request.resource.data.y is number &&
         request.resource.data.x >= 0 && request.resource.data.x <= 1 &&
         request.resource.data.y >= 0 && request.resource.data.y <= 1;
-    }
-    
-    function validateSprayRouteData() {
-      return request.resource.data.keys().hasAll(['name', 'grade', 'holds', 'createdBy']) &&
-        request.resource.data.name is string &&
-        request.resource.data.grade is string &&
-        request.resource.data.holds is map &&
-        request.resource.data.name.size() <= 100; // Limit name length
     }
     
     function validateFeedbackData() {
