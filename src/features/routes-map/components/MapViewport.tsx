@@ -15,12 +15,11 @@ interface MapViewportProps {
   onMeasured?: (dimensions: { imgW: number; imgH: number }) => void;
   onTransformChange?: (transforms: MapTransforms) => void;
   /**
-   * Callback to expose the internal transform handlers from useMapTransforms to
-   * the parent. This is useful for controlling zoom/pan from outside the
-   * viewport without creating a second set of transform values. It will be
-   * invoked whenever a new transforms object is created. The returned object
-   * contains shared values (scale, translateX, translateY) as well as
-   * imperative actions (zoomIn, zoomOut, resetView).
+   * Callback that receives the internal transform handlers (scale, translation
+   * shared values and zoom/reset functions) when the viewport is initialized.
+   * This allows parent components to control zoom and pan without creating
+   * another set of transforms. It is invoked once after the transforms are
+   * created.
    */
   onTransformsReady?: (transforms: any) => void;
   debug?: boolean;
@@ -56,24 +55,12 @@ export default function MapViewport({
     onTransformChange,
   });
 
-  /*
-   * Inform parent components about the newly created transforms.  We don't
-   * include transforms as a dependency here because useMapTransforms returns a
-   * fresh object on each render by design (it contains shared values and
-   * handlers). Wrapping this in a useEffect prevents us from calling the
-   * callback every render unless the reference actually changes.  The parent
-   * should memoize its handler with useCallback to avoid re-creating it
-   * unnecessarily.
-   */
-  const didNotifyRef = React.useRef(false);
+  // Notify parent of the transforms exactly once.  A ref tracks whether
+  // notification has occurred to avoid an infinite update loop.
+  const notifiedRef = React.useRef(false);
   React.useEffect(() => {
-    // Notify only once to avoid infinite loops.  The transforms object
-    // contains stable shared values and functions, so subsequent re-renders
-    // don't require updating the parent controls.  Should the screen
-    // dimensions or image dimensions change, the parent must re-mount
-    // MapViewport to receive a new transforms object.
-    if (!didNotifyRef.current && onTransformsReady) {
-      didNotifyRef.current = true;
+    if (!notifiedRef.current && onTransformsReady) {
+      notifiedRef.current = true;
       onTransformsReady(transforms);
     }
   }, [onTransformsReady, transforms]);

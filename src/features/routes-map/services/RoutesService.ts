@@ -41,6 +41,14 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
     const VIEWBOX_W = 2560;
     const VIEWBOX_H = 1600;
     
+    console.log(`🔍 Processing route ${snapshot.id}:`, {
+      name: data.name,
+      originalX: data.x,
+      originalY: data.y,
+      originalXNorm: data.xNorm,
+      originalYNorm: data.yNorm
+    });
+    
     // ✅ המרה אוטומטית מ-x/y ל-xNorm/yNorm אם חסרים
     let xNorm = data.xNorm;
     let yNorm = data.yNorm;
@@ -50,10 +58,10 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
         Number.isFinite(data.x) && Number.isFinite(data.y)) {
       xNorm = Math.min(Math.max(data.x / VIEWBOX_W, 0), 1);
       yNorm = Math.min(Math.max(data.y / VIEWBOX_H, 0), 1);
-      console.log(`🔍 Route ${snapshot.id}: converted x=${data.x}, y=${data.y} to xNorm=${xNorm}, yNorm=${yNorm}`);
+      console.log(`� Route ${snapshot.id}: converted x=${data.x}, y=${data.y} to xNorm=${xNorm.toFixed(4)}, yNorm=${yNorm.toFixed(4)}`);
     }
     
-    return {
+    const result = {
       id: snapshot.id,
       name: data.name || '',
       grade: data.grade || 'V0',
@@ -68,6 +76,15 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       setter: data.setter,
       tags: data.tags || [],
     };
+    
+    console.log(`✅ Route ${snapshot.id} processed:`, {
+      xNorm: result.xNorm,
+      yNorm: result.yNorm,
+      isValid: Number.isFinite(result.xNorm) && Number.isFinite(result.yNorm),
+      inBounds: result.xNorm >= 0 && result.xNorm <= 1 && result.yNorm >= 0 && result.yNorm <= 1
+    });
+    
+    return result;
   },
 };
 
