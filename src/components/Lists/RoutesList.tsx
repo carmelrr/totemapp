@@ -2,6 +2,7 @@ import React from 'react';
 import { View, FlatList, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { RouteDoc } from '@/features/routes-map/types/route';
 import { useFiltersStore } from '@/store/useFiltersStore';
+import { getColorHex } from '@/constants/colors';
 
 interface RoutesListProps {
   routes: RouteDoc[];
@@ -22,7 +23,7 @@ const RouteItem = React.memo(({ route, onPress }: RouteItemProps) => {
 
   const getColorIndicator = (color?: string) => {
     if (!color) return '#ccc';
-    return color;
+    return getColorHex(color);
   };
 
   const handlePress = () => {
@@ -108,7 +109,6 @@ export default function RoutesList({
       data={filteredRoutes}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
-      getItemLayout={getItemLayout}
       maxToRenderPerBatch={10}
       windowSize={10}
       updateCellsBatchingPeriod={50}

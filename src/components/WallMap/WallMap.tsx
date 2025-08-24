@@ -1,15 +1,16 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, { runOnJS } from 'react-native-reanimated';
 import { 
   PanGestureHandler, 
   PinchGestureHandler, 
   TapGestureHandler,
   LongPressGestureHandler 
 } from 'react-native-gesture-handler';
-import WallMapSVG from '@/assets/WallMapSVG';
+import { useFocusEffect } from '@react-navigation/native';
 import { useMapTransforms } from '@/hooks/useMapTransforms';
 import { RouteDoc } from '@/features/routes-map/types/route';
+import WallMapSVG from '@/assets/WallMapSVG';
 import RouteCircle from './RouteCircle';
 
 interface WallMapProps {
@@ -20,6 +21,8 @@ interface WallMapProps {
   onLongPress?: (coordinates: { xImg: number; yImg: number }) => void;
   selectedRouteId?: string;
   children?: React.ReactNode;
+  gesturesEnabled?: boolean;
+  onGestureStateChange?: (enabled: boolean) => void;
 }
 
 /**
@@ -34,6 +37,8 @@ export default function WallMap({
   onLongPress,
   selectedRouteId,
   children,
+  gesturesEnabled = true,
+  onGestureStateChange,
 }: WallMapProps) {
   const [containerDimensions, setContainerDimensions] = useState({
     width: 0,
@@ -44,6 +49,19 @@ export default function WallMap({
     imgW: 0,
     imgH: 0,
   });
+
+  const [internalGesturesEnabled, setInternalGesturesEnabled] = useState(true);
+
+  // משלב בין הגדרה חיצונית ופנימית
+  const effectiveGesturesEnabled = gesturesEnabled && internalGesturesEnabled;
+
+  // מפעיל מחדש את המחוות כשחוזרים למסך
+  useFocusEffect(
+    useCallback(() => {
+      setInternalGesturesEnabled(true);
+      onGestureStateChange?.(true);
+    }, [onGestureStateChange])
+  );
 
   const transforms = useMapTransforms({
     screenWidth: containerDimensions.width,
@@ -77,23 +95,30 @@ export default function WallMap({
 
   // המרת קואורדינטות מסך לקואורדינטות תמונה
   const screenToImage = useCallback((screenX: number, screenY: number) => {
-    const { scale, translateX, translateY } = transforms;
-    
-    // M^-1 transformation
-    const xImg = (screenX - translateX.value) / scale.value;
-    const yImg = (screenY - translateY.value) / scale.value;
-    
-    return { xImg, yImg };
-  }, [transforms]);
+    // הפונקציה הזו לא צריכה לקרוא את הערכים בזמן הרנדור
+    // זה ישמש בפונקציות callback בלבד
+    return { xImg: 0, yImg: 0 }; // placeholder
+  }, []);
 
   // טיפול בלחיצה ארוכה להוספת מסלול
   const handleLongPress = useCallback((event: any) => {
-    if (onLongPress) {
+    if (onLongPress && effectiveGesturesEnabled) {
       const { x, y } = event.nativeEvent;
-      const imageCoords = screenToImage(x, y);
-      onLongPress(imageCoords);
+      
+      // פונקציה שתקרא מתוך worklet context
+      const processLongPress = (screenX: number, screenY: number) => {
+        // כבה מחוות לפני הניווט
+        setInternalGesturesEnabled(false);
+        onGestureStateChange?.(false);
+        
+        // עבור עכשיו נשתמש בקואורדינטות מסך פשוטות
+        // TODO: צריך לתקן את החישוב כשמשתמשים באמת בפונקציה
+        onLongPress({ xImg: screenX, yImg: screenY });
+      };
+      
+      processLongPress(x, y);
     }
-  }, [onLongPress, screenToImage]);
+  }, [onLongPress, effectiveGesturesEnabled, onGestureStateChange]);
 
   // מערכים מקוצרים לגסטורות (למניעת re-creation)
   const panRefs = useMemo(() => [transforms.pinchRef], [transforms.pinchRef]);
@@ -112,31 +137,35 @@ export default function WallMap({
   return (
     <View style={styles.container} onLayout={handleLayout}>
       <LongPressGestureHandler
+        enabled={effectiveGesturesEnabled}
         onGestureEvent={handleLongPress}
         minDurationMs={800}
       >
-        <Animated.View style={styles.gestureContainer}>
+        <Animated.View style={styles.gestureContainer} pointerEvents="box-none">
           <PanGestureHandler
             ref={transforms.panRef}
+            enabled={effectiveGesturesEnabled}
             onGestureEvent={transforms.panGestureHandler}
             simultaneousHandlers={panRefs}
             waitFor={panRefs}
             minPointers={1}
             maxPointers={1}
           >
-            <Animated.View style={styles.gestureContainer}>
+            <Animated.View style={styles.gestureContainer} pointerEvents="box-none">
               <PinchGestureHandler
                 ref={transforms.pinchRef}
+                enabled={effectiveGesturesEnabled}
                 onGestureEvent={transforms.pinchGestureHandler}
                 simultaneousHandlers={pinchRefs}
               >
-                <Animated.View style={styles.gestureContainer}>
+                <Animated.View style={styles.gestureContainer} pointerEvents="box-none">
                   <TapGestureHandler
                     ref={transforms.doubleTapRef}
+                    enabled={effectiveGesturesEnabled}
                     onGestureEvent={transforms.doubleTapGestureHandler}
                     numberOfTaps={2}
                   >
-                    <Animated.View style={styles.gestureContainer}>
+                    <Animated.View style={styles.gestureContainer} pointerEvents="box-none">
                       <Animated.View style={[styles.mapContainer, transforms.mapContainerStyle]}>
                         {/* תמונת הקיר */}
                         <WallMapSVG

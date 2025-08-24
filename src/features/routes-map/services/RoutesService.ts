@@ -168,9 +168,13 @@ export class RoutesService {
         rating: 0,
         tops: 0,
         comments: 0,
-        setter: routeData.setter,
         tags: routeData.tags || [],
       };
+
+      // הוסף setter רק אם הוא לא undefined/empty
+      if (routeData.setter && routeData.setter.trim()) {
+        newRoute.setter = routeData.setter;
+      }
 
       const docRef = await addDoc(routesRef, newRoute);
       return docRef.id;

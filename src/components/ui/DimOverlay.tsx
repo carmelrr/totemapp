@@ -6,8 +6,8 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 export default function DimOverlay({ highlightAreas = [] }) {
   return (
-    <View style={StyleSheet.absoluteFill}>
-      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill}>
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} pointerEvents="none">
         <Defs>
           <Mask id="highlight-mask">
             {/* White base - what will be shown */}
@@ -48,6 +48,7 @@ export default function DimOverlay({ highlightAreas = [] }) {
               borderRadius: area.r + 15,
             },
           ]}
+          pointerEvents="none"
         />
       ))}
     </View>

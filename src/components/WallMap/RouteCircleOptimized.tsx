@@ -16,7 +16,7 @@ interface RouteCircleProps {
 }
 
 /**
- * עיגול מסלול יחיד שנשאר בגודל קבוע על המסך (compensate for zoom)
+ * עיגול מסלול יחיד מאופטם - שנשאר בגודל קבוע על המסך
  * אופטימיזציה: חישובים מוקדמים ומינימום worklet operations
  */
 const RouteCircle = React.memo<RouteCircleProps>(({
@@ -101,6 +101,10 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       borderWidth: selected ? 3 : 1,
       borderColor: selected ? '#0066cc' : '#ffffff',
       elevation: selected ? 8 : 4,
+      shadowColor: '#000000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 3,
       justifyContent: 'center',
       alignItems: 'center',
     };
@@ -110,14 +114,8 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     fontSize: compensatedFontSize.value,
     fontWeight: 'bold' as const,
     color: precomputedValues.textColor,
+    textAlign: 'center' as const,
   }));
-
-  const shadowStyle = {
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-  };
 
   const handlePress = () => {
     onPress?.(route);
@@ -125,7 +123,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
 
   return (
     <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
-      <Animated.View style={[circleStyle, shadowStyle]}>
+      <Animated.View style={circleStyle}>
         <Animated.Text style={textStyle}>
           {route.grade || '?'}
         </Animated.Text>
@@ -134,7 +132,6 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   );
 }, (prevProps, nextProps) => {
   // React.memo comparison function for optimization
-  // אל תקרא את scale.value כאן כי זה גורם לרנדור warning
   return (
     prevProps.route.id === nextProps.route.id &&
     prevProps.selected === nextProps.selected &&
@@ -142,7 +139,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     prevProps.imageHeight === nextProps.imageHeight &&
     prevProps.wallWidth === nextProps.wallWidth &&
     prevProps.wallHeight === nextProps.wallHeight &&
-    prevProps.scale === nextProps.scale // השוואת reference במקום קריאת value
+    Math.abs((prevProps.scale?.value ?? 1) - (nextProps.scale?.value ?? 1)) < 0.01
   );
 });
 

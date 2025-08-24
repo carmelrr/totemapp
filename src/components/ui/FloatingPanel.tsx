@@ -21,7 +21,11 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
 }) => {
   const positionStyle = getPositionStyle(position);
 
-  return <View style={[styles.panel, positionStyle, style]}>{children}</View>;
+  return (
+    <View style={[styles.panel, positionStyle, style]} pointerEvents="box-none">
+      {children}
+    </View>
+  );
 };
 
 function getPositionStyle(position: string): ViewStyle {

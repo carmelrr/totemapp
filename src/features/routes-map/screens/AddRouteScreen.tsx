@@ -130,21 +130,31 @@ export default function AddRouteScreen() {
   };
 
   const handleSave = async () => {
+    console.log('🔥 SAVE_PRESS - כפתור Save נלחץ!');
+    
     if (!validateForm() || !preview) return;
 
     setIsSubmitting(true);
 
     try {
-      const routeData = {
+      const routeData: any = {
         name: name.trim(),
         grade,
         color,
         xNorm: preview.xNorm,
         yNorm: preview.yNorm,
         status,
-        setter: setter.trim() || undefined,
-        tags: tags.trim() ? tags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
       };
+
+      // הוסף setter רק אם יש ערך
+      if (setter.trim()) {
+        routeData.setter = setter.trim();
+      }
+
+      // הוסף tags רק אם יש ערכים
+      if (tags.trim()) {
+        routeData.tags = tags.split(',').map(t => t.trim()).filter(Boolean);
+      }
 
       await RoutesService.addRoute(routeData);
       

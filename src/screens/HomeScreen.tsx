@@ -54,23 +54,13 @@ export default function HomeScreen() {
       <Text style={styles.title}>ברוך הבא לאפליקציית הטיפוס 🧗‍♀️</Text>
 
       <TouchableOpacity
-        style={[styles.button, { backgroundColor: theme.buttonPrimary }]}
-        onPress={() => handleNavigation("WallMapScreen")}
-        activeOpacity={0.7}
-        delayPressIn={0}
-        delayPressOut={100}
-      >
-        <Text style={styles.buttonText}>מפת הקיר 🧗</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
         style={[styles.button, { backgroundColor: "#22c55e" }]}
         onPress={() => handleNavigation("RoutesMap")}
         activeOpacity={0.7}
         delayPressIn={0}
         delayPressOut={100}
       >
-        <Text style={styles.buttonText}>Routes Map (New) 🗺️</Text>
+        <Text style={styles.buttonText}>מפת המסלולים 🗺️</Text>
       </TouchableOpacity>
 
       <TouchableOpacity
@@ -91,6 +81,16 @@ export default function HomeScreen() {
         delayPressOut={100}
       >
         <Text style={styles.buttonText}>לוחות מובילים 🏆</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={[styles.button, { backgroundColor: "#ff6b35" }]}
+        onPress={() => handleNavigation("Analytics")}
+        activeOpacity={0.7}
+        delayPressIn={0}
+        delayPressOut={100}
+      >
+        <Text style={styles.buttonText}>אנליטיקה והישגים 📊</Text>
       </TouchableOpacity>
 
       <TouchableOpacity

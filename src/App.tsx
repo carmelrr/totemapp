@@ -7,7 +7,6 @@ import { enableScreens } from "react-native-screens";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/features/data/firebase";
-import WallMapScreen from "@/screens/routes/WallMapScreen";
 import ProfileScreen from "@/screens/profile/ProfileScreen";
 import UserProfileScreen from "@/screens/profile/UserProfileScreen";
 import HomeScreen from "@/screens/HomeScreen";
@@ -18,8 +17,10 @@ import LeaderboardScreen from "@/screens/social/LeaderboardScreen";
 import SprayNavigator from "@/navigation/SprayNavigator";
 import RoutesMapScreen from "@/features/routes-map/screens/RoutesMapScreen";
 import AddRouteMapScreen from "@/features/routes-map/screens/AddRouteScreen";
+import AnalyticsScreen from "@/components/analytics/AnalyticsScreen";
 import { UserProvider } from "@/features/auth/UserContext";
 import { ThemeProvider, useTheme } from "@/features/theme/ThemeContext";
+import { AuthProvider } from "@/context/AuthContext";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 
 // Enable React Native Screens for better performance and native feel
@@ -79,11 +80,6 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
           options={{ title: "בית" }}
         />
         <Stack.Screen
-          name="WallMapScreen"
-          component={WallMapScreen}
-          options={{ title: "מפת המסלולים" }}
-        />
-        <Stack.Screen
           name="ProfileScreen"
           component={ProfileScreen}
           options={{ title: "פרופיל" }}
@@ -96,7 +92,11 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
         <Stack.Screen
           name="AddRouteScreen"
           component={AddRouteScreen}
-          options={{ title: "הוספת מסלול חדש" }}
+          options={{
+            title: "הוספת מסלול חדש",
+            presentation: 'modal',
+            gestureEnabled: true,
+          }}
         />
         <Stack.Screen
           name="RoutesMap"
@@ -106,7 +106,11 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
         <Stack.Screen
           name="AddRoute"
           component={AddRouteMapScreen}
-          options={{ title: "Add Route" }}
+          options={{
+            title: "Add Route",
+            presentation: 'modal',
+            gestureEnabled: true,
+          }}
         />
         <Stack.Screen
           name="ColorPickerScreen"
@@ -117,6 +121,11 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
           name="LeaderboardScreen"
           component={LeaderboardScreen}
           options={{ title: "לוחות מובילים" }}
+        />
+        <Stack.Screen
+          name="Analytics"
+          component={AnalyticsScreen}
+          options={{ title: "אנליטיקה" }}
         />
         <Stack.Screen
           name="SprayWall"
@@ -165,15 +174,17 @@ export default function App() {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
-          <NavigationContainer>
-            <Stack.Navigator id={undefined}>
-              <Stack.Screen
-                name="Login"
-                component={LoginScreen}
-                options={{ headerShown: false }}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
+          <AuthProvider>
+            <NavigationContainer>
+              <Stack.Navigator id={undefined}>
+                <Stack.Screen
+                  name="Login"
+                  component={LoginScreen}
+                  options={{ headerShown: false }}
+                />
+              </Stack.Navigator>
+            </NavigationContainer>
+          </AuthProvider>
         </ThemeProvider>
       </GestureHandlerRootView>
     );
@@ -183,9 +194,11 @@ export default function App() {
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
-          <UserProvider isAdmin={isAdmin}>
-            <ThemedNavigator isAdmin={isAdmin} />
-          </UserProvider>
+          <AuthProvider>
+            <UserProvider isAdmin={isAdmin}>
+              <ThemedNavigator isAdmin={isAdmin} />
+            </UserProvider>
+          </AuthProvider>
         </ThemeProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
