@@ -17,14 +17,12 @@ export default function RouteMarker({
   onPress,
   selected = false,
 }: RouteMarkerProps) {
-  // Compensate for scale to keep constant size
+  // Compensate for scale to keep constant size.  Clamp the raw scale to avoid
+  // division by zero or exploding values during pinch gestures.  If scale is
+  // not provided, fall back to 1.
   const compensatedStyle = useAnimatedStyle(() => {
-    // If no scale shared value is provided, default to unit scaling.
     const raw = scale?.value ?? 1;
-    // Clamp raw to a reasonable range to avoid Infinity/NaN values.  If raw
-    // becomes zero (during initialization) or not finite, default to 1.  The
-    // chosen bounds (0.5–8) prevent the marker from shrinking to nothing or
-    // exploding in size.
+    // If raw is not finite or zero, default to 1.  Clamp to a sensible range.
     const safeRaw = Number.isFinite(raw) && raw > 0 ? Math.min(Math.max(raw, 0.5), 8) : 1;
     return {
       transform: [{ scale: 1 / safeRaw }],

@@ -9,24 +9,8 @@ interface RouteMarkersLayerProps {
   routes: RouteDoc[];
   imageWidth: number;
   imageHeight: number;
-  /**
-   * Shared value representing the current scale of the map. The marker size
-   * compensation will use this to keep a constant on‑screen size. This value
-   * should come from the same useMapTransforms instance that drives the map
-   * container.
-   */
   scale: Animated.SharedValue<number>;
-  /**
-   * Shared value representing the horizontal translation of the map. Only used
-   * for debugging or advanced positioning; markers do not apply this
-   * translation themselves because they are children of the map container
-   * which already has the translation applied.
-   */
   translateX: Animated.SharedValue<number>;
-  /**
-   * Shared value representing the vertical translation of the map. See
-   * translateX notes above.
-   */
   translateY: Animated.SharedValue<number>;
   onMarkerPress?: (route: RouteDoc) => void;
   selectedRouteId?: string;
@@ -43,12 +27,12 @@ export default function RouteMarkersLayer({
   selectedRouteId,
 }: RouteMarkersLayerProps) {
   /*
-   * The markers live inside the map container defined in MapViewport.  That
-   * container already applies the current translation and scaling to its
-   * children.  Therefore we do not apply an additional transform here.  Each
-   * marker will compensate its own size using 1/scale, so it remains a
-   * constant visual size while the position stays locked to the underlying
-   * image.
+   * The map container (MapViewport) already applies the translation and scale
+   * transforms to its children.  Applying the same transform here again would
+   * compound the effect and misplace the markers.  Therefore, this layer
+   * simply fills the parent without adding transforms.  Each marker uses the
+   * provided scale shared value to compensate its size via 1/scale in
+   * RouteMarker.
    */
   return (
     <Animated.View style={StyleSheet.absoluteFill} pointerEvents="box-none">
@@ -59,21 +43,16 @@ export default function RouteMarkersLayer({
           { imgW: imageWidth, imgH: imageHeight }
         );
 
-        // Position marker container at the route location. Offset by half
-        // marker size to center it.  Clamp to non‑negative values so
-        // markers on the very edge don't render outside the screen (e.g.
-        // negative left/top would cause them to sit off the page).  We do
-        // not clamp the maximum because the map container handles clipping.
-        const markerSize = 36; // Should match marker size in RouteMarker
+        const markerSize = 36;
         let left = xImg - markerSize / 2;
         let top = yImg - markerSize / 2;
+        // Clamp positions so markers do not render completely outside
         if (!Number.isFinite(left) || !Number.isFinite(top)) {
           left = 0;
           top = 0;
         }
         left = Math.max(0, left);
         top = Math.max(0, top);
-
         return (
           <Animated.View
             key={route.id}

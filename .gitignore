@@ -10,6 +10,7 @@ build/
 *.env
 *.log
 *.tmp
+.env.local
 
 # קבצים של macOS
 .DS_Store

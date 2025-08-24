@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,21 +6,24 @@ import {
   Text,
   Alert,
   Dimensions,
-  FlatList,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-import MapViewport from '../components/MapViewport';
-import RouteMarkersLayer from '../components/RouteMarkersLayer';
-import MapControls from '../components/MapControls';
-import FilterSheet from '../components/FilterSheet';
+// New Architecture Components
+import WallMap from '../../../components/WallMap/WallMap';
+import { FiltersBar, FiltersSheet } from '../../../components/Filters';
+import { RoutesList } from '../../../components/Lists';
+
+// Existing Components (for compatibility)
 import RouteBottomSheet from '../components/RouteBottomSheet';
 
+// Store and Hooks
+import { useFiltersStore } from '../../../store/useFiltersStore';
 import { useFirebaseRoutes } from '../hooks/useFirebaseRoutes';
-import { useVisibleRoutes, useRouteFilters } from '../hooks/useVisibleRoutes';
 
-import { RouteDoc, RouteFilters, RouteSortBy, MapTransforms } from '../types/route';
+// Types
+import { RouteDoc, MapTransforms } from '../types/route';
 import { RoutesService } from '../services/RoutesService';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -32,237 +35,196 @@ type RootStackParamList = {
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'RoutesMap'>;
 
+/**
+ * RoutesMapScreen עם האדריכלות החדשה
+ * משתמש ב-WallMap, FiltersBar, RoutesList ו-Zustand store
+ * עם תמיכה לחזרה מדורגת בתאימות לקומפוננטים הישנים
+ */
 export default function RoutesMapScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const [screenDimensions, setScreenDimensions] = useState({
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT * 0.6, // Reserve space for list
-  });
-  const [imageDimensions, setImageDimensions] = useState({
-    imgW: 0,
-    imgH: 0,
-  });
-  const [currentTransforms, setCurrentTransforms] = useState<MapTransforms>({
-    translateX: 0,
-    translateY: 0,
-    scale: 1,
-  });
-
-  // State for UI components
-  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  
+  // UI State
   const [selectedRoute, setSelectedRoute] = useState<RouteDoc | null>(null);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
-  const [showFilterSheet, setShowFilterSheet] = useState(false);
-
-  // Filters and sorting
-  const defaultFilters = useRouteFilters();
-  const [filters, setFilters] = useState<RouteFilters>(defaultFilters);
-  const [sortBy, setSortBy] = useState<RouteSortBy>('distance');
-
+  const [viewMode, setViewMode] = useState<'map' | 'list' | 'split'>('split');
+  
   // Data
   const { routes, isLoading, error } = useFirebaseRoutes();
+  
+  // Filters Store
+  const { getFilteredRoutes, isFilterSheetOpen } = useFiltersStore();
 
-
-  /**
-   * Holds the transform handlers returned by MapViewport's useMapTransforms.  This
-   * includes the shared values (scale, translateX, translateY) and the
-   * imperative actions (zoomIn, zoomOut, resetView).  It is populated via
-   * the onTransformsReady callback provided to MapViewport.  Initially null
-   * until MapViewport mounts and provides the handlers.
-   */
-  const [mapControls, setMapControls] = useState<any>(null);
-
-  // Visible routes based on viewport and filters
-  const visibleRoutes = useVisibleRoutes({
-    routes,
-    transforms: currentTransforms,
-    screenWidth: screenDimensions.width,
-    screenHeight: screenDimensions.height,
-    imageWidth: imageDimensions.imgW,
-    imageHeight: imageDimensions.imgH,
-    filters,
-    sortBy,
-  });
+  // Filtered routes based on current filters
+  const filteredRoutes = useMemo(() => {
+    return getFilteredRoutes(routes);
+  }, [routes, getFilteredRoutes]);
 
   // Handlers
-  const handleMapMeasured = useCallback((dimensions: { imgW: number; imgH: number }) => {
-    console.log('Map measured:', dimensions);
-    setImageDimensions(dimensions);
-  }, []);
-
-  /**
-   * Update currentTransforms state when the map's translation or scale actually
-   * changes.  This guard prevents React from entering an infinite update
-   * loop by ignoring tiny differences that can occur during animations.  The
-   * epsilon value determines the tolerance for change detection.
-   */
-  const handleTransformChange = useCallback((next: MapTransforms) => {
-    const EPS = 0.05;
-    setCurrentTransforms((prev) => {
-      const near = (a: number, b: number) => Math.abs(a - b) < EPS;
-      if (near(prev.scale, next.scale) && near(prev.translateX, next.translateX) && near(prev.translateY, next.translateY)) {
-        return prev;
-      }
-      return next;
-    });
-  }, []);
-
-  /**
-   * Capture the transforms and action handlers from MapViewport.  Memoize
-   * to avoid unnecessary renders when the same object reference is passed.
-   */
-  const handleTransformsReady = useCallback((transforms: any) => {
-    setMapControls(transforms);
-  }, []);
-
-  const handleMarkerPress = useCallback((route: RouteDoc) => {
+  const handleRoutePress = useCallback((route: RouteDoc) => {
     setSelectedRoute(route);
-    setSelectedRouteId(route.id);
     setShowBottomSheet(true);
   }, []);
 
   const handleCloseBottomSheet = useCallback(() => {
     setShowBottomSheet(false);
     setSelectedRoute(null);
-    setSelectedRouteId(null);
   }, []);
-
-  // Don't render map content until we have valid dimensions
-  const isMapReady = imageDimensions.imgW > 0 && imageDimensions.imgH > 0;
-
-  console.log('RoutesMapScreen render - isMapReady:', isMapReady, 'imageDimensions:', imageDimensions);
 
   const handleMarkTop = useCallback(async (route: RouteDoc) => {
     try {
       await RoutesService.incrementTops(route.id);
-      Alert.alert('Success', 'Route marked as topped!');
+      Alert.alert('הצלחה', 'המסלול סומן כטופס!');
     } catch (error) {
-      Alert.alert('Error', 'Failed to mark route as topped');
+      Alert.alert('שגיאה', 'נכשל בסימון המסלול');
     }
   }, []);
 
   const handleRate = useCallback(async (route: RouteDoc, rating: number) => {
     try {
       await RoutesService.updateRoute(route.id, { rating });
-      Alert.alert('Success', 'Route rated!');
+      Alert.alert('הצלחה', 'המסלול דורג!');
     } catch (error) {
-      Alert.alert('Error', 'Failed to rate route');
+      Alert.alert('שגיאה', 'נכשל בדירוג המסלול');
     }
   }, []);
 
   const handleShare = useCallback((route: RouteDoc) => {
-    Alert.alert('Share', `Sharing route: ${route.name}`);
+    Alert.alert('שיתוף', `שיתוף מסלול: ${route.name}`);
   }, []);
 
   const handleReport = useCallback((route: RouteDoc) => {
-    Alert.alert('Report', `Reporting route: ${route.name}`);
+    Alert.alert('דיווח', `דיווח על מסלול: ${route.name}`);
   }, []);
 
   const handleAddRoute = useCallback(() => {
     navigation.navigate('AddRoute');
   }, [navigation]);
 
-  const renderRouteItem = useCallback(({ item }: { item: RouteDoc }) => (
-    <TouchableOpacity
-      style={styles.routeListItem}
-      onPress={() => handleMarkerPress(item)}
-    >
-      <View style={[styles.routeColorIndicator, { backgroundColor: item.color }]} />
-      <View style={styles.routeItemContent}>
-        <Text style={styles.routeItemName}>{item.name}</Text>
-        <Text style={styles.routeItemGrade}>{item.grade}</Text>
-      </View>
-      <View style={styles.routeItemStats}>
-        <Text style={styles.routeItemStat}>⭐ {item.rating.toFixed(1)}</Text>
-        <Text style={styles.routeItemStat}>🏆 {item.tops}</Text>
-      </View>
-    </TouchableOpacity>
-  ), [handleMarkerPress]);
+  const handleDebug = useCallback(() => {
+    Alert.alert(
+      'מידע דיבוג',
+      `מסלולים נטענו: ${routes.length}\n` +
+      `טוען: ${isLoading}\n` +
+      `שגיאה: ${error ? error.message : 'אין'}\n` +
+      `מסלולים מסוננים: ${filteredRoutes.length}`
+    );
+  }, [routes, isLoading, error, filteredRoutes]);
+
+  const availableColors = useMemo(() => {
+    const colors = new Set(routes.map(route => route.color).filter(Boolean));
+    return Array.from(colors);
+  }, [routes]);
+
+  const availableGrades = useMemo(() => {
+    const grades = new Set(routes.map(route => route.grade).filter(Boolean));
+    return Array.from(grades).sort();
+  }, [routes]);
 
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Error loading routes: {error.message}</Text>
+        <Text style={styles.errorText}>שגיאה בטעינת מסלולים: {error.message}</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => console.log('Retry requested')}>
+          <Text style={styles.retryButtonText}>נסה שוב</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  return (
-    <View style={styles.container}>
-      {/* Map Section */}
+  const renderMapView = () => (
+    <WallMap
+      routes={filteredRoutes}
+      onRoutePress={handleRoutePress}
+      selectedRouteId={selectedRoute?.id}
+      wallWidth={2560}
+      wallHeight={1600}
+    />
+  );
+
+  const renderListView = () => (
+    <RoutesList
+      routes={filteredRoutes}
+      onRoutePress={handleRoutePress}
+    />
+  );
+
+  const renderSplitView = () => (
+    <>
       <View style={styles.mapSection}>
-        <MapViewport
-          onMeasured={handleMapMeasured}
-          onTransformChange={handleTransformChange}
-          onTransformsReady={handleTransformsReady}
-        >
-          {isMapReady && (
-            <RouteMarkersLayer
-              routes={visibleRoutes}
-              imageWidth={imageDimensions.imgW}
-              imageHeight={imageDimensions.imgH}
-              scale={mapControls?.scale ?? { value: 1 }}
-              translateX={mapControls?.translateX ?? { value: 0 }}
-              translateY={mapControls?.translateY ?? { value: 0 }}
-              onMarkerPress={handleMarkerPress}
-              selectedRouteId={selectedRouteId}
-            />
-          )}
-        </MapViewport>
-
-        {/* Map Controls */}
-        <MapControls
-          onZoomIn={mapControls?.zoomIn || (() => {})}
-          onZoomOut={mapControls?.zoomOut || (() => {})}
-          onReset={mapControls?.resetView || (() => {})}
-        />
-
-        {/* Header Buttons */}
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.headerButton}
-            onPress={() => setShowFilterSheet(true)}
-          >
-            <Text style={styles.headerButtonText}>Filter</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.headerButton, styles.addButton]}
-            onPress={handleAddRoute}
-          >
-            <Text style={[styles.headerButtonText, styles.addButtonText]}>Add Route</Text>
-          </TouchableOpacity>
-        </View>
+        {renderMapView()}
       </View>
-
-      {/* Routes List Section */}
       <View style={styles.listSection}>
         <View style={styles.listHeader}>
           <Text style={styles.listTitle}>
-            Routes in View ({visibleRoutes.length})
+            מסלולים ({filteredRoutes.length})
           </Text>
-          {isLoading && <Text style={styles.loadingText}>Loading...</Text>}
+          {isLoading && <Text style={styles.loadingText}>טוען...</Text>}
         </View>
-        
-        <FlatList
-          data={visibleRoutes}
-          renderItem={renderRouteItem}
-          keyExtractor={(item) => item.id}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.listContent}
-        />
+        {renderListView()}
       </View>
+    </>
+  );
 
-      {/* Filter Sheet */}
-      <FilterSheet
-        visible={showFilterSheet}
-        onClose={() => setShowFilterSheet(false)}
-        filters={filters}
-        sortBy={sortBy}
-        onFiltersChange={setFilters}
-        onSortChange={setSortBy}
+  return (
+    <View style={styles.container}>
+      {/* Filters Bar */}
+      <FiltersBar
+        availableColors={availableColors}
+        availableGrades={availableGrades}
       />
 
-      {/* Route Bottom Sheet */}
+      {/* Content Area */}
+      <View style={styles.contentArea}>
+        {viewMode === 'map' && renderMapView()}
+        {viewMode === 'list' && renderListView()}
+        {viewMode === 'split' && renderSplitView()}
+      </View>
+
+      {/* Action Buttons */}
+      <View style={styles.actionButtons}>
+        <TouchableOpacity
+          style={[styles.viewModeButton, viewMode === 'map' && styles.activeViewMode]}
+          onPress={() => setViewMode('map')}
+        >
+          <Text style={[styles.viewModeText, viewMode === 'map' && styles.activeViewModeText]}>🗺️</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.viewModeButton, viewMode === 'split' && styles.activeViewMode]}
+          onPress={() => setViewMode('split')}
+        >
+          <Text style={[styles.viewModeText, viewMode === 'split' && styles.activeViewModeText]}>⚏</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.viewModeButton, viewMode === 'list' && styles.activeViewMode]}
+          onPress={() => setViewMode('list')}
+        >
+          <Text style={[styles.viewModeText, viewMode === 'list' && styles.activeViewModeText]}>📋</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionButton, styles.debugButton]}
+          onPress={handleDebug}
+        >
+          <Text style={styles.actionButtonText}>🐛</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={[styles.actionButton, styles.addButton]}
+          onPress={handleAddRoute}
+        >
+          <Text style={styles.actionButtonText}>+</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Filters Sheet */}
+      <FiltersSheet
+        availableColors={availableColors}
+        availableGrades={availableGrades}
+      />
+
+      {/* Route Bottom Sheet (Legacy) */}
       <RouteBottomSheet
         visible={showBottomSheet}
         route={selectedRoute}
@@ -281,6 +243,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#ffffff',
   },
+  contentArea: {
+    flex: 1,
+  },
   mapSection: {
     flex: 3,
     position: 'relative',
@@ -290,38 +255,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
   },
-  headerButtons: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  headerButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  addButton: {
-    backgroundColor: '#3b82f6',
-  },
-  headerButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  addButtonText: {
-    color: '#ffffff',
-  },
   listHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -329,6 +262,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
+    backgroundColor: '#ffffff',
   },
   listTitle: {
     fontSize: 16,
@@ -339,42 +273,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6b7280',
   },
-  listContent: {
-    paddingHorizontal: 16,
+  actionButtons: {
+    position: 'absolute',
+    bottom: 24,
+    right: 16,
+    flexDirection: 'column',
+    gap: 8,
   },
-  routeListItem: {
-    flexDirection: 'row',
+  viewModeButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f9fafb',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
   },
-  routeColorIndicator: {
-    width: 4,
-    height: 40,
-    borderRadius: 2,
-    marginRight: 12,
+  activeViewMode: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
   },
-  routeItemContent: {
-    flex: 1,
-  },
-  routeItemName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  routeItemGrade: {
-    fontSize: 14,
+  viewModeText: {
+    fontSize: 20,
     color: '#6b7280',
-    marginTop: 2,
   },
-  routeItemStats: {
-    alignItems: 'flex-end',
+  activeViewModeText: {
+    color: '#ffffff',
   },
-  routeItemStat: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginVertical: 1,
+  actionButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  addButton: {
+    backgroundColor: '#10b981',
+  },
+  debugButton: {
+    backgroundColor: '#f59e0b',
+  },
+  actionButtonText: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#ffffff',
   },
   errorContainer: {
     flex: 1,
@@ -386,5 +339,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#dc2626',
     textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
