@@ -53,6 +53,7 @@
   "devDependencies": {
     "@babel/core": "^7.26.0",
     "@react-native-community/cli": "latest",
+    "@types/jest": "^30.0.0",
     "@types/react": "~19.0.10",
     "babel-plugin-module-resolver": "^5.0.2",
     "typescript": "~5.8.3"

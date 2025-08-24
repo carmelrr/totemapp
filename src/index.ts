@@ -1,7 +1,7 @@
 // src/index.ts - מרכז ייצואים לארכיטקטורה החדשה
 
 // ===== SCREENS =====
-export { SprayWallScreen } from "@/screens/SprayWall/SprayWallScreen";
+export { SprayWallMapViewScreen } from "@/screens/SprayWall/SprayWallMapViewScreen";
 export { AddOrReplaceWallScreen } from "@/screens/SprayWall/AddOrReplaceWallScreen";
 export { CropAndRectifyScreen } from "@/screens/SprayWall/CropAndRectifyScreen";
 export { GridAlignScreen } from "@/screens/SprayWall/GridAlignScreen";

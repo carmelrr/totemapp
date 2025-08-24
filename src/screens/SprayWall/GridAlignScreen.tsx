@@ -76,7 +76,7 @@ export const GridAlignScreen: React.FC<GridAlignScreenProps> = ({
       Alert.alert("הצלחה", "הקיר נשמר בהצלחה", [
         {
           text: "אישור",
-          onPress: () => navigation.navigate("SprayWallScreen", { wallId }),
+          onPress: () => navigation.navigate("SprayWallMapView", { wallId }),
         },
       ]);
     } catch (error) {

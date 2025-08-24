@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { RouteDoc, MapTransforms } from '../types/route';
-import { fromNorm } from '../utils/coords';
+import { fromNorm } from '@/utils/coordinateUtils';
 import RouteMarker from './RouteMarker';
 
 interface RouteMarkersLayerProps {

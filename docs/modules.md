@@ -21,11 +21,16 @@
 | CropAndRectifyScreen.tsx | src/screens/SprayWall/CropAndRectifyScreen.tsx | Screen | perspective crop and rectification |  | Active |
 | NewRouteScreen.tsx | src/screens/Routes/NewRouteScreen.tsx | Screen | create new route |  | Active |
 | GridAlignScreen.tsx | src/screens/SprayWall/GridAlignScreen.tsx | Screen | align T-Nuts grid |  | Active |
-| SprayWallScreen.tsx | src/screens/SprayWall/SprayWallScreen.tsx | Screen | main wall view |  | Active |
+| SprayWallMapViewScreen.tsx | src/screens/SprayWall/SprayWallMapViewScreen.tsx | Screen | wall map view with drawing tools |  | Active |
 | AddOrReplaceWallScreen.tsx | src/screens/SprayWall/AddOrReplaceWallScreen.tsx | Screen | select or replace wall image |  | Active |
 | SymmetryToolsScreen.tsx | src/screens/SprayWall/SymmetryToolsScreen.tsx | Screen | apply symmetry tools |  | Active |
 | EditMapManager.tsx | src/components/routes/EditMapManager.tsx | Component | long-press add, tap+confirm delete |  | Active |
-| routesService.ts | src/features/routes/services/routesService.ts | Service | Firestore CRUD for routes |  | Deprecated |
+| RoutesService.ts | src/features/routes-map/services/RoutesService.ts | Service | Route CRUD operations with type safety |  | Active |
+| FeedbackService.ts | src/features/routes-map/services/FeedbackService.ts | Service | Route feedback management |  | Active |
+| CoordinateUtils.ts | src/utils/coordinateUtils.ts | Utility | Unified coordinate system for all transformations |  | Active |
+| StaticHoldRing.tsx | src/components/shared/StaticHoldRing.tsx | Component | Static hold visualization for routes |  | Active |
+| SprayHoldRing.tsx | src/components/spray/SprayHoldRing.tsx | Component | Interactive hold editing for spray walls |  | Active |
+| AddRouteMapScreen.tsx | src/features/routes-map/screens/AddRouteMapScreen.tsx | Screen | Interactive route creation with map |  | Active |
 | WallMapScreen.tsx | src/screens/routes/WallMapScreen.tsx | Screen | map pan/zoom, show/add routes |  | Active |
 | RouteCircle.tsx | src/components/routes/RouteCircle.tsx | Component | draw colored circle with grade | https://miro.com/app/board/uXjVJQw4-hM=/?moveToWidget=3458764638189826137&cot=14 | Active |
 | default-avatar.png | src/assets/images/default-avatar.png | Asset | default avatar | https://miro.com/app/board/uXjVJQw4-hM=/?moveToWidget=3458764638189826319&cot=14 | Active |

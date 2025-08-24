@@ -15,7 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import MapViewport from '../components/MapViewport';
 import RouteMarker from '../components/RouteMarker';
 
-import { toImg, toNorm } from '../utils/coords';
+import { toImg, toNorm } from '@/utils/coordinateUtils';
 import { GRADES } from '../utils/grades';
 import { ROUTE_COLORS, getRandomRouteColor } from '../utils/colors';
 import { RoutesService } from '../services/RoutesService';
@@ -37,7 +37,7 @@ interface PreviewRoute {
   yNorm: number;
 }
 
-export default function AddRouteScreen() {
+export default function AddRouteMapScreen() {
   const navigation = useNavigation<NavigationProp>();
 
   // Form state
@@ -76,7 +76,7 @@ export default function AddRouteScreen() {
     if (imageDimensions.imgW === 0 || imageDimensions.imgH === 0) return;
 
     const { locationX, locationY } = event.nativeEvent;
-    
+
     // Convert screen coordinates to image coordinates
     const { xImg, yImg } = toImg(
       { xS: locationX, yS: locationY },
@@ -131,7 +131,7 @@ export default function AddRouteScreen() {
 
   const handleSave = async () => {
     console.log('🔥 SAVE_PRESS - כפתור Save נלחץ!');
-    
+
     if (!validateForm() || !preview) return;
 
     setIsSubmitting(true);
@@ -157,7 +157,7 @@ export default function AddRouteScreen() {
       }
 
       await RoutesService.addRoute(routeData);
-      
+
       Alert.alert(
         'Success',
         'Route added successfully!',

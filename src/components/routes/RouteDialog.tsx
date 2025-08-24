@@ -11,14 +11,8 @@ import {
   Dimensions,
 } from "react-native";
 import { auth } from "@/features/data/firebase";
-import {
-  addFeedbackToRoute,
-  subscribeFeedbacksForRoute,
-  deleteFeedback,
-  updateFeedback,
-  getUserFeedbackForRoute,
-  calculateSmartAverageGrade,
-} from "@/features/routes/routesService";
+import { RoutesService } from "@/features/routes-map/services/RoutesService";
+import { FeedbackService } from "@/features/routes-map/services/FeedbackService";
 import { useUser } from "@/features/auth/UserContext";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -100,7 +94,7 @@ export default function RouteDialog({ visible, route, onClose }) {
     if (!visible || !route) return;
 
     // Subscribe to feedbacks
-    const unsubscribe = subscribeFeedbacksForRoute(
+    const unsubscribe = FeedbackService.subscribeFeedbacksForRoute(
       route.id,
       (feedbacksData) => {
         setFeedbacks(feedbacksData);
@@ -109,7 +103,7 @@ export default function RouteDialog({ visible, route, onClose }) {
 
     // Get user's existing feedback
     if (user) {
-      getUserFeedbackForRoute(route.id, user.uid)
+      FeedbackService.getUserFeedbackForRoute(user.uid, route.id)
         .then((feedback) => {
           setUserFeedback(feedback);
           if (feedback) {
@@ -156,22 +150,20 @@ export default function RouteDialog({ visible, route, onClose }) {
     try {
       const feedbackData = {
         userId: user.uid,
-        userEmail: user.email,
         userDisplayName: user.displayName || user.email,
         starRating,
         suggestedGrade,
         comment,
-        closedRoute,
-        submittedAt: new Date(),
+        isCompleted: closedRoute,
       };
 
       if (userFeedback) {
         // Update existing feedback
-        await updateFeedback(route.id, userFeedback.id, feedbackData);
+        await FeedbackService.updateFeedback(userFeedback.id, feedbackData);
         Alert.alert("הצלחה", "הפידבק עודכן בהצלחה");
       } else {
         // Add new feedback
-        await addFeedbackToRoute(route.id, feedbackData);
+        await FeedbackService.addFeedbackToRoute(route.id, feedbackData);
         Alert.alert("הצלחה", "הפידבק נשלח בהצלחה");
       }
 
@@ -191,7 +183,7 @@ export default function RouteDialog({ visible, route, onClose }) {
         style: "destructive",
         onPress: async () => {
           try {
-            await deleteFeedback(route.id, feedbackId);
+            await FeedbackService.deleteFeedback(feedbackId);
             Alert.alert("הצלחה", "הפידבק נמחק בהצלחה");
           } catch (error) {
             Alert.alert("שגיאה", "נכשל במחיקת הפידבק");
@@ -212,7 +204,7 @@ export default function RouteDialog({ visible, route, onClose }) {
   };
 
   const getSmartAverageGrade = () => {
-    return calculateSmartAverageGrade(route, feedbacks);
+    return FeedbackService.calculateSmartAverageGrade(route, feedbacks);
   };
 
   const formatDate = (timestamp) => {

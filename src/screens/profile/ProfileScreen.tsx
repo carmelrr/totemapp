@@ -11,10 +11,9 @@ import {
   ProfileHeader,
   SocialTabs,
   SocialList,
-  StatsDashboard,
-  GradeStatsModal,
   SidePanel,
 } from "./";
+import { UnifiedStatsDashboard as StatsDashboard, UnifiedGradeStatsModal as GradeStatsModal } from "../../components/profile";
 
 const ProfileScreen: React.FC = () => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -66,7 +65,7 @@ const ProfileScreen: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.mainContent}>
         <ProfileHeader onMenuPress={sidePanelData.toggleSidePanel} />
-        
+
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -92,6 +91,7 @@ const ProfileScreen: React.FC = () => {
 
           {/* Statistics Dashboard */}
           <StatsDashboard
+            mode="simple"
             stats={statsData.userStats}
             onStatsPress={() => setStatsModalVisible(true)}
             loading={statsData.refreshing}
@@ -101,6 +101,7 @@ const ProfileScreen: React.FC = () => {
 
       {/* Grade Stats Modal */}
       <GradeStatsModal
+        mode="simple"
         visible={statsModalVisible}
         onClose={() => setStatsModalVisible(false)}
         stats={statsData.userStats}
@@ -119,17 +120,17 @@ const ProfileScreen: React.FC = () => {
         onEditToggle={() => profileData.setEditing(!profileData.editing)}
         onSave={profileData.handleSave}
         editedUser={{ displayName: profileData.displayName }}
-        onUserChange={() => {}} // Placeholder
+        onUserChange={() => { }} // Placeholder
         privacySettings={privacyData.privacySettings}
         onPrivacyChange={privacyData.updatePrivacySetting}
         circleSize={profileData.circleSize}
         onCircleSizeChange={profileData.setCircleSize}
-        onImagePick={() => {}} // Placeholder - need to implement
-        onImageRemove={() => {}} // Placeholder - need to implement
+        onImagePick={() => { }} // Placeholder - need to implement
+        onImageRemove={() => { }} // Placeholder - need to implement
         onThemeToggle={toggleTheme}
         isDarkMode={isDarkMode}
         onLogout={profileData.handleLogout}
-        onAdminPanel={() => {}} // Placeholder - need to implement
+        onAdminPanel={() => { }} // Placeholder - need to implement
         isAdmin={profileData.isAdmin}
       />
     </View>

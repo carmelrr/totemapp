@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { View, StyleSheet, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import WallMap from "@/components/map/WallMap";
+import WallMap from "@/components/canvas/WallMap";
 import FilterSortBar from "@/components/routes/FilterSortBar";
 import RoutesList from "@/components/routes/RoutesList";
 import PlusFAB from "@/components/routes/PlusFAB";
