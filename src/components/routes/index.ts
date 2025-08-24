@@ -10,5 +10,5 @@ export { default as PlusFAB } from "./PlusFAB";
 export { default as RouteFeedbackView } from "./RouteFeedbackView";
 export { default as RouteEditPanel } from "./RouteEditPanel";
 export { default as HoldMarker } from "./HoldMarker";
-export { default as HoldRing } from "./HoldRing";
+export { default as RouteHoldRing } from "@/components/shared/StaticHoldRing";
 export { default as HoldsLegend } from "./HoldsLegend";

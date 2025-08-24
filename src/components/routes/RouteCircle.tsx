@@ -11,7 +11,7 @@ import Animated, {
   useAnimatedReaction,
   runOnUI,
 } from "react-native-reanimated";
-import { getDisplayGrade } from "@/features/routes/routesService";
+import { RoutesService } from "@/features/routes-map/services/RoutesService";
 import { useUser } from "@/features/auth/UserContext";
 
 const ORIGINAL_MAP_WIDTH = 2560;
@@ -425,12 +425,12 @@ export default React.memo(function RouteCircle({
             activeOpacity={0.8}
           >
             <Animated.Text style={textStyle}>
-              {getDisplayGrade(route) || "N/A"}
+              {RoutesService.getDisplayGrade(route) || "N/A"}
             </Animated.Text>
           </TouchableOpacity>
         ) : (
           <Animated.Text style={textStyle}>
-            {getDisplayGrade(route) || "N/A"}
+            {RoutesService.getDisplayGrade(route) || "N/A"}
           </Animated.Text>
         )}
       </Animated.View>

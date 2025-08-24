@@ -136,7 +136,7 @@ export const CropAndRectifyScreen: React.FC<CropAndRectifyScreenProps> = ({
       Alert.alert("הצלחה", "הקיר נשמר בהצלחה", [
         {
           text: "אישור",
-          onPress: () => navigation.navigate("SprayWallScreen", { wallId }),
+          onPress: () => navigation.navigate("SprayWallMapView", { wallId }),
         },
       ]);
     } catch (error) {
@@ -156,7 +156,7 @@ export const CropAndRectifyScreen: React.FC<CropAndRectifyScreenProps> = ({
         selectedCorner === corner.id && styles.selectedCorner,
       ]}
       onPress={() => setSelectedCorner(corner.id)}
-      // TODO: הוסף gesture handlers לגרירה
+    // TODO: הוסף gesture handlers לגרירה
     >
       <View style={styles.cornerInner} />
     </TouchableOpacity>

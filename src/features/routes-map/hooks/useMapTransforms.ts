@@ -15,7 +15,7 @@ import {
   TapGestureHandlerGestureEvent,
   State,
 } from 'react-native-gesture-handler';
-import { clampViewport } from '../utils/coords';
+import { clampViewport } from '@/utils/coordinateUtils';
 import { MapTransforms } from '../types/route';
 
 export interface UseMapTransformsConfig {
@@ -49,7 +49,7 @@ export function useMapTransforms({
   const safeScreenHeight = Math.max(1, isFinite(screenHeight) ? screenHeight : 1);
   const safeImageWidth = Math.max(1, isFinite(imageWidth) ? imageWidth : 1);
   const safeImageHeight = Math.max(1, isFinite(imageHeight) ? imageHeight : 1);
-  
+
   if (LOG) console.log('🔍 useMapTransforms safe values:', {
     safeMinScale, safeMaxScale, safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight
   });
@@ -72,7 +72,7 @@ export function useMapTransforms({
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
-  
+
   // Gesture state
   const baseScale = useSharedValue(1);
   const baseTranslateX = useSharedValue(0);
@@ -88,19 +88,19 @@ export function useMapTransforms({
   // Helper to safely clamp and apply transforms
   const clampAndApply = (newScale: number, newTranslateX: number, newTranslateY: number) => {
     'worklet';
-    
+
     // Ensure we have valid dimensions before clamping
     // ✅ Safety: בודק שכל הערכים תקינים לפני שליחה ל־clampViewport
     if (!safeScreenWidth || !safeScreenHeight || !safeImageWidth || !safeImageHeight) {
       console.warn('clampAndUpdateTransforms: Invalid dimensions');
       return;
     }
-    
+
     // וידוא שהערכים החדשים תקינים
     const safeNewScale = Math.max(0.1, isFinite(newScale) ? newScale : 1);
     const safeNewTranslateX = isFinite(newTranslateX) ? newTranslateX : 0;
     const safeNewTranslateY = isFinite(newTranslateY) ? newTranslateY : 0;
-    
+
     const clamped = clampViewport(
       { scale: safeNewScale, translateX: safeNewTranslateX, translateY: safeNewTranslateY },
       safeScreenWidth,
@@ -110,12 +110,12 @@ export function useMapTransforms({
       safeMinScale,
       safeMaxScale
     );
-    
+
     // Ensure values are finite
     scale.value = isFinite(clamped.scale) ? clamped.scale : 1;
     translateX.value = isFinite(clamped.translateX) ? clamped.translateX : 0;
     translateY.value = isFinite(clamped.translateY) ? clamped.translateY : 0;
-    
+
     if (onTransformChange) {
       runOnJS(onTransformChangeGuarded)({
         scale: scale.value,
@@ -146,10 +146,10 @@ export function useMapTransforms({
         safeMinScale,
         safeMaxScale
       );
-      
+
       translateX.value = withTiming(clamped.translateX);
       translateY.value = withTiming(clamped.translateY);
-      
+
       if (onTransformChange) {
         runOnJS(onTransformChangeGuarded)(clamped);
       }
@@ -170,12 +170,12 @@ export function useMapTransforms({
       // ✅ קלמפ מיידי של ה-scale החדש
       const rawScale = baseScale.value * (event.scale ?? 1);
       const clampedScale = Math.max(safeMinScale, Math.min(safeMaxScale, rawScale));
-      
+
       // ✅ Zoom around focal point - מתרגמים focal לעולם התמונה
       const currentScale = scale.value || 1;
       const fxImg = (focalX.value - translateX.value) / currentScale;
       const fyImg = (focalY.value - translateY.value) / currentScale;
-      
+
       // עדכון עם ה-scale המקולמפ
       scale.value = clampedScale;
       translateX.value = focalX.value - fxImg * clampedScale;
@@ -193,11 +193,11 @@ export function useMapTransforms({
         safeMinScale,
         safeMaxScale
       );
-      
+
       scale.value = withTiming(clamped.scale);
       translateX.value = withTiming(clamped.translateX);
       translateY.value = withTiming(clamped.translateY);
-      
+
       if (onTransformChange) {
         runOnJS(onTransformChangeGuarded)(clamped);
       }
@@ -209,7 +209,7 @@ export function useMapTransforms({
     onEnd: (event) => {
       const currentScale = scale.value;
       const targetScale = currentScale < 2 ? 2 : 1;
-      
+
       if (targetScale === 1) {
         // Reset view
         clampAndApply(1, 0, 0);
@@ -218,13 +218,13 @@ export function useMapTransforms({
         const fx = event.x;
         const fy = event.y;
         const scaleDiff = targetScale - currentScale;
-        
+
         const newTranslateX = translateX.value - (fx - translateX.value) * scaleDiff / currentScale;
         const newTranslateY = translateY.value - (fy - translateY.value) * scaleDiff / currentScale;
-        
+
         clampAndApply(targetScale, newTranslateX, newTranslateY);
       }
-      
+
       scale.value = withTiming(scale.value);
       translateX.value = withTiming(translateX.value);
       translateY.value = withTiming(translateY.value);
@@ -247,7 +247,7 @@ export function useMapTransforms({
     scale.value = withTiming(1);
     translateX.value = withTiming(0);
     translateY.value = withTiming(0);
-    
+
     if (onTransformChange) {
       onTransformChangeGuarded({ scale: 1, translateX: 0, translateY: 0 });
     }
@@ -258,12 +258,12 @@ export function useMapTransforms({
     const newScale = Math.min(safeMaxScale, scale.value * 1.5);
     const centerX = safeScreenWidth / 2;
     const centerY = safeScreenHeight / 2;
-    
+
     // Zoom around center
     const scaleDiff = newScale - scale.value;
     const newTranslateX = translateX.value - (centerX - translateX.value) * scaleDiff / scale.value;
     const newTranslateY = translateY.value - (centerY - translateY.value) * scaleDiff / scale.value;
-    
+
     const clamped = clampViewport(
       { scale: newScale, translateX: newTranslateX, translateY: newTranslateY },
       safeScreenWidth,
@@ -273,11 +273,11 @@ export function useMapTransforms({
       safeMinScale,
       safeMaxScale
     );
-    
+
     scale.value = withTiming(clamped.scale);
     translateX.value = withTiming(clamped.translateX);
     translateY.value = withTiming(clamped.translateY);
-    
+
     if (onTransformChange) {
       onTransformChangeGuarded(clamped);
     }
@@ -287,12 +287,12 @@ export function useMapTransforms({
     const newScale = Math.max(safeMinScale, scale.value / 1.5);
     const centerX = safeScreenWidth / 2;
     const centerY = safeScreenHeight / 2;
-    
+
     // Zoom around center
     const scaleDiff = newScale - scale.value;
     const newTranslateX = translateX.value - (centerX - translateX.value) * scaleDiff / scale.value;
     const newTranslateY = translateY.value - (centerY - translateY.value) * scaleDiff / scale.value;
-    
+
     const clamped = clampViewport(
       { scale: newScale, translateX: newTranslateX, translateY: newTranslateY },
       safeScreenWidth,
@@ -302,11 +302,11 @@ export function useMapTransforms({
       safeMinScale,
       safeMaxScale
     );
-    
+
     scale.value = withTiming(clamped.scale);
     translateX.value = withTiming(clamped.translateX);
     translateY.value = withTiming(clamped.translateY);
-    
+
     if (onTransformChange) {
       onTransformChangeGuarded(clamped);
     }
@@ -318,25 +318,25 @@ export function useMapTransforms({
     scale,
     translateX,
     translateY,
-    
+
     // Gesture handlers
     panGestureHandler,
     pinchGestureHandler,
     doubleTapGestureHandler,
-    
+
     // Gesture refs
     panRef,
     pinchRef,
     doubleTapRef,
-    
+
     // Animated styles
     mapContainerStyle,
-    
+
     // Actions
     resetView,
     zoomIn,
     zoomOut,
-    
+
     // Config
     minScale,
     maxScale,

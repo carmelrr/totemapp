@@ -1,3 +1,8 @@
+/**
+ * @fileoverview שירות ניהול מסלולים - Firestore operations for routes management
+ * @description Routes Service - handles CRUD operations for climbing routes
+ */
+
 import {
   collection,
   doc,
@@ -16,7 +21,10 @@ import {
 import { db } from '@/features/data/firebase';
 import { RouteDoc } from '../types/route';
 
-// Firestore converter for type safety
+/**
+ * ממיר Firestore לבטיחות טיפוסים
+ * Firestore converter for type safety
+ */
 const routeConverter: FirestoreDataConverter<RouteDoc> = {
   toFirestore(route: any): DocumentData {
     return {
@@ -36,11 +44,11 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
   },
   fromFirestore(snapshot: QueryDocumentSnapshot, options): RouteDoc {
     const data = snapshot.data(options);
-    
+
     // ✅ מידות viewBox של WallMapSVG - עדכן לפי הקובץ שלך
     const VIEWBOX_W = 2560;
     const VIEWBOX_H = 1600;
-    
+
     console.log(`🔍 Processing route ${snapshot.id}:`, {
       name: data.name,
       originalX: data.x,
@@ -48,19 +56,19 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       originalXNorm: data.xNorm,
       originalYNorm: data.yNorm
     });
-    
+
     // ✅ המרה אוטומטית מ-x/y ל-xNorm/yNorm אם חסרים
     let xNorm = data.xNorm;
     let yNorm = data.yNorm;
-    
+
     // אם אין נורמליזציה אבל יש קורדינטות מוחלטות - המר
-    if ((xNorm == null || yNorm == null) && 
-        Number.isFinite(data.x) && Number.isFinite(data.y)) {
+    if ((xNorm == null || yNorm == null) &&
+      Number.isFinite(data.x) && Number.isFinite(data.y)) {
       xNorm = Math.min(Math.max(data.x / VIEWBOX_W, 0), 1);
       yNorm = Math.min(Math.max(data.y / VIEWBOX_H, 0), 1);
       console.log(`� Route ${snapshot.id}: converted x=${data.x}, y=${data.y} to xNorm=${xNorm.toFixed(4)}, yNorm=${yNorm.toFixed(4)}`);
     }
-    
+
     const result = {
       id: snapshot.id,
       name: data.name || '',
@@ -76,14 +84,14 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       setter: data.setter,
       tags: data.tags || [],
     };
-    
+
     console.log(`✅ Route ${snapshot.id} processed:`, {
       xNorm: result.xNorm,
       yNorm: result.yNorm,
       isValid: Number.isFinite(result.xNorm) && Number.isFinite(result.yNorm),
       inBounds: result.xNorm >= 0 && result.xNorm <= 1 && result.yNorm >= 0 && result.yNorm <= 1
     });
-    
+
     return result;
   },
 };
@@ -156,7 +164,7 @@ export class RoutesService {
   }): Promise<string> {
     try {
       const routesRef = collection(db, this.COLLECTION_NAME).withConverter(routeConverter);
-      
+
       const newRoute: Omit<RouteDoc, 'id'> = {
         name: routeData.name,
         grade: routeData.grade,
@@ -257,5 +265,28 @@ export class RoutesService {
       console.error('Error getting route:', error);
       return null;
     }
+  }
+
+  /**
+   * Get display grade for a route (utility function)
+   */
+  static getDisplayGrade(route: any): string {
+    if (!route) return "";
+    const grade = route.calculatedGrade || route.grade;
+    return grade ? String(grade) : "";
+  }
+
+  /**
+   * Get display star rating for a route (utility function)
+   */
+  static getDisplayStarRating(route: any): number {
+    return route.averageStarRating || 0;
+  }
+
+  /**
+   * Get completion count for a route (utility function)
+   */
+  static getCompletionCount(route: any): number {
+    return route.completionCount || 0;
   }
 }

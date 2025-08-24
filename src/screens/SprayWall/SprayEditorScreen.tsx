@@ -1,3 +1,8 @@
+/**
+ * @fileoverview מסך עריכת מסלול ספריי - יצירה ועריכה של מסלולים על הקיר
+ * @description SprayRoute Editor Screen - create and edit routes on the spray wall
+ */
+
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -11,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useSharedValue } from "react-native-reanimated";
 import ZoomableImage from "@/components/spray/ZoomableImage";
-import HoldRing from "@/components/spray/HoldRing";
+import { SprayHoldRing } from "@/components/spray";
 import GlobalHoldEditor from "@/components/spray/GlobalHoldEditor";
 import HoldTypeSelector from "@/components/spray/HoldTypeSelector";
 import Toolbar from "@/components/spray/Toolbar";
@@ -23,6 +28,10 @@ import {
 } from "@/features/spraywall/validations";
 import { auth } from "@/features/data/firebase";
 
+/**
+ * מסך עריכת מסלול ספריי - יצירה ועריכה של מסלולים על הקיר
+ * SprayRoute Editor Screen - create and edit routes on the spray wall
+ */
 const SprayEditorScreen = ({ navigation, route }) => {
   const { wallId, seasonId, season } = route.params;
   const [showRouteModal, setShowRouteModal] = useState(false);
@@ -216,7 +225,7 @@ const SprayEditorScreen = ({ navigation, route }) => {
       <>
         {holds.map((hold, index) => {
           return (
-            <HoldRing
+            <SprayHoldRing
               key={hold.id}
               hold={hold}
               imageWidth={imageLayout.width}

@@ -1,3 +1,8 @@
+/**
+ * @fileoverview מסך בית של קיר הספריי - הצגת רשימת המסלולים הקיימים
+ * @description SprayWall Home Screen - displays existing routes and management options
+ */
+
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -17,6 +22,10 @@ import { checkIsAdmin } from "@/features/auth/permissions";
 
 const WALL_ID = "totem-35";
 
+/**
+ * מסך בית של קיר הספריי - הצגת רשימת המסלולים הקיימים
+ * Home screen for spray wall - shows list of existing routes
+ */
 const SprayWallHomeScreen = ({ navigation }) => {
   const { currentSeason, routes, loading, error, refreshSeason } =
     useSprayWall(WALL_ID);

@@ -11,12 +11,11 @@ import ProfileScreen from "@/screens/profile/ProfileScreen";
 import UserProfileScreen from "@/screens/profile/UserProfileScreen";
 import HomeScreen from "@/screens/HomeScreen";
 import LoginScreen from "@/screens/auth/LoginScreen";
-import AddRouteScreen from "@/screens/routes/AddRouteScreen";
 import ColorPickerScreen from "@/screens/routes/ColorPickerScreen";
 import LeaderboardScreen from "@/screens/social/LeaderboardScreen";
 import SprayNavigator from "@/navigation/SprayNavigator";
 import RoutesMapScreen from "@/features/routes-map/screens/RoutesMapScreen";
-import AddRouteMapScreen from "@/features/routes-map/screens/AddRouteScreen";
+import AddRouteMapScreen from "@/features/routes-map/screens/AddRouteMapScreen";
 import AnalyticsScreen from "@/components/analytics/AnalyticsScreen";
 import { UserProvider } from "@/features/auth/UserContext";
 import { ThemeProvider, useTheme } from "@/features/theme/ThemeContext";
@@ -88,15 +87,6 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
           name="UserProfile"
           component={UserProfileScreen}
           options={{ title: "פרופיל משתמש" }}
-        />
-        <Stack.Screen
-          name="AddRouteScreen"
-          component={AddRouteScreen}
-          options={{
-            title: "הוספת מסלול חדש",
-            presentation: 'modal',
-            gestureEnabled: true,
-          }}
         />
         <Stack.Screen
           name="RoutesMap"

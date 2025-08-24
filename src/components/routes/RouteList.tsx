@@ -8,11 +8,7 @@ import {
   RefreshControl,
 } from "react-native";
 import RouteDialog from "./RouteDialog";
-import {
-  getDisplayGrade,
-  getDisplayStarRating,
-  getCompletionCount,
-} from "@/features/routes/routesService";
+import { RoutesService } from "@/features/routes-map/services/RoutesService";
 
 export default function RouteList({
   routes,
@@ -59,9 +55,9 @@ export default function RouteList({
   };
 
   const renderItem = ({ item }) => {
-    const displayGrade = getDisplayGrade(item);
-    const starRating = getDisplayStarRating(item);
-    const completionCount = getCompletionCount(item);
+    const displayGrade = RoutesService.getDisplayGrade(item);
+    const starRating = RoutesService.getDisplayStarRating(item);
+    const completionCount = RoutesService.getCompletionCount(item);
     const isSelected = editingRoute && editingRoute.id === item.id;
 
     return (

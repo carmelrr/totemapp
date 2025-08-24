@@ -31,6 +31,7 @@ import {
 } from "@/features/social/socialService";
 import defaultAvatar from "@/assets/default-avatar.png";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { UnifiedStatsDashboard as StatsDashboard, UnifiedGradeStatsModal as GradeStatsModal, UserProfileHeader } from "../../components/profile";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -271,315 +272,6 @@ export default function UserProfileScreen({ route, navigation }) {
     }
   };
 
-  // Grade Statistics Modal Component
-  const GradeStatsModal = () => {
-    if (!privacySettings.showGradeStats) {
-      return null;
-    }
-
-    const sortedGrades = Object.keys(gradeStats).sort((a, b) => {
-      const gradeOrder = {
-        V1: 1,
-        V2: 2,
-        V3: 3,
-        V4: 4,
-        V5: 5,
-        V6: 6,
-        V7: 7,
-        V8: 8,
-        V9: 9,
-        V10: 10,
-      };
-      return (gradeOrder[a] || 999) - (gradeOrder[b] || 999);
-    });
-
-    const totalRoutes = allRoutes.length;
-    const totalCompleted = Object.values(gradeStats).reduce(
-      (sum, stat) => sum + stat.completed,
-      0,
-    );
-    const overallPercentage =
-      totalRoutes > 0
-        ? ((totalCompleted / totalRoutes) * 100).toFixed(1)
-        : "0.0";
-
-    return (
-      <Modal
-        visible={showStatsModal}
-        animationType="slide"
-        presentationStyle="pageSheet"
-        onRequestClose={() => setShowStatsModal(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>📈 אחוזי סגירה לפי דירוג</Text>
-            <TouchableOpacity
-              style={styles.modalCloseButton}
-              onPress={() => setShowStatsModal(false)}
-            >
-              <Text style={styles.modalCloseText}>✕</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.overallStatsContainer}>
-            <Text style={styles.overallStatsText}>
-              סיכום כללי: {totalCompleted} מתוך {totalRoutes} מסלולים (
-              {overallPercentage}%)
-            </Text>
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            {sortedGrades.map((grade) => {
-              const stat = gradeStats[grade];
-              const progressWidth = stat.percentage;
-
-              return (
-                <View key={grade} style={styles.gradeStatRow}>
-                  <View style={styles.gradeStatHeader}>
-                    <Text style={styles.gradeLabel}>{grade}</Text>
-                    <Text style={styles.gradePercentage}>
-                      {stat.percentage}%
-                    </Text>
-                  </View>
-
-                  <View style={styles.progressBarContainer}>
-                    <View
-                      style={[
-                        styles.progressBar,
-                        {
-                          width: `${progressWidth}%`,
-                          backgroundColor:
-                            progressWidth === 100
-                              ? "#28a745"
-                              : progressWidth >= 75
-                                ? "#ffc107"
-                                : progressWidth >= 50
-                                  ? "#fd7e14"
-                                  : progressWidth >= 25
-                                    ? "#17a2b8"
-                                    : "#dc3545",
-                        },
-                      ]}
-                    />
-                  </View>
-
-                  <Text style={styles.gradeStatDetails}>
-                    {stat.completed} מתוך {stat.total} מסלולים
-                  </Text>
-                </View>
-              );
-            })}
-          </ScrollView>
-        </View>
-      </Modal>
-    );
-  };
-
-  // Statistics Cards Component
-  const StatCard = ({
-    title,
-    value,
-    icon,
-    color = "#007AFF",
-    onPress = null,
-    isVisible = true,
-    settingKey = null,
-  }) => {
-    const isOwner = currentUserId === userId;
-
-    if (!isVisible && !isOwner) {
-      return (
-        <View
-          style={[
-            styles.statCard,
-            styles.hiddenStatCard,
-            { borderLeftColor: color },
-          ]}
-        >
-          <View style={styles.statContent}>
-            <Text style={styles.statIcon}>🔒</Text>
-            <View style={styles.statTextContainer}>
-              <Text style={styles.statValue}>פרטי</Text>
-              <Text style={styles.statTitle}>{title}</Text>
-            </View>
-          </View>
-        </View>
-      );
-    }
-
-    return (
-      <View style={[styles.statCard, { borderLeftColor: color }]}>
-        <TouchableOpacity
-          style={styles.statContent}
-          onPress={onPress}
-          disabled={!onPress}
-        >
-          <Text style={styles.statIcon}>{icon}</Text>
-          <View style={styles.statTextContainer}>
-            <Text style={styles.statValue}>
-              {isVisible || isOwner ? value : "פרטי"}
-            </Text>
-            <Text style={styles.statTitle}>{title}</Text>
-          </View>
-          {onPress && <Text style={styles.statArrow}>›</Text>}
-        </TouchableOpacity>
-
-        {/* Privacy Toggle for Owner */}
-        {isOwner && isEditingPrivacy && settingKey && (
-          <View style={styles.privacyToggleContainer}>
-            <Text style={styles.privacyToggleLabel}>הצג לאחרים</Text>
-            <Switch
-              value={privacySettings[settingKey]}
-              onValueChange={(value) => {
-                const newSettings = { ...privacySettings, [settingKey]: value };
-                savePrivacySettings(newSettings);
-              }}
-              trackColor={{ false: "#ccc", true: "#27ae60" }}
-              thumbColor={privacySettings[settingKey] ? "#27ae60" : "#f4f3f4"}
-              style={styles.privacySwitch}
-            />
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  // Stats Dashboard Component
-  const StatsDashboard = () => {
-    const totalRoutes = allRoutes.length;
-    const totalCompleted = Object.values(gradeStats).reduce(
-      (sum, stat) => sum + stat.completed,
-      0,
-    );
-    const overallPercentage =
-      totalRoutes > 0
-        ? ((totalCompleted / totalRoutes) * 100).toFixed(1)
-        : "0.0";
-    const isOwner = currentUserId === userId;
-
-    return (
-      <View style={styles.statsContainer}>
-        <View style={styles.statsHeader}>
-          <Text style={styles.statsTitle}>
-            📊{" "}
-            {isOwner
-              ? "הסטטיסטיקות שלי"
-              : `הסטטיסטיקות של ${userProfile?.displayName}`}
-          </Text>
-          {isOwner && (
-            <TouchableOpacity
-              style={[
-                styles.editButton,
-                isEditingPrivacy && styles.editButtonActive,
-              ]}
-              onPress={() => setIsEditingPrivacy(!isEditingPrivacy)}
-            >
-              <Text
-                style={[
-                  styles.editButtonText,
-                  isEditingPrivacy && styles.editButtonTextActive,
-                ]}
-              >
-                {isEditingPrivacy ? "✓ סיום עריכה" : "⚙️ עריכה"}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Auto-edit notification */}
-        {isOwner && isEditingPrivacy && autoEdit && (
-          <View style={styles.autoEditNotification}>
-            <Text style={styles.autoEditText}>
-              🔧 מצב עריכה פעיל - ערוך את הגדרות הפרטיות שלך
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.statsGrid}>
-          <StatCard
-            title="מסלולים שסגר"
-            value={userStats.totalRoutesSent}
-            icon="🎯"
-            color="#28a745"
-            isVisible={privacySettings.showTotalRoutes}
-            settingKey="showTotalRoutes"
-          />
-
-          <StatCard
-            title="דירוג הכי גבוה"
-            value={userStats.highestGrade}
-            icon="🏆"
-            color="#ffc107"
-            isVisible={privacySettings.showHighestGrade}
-            settingKey="showHighestGrade"
-          />
-
-          <StatCard
-            title="סה״כ פידבקים"
-            value={userStats.totalFeedbacks}
-            icon="💬"
-            color="#17a2b8"
-            isVisible={privacySettings.showFeedbackCount}
-            settingKey="showFeedbackCount"
-          />
-
-          <StatCard
-            title="דירוג כוכבים ממוצע"
-            value={userStats.averageStarRating.toFixed(1)}
-            icon="⭐"
-            color="#fd7e14"
-            isVisible={privacySettings.showAverageRating}
-            settingKey="showAverageRating"
-          />
-
-          <StatCard
-            title="אחוזי סגירה לכל הקיר"
-            value={`${overallPercentage}%`}
-            icon="📈"
-            color="#8e44ad"
-            onPress={
-              privacySettings.showGradeStats || isOwner
-                ? () => setShowStatsModal(true)
-                : null
-            }
-            isVisible={privacySettings.showGradeStats}
-            settingKey="showGradeStats"
-          />
-        </View>
-
-        {userStats.joinDate && (privacySettings.showJoinDate || isOwner) && (
-          <View style={styles.joinDateContainer}>
-            <View style={styles.joinDateContent}>
-              <Text style={styles.joinDateText}>
-                🗓️ חבר מאז: {userStats.joinDate.toLocaleDateString("he-IL")}
-              </Text>
-              {isOwner && isEditingPrivacy && (
-                <View style={styles.joinDatePrivacy}>
-                  <Text style={styles.privacyToggleLabel}>הצג לאחרים</Text>
-                  <Switch
-                    value={privacySettings.showJoinDate}
-                    onValueChange={(value) => {
-                      const newSettings = {
-                        ...privacySettings,
-                        showJoinDate: value,
-                      };
-                      savePrivacySettings(newSettings);
-                    }}
-                    trackColor={{ false: "#ccc", true: "#27ae60" }}
-                    thumbColor={
-                      privacySettings.showJoinDate ? "#27ae60" : "#f4f3f4"
-                    }
-                    style={styles.privacySwitch}
-                  />
-                </View>
-              )}
-            </View>
-          </View>
-        )}
-      </View>
-    );
-  };
-
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -622,49 +314,45 @@ export default function UserProfileScreen({ route, navigation }) {
     >
       <View style={styles.innerContainer}>
         {/* Profile Header */}
-        <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
-            <Image source={avatarSource} style={styles.avatar} />
-          </View>
-
-          <View style={styles.profileInfo}>
-            <Text style={styles.name}>
-              {userProfile.displayName || "משתמש"}
-            </Text>
-
-            <View style={styles.followStats}>
-              <Text style={styles.followStat}>{followers.length} עוקבים</Text>
-              <Text style={styles.followStat}> • </Text>
-              <Text style={styles.followStat}>{following.length} עוקב</Text>
-            </View>
-
-            {currentUserId !== userId && (
-              <TouchableOpacity
-                style={[
-                  styles.followButton,
-                  isFollowed && styles.unfollowButton,
-                ]}
-                onPress={handleFollowToggle}
-              >
-                <Text
-                  style={[
-                    styles.followButtonText,
-                    isFollowed && styles.unfollowButtonText,
-                  ]}
-                >
-                  {isFollowed ? "ביטול מעקב" : "מעקב"}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
+        <UserProfileHeader
+          userProfile={userProfile}
+          followers={followers}
+          following={following}
+          currentUserId={currentUserId}
+          userId={userId}
+          isFollowed={isFollowed}
+          handleFollowToggle={handleFollowToggle}
+        />
 
         {/* Stats Dashboard */}
-        <StatsDashboard />
+        <StatsDashboard
+          mode="detailed"
+          userStats={userStats}
+          userProfile={userProfile}
+          allRoutes={allRoutes}
+          gradeStats={gradeStats}
+          privacySettings={privacySettings}
+          currentUserId={currentUserId}
+          userId={userId}
+          isEditingPrivacy={isEditingPrivacy}
+          autoEdit={autoEdit}
+          setIsEditingPrivacy={setIsEditingPrivacy}
+          setShowStatsModal={setShowStatsModal}
+          savePrivacySettings={savePrivacySettings}
+        />
       </View>
 
       {/* Grade Statistics Modal */}
-      <GradeStatsModal />
+      <GradeStatsModal
+        mode="detailed"
+        visible={showStatsModal}
+        onClose={() => setShowStatsModal(false)}
+        showStatsModal={showStatsModal}
+        setShowStatsModal={setShowStatsModal}
+        gradeStats={gradeStats}
+        allRoutes={allRoutes}
+        privacySettings={privacySettings}
+      />
     </ScrollView>
   );
 }

@@ -1,15 +1,15 @@
 import { auth, db } from "@/features/data/firebase";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
-import { migrateFeedbacksWithDisplayName } from "@/features/routes/routesService";
+import { FeedbackService } from "@/features/routes-map/services/FeedbackService";
 import type { PrivacySettings } from "../types";
 
 export async function fetchProfile(userId: string) {
   if (!userId) return {};
-  
+
   const docRef = doc(db, "users", userId);
   const docSnap = await getDoc(docRef);
-  
+
   if (docSnap.exists()) {
     const data = docSnap.data();
     return {
@@ -19,7 +19,7 @@ export async function fetchProfile(userId: string) {
       privacySettings: data.privacySettings,
     };
   }
-  
+
   return {};
 }
 
@@ -38,16 +38,16 @@ export async function saveProfile(userId: string, profile: { displayName: string
   // Update Firestore user document
   await setDoc(
     doc(db, "users", userId),
-    { 
-      displayName: profile.displayName, 
-      photoURL: profile.photoURL 
+    {
+      displayName: profile.displayName,
+      photoURL: profile.photoURL
     },
     { merge: true }
   );
 
   // Auto-migrate existing feedbacks with new displayName
   try {
-    await migrateFeedbacksWithDisplayName(userId);
+    await FeedbackService.migrateFeedbacksWithDisplayName();
   } catch (migrationError) {
     console.error("Migration failed but profile was saved:", migrationError);
   }
@@ -55,7 +55,7 @@ export async function saveProfile(userId: string, profile: { displayName: string
 
 export async function savePrivacySettings(userId: string, settings: PrivacySettings) {
   if (!userId) return;
-  
+
   await setDoc(
     doc(db, "users", userId),
     {

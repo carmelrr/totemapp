@@ -1,3 +1,8 @@
+/**
+ * @fileoverview מסך עריכת קיר הספריי - כלי ציור והוספת מסלולים חדשים
+ * @description SprayWall Editor Screen - drawing tools and route creation interface
+ */
+
 // screens/SprayWall/SprayWallScreen.tsx
 import React, { useState, useEffect, useRef } from "react";
 import { View, StyleSheet, Dimensions, Alert } from "react-native";
@@ -19,6 +24,10 @@ interface SprayWallScreenProps {
   navigation: any;
 }
 
+/**
+ * מסך עריכת קיר הספריי - כלי ציור והוספת מסלולים חדשים
+ * SprayWall Editor Screen - drawing tools and route creation interface
+ */
 export const SprayWallScreen: React.FC<SprayWallScreenProps> = ({
   route,
   navigation,
