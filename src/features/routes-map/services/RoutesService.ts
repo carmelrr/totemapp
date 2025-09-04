@@ -54,7 +54,8 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       originalX: data.x,
       originalY: data.y,
       originalXNorm: data.xNorm,
-      originalYNorm: data.yNorm
+      originalYNorm: data.yNorm,
+      originalColor: data.color
     });
 
     // ✅ המרה אוטומטית מ-x/y ל-xNorm/yNorm אם חסרים
@@ -66,14 +67,22 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       Number.isFinite(data.x) && Number.isFinite(data.y)) {
       xNorm = Math.min(Math.max(data.x / VIEWBOX_W, 0), 1);
       yNorm = Math.min(Math.max(data.y / VIEWBOX_H, 0), 1);
-      console.log(`� Route ${snapshot.id}: converted x=${data.x}, y=${data.y} to xNorm=${xNorm.toFixed(4)}, yNorm=${yNorm.toFixed(4)}`);
+      console.log(`🔄 Route ${snapshot.id}: converted x=${data.x}, y=${data.y} to xNorm=${xNorm.toFixed(4)}, yNorm=${yNorm.toFixed(4)}`);
     }
+
+    // ✅ Adapter סלחני לצבע שמחפש בכמה מפתחות נפוצים
+    const color =
+      data.color ??
+      data.colorHex ??
+      data.visual?.color ??
+      data.meta?.color ??
+      '#ef4444'; // fallback אדום
 
     const result = {
       id: snapshot.id,
       name: data.name || '',
       grade: data.grade || 'V0',
-      color: data.color || '#ef4444',
+      color,
       xNorm: Number.isFinite(xNorm) ? xNorm : 0,
       yNorm: Number.isFinite(yNorm) ? yNorm : 0,
       createdAt: data.createdAt,
@@ -88,6 +97,7 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
     console.log(`✅ Route ${snapshot.id} processed:`, {
       xNorm: result.xNorm,
       yNorm: result.yNorm,
+      color: result.color,
       isValid: Number.isFinite(result.xNorm) && Number.isFinite(result.yNorm),
       inBounds: result.xNorm >= 0 && result.xNorm <= 1 && result.yNorm >= 0 && result.yNorm <= 1
     });

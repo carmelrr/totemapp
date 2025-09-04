@@ -42,9 +42,22 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       return null;
     }
 
-    // צבעים מוקדמים
-    const colorHex = getColorHex(route.color);
+    // ✅ נורמליזציה חכמה של צבע המסלול
+    const normalizeHex = (c?: string) => {
+      if (!c) return null;
+      const v = c.trim();
+      if (/^#[0-9A-Fa-f]{6}$/.test(v)) return v;
+      if (/^[0-9A-Fa-f]{6}$/.test(v)) return `#${v}`;
+      return null;
+    };
+    
+    const colorHex = normalizeHex(route?.color) ?? getColorHex(route.color) ?? '#FF00FF'; // fallback בולט לדיבוג
     const textColor = getContrastTextColor(colorHex);
+
+    // לוג דיבוג לפיתוח - רק בסביבת פיתוח
+    if (__DEV__ && !normalizeHex(route?.color)) {
+      console.warn('🎨 Invalid route.color:', route?.id, route?.color);
+    }
 
     // גדלים בסיסיים
     const baseSize = 32;

@@ -41,8 +41,9 @@ export default function RouteMarker({
         style={[
           styles.marker,
           {
-            borderColor: route.color,
-            backgroundColor: route.color + '20', // 20% opacity
+            backgroundColor: route.color, // Use exact route color as fill
+            borderColor: '#FFF', // White border for contrast
+            borderWidth: 2,
           },
           selected && styles.selectedMarker,
         ]}
@@ -53,8 +54,7 @@ export default function RouteMarker({
         <Text
           style={[
             styles.gradeText,
-            { color: route.color },
-            selected && { color: textColor },
+            { color: textColor }, // Use contrast color for text
           ]}
         >
           {route.grade}
@@ -95,7 +95,7 @@ const styles = StyleSheet.create({
   },
   selectedMarker: {
     borderWidth: 3,
-    backgroundColor: 'transparent',
+    borderColor: '#3498db', // Blue border for selected state
   },
   gradeText: {
     fontSize: 12,

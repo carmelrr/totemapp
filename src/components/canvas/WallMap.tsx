@@ -77,15 +77,16 @@ export default function WallMap({
         }
     }, [containerDimensions, wallAspectRatio, onLayout]);
 
-    // חישוב minScale - הגודל ההתחלתי
+    // חישוב minScale - הגודל ההתחלתי שמתאים למסגרת
     const minScale = useMemo(() => {
         if (containerDimensions.width === 0 || imageDimensions.imgW === 0) {
             return 1;
         }
-        return Math.min(
-            containerDimensions.width / imageDimensions.imgW,
-            containerDimensions.height / imageDimensions.imgH
-        );
+        // התאמה למסגרת - המפה תמלא את המסגרת ללא גלישה
+        const scaleX = containerDimensions.width / imageDimensions.imgW;
+        const scaleY = containerDimensions.height / imageDimensions.imgH;
+        // בחירת הקנה מידה הקטן יותר כדי שהמפה תתאים למסגרת
+        return Math.min(scaleX, scaleY) * 0.95; // 95% מהמסגרת כדי להשאיר מעט מרווח
     }, [containerDimensions, imageDimensions]);
 
     const transforms = useWallTransform({
@@ -154,6 +155,9 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#f5f5f5',
+        // המפה תמלא את כל המקום הפנוי במסגרת
+        width: '100%',
+        height: '100%',
     },
     gestureContainer: {
         flex: 1,

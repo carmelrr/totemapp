@@ -39,7 +39,7 @@ export function useMapTransforms({
   screenHeight,
   imageWidth,
   imageHeight,
-  minScale = 0.5,
+  minScale = 1, // Set minimum scale to 1 (initial view size)
   maxScale = 4,
   onTransformChange,
 }: UseMapTransformsConfig) {
