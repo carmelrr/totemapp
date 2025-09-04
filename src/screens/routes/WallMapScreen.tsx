@@ -149,13 +149,56 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
   // טיפול בעדכון מידות המסגרת
   const handleMapFrameLayout = useCallback((width: number, height: number) => {
     setMapFrameDimensions({ width, height });
+    console.log('[WallMap] frame layout', { width, height });
   }, []);
 
   // טיפול בשינוי טרנספורם (אופציונלי - לעתיד)
   const handleTransformChange = useCallback((scale: number, tx: number, ty: number) => {
     // כאן אפשר להוסיף לוגיקה לעדכון viewport אם צריך
-    console.log('Transform changed:', { scale, tx, ty });
-  }, []);
+    
+    // Calculate the content area and whether it's out of bounds
+    // This is a mirror of the logic in InteractiveImage but for logging/debugging
+    const fw = mapFrameDimensions.width;
+    const fh = mapFrameDimensions.height;
+    
+    // המידות הנכונות של התוכן, לפי יחס של התמונה
+    const imageAR = WALL_HEIGHT / WALL_WIDTH;
+    const frameAR = fw / fh;
+    
+    let cw, ch;
+    if (imageAR > frameAR) {
+      cw = fw;
+      ch = fw / imageAR;
+    } else {
+      ch = fh;
+      cw = fh * imageAR;
+    }
+    
+    // גודל התמונה המוגדלת
+    const scaledW = cw * scale;
+    const scaledH = ch * scale;
+    
+    // חישוב גבולות (לצורכי לוגים בלבד)
+    const minX = Math.min(0, fw - scaledW);
+    const maxX = Math.max(0, fw - scaledW) / 2;
+    const minY = Math.min(0, fh - scaledH);
+    const maxY = Math.max(0, fh - scaledH) / 2;
+    
+    // בדיקה אם אנחנו מחוץ לגבולות
+    const outOfBoundsX = tx < minX || tx > maxX;
+    const outOfBoundsY = ty < minY || ty > maxY;
+    
+    console.log('[WallMap] transform detail', { 
+      scale, 
+      tx, 
+      ty, 
+      frame: { width: fw, height: fh },
+      content: { width: cw, height: ch },
+      scaledContent: { width: scaledW, height: scaledH },
+      bounds: { minX, maxX, minY, maxY },
+      outOfBounds: { x: outOfBoundsX, y: outOfBoundsY }
+    });
+  }, [mapFrameDimensions]);
 
   // טיפול בלחיצה על מסלול
   const handleRoutePress = useCallback((selectedRoute: any) => {
@@ -211,14 +254,28 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
           onLayout={e => {
             const { width, height } = e.nativeEvent.layout;
             handleMapFrameLayout(width, height); // ממשיך להשתמש במידות האמיתיות למיקומי העיגולים
+            console.log("[WallMap] mapClip layout", { width, height });
           }}
         >
           <InteractiveImage
             imageNaturalSize={{ width: WALL_WIDTH, height: WALL_HEIGHT }}
             minScale={1}
             maxScale={4}
+            debug={true}
             onTransformChange={handleTransformChange}
           >
+            {/* Visual debug border */}
+            <View style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              right: 0,
+              bottom: 0,
+              borderWidth: 2,
+              borderColor: 'red',
+              backgroundColor: 'transparent',
+            }} />
+            
             {/* רקע המפה */}
             <WallMapSVG
               width="100%"
@@ -246,11 +303,11 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
                     backgroundColor: route.color || '#ff6b6b',
                     borderWidth: selectedRouteId === route.id ? 3 : 2,
                     borderColor: selectedRouteId === route.id ? '#ffffff' : 'rgba(255,255,255,0.9)',
+                    // Avoid Android elevation here so parent overflow clipping works
                     shadowColor: '#000',
                     shadowOffset: { width: 0, height: 3 },
                     shadowOpacity: 0.25,
                     shadowRadius: 4,
-                    elevation: 6,
                     justifyContent: 'center',
                     alignItems: 'center',
                   }}

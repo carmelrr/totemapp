@@ -5,7 +5,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 const UserContext = createContext({
   isAdmin: false,
   circleSize: 15,
-  setCircleSize: () => {},
+  setCircleSize: (newSize: number) => {},
 });
 
 export function UserProvider({ children, isAdmin }) {

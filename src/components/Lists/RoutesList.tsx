@@ -81,8 +81,18 @@ export default function RoutesList({
 }: RoutesListProps) {
   const { getFilteredRoutes } = useFiltersStore();
 
-  // סינון המסלולים לפי הפילטרים הפעילים
-  const filteredRoutes = getFilteredRoutes(routes, visibleRouteIds);
+  // אם יש לנו visibleRouteIds, זה אומר שהמסלולים כבר עברו סינון viewport
+  // במקרה הזה אנחנו רוצים להציג את כל המסלולים שהגיעו ללא סינון נוסף
+  const filteredRoutes = visibleRouteIds ? routes : getFilteredRoutes(routes, undefined);
+
+  console.log('[RoutesList] Filtering:', {
+    inputRoutes: routes.length,
+    outputRoutes: filteredRoutes.length,
+    visibleRouteIds: visibleRouteIds?.length,
+    routeIds: routes.map(r => r.id.slice(-6)),
+    filteredIds: filteredRoutes.map(r => r.id.slice(-6)),
+    skipFiltering: !!visibleRouteIds
+  });
 
   const renderItem = ({ item }: { item: RouteDoc }) => (
     <RouteItem route={item} onPress={onRoutePress} />

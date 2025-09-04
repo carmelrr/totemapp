@@ -64,7 +64,7 @@ const defaultFilters: RouteFilters = {
   sectors: [],
   personalStatus: [],
   tags: [],
-  showOnlyVisibleOnMap: true,
+  showOnlyVisibleOnMap: false, // Changed to false to avoid filtering issues
 };
 
 const defaultSorting: RouteSorting = {
@@ -131,10 +131,20 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
   getFilteredRoutes: (routes, visibleRouteIds) => {
     const { filters, sorting, searchQuery } = get();
     
+    console.log('[FiltersStore] getFilteredRoutes called:', {
+      inputRoutes: routes.length,
+      visibleRouteIds: visibleRouteIds?.length,
+      showOnlyVisibleOnMap: filters.showOnlyVisibleOnMap,
+      status: filters.status,
+      colors: filters.colors,
+      searchQuery: searchQuery.trim()
+    });
+    
     let filteredRoutes = routes;
 
     // סינון לפי מסלולים נראים במפה
     if (filters.showOnlyVisibleOnMap && visibleRouteIds) {
+      console.log('[FiltersStore] Filtering by visible routes');
       filteredRoutes = filteredRoutes.filter(route => visibleRouteIds.includes(route.id));
     }
 
@@ -150,9 +160,15 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
 
     // סינון לפי סטטוס
     if (filters.status.length > 0) {
+      console.log('[FiltersStore] Filtering by status:', {
+        filterStatus: filters.status,
+        sampleRouteStatus: routes[0]?.status,
+        routeStatuses: routes.map(r => r.status || 'undefined').slice(0, 3)
+      });
       filteredRoutes = filteredRoutes.filter(route => 
         filters.status.includes(route.status || 'active')
       );
+      console.log('[FiltersStore] After status filter:', filteredRoutes.length);
     }
 
     // סינון לפי צבעים
@@ -207,6 +223,11 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
       }
       
       return sorting.sortOrder === 'desc' ? -comparison : comparison;
+    });
+
+    console.log('[FiltersStore] Final filtered routes:', {
+      finalCount: filteredRoutes.length,
+      finalIds: filteredRoutes.map(r => r.id.slice(-6))
     });
 
     return filteredRoutes;

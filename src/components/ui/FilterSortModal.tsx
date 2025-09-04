@@ -194,20 +194,20 @@ export default function FilterSortModal({
             <FlatList
               data={dropdownData}
               keyExtractor={(item, index) =>
-                `${item.type || "sort"}-${item.value}-${index}`
+                `${(item as any).type || "sort"}-${item.value}-${index}`
               }
               renderItem={({ item }) => (
                 <TouchableOpacity
                   style={[
                     styles.dropdownItem,
-                    item.isSelected ? styles.selectedItem : null,
+                    (item as any).isSelected ? styles.selectedItem : null,
                   ]}
                   onPress={() => handleSelect(item)}
                 >
                   <Text
                     style={[
                       styles.dropdownItemText,
-                      item.isSelected ? styles.selectedItemText : null,
+                      (item as any).isSelected ? styles.selectedItemText : null,
                     ]}
                   >
                     {item.label}

@@ -115,9 +115,12 @@ export function getScreenCoords(
         return { screenX: 0, screenY: 0 };
     }
 
-    // Support both formats: ratio (0-1) or pixels
-    const xNorm = route.x > 2 ? route.x / ORIGINAL_MAP_WIDTH : route.x;
-    const yNorm = route.y > 2 ? route.y / ORIGINAL_MAP_HEIGHT : route.y;
+    // Helper function to check if coordinate is already normalized
+    const isNormalized = (value: number) => value >= 0 && value <= 1;
+
+    // Smart normalization: only convert if not already normalized
+    const xNorm = isNormalized(route.x) ? route.x : route.x / ORIGINAL_MAP_WIDTH;
+    const yNorm = isNormalized(route.y) ? route.y : route.y / ORIGINAL_MAP_HEIGHT;
 
     // Calculate relative position on map (without transformations)
     const relativeX = xNorm * mapWidth;

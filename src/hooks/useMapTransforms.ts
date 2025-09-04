@@ -54,6 +54,10 @@ export function useMapTransforms({
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
+  // Throttled notification state
+  const lastNotifyScale = useSharedValue(1);
+  const lastNotifyX = useSharedValue(0);
+  const lastNotifyY = useSharedValue(0);
   
   // ערכי בסיס לגסטורות
   const baseScale = useSharedValue(1);
@@ -66,6 +70,11 @@ export function useMapTransforms({
   const panRef = useRef<PanGestureHandler>(null);
   const pinchRef = useRef<PinchGestureHandler>(null);
   const doubleTapRef = useRef<TapGestureHandler>(null);
+
+  // Safe log function for worklets
+  const safeLog = useCallback((message: string, data?: any) => {
+    console.log(message, data);
+  }, []);
 
   // פונקציה לקליפינג והחלת טרנספורם
   const clampAndApply = useCallback((newScale: number, newX: number, newY: number) => {
@@ -99,6 +108,22 @@ export function useMapTransforms({
     }
   }, [minScale, maxScale, safeImageWidth, safeImageHeight, safeScreenWidth, safeScreenHeight, onTransformChange]);
 
+  // Notify JS with a small threshold to avoid spamming during gestures
+  const notifyIfChanged = useCallback((s: number, x: number, y: number) => {
+    'worklet';
+    const ds = Math.abs(s - lastNotifyScale.value);
+    const dx = Math.abs(x - lastNotifyX.value);
+    const dy = Math.abs(y - lastNotifyY.value);
+    if (ds > 0.01 || dx > 4 || dy > 4) {
+      lastNotifyScale.value = s;
+      lastNotifyX.value = x;
+      lastNotifyY.value = y;
+      if (onTransformChange) {
+        runOnJS(onTransformChange)({ scale: s, translateX: x, translateY: y });
+      }
+    }
+  }, [onTransformChange]);
+
   // Pan gesture handler
   const panGestureHandler = useAnimatedGestureHandler<PanGestureHandlerGestureEvent>({
     onStart: () => {
@@ -108,6 +133,7 @@ export function useMapTransforms({
     onActive: (event) => {
       translateX.value = baseTranslateX.value + event.translationX;
       translateY.value = baseTranslateY.value + event.translationY;
+      notifyIfChanged(scale.value, translateX.value, translateY.value);
     },
     onEnd: () => {
       clampAndApply(scale.value, translateX.value, translateY.value);
@@ -134,6 +160,7 @@ export function useMapTransforms({
       scale.value = newScale;
       translateX.value = newTranslateX;
       translateY.value = newTranslateY;
+      notifyIfChanged(scale.value, translateX.value, translateY.value);
     },
     onEnd: () => {
       clampAndApply(scale.value, translateX.value, translateY.value);

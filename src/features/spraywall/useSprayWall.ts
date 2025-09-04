@@ -10,9 +10,13 @@ export const useSprayWall = (wallId) => {
   useEffect(() => {
     if (!wallId) return;
 
+    let unsubscribeFunction: (() => void) | null = null;
+
     const loadSeason = async () => {
       try {
         setLoading(true);
+        setError(null);
+
         const season = await sprayApi.getCurrentSeason(wallId);
         setCurrentSeason(season);
 
@@ -27,22 +31,22 @@ export const useSprayWall = (wallId) => {
             },
           );
 
-          return unsubscribe;
+          unsubscribeFunction = unsubscribe;
         } else {
           setRoutes([]);
           setLoading(false);
         }
       } catch (err) {
-        setError(err.message);
+        setError((err as Error).message);
         setLoading(false);
       }
     };
 
-    const unsubscribe = loadSeason();
+    loadSeason();
 
     return () => {
-      if (unsubscribe && typeof unsubscribe === "function") {
-        unsubscribe();
+      if (unsubscribeFunction && typeof unsubscribeFunction === "function") {
+        unsubscribeFunction();
       }
     };
   }, [wallId]);
