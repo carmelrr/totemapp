@@ -205,8 +205,8 @@ const RobustCropper4x3 = ({
     let isMounted = true;
 
     const setupImage = async () => {
+      const tStart = Date.now();
       try {
-        const tStart = Date.now();
         log("--- Setup start ---");
         log("Image URI:", imageUri);
         setImageLoaded(false);
@@ -239,7 +239,7 @@ const RobustCropper4x3 = ({
         // Check file size first to prevent memory issues
         log("Checking file info...");
         const fileInfo = await FileSystem.getInfoAsync(localUri);
-        log("File size bytes:", fileInfo.size, "exists:", fileInfo.exists);
+        log("File size bytes:", (fileInfo as any).size, "exists:", fileInfo.exists);
         if (!fileInfo.exists)
           throw new Error("File does not exist after download");
 
@@ -633,7 +633,7 @@ const RobustCropper4x3 = ({
           { scale: currentScale },
           { translateX: currentTransX },
           { translateY: currentTransY },
-        ],
+        ] as any,
       };
     } catch (error) {
       return { opacity: 0 };
@@ -744,7 +744,7 @@ const RobustCropper4x3 = ({
 
       // Check file size
       const fileInfo = await FileSystem.getInfoAsync(localImageUri);
-      const fileSizeMB = fileInfo.size / (1024 * 1024);
+      const fileSizeMB = (fileInfo as any).size / (1024 * 1024);
       log("Source file size (MB):", fileSizeMB.toFixed(2));
 
       // Resize large images or those with large dimensions
@@ -826,7 +826,7 @@ const RobustCropper4x3 = ({
 
       // Check final file size
       const finalInfo = await FileSystem.getInfoAsync(cropResult.uri);
-      const finalSizeMB = finalInfo.size / (1024 * 1024);
+      const finalSizeMB = (finalInfo as any).size / (1024 * 1024);
       log("Final cropped file size (MB):", finalSizeMB.toFixed(2));
 
       if (onCropComplete) {
@@ -932,7 +932,7 @@ const RobustCropper4x3 = ({
                 onLoad={(e) =>
                   log("Image onLoad (natural size may differ platform)")
                 }
-                onError={(e) => err("Image onError:", e?.nativeEvent)}
+                onError={(e) => err("Image onError:", e)}
               />
             </Animated.View>
           </View>

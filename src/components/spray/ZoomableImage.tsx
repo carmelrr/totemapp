@@ -43,60 +43,48 @@ const ZoomableImage = ({
     }
   }, [allowPanning]);
 
-  const pinchGestureHandler = useAnimatedGestureHandler(
-    {
-      onActive: (event) => {
-        scale.value = Math.max(0.5, Math.min(3, event.scale));
-      },
-      onEnd: () => {
-        if (scale.value < 1) {
-          scale.value = withSpring(1);
-          translateX.value = withSpring(0);
-          translateY.value = withSpring(0);
-        }
-      },
+  const pinchGestureHandler = useAnimatedGestureHandler({
+    onActive: (event) => {
+      scale.value = Math.max(0.5, Math.min(3, (event as any).scale));
     },
-    [],
-    false,
-  ); // Disable native driver
+    onEnd: () => {
+      if (scale.value < 1) {
+        scale.value = withSpring(1);
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+      }
+    },
+  });
 
-  const panGestureHandler = useAnimatedGestureHandler(
-    {
-      onStart: () => {
-        runOnJS(setIsPanning)(true);
-      },
-      onActive: (event) => {
-        if (allowPanning) {
-          translateX.value = event.translationX;
-          translateY.value = event.translationY;
-        }
-      },
-      onEnd: () => {
-        runOnJS(setIsPanning)(false);
-        // Reset position if scale is 1
-        if (scale.value <= 1) {
-          translateX.value = withSpring(0);
-          translateY.value = withSpring(0);
-        }
-      },
+  const panGestureHandler = useAnimatedGestureHandler({
+    onStart: () => {
+      runOnJS(setIsPanning)(true);
     },
-    [],
-    false,
-  ); // Disable native driver
+    onActive: (event) => {
+      if (allowPanning) {
+        translateX.value = event.translationX;
+        translateY.value = event.translationY;
+      }
+    },
+    onEnd: () => {
+      runOnJS(setIsPanning)(false);
+      // Reset position if scale is 1
+      if (scale.value <= 1) {
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+      }
+    },
+  });
 
-  const animatedStyle = useAnimatedStyle(
-    () => {
-      return {
-        transform: [
-          { translateX: translateX.value },
-          { translateY: translateY.value },
-          { scale: scale.value },
-        ],
-      };
-    },
-    [],
-    false,
-  ); // Disable native driver
+  const animatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+        { scale: scale.value },
+      ] as any,
+    };
+  });
 
   const handleImagePress = (event) => {
     console.log(
@@ -146,7 +134,7 @@ const ZoomableImage = ({
           <Animated.View style={styles.gestureContainer}>
             <PinchGestureHandler
               enabled={allowPanning}
-              onGestureEvent={pinchGestureHandler}
+              onGestureEvent={pinchGestureHandler as any}
             >
               <Animated.View style={animatedStyle}>
                 <Image

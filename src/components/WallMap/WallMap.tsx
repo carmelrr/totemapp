@@ -23,6 +23,7 @@ interface WallMapProps {
   children?: React.ReactNode;
   gesturesEnabled?: boolean;
   onGestureStateChange?: (enabled: boolean) => void;
+  onTransformChange?: (transform: { scale: number; translateX: number; translateY: number }) => void;
 }
 
 /**
@@ -39,6 +40,7 @@ export default function WallMap({
   children,
   gesturesEnabled = true,
   onGestureStateChange,
+  onTransformChange,
 }: WallMapProps) {
   const [containerDimensions, setContainerDimensions] = useState({
     width: 0,
@@ -68,6 +70,7 @@ export default function WallMap({
     screenHeight: containerDimensions.height,
     imageWidth: imageDimensions.imgW,
     imageHeight: imageDimensions.imgH,
+    onTransformChange,
   });
 
   // חישוב מידות התמונה בהתאם לאספקט רטיו של הקיר
@@ -209,7 +212,9 @@ export default function WallMap({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#01467D',
+    width: '100%',
+    height: '100%',
   },
   gestureContainer: {
     flex: 1,

@@ -198,7 +198,7 @@ export async function getUserActivityFeed(userId) {
     }
 
     // Sort by date (newest first)
-    activities.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    activities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return activities.slice(0, 50); // Return latest 50 activities
   } catch (error) {

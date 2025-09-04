@@ -55,19 +55,40 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       originalY: data.y,
       originalXNorm: data.xNorm,
       originalYNorm: data.yNorm,
-      originalColor: data.color
+      originalColor: data.color,
+      hasXNorm: typeof data.xNorm === 'number',
+      hasYNorm: typeof data.yNorm === 'number',
+      xIsNormalized: typeof data.x === 'number' && data.x >= 0 && data.x <= 1,
+      yIsNormalized: typeof data.y === 'number' && data.y >= 0 && data.y <= 1
     });
 
     // ✅ המרה אוטומטית מ-x/y ל-xNorm/yNorm אם חסרים
     let xNorm = data.xNorm;
     let yNorm = data.yNorm;
 
-    // אם אין נורמליזציה אבל יש קורדינטות מוחלטות - המר
-    if ((xNorm == null || yNorm == null) &&
-      Number.isFinite(data.x) && Number.isFinite(data.y)) {
-      xNorm = Math.min(Math.max(data.x / VIEWBOX_W, 0), 1);
-      yNorm = Math.min(Math.max(data.y / VIEWBOX_H, 0), 1);
-      console.log(`🔄 Route ${snapshot.id}: converted x=${data.x}, y=${data.y} to xNorm=${xNorm.toFixed(4)}, yNorm=${yNorm.toFixed(4)}`);
+    // Helper function to check if already normalized
+    const isNormalized = (x: number, y: number) => {
+      return typeof x === 'number' && typeof y === 'number' && 
+             x >= 0 && x <= 1 && y >= 0 && y <= 1;
+    };
+
+    // Only convert if we don't have valid normalized coordinates
+    if ((typeof xNorm !== 'number' || typeof yNorm !== 'number' || !isNormalized(xNorm, yNorm)) &&
+        Number.isFinite(data.x) && Number.isFinite(data.y)) {
+      
+      // Check if x,y values are already normalized (between 0-1)
+      if (isNormalized(data.x, data.y)) {
+        xNorm = data.x;
+        yNorm = data.y;
+        console.log(`✅ Route ${snapshot.id}: using already normalized x=${data.x}, y=${data.y}`);
+      } else {
+        // Convert from absolute pixels to normalized
+        xNorm = Math.min(Math.max(data.x / VIEWBOX_W, 0), 1);
+        yNorm = Math.min(Math.max(data.y / VIEWBOX_H, 0), 1);
+        console.log(`🔄 Route ${snapshot.id}: converted x=${data.x}, y=${data.y} to xNorm=${xNorm.toFixed(4)}, yNorm=${yNorm.toFixed(4)}`);
+      }
+    } else if (typeof xNorm === 'number' && typeof yNorm === 'number') {
+      console.log(`✅ Route ${snapshot.id}: using existing xNorm=${xNorm.toFixed(4)}, yNorm=${yNorm.toFixed(4)}`);
     }
 
     // ✅ Adapter סלחני לצבע שמחפש בכמה מפתחות נפוצים
@@ -80,11 +101,11 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
 
     const result = {
       id: snapshot.id,
-      name: data.name || '',
+      name: data.name || data.title || `מסלול ${snapshot.id.slice(-6)}`, // Better fallback
       grade: data.grade || 'V0',
       color,
-      xNorm: Number.isFinite(xNorm) ? xNorm : 0,
-      yNorm: Number.isFinite(yNorm) ? yNorm : 0,
+      xNorm: Number.isFinite(xNorm) ? Math.min(Math.max(xNorm, 0), 1) : 0,
+      yNorm: Number.isFinite(yNorm) ? Math.min(Math.max(yNorm, 0), 1) : 0,
       createdAt: data.createdAt,
       status: data.status || 'active',
       rating: data.rating || 0,
@@ -95,8 +116,9 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
     };
 
     console.log(`✅ Route ${snapshot.id} processed:`, {
-      xNorm: result.xNorm,
-      yNorm: result.yNorm,
+      finalXNorm: result.xNorm,
+      finalYNorm: result.yNorm,
+      isValidCoords: result.xNorm >= 0 && result.xNorm <= 1 && result.yNorm >= 0 && result.yNorm <= 1,
       color: result.color,
       isValid: Number.isFinite(result.xNorm) && Number.isFinite(result.yNorm),
       inBounds: result.xNorm >= 0 && result.xNorm <= 1 && result.yNorm >= 0 && result.yNorm <= 1

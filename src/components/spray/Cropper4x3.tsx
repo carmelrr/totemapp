@@ -162,7 +162,7 @@ const Cropper4x3 = ({ imageUri, onCropComplete, style }) => {
         { translateX: offsetX.value },
         { translateY: offsetY.value },
         { scale: scale.value },
-      ],
+      ] as any,
     };
   });
 

@@ -233,8 +233,8 @@ export const sprayApi = {
       const sends = sendsSnapshot.docs.map((doc) => doc.data());
 
       // Group by user and count
-      const userCounts = {};
-      sends.forEach((send) => {
+      const userCounts: any = {};
+      sends.forEach((send: any) => {
         if (!userCounts[send.userId]) {
           userCounts[send.userId] = {
             userId: send.userId,
@@ -246,7 +246,7 @@ export const sprayApi = {
       });
 
       // Sort by count
-      return Object.values(userCounts).sort((a, b) => b.count - a.count);
+      return Object.values(userCounts).sort((a: any, b: any) => b.count - a.count);
     } catch (error) {
       console.error("Error getting leaderboard:", error);
       throw error;
