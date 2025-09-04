@@ -31,6 +31,9 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 type RootStackParamList = {
   RoutesMap: undefined;
   AddRoute: undefined;
+  RouteDetails: {
+    route: any;
+  };
 };
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'RoutesMap'>;
@@ -61,9 +64,25 @@ export default function RoutesMapScreen() {
 
   // Handlers
   const handleRoutePress = useCallback((route: RouteDoc) => {
-    setSelectedRoute(route);
-    setShowBottomSheet(true);
-  }, []);
+    console.log('🔗 opening route details', route.id, route.color);
+    navigation.navigate('RouteDetails', { 
+      route: {
+        id: route.id,
+        name: route.name,
+        grade: route.grade,
+        color: route.color,
+        difficulty: route.grade,
+        description: `מסלול ${route.name} ברמת קושי ${route.grade}`,
+        coordinates: {
+          x: route.xNorm,
+          y: route.yNorm,
+        },
+        createdAt: route.createdAt || new Date(),
+        createdBy: route.setter || 'system',
+        wallId: 'default-wall',
+      }
+    });
+  }, [navigation]);
 
   const handleCloseBottomSheet = useCallback(() => {
     setShowBottomSheet(false);
@@ -150,9 +169,23 @@ export default function RoutesMapScreen() {
 
   const renderSplitView = () => (
     <>
+      {/* Map Section with FiltersBar Overlay */}
       <View style={styles.mapSection}>
         {renderMapView()}
+        
+        {/* FiltersBar as absolute overlay on map bottom */}
+        <View
+          pointerEvents="box-none"
+          style={styles.filtersOverlay}
+        >
+          <FiltersBar
+            availableColors={availableColors}
+            availableGrades={availableGrades}
+          />
+        </View>
       </View>
+      
+      {/* List Section */}
       <View style={styles.listSection}>
         <View style={styles.listHeader}>
           <Text style={styles.listTitle}>
@@ -167,12 +200,6 @@ export default function RoutesMapScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Filters Bar */}
-      <FiltersBar
-        availableColors={availableColors}
-        availableGrades={availableGrades}
-      />
-
       {/* Content Area */}
       <View style={styles.contentArea}>
         {viewMode === 'map' && renderMapView()}
@@ -180,39 +207,12 @@ export default function RoutesMapScreen() {
         {viewMode === 'split' && renderSplitView()}
       </View>
 
-      {/* Action Buttons */}
+      {/* Action Buttons - Only Add Route Button */}
       <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={[styles.viewModeButton, viewMode === 'map' && styles.activeViewMode]}
-          onPress={() => setViewMode('map')}
-        >
-          <Text style={[styles.viewModeText, viewMode === 'map' && styles.activeViewModeText]}>🗺️</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.viewModeButton, viewMode === 'split' && styles.activeViewMode]}
-          onPress={() => setViewMode('split')}
-        >
-          <Text style={[styles.viewModeText, viewMode === 'split' && styles.activeViewModeText]}>⚏</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity
-          style={[styles.viewModeButton, viewMode === 'list' && styles.activeViewMode]}
-          onPress={() => setViewMode('list')}
-        >
-          <Text style={[styles.viewModeText, viewMode === 'list' && styles.activeViewModeText]}>📋</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.actionButton, styles.debugButton]}
-          onPress={handleDebug}
-        >
-          <Text style={styles.actionButtonText}>🐛</Text>
-        </TouchableOpacity>
-        
         <TouchableOpacity
           style={[styles.actionButton, styles.addButton]}
           onPress={handleAddRoute}
+          testID="fab-add-route"
         >
           <Text style={styles.actionButtonText}>+</Text>
         </TouchableOpacity>
@@ -249,6 +249,13 @@ const styles = StyleSheet.create({
   mapSection: {
     flex: 3,
     position: 'relative',
+  },
+  filtersOverlay: {
+    position: 'absolute',
+    left: 12,
+    right: 12,
+    bottom: 8, // בלי insets כאן - רק על המפה
+    zIndex: 10,
   },
   listSection: {
     flex: 2,

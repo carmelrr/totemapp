@@ -19,7 +19,7 @@ import { clampViewport } from '@/utils/coordinateUtils';
 import { MapTransforms } from '../types/route';
 
 export interface UseMapTransformsConfig {
-  minScale?: number;
+  minScale?: number; // Default: 1 (initial view size)
   maxScale?: number;
   screenWidth: number;
   screenHeight: number;
@@ -29,7 +29,7 @@ export interface UseMapTransformsConfig {
 }
 
 export function useMapTransforms({
-  minScale = 0.5,
+  minScale = 1, // Set minimum scale to 1 (initial view size)
   maxScale = 4,
   screenWidth,
   screenHeight,
@@ -43,7 +43,7 @@ export function useMapTransforms({
   });
 
   // ✅ Safety: וידוא שכל הפרמטרים תקינים
-  const safeMinScale = Math.max(0.1, isFinite(minScale) ? minScale : 0.5);
+  const safeMinScale = Math.max(1, isFinite(minScale) ? minScale : 1); // Ensure min scale is at least 1
   const safeMaxScale = Math.max(safeMinScale, isFinite(maxScale) ? maxScale : 4);
   const safeScreenWidth = Math.max(1, isFinite(screenWidth) ? screenWidth : 1);
   const safeScreenHeight = Math.max(1, isFinite(screenHeight) ? screenHeight : 1);

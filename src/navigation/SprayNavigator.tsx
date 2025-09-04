@@ -5,6 +5,8 @@ import SprayWallMapViewScreen from "@/screens/SprayWall/SprayWallMapViewScreen";
 import SprayResetScreen from "@/screens/SprayWall/SprayResetScreen";
 import SprayEditorScreen from "@/screens/SprayWall/SprayEditorScreen";
 import SprayLeaderboardScreen from "@/screens/SprayWall/SprayLeaderboardScreen";
+import RouteDetailsScreen from "@/screens/routes/RouteDetailsScreen";
+import { Route } from "@/types/routes";
 
 type SprayStackParamList = {
   SprayWallHome: undefined;
@@ -12,6 +14,7 @@ type SprayStackParamList = {
   SprayReset: undefined;
   SprayEditor: undefined;
   SprayLeaderboard: undefined;
+  RouteDetails: { route: Route };
 };
 
 const Stack = createNativeStackNavigator<SprayStackParamList>();
@@ -59,6 +62,14 @@ const SprayNavigator = () => {
         component={SprayLeaderboardScreen}
         options={{
           title: "Leaderboard",
+        }}
+      />
+      <Stack.Screen
+        name="RouteDetails"
+        component={RouteDetailsScreen}
+        options={{
+          headerShown: false,
+          presentation: "card",
         }}
       />
     </Stack.Navigator>

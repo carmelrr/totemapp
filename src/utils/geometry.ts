@@ -50,6 +50,39 @@ export function isPointInRect(
   );
 }
 
+// Alternative function name for convenience
+export function pointInRect(
+  point: { x: number; y: number },
+  rect: { x: number; y: number; width: number; height: number } | null,
+): boolean {
+  if (!rect) return false;
+  return isPointInRect(point, rect);
+}
+
+// חישוב viewport rect מ-transform state
+export function calculateViewportRect(
+  transform: { scale: number; tx: number; ty: number },
+  dimensions: { viewW: number; viewH: number },
+  imageSize: { width: number; height: number }
+): { x: number; y: number; width: number; height: number } {
+  const { scale, tx, ty } = transform;
+  const { viewW, viewH } = dimensions;
+  const { width: imgW, height: imgH } = imageSize;
+
+  // חישוב התיבה הנראית בקואורדינטות התמונה
+  const left = Math.max(0, -tx / scale);
+  const top = Math.max(0, -ty / scale);
+  const right = Math.min(imgW, left + viewW / scale);
+  const bottom = Math.min(imgH, top + viewH / scale);
+
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  };
+}
+
 // חישוב רדיוס שמשמר גודל על המסך
 export function getScreenConstantRadius(
   baseRadius: number,
