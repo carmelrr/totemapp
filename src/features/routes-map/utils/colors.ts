@@ -1,19 +1,42 @@
+// Predefined route colors
 export const ROUTE_COLORS = [
-  '#ef4444', // red
-  '#f97316', // orange
-  '#eab308', // yellow
-  '#22c55e', // green
-  '#06b6d4', // cyan
-  '#3b82f6', // blue
-  '#8b5cf6', // purple
-  '#ec4899', // pink
-  '#f59e0b', // amber
-  '#10b981', // emerald
-  '#6366f1', // indigo
-  '#84cc16', // lime
-  '#f43f5e', // rose
-  '#14b8a6', // teal
+  '#D2691E', // עץ (חום-כתום עץ)
+  '#E8E8E8', // שקוף (אפור בהיר מאוד)
+  '#000000', // שחור
+  '#C0C0C0', // אפור בהיר
+  '#87CEEB', // כחול בהיר
+  '#00008B', // כחול כהה
+  '#00CED1', // תכלת
+  '#00FF00', // ירוק
+  '#006400', // ירוק כהה
+  '#FF0000', // אדום
+  '#8B4513', // חום
+  '#FFA500', // כתום
+  '#FFFF00', // צהוב
+  '#800080', // סגול
+  '#FFC0CB', // ורוד
+  '#FFFFFF', // לבן
 ] as const;
+
+// Color names in Hebrew for display
+export const COLOR_NAMES: Record<string, string> = {
+  '#D2691E': 'עץ',
+  '#E8E8E8': 'שקוף',
+  '#000000': 'שחור',
+  '#C0C0C0': 'אפור בהיר',
+  '#87CEEB': 'כחול בהיר',
+  '#00008B': 'כחול כהה',
+  '#00CED1': 'תכלת',
+  '#00FF00': 'ירוק',
+  '#006400': 'ירוק כהה',
+  '#FF0000': 'אדום',
+  '#8B4513': 'חום',
+  '#FFA500': 'כתום',
+  '#FFFF00': 'צהוב',
+  '#800080': 'סגול',
+  '#FFC0CB': 'ורוד',
+  '#FFFFFF': 'לבן',
+};
 
 export type RouteColor = typeof ROUTE_COLORS[number];
 
@@ -23,6 +46,10 @@ export function getRandomRouteColor(): RouteColor {
 
 export function isValidRouteColor(color: string): color is RouteColor {
   return ROUTE_COLORS.includes(color as RouteColor);
+}
+
+export function getColorName(color: string): string {
+  return COLOR_NAMES[color.toLowerCase()] || COLOR_NAMES[color] || 'מותאם אישית';
 }
 
 export function getContrastTextColor(backgroundColor: string): string {
@@ -36,4 +63,9 @@ export function getContrastTextColor(backgroundColor: string): string {
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   
   return luminance > 0.5 ? '#000000' : '#ffffff';
+}
+
+// Validate hex color format
+export function isValidHexColor(color: string): boolean {
+  return /^#[0-9A-Fa-f]{6}$/.test(color);
 }

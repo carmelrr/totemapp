@@ -35,11 +35,17 @@ export const StatCard: React.FC<StatCardProps> = ({
                 style={[
                     styles.statCard,
                     styles.hiddenStatCard,
-                    { borderLeftColor: color },
+                    { 
+                        borderLeftColor: color, 
+                        backgroundColor: theme.surface,
+                        shadowColor: theme.shadow,
+                    },
                 ]}
             >
                 <View style={styles.statContent}>
-                    <Text style={styles.statIcon}>🔒</Text>
+                    <View style={[styles.iconContainer, { backgroundColor: `${color}20` }]}>
+                        <Text style={styles.statIcon}>🔒</Text>
+                    </View>
                     <View style={styles.statTextContainer}>
                         <Text style={[styles.statValue, { color: theme.text }]}>פרטי</Text>
                         <Text style={[styles.statTitle, { color: theme.textSecondary }]}>{title}</Text>
@@ -50,13 +56,22 @@ export const StatCard: React.FC<StatCardProps> = ({
     }
 
     return (
-        <View style={[styles.statCard, { borderLeftColor: color, backgroundColor: theme.surface }]}>
+        <View style={[
+            styles.statCard, 
+            { 
+                borderLeftColor: color, 
+                backgroundColor: theme.surface,
+                shadowColor: theme.shadow,
+            }
+        ]}>
             <TouchableOpacity
                 style={styles.statContent}
                 onPress={onPress}
                 disabled={!onPress}
             >
-                <Text style={styles.statIcon}>{icon}</Text>
+                <View style={[styles.iconContainer, { backgroundColor: `${color}20` }]}>
+                    <Text style={styles.statIcon}>{icon}</Text>
+                </View>
                 <View style={styles.statTextContainer}>
                     <Text style={[styles.statValue, { color: theme.text }]}>
                         {isVisible || isOwner ? value : "פרטי"}
@@ -77,47 +92,52 @@ export const StatCard: React.FC<StatCardProps> = ({
 
 const styles = StyleSheet.create({
     statCard: {
-        backgroundColor: "#FFFFFF",
-        borderRadius: 12,
-        borderLeftWidth: 4,
+        borderRadius: 16,
+        borderLeftWidth: 5,
         marginBottom: 12,
-        shadowColor: "#000",
         shadowOffset: {
             width: 0,
-            height: 2,
+            height: 3,
         },
-        shadowOpacity: 0.1,
-        shadowRadius: 3.84,
+        shadowOpacity: 0.12,
+        shadowRadius: 6,
         elevation: 5,
     },
     hiddenStatCard: {
-        opacity: 0.6,
+        opacity: 0.5,
     },
     statContent: {
         padding: 16,
         flexDirection: "row",
         alignItems: "center",
     },
+    iconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 14,
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 14,
+    },
     statIcon: {
-        fontSize: 24,
-        marginRight: 12,
+        fontSize: 26,
     },
     statTextContainer: {
         flex: 1,
     },
     statValue: {
-        fontSize: 20,
+        fontSize: 22,
         fontWeight: "bold",
-        marginBottom: 2,
+        marginBottom: 3,
     },
     statTitle: {
         fontSize: 14,
-        color: "#666",
+        fontWeight: "500",
     },
     privacyIndicator: {
         paddingLeft: 8,
     },
     privacyText: {
-        fontSize: 16,
+        fontSize: 18,
     },
 });

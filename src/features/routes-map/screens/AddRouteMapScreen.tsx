@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   Dimensions,
+  Modal,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,7 +18,7 @@ import RouteMarker from '../components/RouteMarker';
 
 import { CoordinateUtils } from '@/utils/coordinateUtils';
 import { GRADES } from '../utils/grades';
-import { ROUTE_COLORS, getRandomRouteColor } from '../utils/colors';
+import { ROUTE_COLORS, getRandomRouteColor, getColorName, isValidHexColor, getContrastTextColor } from '../utils/colors';
 import { RoutesService } from '../services/RoutesService';
 import { MapTransforms } from '../types/route';
 
@@ -41,12 +42,18 @@ export default function AddRouteMapScreen() {
   const navigation = useNavigation<NavigationProp>();
 
   // Form state
-  const [name, setName] = useState('');
   const [grade, setGrade] = useState('V0');
-  const [color, setColor] = useState(getRandomRouteColor());
+  const [color, setColor] = useState<string>(getRandomRouteColor());
   const [status, setStatus] = useState<'active' | 'archived' | 'draft'>('active');
   const [setter, setSetter] = useState('');
   const [tags, setTags] = useState('');
+  
+  // Custom color picker state
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [customColor, setCustomColor] = useState('#');
+
+  // Check if color is a predefined color
+  const isPredefinedColor = ROUTE_COLORS.includes(color as any);
 
   // Map state
   const [screenDimensions, setScreenDimensions] = useState({
@@ -109,24 +116,26 @@ export default function AddRouteMapScreen() {
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!name.trim()) {
-      newErrors.name = 'Route name is required';
-    }
-
     if (!grade) {
-      newErrors.grade = 'Grade is required';
+      newErrors.grade = 'יש לבחור דרגת קושי';
     }
 
     if (!color) {
-      newErrors.color = 'Color is required';
+      newErrors.color = 'יש לבחור צבע';
     }
 
     if (!preview) {
-      newErrors.position = 'Please tap on the map to place the route marker';
+      newErrors.position = 'יש ללחוץ על המפה כדי לבחור מיקום למסלול';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  // Generate automatic name from grade and color
+  const getRouteName = (): string => {
+    const colorName = getColorName(color);
+    return `${grade} ${colorName}`;
   };
 
   const handleSave = async () => {
@@ -138,7 +147,7 @@ export default function AddRouteMapScreen() {
 
     try {
       const routeData: any = {
-        name: name.trim(),
+        name: getRouteName(),
         grade,
         color,
         xNorm: preview.xNorm,
@@ -182,7 +191,7 @@ export default function AddRouteMapScreen() {
 
   const previewRoute = preview ? {
     id: 'preview',
-    name: name || 'New Route',
+    name: getRouteName(),
     grade,
     color,
     xNorm: preview.xNorm,
@@ -249,22 +258,18 @@ export default function AddRouteMapScreen() {
 
       {/* Form Section */}
       <ScrollView style={styles.formSection}>
-        {/* Route Name */}
+        {/* Auto-generated Route Name Preview */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Route Name *</Text>
-          <TextInput
-            style={[styles.textInput, errors.name && styles.errorInput]}
-            value={name}
-            onChangeText={setName}
-            placeholder="Enter route name"
-            maxLength={50}
-          />
-          {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+          <Text style={styles.fieldLabel}>שם מסלול (אוטומטי)</Text>
+          <View style={styles.namePreview}>
+            <View style={[styles.nameColorDot, { backgroundColor: color }]} />
+            <Text style={styles.namePreviewText}>{getRouteName()}</Text>
+          </View>
         </View>
 
         {/* Grade Selection */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Grade *</Text>
+          <Text style={styles.fieldLabel}>דרגת קושי *</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={styles.gradeContainer}>
               {GRADES.map((gradeOption) => (
@@ -293,7 +298,7 @@ export default function AddRouteMapScreen() {
 
         {/* Color Selection */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Color *</Text>
+          <Text style={styles.fieldLabel}>צבע *</Text>
           <View style={styles.colorGrid}>
             {ROUTE_COLORS.map((colorOption) => (
               <TouchableOpacity
@@ -306,42 +311,139 @@ export default function AddRouteMapScreen() {
                 onPress={() => setColor(colorOption)}
               >
                 {color === colorOption && (
-                  <Text style={styles.colorCheckmark}>✓</Text>
+                  <Text style={[styles.colorCheckmark, { color: getContrastTextColor(colorOption) }]}>✓</Text>
                 )}
               </TouchableOpacity>
             ))}
+            {/* Custom Color Button */}
+            <TouchableOpacity
+              style={[
+                styles.colorChip,
+                styles.customColorChip,
+                !isPredefinedColor && styles.selectedColorChip,
+              ]}
+              onPress={() => setShowColorPicker(true)}
+            >
+              {!isPredefinedColor ? (
+                <View style={[styles.customColorPreview, { backgroundColor: color }]} />
+              ) : (
+                <Text style={styles.customColorPlus}>+</Text>
+              )}
+            </TouchableOpacity>
           </View>
           {errors.color && <Text style={styles.errorText}>{errors.color}</Text>}
         </View>
 
         {/* Optional Fields */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Setter (Optional)</Text>
+          <Text style={styles.fieldLabel}>מגדיר (אופציונלי)</Text>
           <TextInput
             style={styles.textInput}
             value={setter}
             onChangeText={setSetter}
-            placeholder="Who set this route?"
+            placeholder="מי בנה את המסלול?"
             maxLength={30}
           />
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>Tags (Optional)</Text>
+          <Text style={styles.fieldLabel}>תגיות (אופציונלי)</Text>
           <TextInput
             style={styles.textInput}
             value={tags}
             onChangeText={setTags}
-            placeholder="Separate tags with commas"
+            placeholder="הפרד תגיות בפסיקים"
             maxLength={100}
           />
           <Text style={styles.helpText}>
-            Example: overhang, crimps, slopers
+            לדוגמה: אוברהנג, קרימפים, סלופרים
           </Text>
         </View>
 
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      {/* Custom Color Picker Modal */}
+      <Modal
+        visible={showColorPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowColorPicker(false)}
+      >
+        <View style={styles.colorPickerModal}>
+          <View style={styles.colorPickerHeader}>
+            <TouchableOpacity onPress={() => setShowColorPicker(false)}>
+              <Text style={styles.colorPickerCancel}>ביטול</Text>
+            </TouchableOpacity>
+            <Text style={styles.colorPickerTitle}>צבע מותאם אישית</Text>
+            <TouchableOpacity 
+              onPress={() => {
+                if (isValidHexColor(customColor)) {
+                  setColor(customColor);
+                  setShowColorPicker(false);
+                } else {
+                  Alert.alert('שגיאה', 'נא להזין קוד צבע תקין (לדוגמה: #FF5500)');
+                }
+              }}
+            >
+              <Text style={styles.colorPickerSave}>שמור</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.colorPickerContent}>
+            {/* Color Preview */}
+            <View style={styles.colorPreviewSection}>
+              <View 
+                style={[
+                  styles.colorPreviewBox, 
+                  { backgroundColor: isValidHexColor(customColor) ? customColor : '#cccccc' }
+                ]} 
+              />
+              <Text style={styles.colorPreviewLabel}>תצוגה מקדימה</Text>
+            </View>
+
+            {/* Hex Input */}
+            <View style={styles.hexInputSection}>
+              <Text style={styles.hexInputLabel}>קוד צבע (HEX)</Text>
+              <TextInput
+                style={styles.hexInput}
+                value={customColor}
+                onChangeText={(text) => {
+                  // Ensure it starts with #
+                  if (!text.startsWith('#')) {
+                    text = '#' + text;
+                  }
+                  // Limit to 7 characters (#RRGGBB)
+                  setCustomColor(text.slice(0, 7).toUpperCase());
+                }}
+                placeholder="#FF5500"
+                maxLength={7}
+                autoCapitalize="characters"
+              />
+              <Text style={styles.hexInputHint}>לדוגמה: #FF0000 = אדום, #00FF00 = ירוק</Text>
+            </View>
+
+            {/* Quick Color Grid */}
+            <View style={styles.quickColorsSection}>
+              <Text style={styles.quickColorsLabel}>צבעים נוספים</Text>
+              <View style={styles.quickColorsGrid}>
+                {[
+                  '#FF5733', '#C70039', '#900C3F', '#581845',
+                  '#1ABC9C', '#16A085', '#2ECC71', '#27AE60',
+                  '#3498DB', '#2980B9', '#9B59B6', '#8E44AD',
+                  '#34495E', '#2C3E50', '#F39C12', '#D35400',
+                ].map((quickColor) => (
+                  <TouchableOpacity
+                    key={quickColor}
+                    style={[styles.quickColorChip, { backgroundColor: quickColor }]}
+                    onPress={() => setCustomColor(quickColor)}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -481,11 +583,22 @@ const styles = StyleSheet.create({
   },
   colorCheckmark: {
     fontSize: 18,
-    color: '#ffffff',
     fontWeight: '600',
-    textShadowColor: '#000000',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+  },
+  customColorChip: {
+    backgroundColor: '#f3f4f6',
+    borderColor: '#d1d5db',
+    borderStyle: 'dashed',
+  },
+  customColorPreview: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+  },
+  customColorPlus: {
+    fontSize: 24,
+    color: '#9ca3af',
+    fontWeight: '300',
   },
   helpText: {
     fontSize: 12,
@@ -494,5 +607,126 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 40,
+  },
+  // Name preview styles
+  namePreview: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f9fafb',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  nameColorDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.1)',
+  },
+  namePreviewText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  // Color Picker Modal styles
+  colorPickerModal: {
+    flex: 1,
+    backgroundColor: '#ffffff',
+  },
+  colorPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingTop: 48,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e5e7eb',
+  },
+  colorPickerCancel: {
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  colorPickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  colorPickerSave: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#3b82f6',
+  },
+  colorPickerContent: {
+    flex: 1,
+    padding: 20,
+  },
+  colorPreviewSection: {
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+  colorPreviewBox: {
+    width: 100,
+    height: 100,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#e5e7eb',
+  },
+  colorPreviewLabel: {
+    marginTop: 8,
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  hexInputSection: {
+    marginBottom: 30,
+  },
+  hexInputLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 8,
+  },
+  hexInput: {
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1f2937',
+    textAlign: 'center',
+    backgroundColor: '#f9fafb',
+  },
+  hexInputHint: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#9ca3af',
+    textAlign: 'center',
+  },
+  quickColorsSection: {
+    marginBottom: 20,
+  },
+  quickColorsLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1f2937',
+    marginBottom: 12,
+  },
+  quickColorsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  quickColorChip: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+    borderColor: 'rgba(0,0,0,0.1)',
   },
 });

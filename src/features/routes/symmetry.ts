@@ -1,5 +1,5 @@
 // features/routes/symmetry.ts
-import { Vec2 } from "@/features/spraywall/types";
+import { Vec2 } from "@/types/geometry";
 import { Hold } from "./types";
 
 // השקפה של נקודה על קו שרירותי

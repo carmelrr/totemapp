@@ -1,12 +1,12 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
 import { RouteDoc } from '../types/route';
 import { getContrastTextColor } from '../utils/colors';
 
 interface RouteMarkerProps {
   route: RouteDoc;
-  scale: Animated.SharedValue<number> | null;
+  scale: SharedValue<number> | null;
   onPress?: (route: RouteDoc) => void;
   selected?: boolean;
 }

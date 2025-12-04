@@ -21,6 +21,7 @@ import AnalyticsScreen from "@/components/analytics/AnalyticsScreen";
 import { UserProvider } from "@/features/auth/UserContext";
 import { ThemeProvider, useTheme } from "@/features/theme/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
+import { AdminProvider } from "@/context/AdminContext";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 
 // Enable React Native Screens for better performance and native feel
@@ -195,9 +196,11 @@ export default function App() {
       <GestureHandlerRootView style={{ flex: 1 }}>
         <ThemeProvider>
           <AuthProvider>
-            <UserProvider isAdmin={isAdmin}>
-              <ThemedNavigator isAdmin={isAdmin} />
-            </UserProvider>
+            <AdminProvider>
+              <UserProvider isAdmin={isAdmin}>
+                <ThemedNavigator isAdmin={isAdmin} />
+              </UserProvider>
+            </AdminProvider>
           </AuthProvider>
         </ThemeProvider>
       </GestureHandlerRootView>

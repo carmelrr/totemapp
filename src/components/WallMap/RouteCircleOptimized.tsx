@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { TouchableOpacity } from 'react-native';
-import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useDerivedValue, SharedValue } from 'react-native-reanimated';
 import { RouteDoc } from '@/features/routes-map/types/route';
 import { getColorHex, getContrastTextColor } from '@/constants/colors';
 
@@ -10,7 +10,7 @@ interface RouteCircleProps {
   imageHeight: number;
   wallWidth: number;
   wallHeight: number;
-  scale: Animated.SharedValue<number>;
+  scale: SharedValue<number>;
   onPress?: (route: RouteDoc) => void;
   selected?: boolean;
 }

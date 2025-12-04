@@ -34,6 +34,8 @@ interface SidePanelProps {
   onLogout: () => void;
   onAdminPanel?: () => void;
   isAdmin?: boolean;
+  adminModeEnabled?: boolean;
+  onAdminModeToggle?: () => void;
 }
 
 export const SidePanel: React.FC<SidePanelProps> = ({
@@ -57,6 +59,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onLogout,
   onAdminPanel,
   isAdmin,
+  adminModeEnabled,
+  onAdminModeToggle,
 }) => {
   const { theme } = useTheme();
   const styles = createStyles(theme);
@@ -237,17 +241,36 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             </View>
 
             {/* Admin Panel */}
-            {isAdmin && onAdminPanel && (
+            {isAdmin && (
               <View style={styles.adminSection}>
                 <Text style={styles.adminTitle}>ניהול מערכת</Text>
-                <View style={styles.adminButtons}>
-                  <TouchableOpacity
-                    style={styles.adminButton}
-                    onPress={onAdminPanel}
-                  >
-                    <Text style={styles.adminButtonText}>פאנל ניהול</Text>
-                  </TouchableOpacity>
+                
+                {/* Admin Mode Toggle */}
+                <View style={styles.adminModeRow}>
+                  <Text style={styles.adminModeLabel}>מצב עריכה</Text>
+                  <Switch
+                    value={adminModeEnabled}
+                    onValueChange={onAdminModeToggle}
+                    trackColor={{ false: '#ccc', true: '#4CAF50' }}
+                    thumbColor={adminModeEnabled ? '#fff' : '#f4f3f4'}
+                  />
                 </View>
+                {adminModeEnabled && (
+                  <Text style={styles.adminModeHint}>
+                    מצב עריכה פעיל - ניתן לערוך מסלולים במפה
+                  </Text>
+                )}
+                
+                {onAdminPanel && (
+                  <View style={styles.adminButtons}>
+                    <TouchableOpacity
+                      style={styles.adminButton}
+                      onPress={onAdminPanel}
+                    >
+                      <Text style={styles.adminButtonText}>פאנל ניהול</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </View>
             )}
 

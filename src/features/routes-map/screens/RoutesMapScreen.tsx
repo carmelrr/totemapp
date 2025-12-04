@@ -11,16 +11,24 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+// Theme
+import { useTheme } from '@/features/theme/ThemeContext';
+
 // New Architecture Components
 import WallMap from '../../../components/WallMap/WallMap';
 import { FiltersBar, FiltersSheet } from '../../../components/Filters';
 import { RoutesList } from '../../../components/Lists';
+import type { SortOption } from '../../../components/Filters/FiltersBar';
 
 import RouteBottomSheet from '../components/RouteBottomSheet';
+import RouteEditModal from '../components/RouteEditModal';
 
 // Store and Hooks
 import { useFiltersStore } from '../../../store/useFiltersStore';
 import { useFirebaseRoutes } from '../hooks/useFirebaseRoutes';
+
+// Admin Context
+import { useAdmin } from '../../../context/AdminContext';
 
 // Types
 import { RouteDoc, MapTransforms } from '../types/route';
@@ -46,22 +54,65 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'RoutesMap'>
 export default function RoutesMapScreen() {
   const navigation = useNavigation<NavigationProp>();
   
+  // Theme
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  
+  // Admin Mode
+  const { isAdmin, adminModeEnabled } = useAdmin();
+  
   // UI State
   const [selectedRoute, setSelectedRoute] = useState<RouteDoc | null>(null);
   const [showBottomSheet, setShowBottomSheet] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingRoute, setEditingRoute] = useState<RouteDoc | null>(null);
+  const [movingRoute, setMovingRoute] = useState<RouteDoc | null>(null); // Route being moved
   const [viewMode, setViewMode] = useState<'map' | 'list' | 'split'>('split');
   const [mapFrameSize, setMapFrameSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
+  const [sortBy, setSortBy] = useState<SortOption>('grade-asc');
   
   // Data
   const { routes, isLoading, error } = useFirebaseRoutes();
   
   // Filters Store
-  const { getFilteredRoutes, isFilterSheetOpen } = useFiltersStore();
+  const { getFilteredRoutes, isFilterSheetOpen, filters } = useFiltersStore();
 
   // Filtered routes based on current filters
   const filteredRoutes = useMemo(() => {
+    console.log('[RoutesMapScreen] Recalculating filteredRoutes with filters:', {
+      colors: filters.colors,
+      gradeRange: filters.gradeRange,
+    });
     return getFilteredRoutes(routes);
-  }, [routes, getFilteredRoutes]);
+  }, [routes, getFilteredRoutes, filters]);
+
+  // Helper function to extract numeric grade value for sorting
+  // Uses calculatedGrade (community consensus) if available, otherwise original grade
+  const getGradeValue = useCallback((route: RouteDoc): number => {
+    const grade = route.calculatedGrade || route.grade;
+    if (!grade) return 0;
+    // Extract number from grade string (e.g., "V6" -> 6, "V13" -> 13)
+    const match = grade.match(/\d+/);
+    return match ? parseInt(match[0], 10) : 0;
+  }, []);
+
+  // Sort function for routes
+  const sortRoutes = useCallback((routesToSort: RouteDoc[]): RouteDoc[] => {
+    return [...routesToSort].sort((a, b) => {
+      switch (sortBy) {
+        case 'grade-asc':
+          // Sort by community grade (calculatedGrade) if available, otherwise original
+          return getGradeValue(a) - getGradeValue(b);
+        case 'grade-desc':
+          return getGradeValue(b) - getGradeValue(a);
+        case 'popularity':
+          // Sort by average star rating (highest first)
+          return (b.averageStarRating || 0) - (a.averageStarRating || 0);
+        default:
+          return 0;
+      }
+    });
+  }, [sortBy, getGradeValue]);
 
   // Viewport bounds for visible routes (normalized 0-1)
   const [viewportBounds, setViewportBounds] = useState({ 
@@ -71,37 +122,30 @@ export default function RoutesMapScreen() {
     bottomN: 1 
   });
 
-  // Routes visible in the current viewport
+  // Routes visible in the current viewport (sorted)
   const visibleRoutes = useMemo(() => {
+    let routesToShow: RouteDoc[];
+    
     if (viewMode === 'list') {
       // In list mode, show all filtered routes
-      return filteredRoutes;
+      routesToShow = filteredRoutes;
+    } else {
+      // Filter routes by viewport bounds
+      routesToShow = filteredRoutes.filter(route => (
+        route.xNorm >= viewportBounds.leftN &&
+        route.xNorm <= viewportBounds.rightN &&
+        route.yNorm >= viewportBounds.topN &&
+        route.yNorm <= viewportBounds.bottomN
+      ));
     }
-    
-    // Filter routes by viewport bounds
-    const visible = filteredRoutes.filter(route => (
-      route.xNorm >= viewportBounds.leftN &&
-      route.xNorm <= viewportBounds.rightN &&
-      route.yNorm >= viewportBounds.topN &&
-      route.yNorm <= viewportBounds.bottomN
-    ));
 
-    console.log('[RoutesMapScreen] Visible routes calculation:', {
-      totalRoutes: routes.length,
-      filteredRoutes: filteredRoutes.length,
-      visibleRoutes: visible.length,
-      viewportBounds,
-      sampleRoutes: filteredRoutes.slice(0, 3).map(r => ({ 
-        id: r.id, 
-        x: r.xNorm, 
-        y: r.yNorm,
-        visible: r.xNorm >= viewportBounds.leftN && r.xNorm <= viewportBounds.rightN && 
-                r.yNorm >= viewportBounds.topN && r.yNorm <= viewportBounds.bottomN
-      }))
-    });
+    // Apply sorting
+    const sorted = sortRoutes(routesToShow);
 
-    return visible;
-  }, [filteredRoutes, viewportBounds, viewMode, routes.length]);
+    console.log(`[Viewport] ${sorted.length}/${filteredRoutes.length} routes visible in bounds [${viewportBounds.leftN.toFixed(2)}-${viewportBounds.rightN.toFixed(2)}, ${viewportBounds.topN.toFixed(2)}-${viewportBounds.bottomN.toFixed(2)}]`);
+
+    return sorted;
+  }, [filteredRoutes, viewportBounds, viewMode, sortRoutes]);
 
   // Handlers
   const handleRoutePress = useCallback((route: RouteDoc) => {
@@ -124,6 +168,131 @@ export default function RoutesMapScreen() {
       }
     });
   }, [navigation]);
+
+  const handleRouteLongPress = useCallback((route: RouteDoc) => {
+    console.log('🔧 LongPress on route:', route.id, 'adminModeEnabled:', adminModeEnabled);
+    if (adminModeEnabled) {
+      console.log('🔧 Admin: opening edit modal for route', route.id);
+      setEditingRoute(route);
+      setShowEditModal(true);
+    } else {
+      console.log('🔧 Admin mode not enabled, ignoring long press');
+    }
+  }, [adminModeEnabled]);
+
+  const handleEditModalClose = useCallback(() => {
+    setShowEditModal(false);
+    setEditingRoute(null);
+  }, []);
+
+  const handleEditModalSave = useCallback(() => {
+    // Routes will refresh automatically from Firebase listener
+    setShowEditModal(false);
+    setEditingRoute(null);
+  }, []);
+
+  const handleEditModalDelete = useCallback(() => {
+    // Routes will refresh automatically from Firebase listener
+    setShowEditModal(false);
+    setEditingRoute(null);
+  }, []);
+
+  // Start moving a route - called from RouteEditModal
+  const handleStartMoveRoute = useCallback((route: RouteDoc) => {
+    console.log('📍 handleStartMoveRoute called');
+    console.log('📍 route:', route?.id, route?.name);
+    try {
+      setMovingRoute(route);
+      console.log('📍 setMovingRoute completed');
+      Alert.alert(
+        'הזזת מסלול',
+        'לחץ על המיקום החדש במפה',
+        [{ text: 'הבנתי', style: 'default' }]
+      );
+      console.log('📍 Alert shown');
+    } catch (error) {
+      console.error('📍 Error in handleStartMoveRoute:', error);
+    }
+  }, []);
+
+  // Handle tap on map to place moved route
+  const handleMapTap = useCallback(async (coordinates: { xImg: number; yImg: number }) => {
+    console.log('📍 handleMapTap called with:', coordinates);
+    console.log('📍 movingRoute:', movingRoute?.id);
+    
+    if (!movingRoute) {
+      console.log('📍 No movingRoute, returning');
+      return;
+    }
+
+    // Validate coordinates
+    if (typeof coordinates.xImg !== 'number' || typeof coordinates.yImg !== 'number' ||
+        isNaN(coordinates.xImg) || isNaN(coordinates.yImg)) {
+      console.error('📍 Invalid coordinates received:', coordinates);
+      Alert.alert('שגיאה', 'קואורדינטות לא תקינות');
+      setMovingRoute(null);
+      return;
+    }
+
+    console.log('📍 Moving route to new position:', coordinates);
+    console.log('📍 mapFrameSize:', mapFrameSize);
+    
+    // Calculate normalized coordinates
+    const wallWidth = 2560;
+    const wallHeight = 1600;
+    
+    // Convert image coordinates to normalized (0-1)
+    // xImg and yImg are in image coordinate space  
+    const imageWidth = mapFrameSize.width || 377;
+    const imageHeight = mapFrameSize.height || 236;
+    
+    console.log('📍 Using image dimensions:', { imageWidth, imageHeight });
+    console.log('📍 Raw coordinates:', coordinates);
+    
+    // Make sure coordinates are within image bounds
+    const clampedXImg = Math.max(0, Math.min(imageWidth, coordinates.xImg));
+    const clampedYImg = Math.max(0, Math.min(imageHeight, coordinates.yImg));
+    
+    console.log('📍 Clamped image coordinates:', { clampedXImg, clampedYImg });
+    
+    const xNorm = clampedXImg / imageWidth;
+    const yNorm = clampedYImg / imageHeight;
+
+    // Validate normalized coordinates
+    if (isNaN(xNorm) || isNaN(yNorm)) {
+      console.error('📍 Invalid normalized coordinates:', { xNorm, yNorm });
+      Alert.alert('שגיאה', 'שגיאה בחישוב קואורדינטות');
+      setMovingRoute(null);
+      return;
+    }
+
+    // Clamp values to 0-1 range
+    const clampedX = Math.max(0, Math.min(1, xNorm));
+    const clampedY = Math.max(0, Math.min(1, yNorm));
+
+    console.log('📍 Calculated normalized coordinates:', { clampedX, clampedY });
+
+    try {
+      console.log('📍 Calling RoutesService.updateRoute...');
+      await RoutesService.updateRoute(movingRoute.id, {
+        xNorm: clampedX,
+        yNorm: clampedY,
+      });
+      console.log('📍 Route updated successfully');
+      Alert.alert('הצלחה', 'המסלול הוזז בהצלחה');
+    } catch (error) {
+      console.error('📍 Error moving route:', error);
+      Alert.alert('שגיאה', 'לא ניתן להזיז את המסלול');
+    } finally {
+      console.log('📍 Setting movingRoute to null');
+      setMovingRoute(null);
+    }
+  }, [movingRoute, mapFrameSize]);
+
+  // Cancel moving route
+  const handleCancelMove = useCallback(() => {
+    setMovingRoute(null);
+  }, []);
 
   const handleCloseBottomSheet = useCallback(() => {
     setShowBottomSheet(false);
@@ -161,16 +330,6 @@ export default function RoutesMapScreen() {
   }, [navigation]);
 
   const handleTransformChange = useCallback((transform: { scale: number; translateX: number; translateY: number }) => {
-    // Debug: current transform
-    console.log('[RoutesMapScreen] Transform change:', {
-      scale: Number(transform.scale.toFixed(3)),
-      tx: Number(transform.translateX.toFixed(1)),
-      ty: Number(transform.translateY.toFixed(1)),
-      frameSize: mapFrameSize,
-      currentViewportBounds: viewportBounds
-    });
-
-    // Use the container size (frame size) to calculate image dimensions
     const containerWidth = mapFrameSize.width || 0;
     const containerHeight = mapFrameSize.height || 0;
     
@@ -178,78 +337,88 @@ export default function RoutesMapScreen() {
       return;
     }
 
-    // Wall map dimensions (from wallWidth and wallHeight props)
+    const { scale, translateX, translateY } = transform;
+    
+    // Wall map dimensions
     const wallWidth = 2560;
     const wallHeight = 1600;
     const wallAspectRatio = wallHeight / wallWidth;
 
-    // Calculate how the image fits within the container (like contain)
+    // Calculate how the image fits within the container (object-fit: contain)
+    // This must match the calculation in WallMap.tsx
     let imageWidth = containerWidth;
     let imageHeight = containerWidth * wallAspectRatio;
 
-    // If height exceeds container, fit by height
     if (imageHeight > containerHeight) {
       imageHeight = containerHeight;
       imageWidth = containerHeight / wallAspectRatio;
     }
 
-    // Calculate base offset to center the image
-    const baseOffsetX = (containerWidth - imageWidth) / 2;
-    const baseOffsetY = (containerHeight - imageHeight) / 2;
+    // The viewport shows a portion of the image
+    // scale = 1 means the whole image fits in the viewport
+    // scale = 2 means we see half the image width/height
+    
+    // translateX/Y are relative to the center of the image
+    // translateX > 0 means the image moved right (we see more of the left side)
+    // translateX < 0 means the image moved left (we see more of the right side)
+    
+    // The visible portion width/height in image coordinates:
+    const visibleWidth = imageWidth / scale;
+    const visibleHeight = imageHeight / scale;
+    
+    // The center of the visible portion in image coordinates:
+    // When translateX = 0, the center is at imageWidth/2
+    // When translateX > 0, the center moves left (smaller x)
+    const centerX = (imageWidth / 2) - (translateX / scale);
+    const centerY = (imageHeight / 2) - (translateY / scale);
+    
+    // Calculate bounds in image coordinates
+    const leftImg = centerX - visibleWidth / 2;
+    const rightImg = centerX + visibleWidth / 2;
+    const topImg = centerY - visibleHeight / 2;
+    const bottomImg = centerY + visibleHeight / 2;
+    
+    // Convert to normalized coordinates (0-1)
+    let leftN = leftImg / imageWidth;
+    let rightN = rightImg / imageWidth;
+    let topN = topImg / imageHeight;
+    let bottomN = bottomImg / imageHeight;
 
-    // Calculate visible area in image coordinates
-    const scaledImageWidth = imageWidth * transform.scale;
-    const scaledImageHeight = imageHeight * transform.scale;
+    // Add padding for route circles (so partially visible routes are included)
+    const safeScale = Math.max(0.1, scale);
+    const circleSizeScreen = Math.max(24, 32 / Math.sqrt(safeScale));
+    const radiusInImageCoords = (circleSizeScreen / 2) / scale;
+    const padXN = radiusInImageCoords / imageWidth;
+    const padYN = radiusInImageCoords / imageHeight;
 
-    // Calculate actual image position considering base offset and transform
-    const imageX = baseOffsetX + transform.translateX;
-    const imageY = baseOffsetY + transform.translateY;
-
-    // Calculate visible boundaries in image coordinates
-    const leftVisible = Math.max(0, -imageX);
-    const topVisible = Math.max(0, -imageY);
-    const rightVisible = Math.min(scaledImageWidth, containerWidth - imageX);
-    const bottomVisible = Math.min(scaledImageHeight, containerHeight - imageY);
-
-    // Convert back to unscaled image coordinates
-    const leftImg = leftVisible / transform.scale;
-    const topImg = topVisible / transform.scale;
-    const rightImg = rightVisible / transform.scale;
-    const bottomImg = bottomVisible / transform.scale;
-
-    // Convert to normalized coordinates (0-1) relative to the wall map
-  // Add a small dynamic padding so route circles that are partially visible are included
-  // Match RouteCircle sizing: size = max(24, 32 / sqrt(scale))
-  const safeScale = Math.max(0.1, transform.scale || 1);
-  const circleSizeScreen = Math.max(24, 32 / Math.sqrt(safeScale));
-  const approxCircleRadiusScreen = circleSizeScreen / 2;
-    // Convert screen radius to image-space (before scale) and then to normalized units
-    const radiusImg = approxCircleRadiusScreen / Math.max(1e-6, transform.scale);
-    const padXN = radiusImg / Math.max(1e-6, imageWidth);
-    const padYN = radiusImg / Math.max(1e-6, imageHeight);
-
+    // Apply padding and clamp to [0, 1]
     const newBounds = {
-      leftN: Math.max(0, Math.min(1, leftImg / imageWidth - padXN)),
-      rightN: Math.max(0, Math.min(1, rightImg / imageWidth + padXN)),
-      topN: Math.max(0, Math.min(1, topImg / imageHeight - padYN)),
-      bottomN: Math.max(0, Math.min(1, bottomImg / imageHeight + padYN))
+      leftN: Math.max(0, Math.min(1, leftN - padXN)),
+      rightN: Math.max(0, Math.min(1, rightN + padXN)),
+      topN: Math.max(0, Math.min(1, topN - padYN)),
+      bottomN: Math.max(0, Math.min(1, bottomN + padYN))
     };
 
-    console.log('[RoutesMapScreen] Bounds calculation:', {
-      container: { width: containerWidth, height: containerHeight },
-      image: { width: imageWidth, height: imageHeight },
-      baseOffset: { x: baseOffsetX, y: baseOffsetY },
-      imagePosition: { x: imageX, y: imageY },
-      visible: { left: leftVisible, top: topVisible, right: rightVisible, bottom: bottomVisible },
-      bounds: newBounds
+    console.log('[RoutesMapScreen] Viewport bounds:', {
+      scale: scale.toFixed(2),
+      translate: { x: translateX.toFixed(1), y: translateY.toFixed(1) },
+      image: { w: imageWidth.toFixed(0), h: imageHeight.toFixed(0) },
+      visible: { w: visibleWidth.toFixed(0), h: visibleHeight.toFixed(0) },
+      center: { x: centerX.toFixed(0), y: centerY.toFixed(0) },
+      bounds: {
+        left: newBounds.leftN.toFixed(3),
+        right: newBounds.rightN.toFixed(3),
+        top: newBounds.topN.toFixed(3),
+        bottom: newBounds.bottomN.toFixed(3)
+      }
     });
 
     setViewportBounds(prev => {
       const changed =
-        Math.abs(prev.leftN - newBounds.leftN) > 0.01 ||
-        Math.abs(prev.rightN - newBounds.rightN) > 0.01 ||
-        Math.abs(prev.topN - newBounds.topN) > 0.01 ||
-        Math.abs(prev.bottomN - newBounds.bottomN) > 0.01;
+        Math.abs(prev.leftN - newBounds.leftN) > 0.005 ||
+        Math.abs(prev.rightN - newBounds.rightN) > 0.005 ||
+        Math.abs(prev.topN - newBounds.topN) > 0.005 ||
+        Math.abs(prev.bottomN - newBounds.bottomN) > 0.005;
       return changed ? newBounds : prev;
     });
   }, [mapFrameSize.width, mapFrameSize.height]);
@@ -321,8 +490,10 @@ export default function RoutesMapScreen() {
     <View style={{backgroundColor: '#01467D', width: '100%', height: '100%', aspectRatio: 2560/1600}}>
       <WallMap
         routes={filteredRoutes}
-        onRoutePress={handleRoutePress}
-        selectedRouteId={selectedRoute?.id}
+        onRoutePress={movingRoute ? undefined : handleRoutePress}
+        onRouteLongPress={movingRoute ? undefined : handleRouteLongPress}
+        onMapTap={movingRoute ? handleMapTap : undefined}
+        selectedRouteId={movingRoute?.id || selectedRoute?.id}
         wallWidth={2560}
         wallHeight={1600}
         onTransformChange={handleTransformChange}
@@ -348,8 +519,10 @@ export default function RoutesMapScreen() {
       
       <View style={styles.filterBarContainer}>
         <FiltersBar
-          availableColors={availableColors}
-          availableGrades={availableGrades}
+          routeCount={filteredRoutes.length}
+          visibleCount={visibleRoutes.length}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
         />
       </View>
     </View>
@@ -395,20 +568,21 @@ export default function RoutesMapScreen() {
         {/* FiltersBar positioned below the map */}
         <View style={styles.filterBarContainer}>
           <FiltersBar
-            availableColors={availableColors}
-            availableGrades={availableGrades}
+            routeCount={filteredRoutes.length}
+            visibleCount={visibleRoutes.length}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
           />
         </View>
       </View>
       
       {/* List Section */}
       <View style={styles.listSection}>
-        <View style={styles.listHeader}>
-          <Text style={styles.listTitle}>
-            מסלולים ({visibleRoutes.length})
-          </Text>
-          {isLoading && <Text style={styles.loadingText}>טוען...</Text>}
-        </View>
+        {isLoading && (
+          <View style={styles.listHeader}>
+            <Text style={styles.loadingText}>טוען...</Text>
+          </View>
+        )}
         {renderListView()}
       </View>
     </>
@@ -424,16 +598,18 @@ export default function RoutesMapScreen() {
         {renderEmptyMessage()}
       </View>
 
-      {/* Action Buttons - Only Add Route Button */}
-      <View style={styles.actionButtons}>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.addButton]}
-          onPress={handleAddRoute}
-          testID="fab-add-route"
-        >
-          <Text style={styles.actionButtonText}>+</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Action Buttons - Add Route Button (Admin Only in Edit Mode) */}
+      {adminModeEnabled && (
+        <View style={styles.actionButtons}>
+          <TouchableOpacity
+            style={[styles.actionButton, styles.addButton]}
+            onPress={handleAddRoute}
+            testID="fab-add-route"
+          >
+            <Text style={styles.actionButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Filters Sheet */}
       <FiltersSheet
@@ -451,23 +627,50 @@ export default function RoutesMapScreen() {
         onShare={handleShare}
         onReport={handleReport}
       />
+
+      {/* Admin Edit Modal */}
+      <RouteEditModal
+        visible={showEditModal}
+        route={editingRoute}
+        onClose={handleEditModalClose}
+        onSave={handleEditModalSave}
+        onDelete={handleEditModalDelete}
+        onMoveRoute={handleStartMoveRoute}
+      />
+
+      {/* Moving Route Banner */}
+      {movingRoute && (
+        <View style={styles.movingBanner}>
+          <Text style={styles.movingBannerText}>📍 לחץ על המיקום החדש במפה</Text>
+          <TouchableOpacity onPress={handleCancelMove} style={styles.cancelMoveButton}>
+            <Text style={styles.cancelMoveButtonText}>ביטול</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Admin Mode Banner */}
+      {adminModeEnabled && !movingRoute && (
+        <View style={styles.adminBanner}>
+          <Text style={styles.adminBannerText}>🔧 מצב עריכה פעיל - לחץ ארוך לעריכה | + להוספה</Text>
+        </View>
+      )}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.background,
   },
   contentArea: {
     flex: 1,
   },
   mapSectionContainer: {
     paddingHorizontal: 12,
-    paddingTop: 8,
+    paddingTop: 12,
     paddingBottom: 0,
-    backgroundColor: '#f8f8f8',
+    backgroundColor: theme.background,
     display: 'flex',
     flexDirection: 'column',
   },
@@ -476,14 +679,14 @@ const styles = StyleSheet.create({
     width: '100%', // Take full width
     height: undefined, // Height will be calculated based on aspect ratio
     position: 'relative',
-    borderWidth: 3,
-    borderColor: '#3b82f6',
-    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: theme.border,
+    borderRadius: 20,
     backgroundColor: '#01467D', // Match exact wall map background color
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
     elevation: 8,
     overflow: 'hidden', // Important for iOS
     marginBottom: 12,    // Space between map and filter bar
@@ -493,7 +696,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     // Ensure clipping works on both iOS and Android
     overflow: 'hidden',
-    borderRadius: 21,    // Account for the border width (24-3)
+    borderRadius: 18,    // Account for the border width (20-2)
     backgroundColor: '#01467D', // Exact match for the wall map color
     width: '100%',
     height: '100%',
@@ -502,18 +705,16 @@ const styles = StyleSheet.create({
   filterBarContainer: {
     marginHorizontal: 4,
     marginBottom: 8,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-    borderWidth: 0.5,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-    shadowColor: '#000',
+    borderRadius: 14,
+    backgroundColor: theme.surface,
+    borderWidth: 1,
+    borderColor: theme.border,
+    overflow: 'hidden',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-    zIndex: 5,
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 2,
   },
   mapSection: {
     flex: 3,
@@ -526,11 +727,11 @@ const styles = StyleSheet.create({
     bottom: 12,
     zIndex: 10,
     borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    backgroundColor: theme.isDark ? 'rgba(30, 30, 30, 0.96)' : 'rgba(255, 255, 255, 0.96)',
     borderWidth: 0.5,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
+    borderColor: theme.border,
     paddingVertical: 4,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
@@ -538,26 +739,26 @@ const styles = StyleSheet.create({
   },
   listSection: {
     flex: 2,
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopWidth: 0,
+    backgroundColor: theme.background,
   },
   listHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: theme.background,
   },
   listTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.text,
+    letterSpacing: 0.3,
   },
   loadingText: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 13,
+    color: theme.textSecondary,
   },
   actionButtons: {
     position: 'absolute',
@@ -570,24 +771,24 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: theme.isDark ? 'rgba(45, 45, 45, 0.9)' : 'rgba(255, 255, 255, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: theme.border,
   },
   activeViewMode: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   viewModeText: {
     fontSize: 20,
-    color: '#6b7280',
+    color: theme.textSecondary,
   },
   activeViewModeText: {
     color: '#ffffff',
@@ -595,24 +796,24 @@ const styles = StyleSheet.create({
   actionButton: {
     width: 56,
     height: 56,
-    borderRadius: 28,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowColor: theme.success,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
   },
   addButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: theme.success,
   },
   debugButton: {
-    backgroundColor: '#f59e0b',
+    backgroundColor: theme.warning,
   },
   actionButtonText: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '600',
     color: '#ffffff',
   },
   errorContainer: {
@@ -623,12 +824,12 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#dc2626',
+    color: theme.error,
     textAlign: 'center',
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: theme.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -646,10 +847,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: theme.isDark ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 255, 255, 0.9)',
     marginHorizontal: 20,
     borderRadius: 12,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -658,13 +859,71 @@ const styles = StyleSheet.create({
   emptyMessageText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: theme.text,
     textAlign: 'center',
     marginBottom: 4,
   },
   emptyMessageSubtext: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme.textSecondary,
     textAlign: 'center',
+  },
+  adminBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: theme.warning,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    zIndex: 100,
+    shadowColor: theme.warning,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  adminBannerText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+  },
+  movingBanner: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: theme.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    zIndex: 100,
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  movingBannerText: {
+    color: '#ffffff',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
+  },
+  cancelMoveButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+    marginLeft: 12,
+  },
+  cancelMoveButtonText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
 import { RouteDoc, MapTransforms } from '../types/route';
 import { fromNorm } from '@/utils/coordinateUtils';
 import RouteMarker from './RouteMarker';
@@ -9,9 +9,9 @@ interface RouteMarkersLayerProps {
   routes: RouteDoc[];
   imageWidth: number;
   imageHeight: number;
-  scale: Animated.SharedValue<number>;
-  translateX: Animated.SharedValue<number>;
-  translateY: Animated.SharedValue<number>;
+  scale: SharedValue<number>;
+  translateX: SharedValue<number>;
+  translateY: SharedValue<number>;
   onMarkerPress?: (route: RouteDoc) => void;
   selectedRouteId?: string;
 }

@@ -36,11 +36,11 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
     const completed = data.completed || 0;
     const total = data.total || 0;
 
-    // Convert percentage to color (green = high, red = low)
+    // Convert percentage to color (green = high, orange = medium, red = low)
     const getProgressColor = (pct: number) => {
-      if (pct >= 80) return "#27ae60";
-      if (pct >= 60) return "#f39c12";
-      return "#e74c3c";
+      if (pct >= 80) return theme.success;
+      if (pct >= 60) return theme.warning;
+      return theme.error;
     };
 
     return (
@@ -85,8 +85,8 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
         value={privacySettings[key]}
         onValueChange={(value) => onPrivacyChange(key, value)}
         style={styles.privacySwitch}
-        trackColor={{ false: "#767577", true: "#667eea" }}
-        thumbColor={privacySettings[key] ? "#fff" : "#f4f3f4"}
+        trackColor={{ false: theme.border, true: theme.primary }}
+        thumbColor={privacySettings[key] ? "#fff" : theme.card}
       />
     </View>
   );

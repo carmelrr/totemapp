@@ -64,7 +64,7 @@ const defaultFilters: RouteFilters = {
   sectors: [],
   personalStatus: [],
   tags: [],
-  showOnlyVisibleOnMap: false, // Changed to false to avoid filtering issues
+  showOnlyVisibleOnMap: true, // Default to true for map-list synchronization
 };
 
 const defaultSorting: RouteSorting = {
@@ -72,10 +72,10 @@ const defaultSorting: RouteSorting = {
   sortOrder: 'asc',
 };
 
-// דרגות טיפוס מסודרות (V-Scale)
+// דרגות טיפוס מסודרות (V-Scale) - עד V18
 const GRADE_ORDER = [
   'VB', 'V0', 'V0+', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10',
-  'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17',
+  'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18',
 ];
 
 function compareGrades(gradeA: string, gradeB: string): number {
@@ -96,6 +96,7 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
   searchQuery: '',
 
   setFilter: (key, value) => {
+    console.log('[FiltersStore] setFilter:', key, value);
     set((state) => ({
       filters: {
         ...state.filters,
@@ -173,13 +174,24 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
 
     // סינון לפי צבעים
     if (filters.colors.length > 0) {
+      console.log('[FiltersStore] Filtering by colors:', {
+        filterColors: filters.colors,
+        routeColors: routes.slice(0, 5).map(r => r.color),
+      });
+      const beforeCount = filteredRoutes.length;
       filteredRoutes = filteredRoutes.filter(route => 
         filters.colors.includes(route.color)
       );
+      console.log('[FiltersStore] After colors filter:', filteredRoutes.length, '(was', beforeCount, ')');
     }
 
     // סינון לפי דרגות
     if (filters.gradeRange.min || filters.gradeRange.max) {
+      console.log('[FiltersStore] Filtering by grades:', {
+        gradeRange: filters.gradeRange,
+        routeGrades: routes.slice(0, 5).map(r => r.grade),
+      });
+      const beforeCount = filteredRoutes.length;
       filteredRoutes = filteredRoutes.filter(route => {
         const routeGradeIndex = GRADE_ORDER.indexOf(route.grade);
         const minIndex = filters.gradeRange.min ? GRADE_ORDER.indexOf(filters.gradeRange.min) : 0;
@@ -187,6 +199,7 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
         
         return routeGradeIndex >= minIndex && routeGradeIndex <= maxIndex;
       });
+      console.log('[FiltersStore] After grades filter:', filteredRoutes.length, '(was', beforeCount, ')');
     }
 
     // סינון לפי תגיות

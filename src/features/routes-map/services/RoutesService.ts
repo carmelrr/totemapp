@@ -34,12 +34,17 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       xNorm: route.xNorm,
       yNorm: route.yNorm,
       createdAt: route.createdAt || Timestamp.now(),
-      status: route.status,
-      rating: route.rating,
-      tops: route.tops,
-      comments: route.comments,
-      setter: route.setter,
+      status: route.status || 'active',
+      rating: route.rating || 0,
+      tops: route.tops || 0,
+      comments: route.comments || 0,
       tags: route.tags || [],
+      setter: route.setter || '', // Empty string instead of undefined
+      // Community feedback stats
+      averageStarRating: route.averageStarRating || 0,
+      calculatedGrade: route.calculatedGrade || null,
+      feedbackCount: route.feedbackCount || 0,
+      completionCount: route.completionCount || 0,
     };
   },
   fromFirestore(snapshot: QueryDocumentSnapshot, options): RouteDoc {
@@ -113,6 +118,11 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       comments: data.comments || 0,
       setter: data.setter,
       tags: data.tags || [],
+      // Community feedback stats
+      averageStarRating: data.averageStarRating || 0,
+      calculatedGrade: data.calculatedGrade || null,
+      feedbackCount: data.feedbackCount || 0,
+      completionCount: data.completionCount || 0,
     };
 
     console.log(`✅ Route ${snapshot.id} processed:`, {
@@ -195,9 +205,10 @@ export class RoutesService {
     tags?: string[];
   }): Promise<string> {
     try {
-      const routesRef = collection(db, this.COLLECTION_NAME).withConverter(routeConverter);
+      const routesRef = collection(db, this.COLLECTION_NAME);
 
-      const newRoute: Omit<RouteDoc, 'id'> = {
+      // Build route data - use empty string instead of undefined for optional fields
+      const newRoute = {
         name: routeData.name,
         grade: routeData.grade,
         color: routeData.color,
@@ -209,12 +220,10 @@ export class RoutesService {
         tops: 0,
         comments: 0,
         tags: routeData.tags || [],
+        setter: routeData.setter?.trim() || '', // Empty string instead of undefined
       };
 
-      // הוסף setter רק אם הוא לא undefined/empty
-      if (routeData.setter && routeData.setter.trim()) {
-        newRoute.setter = routeData.setter;
-      }
+      console.log('📝 Adding route to Firestore:', JSON.stringify(newRoute, null, 2));
 
       const docRef = await addDoc(routesRef, newRoute);
       return docRef.id;
@@ -231,11 +240,15 @@ export class RoutesService {
     id: string,
     updates: Partial<Omit<RouteDoc, 'id' | 'createdAt'>>
   ): Promise<void> {
+    console.log('[RoutesService] updateRoute called with id:', id);
+    console.log('[RoutesService] updates:', JSON.stringify(updates));
     try {
       const routeRef = doc(db, this.COLLECTION_NAME, id);
+      console.log('[RoutesService] Got doc reference, calling updateDoc...');
       await updateDoc(routeRef, updates);
+      console.log('[RoutesService] updateDoc completed successfully');
     } catch (error) {
-      console.error('Error updating route:', error);
+      console.error('[RoutesService] Error updating route:', error);
       throw error;
     }
   }

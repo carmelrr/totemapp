@@ -19,6 +19,8 @@ export interface FeedbackData {
 
 /**
  * Calculate route statistics from feedback array
+ * IMPORTANT: Only feedbacks from users who completed the route (isCompleted=true) 
+ * are counted towards averageStarRating and calculatedGrade
  */
 export const calculateRouteStats = (feedbacks: FeedbackData[]): RouteStats => {
     if (feedbacks.length === 0) {
@@ -31,20 +33,27 @@ export const calculateRouteStats = (feedbacks: FeedbackData[]): RouteStats => {
         };
     }
 
-    const totalRating = feedbacks.reduce((sum, fb) => sum + (fb.starRating || 0), 0);
-    const averageStarRating = totalRating / feedbacks.length;
+    // Filter only completed feedbacks for rating calculations
+    const completedFeedbacks = feedbacks.filter((fb) => fb.isCompleted);
+    const completionCount = completedFeedbacks.length;
     const feedbackCount = feedbacks.length;
-    const completionCount = feedbacks.filter((fb) => fb.isCompleted).length;
 
-    // Calculate grade distribution
+    // Calculate average star rating ONLY from completed feedbacks
+    let averageStarRating = 0;
+    if (completedFeedbacks.length > 0) {
+        const totalRating = completedFeedbacks.reduce((sum, fb) => sum + (fb.starRating || 0), 0);
+        averageStarRating = totalRating / completedFeedbacks.length;
+    }
+
+    // Calculate grade distribution ONLY from completed feedbacks
     const gradeDistribution: Record<string, number> = {};
-    feedbacks.forEach((fb) => {
+    completedFeedbacks.forEach((fb) => {
         if (fb.suggestedGrade) {
             gradeDistribution[fb.suggestedGrade] = (gradeDistribution[fb.suggestedGrade] || 0) + 1;
         }
     });
 
-    // Calculate most suggested grade
+    // Calculate most suggested grade from completed feedbacks
     let calculatedGrade = null;
     if (Object.keys(gradeDistribution).length > 0) {
         const entries = Object.entries(gradeDistribution);

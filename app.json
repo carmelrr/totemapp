@@ -51,9 +51,7 @@
       "androidClientId": "720872675049-ubhok243tvh36cut4ptchnubsckulj04.apps.googleusercontent.com",
       "iosClientId": "720872675049-e0du1dtbe53puak85sr4da6c8i0gjhak.apps.googleusercontent.com"
     },
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.0",
     "updates": {
       "url": "https://u.expo.dev/314d40f3-b56b-4919-9dfe-817d3f8a0540"
     }

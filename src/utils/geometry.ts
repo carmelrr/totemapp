@@ -1,5 +1,5 @@
 // src/utils/geometry.ts
-import { Vec2 } from "@/features/spraywall/types";
+import { Vec2 } from "@/types/geometry";
 
 // מרחק בין שתי נקודות
 export function distance(p1: Vec2, p2: Vec2): number {

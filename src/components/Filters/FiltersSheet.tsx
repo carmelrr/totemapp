@@ -7,30 +7,27 @@ import {
   Modal,
   SafeAreaView,
   ScrollView,
-  TextInput,
-  Switch,
 } from 'react-native';
 import { useFiltersStore } from '@/store/useFiltersStore';
+import { getColorHex } from '@/constants/colors';
 
 interface FiltersSheetProps {
   availableColors?: string[];
   availableGrades?: string[];
-  availableSetters?: string[];
-  availableCircuits?: string[];
-  availableWalls?: string[];
 }
 
+// All possible grades in order (VB to V18)
+const ALL_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18'];
+
 /**
- * Sheet של פילטרים מתקדם בסגנון TopLogger
- * כולל כל אפשרויות הסינון עם UI נקי ומסודר
+ * Sheet של פילטרים - צבעים ודרגות בלבד
  */
 export default function FiltersSheet({
-  availableColors = ['red', 'blue', 'green', 'yellow', 'black', 'white', 'purple', 'orange'],
-  availableGrades = ['V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10'],
-  availableSetters = [],
-  availableCircuits = [],
-  availableWalls = [],
+  availableColors = [],
+  availableGrades = ALL_GRADES,
 }: FiltersSheetProps) {
+  console.log('[FiltersSheet] availableColors:', availableColors);
+  
   const {
     filters,
     setFilter,
@@ -38,8 +35,6 @@ export default function FiltersSheet({
     isFilterSheetOpen,
     setFilterSheetOpen,
     getActiveFiltersCount,
-    searchQuery,
-    setSearchQuery,
   } = useFiltersStore();
 
   const activeFiltersCount = getActiveFiltersCount();
@@ -49,31 +44,87 @@ export default function FiltersSheet({
   };
 
   const handleColorToggle = (color: string) => {
+    console.log('[FiltersSheet] Toggling color:', color, 'current:', filters.colors);
     const newColors = filters.colors.includes(color)
       ? filters.colors.filter(c => c !== color)
       : [...filters.colors, color];
     setFilter('colors', newColors);
   };
 
-  const handleCircuitToggle = (circuit: string) => {
-    const newCircuits = filters.circuits.includes(circuit)
-      ? filters.circuits.filter(c => c !== circuit)
-      : [...filters.circuits, circuit];
-    setFilter('circuits', newCircuits);
+  const handleGradeToggle = (grade: string) => {
+    const { min, max } = filters.gradeRange;
+    
+    // If clicking the same grade that's already selected alone, clear it
+    if (min === grade && max === grade) {
+      setFilter('gradeRange', { min: '', max: '' });
+      return;
+    }
+    
+    // If no selection, start with this grade
+    if (!min && !max) {
+      setFilter('gradeRange', { min: grade, max: grade });
+      return;
+    }
+    
+    // If we have a selection, expand or contract the range
+    const gradeIndex = ALL_GRADES.indexOf(grade);
+    const minIndex = min ? ALL_GRADES.indexOf(min) : -1;
+    const maxIndex = max ? ALL_GRADES.indexOf(max) : -1;
+    
+    if (minIndex === -1 || maxIndex === -1) {
+      // Invalid state, reset to this grade
+      setFilter('gradeRange', { min: grade, max: grade });
+      return;
+    }
+    
+    if (gradeIndex < minIndex) {
+      // Expand range down
+      setFilter('gradeRange', { min: grade, max });
+    } else if (gradeIndex > maxIndex) {
+      // Expand range up
+      setFilter('gradeRange', { min, max: grade });
+    } else {
+      // Clicking inside range - set to single grade
+      setFilter('gradeRange', { min: grade, max: grade });
+    }
   };
 
-  const handleStatusToggle = (status: 'active' | 'archived' | 'draft') => {
-    const newStatus = filters.status.includes(status)
-      ? filters.status.filter(s => s !== status)
-      : [...filters.status, status];
-    setFilter('status', newStatus);
+  const isGradeSelected = (grade: string) => {
+    const { min, max } = filters.gradeRange;
+    if (!min && !max) return false;
+    
+    const gradeIndex = ALL_GRADES.indexOf(grade);
+    const minIndex = min ? ALL_GRADES.indexOf(min) : 0;
+    const maxIndex = max ? ALL_GRADES.indexOf(max) : ALL_GRADES.length - 1;
+    
+    return gradeIndex >= minIndex && gradeIndex <= maxIndex;
   };
 
-  const handleWallToggle = (wall: string) => {
-    const newWalls = filters.walls.includes(wall)
-      ? filters.walls.filter(w => w !== wall)
-      : [...filters.walls, wall];
-    setFilter('walls', newWalls);
+  // Get display color - handle both hex and named colors
+  const getDisplayColor = (color: string): string => {
+    // If it's already a hex color, return it
+    if (color?.startsWith('#')) {
+      return color;
+    }
+    // Otherwise try to get hex from name
+    return getColorHex(color) || '#808080';
+  };
+
+  // Get color name for display (if hex, try reverse lookup)
+  const getColorName = (color: string): string => {
+    if (!color?.startsWith('#')) {
+      return color;
+    }
+    // For hex colors, just show the color visually without text
+    return '';
+  };
+
+  // Get selected grades text for display
+  const getSelectedGradesText = () => {
+    const { min, max } = filters.gradeRange;
+    if (!min && !max) return 'הכל';
+    if (min === max) return min;
+    return `${min} - ${max}`;
   };
 
   return (
@@ -104,126 +155,67 @@ export default function FiltersSheet({
         </View>
 
         <ScrollView style={styles.content}>
-          {/* חיפוש */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>חיפוש</Text>
-            <TextInput
-              style={styles.searchInput}
-              placeholder="חפש לפי שם, תיאור או תגיות..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-            />
-          </View>
-
-          {/* צבעים */}
+          {/* Colors Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>צבעים</Text>
-            <View style={styles.colorsGrid}>
-              {availableColors.map((color) => (
-                <TouchableOpacity
-                  key={color}
-                  style={[
-                    styles.colorChip,
-                    { borderColor: color },
-                    filters.colors.includes(color) && { backgroundColor: color + '30' },
-                  ]}
-                  onPress={() => handleColorToggle(color)}
-                >
-                  <View
-                    style={[styles.colorIndicator, { backgroundColor: color }]}
-                  />
-                  {filters.colors.includes(color) && (
-                    <Text style={styles.colorCheckmark}>✓</Text>
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
+            {availableColors.length > 0 ? (
+              <View style={styles.colorsGrid}>
+                {availableColors.map((color) => {
+                  const displayColor = getDisplayColor(color);
+                  const isSelected = filters.colors.includes(color);
+                  return (
+                    <TouchableOpacity
+                      key={color}
+                      style={[
+                        styles.colorChip,
+                        { borderColor: displayColor },
+                        isSelected && styles.colorChipSelected,
+                      ]}
+                      onPress={() => handleColorToggle(color)}
+                    >
+                      <View
+                        style={[styles.colorIndicator, { backgroundColor: displayColor }]}
+                      />
+                      {isSelected && (
+                        <Text style={styles.colorCheckmark}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            ) : (
+              <Text style={styles.emptyText}>אין צבעים זמינים</Text>
+            )}
           </View>
 
-          {/* דרגות קושי */}
+          {/* Grades Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>טווח דרגות</Text>
-            <View style={styles.gradeRangeContainer}>
-              <TextInput
-                style={styles.gradeInput}
-                placeholder="מ-"
-                value={filters.gradeRange.min}
-                onChangeText={(text) => setFilter('gradeRange', { ...filters.gradeRange, min: text })}
-              />
-              <Text style={styles.gradeRangeSeparator}>עד</Text>
-              <TextInput
-                style={styles.gradeInput}
-                placeholder="עד"
-                value={filters.gradeRange.max}
-                onChangeText={(text) => setFilter('gradeRange', { ...filters.gradeRange, max: text })}
-              />
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>דרגת קושי</Text>
+              <Text style={styles.selectedText}>{getSelectedGradesText()}</Text>
             </View>
-          </View>
-
-          {/* סטטוס */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>סטטוס</Text>
-            <View style={styles.statusOptions}>
-              {[
-                { key: 'active' as const, label: 'מסלולים פעילים' },
-                { key: 'archived' as const, label: 'מסלולים בארכיון' },
-                { key: 'draft' as const, label: 'טיוטות' },
-              ].map(({ key, label }) => (
-                <TouchableOpacity
-                  key={key}
-                  style={styles.statusOption}
-                  onPress={() => handleStatusToggle(key)}
-                >
-                  <View style={[
-                    styles.checkbox,
-                    filters.status.includes(key) && styles.checkedBox,
-                  ]}>
-                    {filters.status.includes(key) && (
-                      <Text style={styles.checkmark}>✓</Text>
-                    )}
-                  </View>
-                  <Text style={styles.statusLabel}>{label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* קירות */}
-          {availableWalls.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>קירות</Text>
-              <View style={styles.wallsGrid}>
-                {availableWalls.map((wall) => (
+            <Text style={styles.sectionHint}>לחץ על דרגה לבחירה, או על שתיים לטווח</Text>
+            <View style={styles.gradesGrid}>
+              {ALL_GRADES.map((grade) => {
+                const isSelected = isGradeSelected(grade);
+                return (
                   <TouchableOpacity
-                    key={wall}
+                    key={grade}
                     style={[
-                      styles.wallChip,
-                      filters.walls.includes(wall) && styles.selectedChip,
+                      styles.gradeChip,
+                      isSelected && styles.gradeChipSelected,
                     ]}
-                    onPress={() => handleWallToggle(wall)}
+                    onPress={() => handleGradeToggle(grade)}
                   >
                     <Text style={[
-                      styles.wallText,
-                      filters.walls.includes(wall) && styles.selectedChipText,
+                      styles.gradeText,
+                      isSelected && styles.gradeTextSelected,
                     ]}>
-                      {wall}
+                      {grade}
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-
-          {/* אפשרויות תצוגה */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>תצוגה</Text>
-            
-            <View style={styles.switchOption}>
-              <Text style={styles.switchLabel}>הצג רק מסלולים הנראים במפה</Text>
-              <Switch
-                value={filters.showOnlyVisibleOnMap}
-                onValueChange={(value) => setFilter('showOnlyVisibleOnMap', value)}
-              />
+                );
+              })}
             </View>
           </View>
         </ScrollView>
@@ -233,9 +225,11 @@ export default function FiltersSheet({
           {activeFiltersCount > 0 && (
             <TouchableOpacity
               style={styles.resetButton}
-              onPress={resetFilters}
+              onPress={() => {
+                resetFilters();
+              }}
             >
-              <Text style={styles.resetButtonText}>נקה הכל ({activeFiltersCount})</Text>
+              <Text style={styles.resetButtonText}>נקה סינון ({activeFiltersCount})</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -254,7 +248,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
@@ -274,30 +268,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#3b82f6',
+    textAlign: 'right',
   },
   content: {
     flex: 1,
   },
   section: {
     paddingHorizontal: 16,
-    paddingVertical: 16,
+    paddingVertical: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#f3f4f6',
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
     color: '#111827',
+  },
+  selectedText: {
+    fontSize: 14,
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  sectionHint: {
+    fontSize: 13,
+    color: '#9ca3af',
     marginBottom: 12,
   },
-  searchInput: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    backgroundColor: '#f9fafb',
+  emptyText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    paddingVertical: 20,
   },
   colorsGrid: {
     flexDirection: 'row',
@@ -308,160 +315,66 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    borderWidth: 2,
+    borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#ffffff',
   },
+  colorChipSelected: {
+    borderWidth: 4,
+    transform: [{ scale: 1.1 }],
+  },
   colorIndicator: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: '#ffffff',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
   },
   colorCheckmark: {
     position: 'absolute',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#ffffff',
-    textShadowColor: '#000000',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
     textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    textShadowRadius: 3,
   },
   gradesGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
   },
-  gradeRangeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  gradeInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 16,
-    backgroundColor: '#f9fafb',
-    textAlign: 'center',
-  },
-  gradeRangeSeparator: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
   gradeChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+    minWidth: 55,
+    alignItems: 'center',
   },
-  wallsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  wallChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
-  },
-  wallText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  selectedChip: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+  gradeChipSelected: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
   },
   gradeText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#4b5563',
   },
-  selectedChipText: {
+  gradeTextSelected: {
     color: '#ffffff',
-  },
-  statusOptions: {
-    gap: 12,
-  },
-  statusOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
-    borderWidth: 2,
-    borderColor: '#d1d5db',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#ffffff',
-  },
-  checkedBox: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
-  },
-  checkmark: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#ffffff',
-  },
-  statusLabel: {
-    fontSize: 16,
-    color: '#374151',
-  },
-  settersGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  setterChip: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    backgroundColor: '#ffffff',
-  },
-  setterText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
-  },
-  switchOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-  },
-  switchLabel: {
-    fontSize: 16,
-    color: '#374151',
-    flex: 1,
   },
   footer: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderTopWidth: 1,
     borderTopColor: '#e5e7eb',
   },
   resetButton: {
     backgroundColor: '#ef4444',
-    paddingVertical: 12,
-    borderRadius: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
     alignItems: 'center',
   },
   resetButtonText: {

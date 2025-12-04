@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { View, ScrollView, Text, ActivityIndicator } from "react-native";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useAdmin } from "@/context/AdminContext";
 import {
   createStyles,
   useProfileBasics,
@@ -18,6 +19,7 @@ import { UnifiedStatsDashboard as StatsDashboard, UnifiedGradeStatsModal as Grad
 const ProfileScreen: React.FC = () => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const styles = createStyles(theme);
+  const { isAdmin, adminModeEnabled, toggleAdminMode } = useAdmin();
 
   // Local state for modals
   const [statsModalVisible, setStatsModalVisible] = useState(false);
@@ -131,7 +133,9 @@ const ProfileScreen: React.FC = () => {
         isDarkMode={isDarkMode}
         onLogout={profileData.handleLogout}
         onAdminPanel={() => { }} // Placeholder - need to implement
-        isAdmin={profileData.isAdmin}
+        isAdmin={isAdmin}
+        adminModeEnabled={adminModeEnabled}
+        onAdminModeToggle={toggleAdminMode}
       />
     </View>
   );
