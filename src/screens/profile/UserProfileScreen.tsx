@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -39,6 +39,9 @@ export default function UserProfileScreen({ route, navigation }) {
   const { userId, autoEdit = false } = route.params;
   const currentUserId = auth.currentUser?.uid;
   const { theme } = useTheme();
+  
+  // Create dynamic styles based on theme
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   const [userProfile, setUserProfile] = useState(null);
   const [userStats, setUserStats] = useState({
@@ -357,10 +360,11 @@ export default function UserProfileScreen({ route, navigation }) {
   );
 }
 
-const styles = StyleSheet.create({
+// Dynamic styles based on theme
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.background,
   },
   scrollContent: {
     flexGrow: 1,
@@ -373,45 +377,45 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.background,
   },
   loadingText: {
     marginTop: 10,
     fontSize: 16,
-    color: "#7f8c8d",
+    color: theme.textSecondary,
   },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.background,
   },
   errorText: {
     fontSize: 18,
-    color: "#e74c3c",
+    color: theme.error,
     marginBottom: 20,
   },
   backButton: {
-    backgroundColor: "#8e44ad",
+    backgroundColor: theme.secondary,
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   backButtonText: {
     color: "#fff",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
   },
   profileHeader: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
+    backgroundColor: theme.surface,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5,
   },
   avatarContainer: {
     alignItems: "center",
@@ -421,9 +425,9 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: "#eee",
+    backgroundColor: theme.border,
     borderWidth: 4,
-    borderColor: "#8e44ad",
+    borderColor: theme.secondary,
   },
   profileInfo: {
     alignItems: "center",
@@ -431,7 +435,7 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 24,
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: theme.text,
     marginBottom: 8,
     textAlign: "center",
   },
@@ -442,41 +446,41 @@ const styles = StyleSheet.create({
   },
   followStat: {
     fontSize: 16,
-    color: "#7f8c8d",
+    color: theme.textSecondary,
     fontWeight: "500",
   },
   followButton: {
-    backgroundColor: "#8e44ad",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: theme.secondary,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   followButtonText: {
     color: "#fff",
-    fontWeight: "600",
+    fontWeight: "700",
     fontSize: 16,
   },
   unfollowButton: {
-    backgroundColor: "#e74c3c",
+    backgroundColor: theme.error,
   },
   unfollowButtonText: {
     color: "#fff",
   },
   statsContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
+    backgroundColor: theme.surface,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5,
   },
   statsTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: theme.text,
     flex: 1,
   },
   statsHeader: {
@@ -486,18 +490,18 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   editButton: {
-    backgroundColor: "#e8f4f8",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
+    backgroundColor: theme.isDark ? "rgba(102, 126, 234, 0.2)" : "#e8f4f8",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#8e44ad",
+    borderColor: theme.secondary,
   },
   editButtonActive: {
-    backgroundColor: "#8e44ad",
+    backgroundColor: theme.secondary,
   },
   editButtonText: {
-    color: "#8e44ad",
+    color: theme.secondary,
     fontSize: 12,
     fontWeight: "600",
   },
@@ -505,16 +509,16 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   autoEditNotification: {
-    backgroundColor: "#e8f5e8",
-    padding: 10,
-    borderRadius: 8,
+    backgroundColor: theme.isDark ? "rgba(76, 175, 80, 0.15)" : "#e8f5e8",
+    padding: 12,
+    borderRadius: 12,
     marginBottom: 15,
-    borderLeftWidth: 3,
-    borderLeftColor: "#27ae60",
+    borderLeftWidth: 4,
+    borderLeftColor: theme.success,
   },
   autoEditText: {
     fontSize: 13,
-    color: "#27ae60",
+    color: theme.success,
     fontWeight: "500",
     textAlign: "center",
   },
@@ -524,21 +528,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   statCard: {
-    backgroundColor: "#f8f9fa",
-    borderRadius: 12,
+    backgroundColor: theme.card,
+    borderRadius: 16,
     padding: 16,
     marginBottom: 12,
     width: (screenWidth - 60) / 2,
     borderLeftWidth: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
   hiddenStatCard: {
-    backgroundColor: "#f0f0f0",
-    opacity: 0.7,
+    backgroundColor: theme.card,
+    opacity: 0.6,
   },
   statContent: {
     flexDirection: "row",
@@ -554,16 +558,16 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: theme.text,
   },
   statTitle: {
     fontSize: 12,
-    color: "#7f8c8d",
+    color: theme.textSecondary,
     marginTop: 2,
   },
   statArrow: {
     fontSize: 20,
-    color: "#8e44ad",
+    color: theme.secondary,
     fontWeight: "bold",
     marginLeft: 8,
   },
@@ -574,20 +578,20 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
+    borderTopColor: theme.border,
   },
   privacyToggleLabel: {
     fontSize: 11,
-    color: "#7f8c8d",
+    color: theme.textSecondary,
     fontWeight: "500",
   },
   privacySwitch: {
     transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
   },
   joinDateContainer: {
-    backgroundColor: "#e8f4f8",
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: theme.isDark ? "rgba(102, 126, 234, 0.15)" : "#e8f4f8",
+    padding: 14,
+    borderRadius: 12,
     marginTop: 10,
   },
   joinDateContent: {
@@ -597,7 +601,7 @@ const styles = StyleSheet.create({
   },
   joinDateText: {
     fontSize: 14,
-    color: "#2c3e50",
+    color: theme.text,
     fontWeight: "500",
     flex: 1,
   },
@@ -607,14 +611,14 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     flex: 1,
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.background,
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 20,
-    backgroundColor: "#8e44ad",
+    backgroundColor: theme.secondary,
     paddingTop: 50,
   },
   modalTitle: {
@@ -624,9 +628,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   modalCloseButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: "rgba(255,255,255,0.2)",
     justifyContent: "center",
     alignItems: "center",
@@ -641,33 +645,33 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   overallStatsContainer: {
-    backgroundColor: "#fff",
-    padding: 15,
+    backgroundColor: theme.surface,
+    padding: 18,
     marginHorizontal: 20,
     marginTop: 10,
-    borderRadius: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
+    borderRadius: 14,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   overallStatsText: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: theme.text,
     textAlign: "center",
   },
   gradeStatRow: {
-    backgroundColor: "#fff",
-    padding: 15,
+    backgroundColor: theme.surface,
+    padding: 16,
     marginBottom: 10,
-    borderRadius: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 1,
+    borderRadius: 14,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
   gradeStatHeader: {
     flexDirection: "row",
@@ -678,27 +682,27 @@ const styles = StyleSheet.create({
   gradeLabel: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#2c3e50",
+    color: theme.text,
   },
   gradePercentage: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#8e44ad",
+    color: theme.secondary,
   },
   progressBarContainer: {
-    height: 8,
-    backgroundColor: "#ecf0f1",
-    borderRadius: 4,
+    height: 10,
+    backgroundColor: theme.card,
+    borderRadius: 5,
     marginBottom: 8,
     overflow: "hidden",
   },
   progressBar: {
     height: "100%",
-    borderRadius: 4,
+    borderRadius: 5,
   },
   gradeStatDetails: {
     fontSize: 12,
-    color: "#7f8c8d",
+    color: theme.textSecondary,
     textAlign: "center",
   },
 });

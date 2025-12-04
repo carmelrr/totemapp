@@ -2,10 +2,8 @@ import React, { useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
 import Animated, { runOnJS } from 'react-native-reanimated';
 import { 
-  PanGestureHandler, 
-  PinchGestureHandler, 
-  TapGestureHandler,
-  LongPressGestureHandler 
+  GestureDetector,
+  Gesture,
 } from 'react-native-gesture-handler';
 import { useFocusEffect } from '@react-navigation/native';
 import { useMapTransforms } from '@/hooks/useMapTransforms';
@@ -18,7 +16,9 @@ interface WallMapProps {
   wallWidth: number;
   wallHeight: number;
   onRoutePress?: (route: RouteDoc) => void;
+  onRouteLongPress?: (route: RouteDoc) => void;
   onLongPress?: (coordinates: { xImg: number; yImg: number }) => void;
+  onMapTap?: (coordinates: { xImg: number; yImg: number }) => void; // For placing routes
   selectedRouteId?: string;
   children?: React.ReactNode;
   gesturesEnabled?: boolean;
@@ -35,7 +35,9 @@ export default function WallMap({
   wallWidth,
   wallHeight,
   onRoutePress,
+  onRouteLongPress,
   onLongPress,
+  onMapTap,
   selectedRouteId,
   children,
   gesturesEnabled = true,
@@ -73,6 +75,13 @@ export default function WallMap({
     onTransformChange,
   });
 
+  console.log('[WallMap] Render state:', {
+    containerDimensions,
+    imageDimensions,
+    effectiveGesturesEnabled,
+    hasTransforms: !!transforms,
+  });
+
   // חישוב מידות התמונה בהתאם לאספקט רטיו של הקיר
   const wallAspectRatio = wallHeight / wallWidth;
   
@@ -98,34 +107,137 @@ export default function WallMap({
 
   // המרת קואורדינטות מסך לקואורדינטות תמונה
   const screenToImage = useCallback((screenX: number, screenY: number) => {
-    // הפונקציה הזו לא צריכה לקרוא את הערכים בזמן הרנדור
-    // זה ישמש בפונקציות callback בלבד
-    return { xImg: 0, yImg: 0 }; // placeholder
-  }, []);
-
-  // טיפול בלחיצה ארוכה להוספת מסלול
-  const handleLongPress = useCallback((event: any) => {
-    if (onLongPress && effectiveGesturesEnabled) {
-      const { x, y } = event.nativeEvent;
-      
-      // פונקציה שתקרא מתוך worklet context
-      const processLongPress = (screenX: number, screenY: number) => {
-        // כבה מחוות לפני הניווט
-        setInternalGesturesEnabled(false);
-        onGestureStateChange?.(false);
-        
-        // עבור עכשיו נשתמש בקואורדינטות מסך פשוטות
-        // TODO: צריך לתקן את החישוב כשמשתמשים באמת בפונקציה
-        onLongPress({ xImg: screenX, yImg: screenY });
-      };
-      
-      processLongPress(x, y);
+    if (!transforms) {
+      return { xImg: screenX, yImg: screenY };
     }
-  }, [onLongPress, effectiveGesturesEnabled, onGestureStateChange]);
+    
+    // Convert screen coordinates to image coordinates
+    // Need to account for current transform state
+    const scale = transforms.scale.value;
+    const translateX = transforms.translateX.value;
+    const translateY = transforms.translateY.value;
+    
+    // Calculate image coordinates considering the current pan and zoom
+    const xImg = (screenX - translateX) / scale;
+    const yImg = (screenY - translateY) / scale;
+    
+    return { xImg, yImg };
+  }, [transforms]);
 
-  // מערכים מקוצרים לגסטורות (למניעת re-creation)
-  const panRefs = useMemo(() => [transforms.pinchRef], [transforms.pinchRef]);
-  const pinchRefs = useMemo(() => [transforms.panRef], [transforms.panRef]);
+  // Log when onMapTap changes
+  React.useEffect(() => {
+    console.log('[WallMap] onMapTap changed, exists:', !!onMapTap);
+  }, [onMapTap]);
+
+  // Callback wrapper that can be called via runOnJS
+  const handleMapTapCallback = useCallback((screenX: number, screenY: number) => {
+    console.log('[WallMap] handleMapTapCallback called with:', screenX, screenY);
+    console.log('[WallMap] onMapTap exists:', !!onMapTap);
+    
+    if (!onMapTap) return;
+    
+    try {
+      // Validate input coordinates
+      if (typeof screenX !== 'number' || typeof screenY !== 'number' || 
+          isNaN(screenX) || isNaN(screenY)) {
+        console.error('[WallMap] Invalid screen coordinates:', { screenX, screenY });
+        return;
+      }
+      
+      console.log('[WallMap] transforms:', { 
+        scale: transforms.scale.value, 
+        translateX: transforms.translateX.value, 
+        translateY: transforms.translateY.value 
+      });
+      console.log('[WallMap] imageDimensions:', imageDimensions);
+      
+      // Convert screen coordinates to image coordinates
+      // Need to account for current transform state
+      const scale = transforms.scale.value;
+      const translateX = transforms.translateX.value;
+      const translateY = transforms.translateY.value;
+      
+      // Validate transform values
+      if (isNaN(scale) || isNaN(translateX) || isNaN(translateY) || scale === 0) {
+        console.error('[WallMap] Invalid transform values:', { scale, translateX, translateY });
+        return;
+      }
+      
+      // Calculate image coordinates considering the current pan and zoom
+      const imageX = (screenX - translateX) / scale;
+      const imageY = (screenY - translateY) / scale;
+      
+      // Validate calculated coordinates
+      if (isNaN(imageX) || isNaN(imageY)) {
+        console.error('[WallMap] Invalid calculated coordinates:', { imageX, imageY });
+        return;
+      }
+      
+      console.log('[WallMap] Converted to image coordinates:', { imageX, imageY });
+      
+      onMapTap({ xImg: imageX, yImg: imageY });
+      console.log('[WallMap] onMapTap completed successfully');
+    } catch (error) {
+      console.error('[WallMap] Error in onMapTap:', error);
+    }
+  }, [onMapTap, transforms, imageDimensions]);
+
+  // Tap gesture for placing routes (used in move mode)
+  // We recreate this gesture when onMapTap changes
+  const mapTapGesture = useMemo(() => {
+    return Gesture.Tap()
+      .enabled(!!onMapTap)
+      .maxDuration(300) // Shorter duration for more responsive taps
+      .maxDistance(10) // Smaller distance for more precise taps
+      .onEnd((event) => {
+        'worklet';
+        try {
+          runOnJS(handleMapTapCallback)(event.x, event.y);
+        } catch (error) {
+          console.error('[WallMap] Error in tap gesture:', error);
+        }
+      });
+  }, [onMapTap, handleMapTapCallback]);
+
+  // Long press gesture using new Gesture API
+  // Only for adding new routes on empty space (longer duration than RouteCircle)
+  const longPressGesture = useMemo(() =>
+    Gesture.LongPress()
+      .minDuration(1000) // 1 second - longer than RouteCircle's 400ms
+      .enabled(effectiveGesturesEnabled && !!onLongPress) // Only if onLongPress callback exists
+      .onEnd((event) => {
+        'worklet';
+        if (onLongPress) {
+          const processLongPress = (screenX: number, screenY: number) => {
+            // כבה מחוות לפני הניווט
+            setInternalGesturesEnabled(false);
+            onGestureStateChange?.(false);
+            onLongPress({ xImg: screenX, yImg: screenY });
+          };
+          runOnJS(processLongPress)(event.x, event.y);
+        }
+      }),
+    [effectiveGesturesEnabled, onLongPress, onGestureStateChange]
+  );
+
+  // Compose gestures - if onMapTap exists, use tap gesture with higher priority
+  const composedGesture = useMemo(() => {
+    // If in move mode (onMapTap exists), disable pan/pinch and only allow tap
+    if (onMapTap) {
+      return Gesture.Exclusive(
+        mapTapGesture,
+        Gesture.Simultaneous(transforms.panGesture, transforms.pinchGesture)
+      );
+    }
+    
+    return Gesture.Race(
+      longPressGesture,
+      Gesture.Race(
+        transforms.doubleTapGesture,
+        Gesture.Simultaneous(transforms.panGesture, transforms.pinchGesture)
+      )
+    );
+  }, [onMapTap, mapTapGesture, longPressGesture, transforms.doubleTapGesture, transforms.panGesture, transforms.pinchGesture]);
 
   const isReady = containerDimensions.width > 0 && imageDimensions.imgW > 0;
 
@@ -139,72 +251,40 @@ export default function WallMap({
 
   return (
     <View style={styles.container} onLayout={handleLayout}>
-      <LongPressGestureHandler
-        enabled={effectiveGesturesEnabled}
-        onGestureEvent={handleLongPress}
-        minDurationMs={800}
-      >
-        <Animated.View style={styles.gestureContainer} pointerEvents="box-none">
-          <PanGestureHandler
-            ref={transforms.panRef}
-            enabled={effectiveGesturesEnabled}
-            onGestureEvent={transforms.panGestureHandler}
-            simultaneousHandlers={panRefs}
-            waitFor={panRefs}
-            minPointers={1}
-            maxPointers={1}
-          >
-            <Animated.View style={styles.gestureContainer} pointerEvents="box-none">
-              <PinchGestureHandler
-                ref={transforms.pinchRef}
-                enabled={effectiveGesturesEnabled}
-                onGestureEvent={transforms.pinchGestureHandler}
-                simultaneousHandlers={pinchRefs}
-              >
-                <Animated.View style={styles.gestureContainer} pointerEvents="box-none">
-                  <TapGestureHandler
-                    ref={transforms.doubleTapRef}
-                    enabled={effectiveGesturesEnabled}
-                    onGestureEvent={transforms.doubleTapGestureHandler}
-                    numberOfTaps={2}
-                  >
-                    <Animated.View style={styles.gestureContainer} pointerEvents="box-none">
-                      <Animated.View style={[styles.mapContainer, transforms.mapContainerStyle]}>
-                        {/* תמונת הקיר */}
-                        <WallMapSVG
-                          width={imageDimensions.imgW}
-                          height={imageDimensions.imgH}
-                          preserveAspectRatio="xMidYMid meet"
-                        />
-                        
-                        {/* שכבת המסלולים */}
-                        <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
-                          {routes.map((route) => (
-                            <RouteCircle
-                              key={route.id}
-                              route={route}
-                              imageWidth={imageDimensions.imgW}
-                              imageHeight={imageDimensions.imgH}
-                              wallWidth={wallWidth}
-                              wallHeight={wallHeight}
-                              scale={transforms.scale}
-                              onPress={onRoutePress}
-                              selected={selectedRouteId === route.id}
-                            />
-                          ))}
-                        </View>
-                        
-                        {/* תוכן נוסף */}
-                        {children}
-                      </Animated.View>
-                    </Animated.View>
-                  </TapGestureHandler>
-                </Animated.View>
-              </PinchGestureHandler>
-            </Animated.View>
-          </PanGestureHandler>
+      <GestureDetector gesture={composedGesture}>
+        <Animated.View style={styles.gestureContainer} collapsable={false}>
+          <Animated.View style={[styles.mapContainer, transforms.mapContainerStyle]} collapsable={false}>
+            {/* תמונת הקיר */}
+            <WallMapSVG
+              width={imageDimensions.imgW}
+              height={imageDimensions.imgH}
+              preserveAspectRatio="xMidYMid meet"
+            />
+            
+            {/* שכבת המסלולים - pointerEvents="auto" to capture touch events */}
+            <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents={onMapTap ? 'none' : 'box-none'}>
+              {routes.map((route) => (
+                <RouteCircle
+                  key={route.id}
+                  route={route}
+                  imageWidth={imageDimensions.imgW}
+                  imageHeight={imageDimensions.imgH}
+                  wallWidth={wallWidth}
+                  wallHeight={wallHeight}
+                  scale={transforms.scale}
+                  onPress={onRoutePress}
+                  onLongPress={onRouteLongPress}
+                  selected={selectedRouteId === route.id}
+                  gesturesDisabled={!!onMapTap} // Disable route gestures when in move mode
+                />
+              ))}
+            </View>
+            
+            {/* תוכן נוסף */}
+            {children}
+          </Animated.View>
         </Animated.View>
-      </LongPressGestureHandler>
+      </GestureDetector>
     </View>
   );
 }

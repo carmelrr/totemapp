@@ -1,20 +1,12 @@
-import { useRef, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   useSharedValue,
   useAnimatedStyle,
-  useAnimatedGestureHandler,
   withTiming,
   withSpring,
   runOnJS,
 } from 'react-native-reanimated';
-import {
-  PinchGestureHandler,
-  PanGestureHandler,
-  TapGestureHandler,
-  PinchGestureHandlerGestureEvent,
-  PanGestureHandlerGestureEvent,
-  TapGestureHandlerGestureEvent,
-} from 'react-native-gesture-handler';
+import { Gesture } from 'react-native-gesture-handler';
 
 export interface UseMapTransformsConfig {
   screenWidth: number;
@@ -44,6 +36,10 @@ export function useMapTransforms({
   onTransformChange,
 }: UseMapTransformsConfig) {
   
+  console.log('[useMapTransforms] INIT with config:', {
+    screenWidth, screenHeight, imageWidth, imageHeight, minScale, maxScale
+  });
+  
   // ערכים בטוחים למניעת חלוקה באפס
   const safeScreenWidth = Math.max(1, screenWidth || 1);
   const safeScreenHeight = Math.max(1, screenHeight || 1);
@@ -65,16 +61,6 @@ export function useMapTransforms({
   const baseTranslateY = useSharedValue(0);
   const focalX = useSharedValue(0);
   const focalY = useSharedValue(0);
-
-  // Refs לגסטורות
-  const panRef = useRef<PanGestureHandler>(null);
-  const pinchRef = useRef<PinchGestureHandler>(null);
-  const doubleTapRef = useRef<TapGestureHandler>(null);
-
-  // Safe log function for worklets
-  const safeLog = useCallback((message: string, data?: any) => {
-    console.log(message, data);
-  }, []);
 
   // פונקציה לקליפינג והחלת טרנספורם
   const clampAndApply = useCallback((newScale: number, newX: number, newY: number) => {
@@ -124,83 +110,166 @@ export function useMapTransforms({
     }
   }, [onTransformChange]);
 
-  // Pan gesture handler
-  const panGestureHandler = useAnimatedGestureHandler<PanGestureHandlerGestureEvent>({
-    onStart: () => {
-      baseTranslateX.value = translateX.value;
-      baseTranslateY.value = translateY.value;
-    },
-    onActive: (event) => {
-      translateX.value = baseTranslateX.value + event.translationX;
-      translateY.value = baseTranslateY.value + event.translationY;
-      notifyIfChanged(scale.value, translateX.value, translateY.value);
-    },
-    onEnd: () => {
-      clampAndApply(scale.value, translateX.value, translateY.value);
-    },
-  });
+  // Helper to clamp values inline (for use during gestures)
+  const clampTranslation = useCallback((currentScale: number, newX: number, newY: number) => {
+    'worklet';
+    const clampedScale = Math.max(minScale, Math.min(maxScale, currentScale));
+    const scaledImageWidth = safeImageWidth * clampedScale;
+    const scaledImageHeight = safeImageHeight * clampedScale;
+    
+    const maxTranslateX = Math.max(0, (scaledImageWidth - safeScreenWidth) / 2);
+    const maxTranslateY = Math.max(0, (scaledImageHeight - safeScreenHeight) / 2);
+    
+    return {
+      x: Math.max(-maxTranslateX, Math.min(maxTranslateX, newX)),
+      y: Math.max(-maxTranslateY, Math.min(maxTranslateY, newY)),
+    };
+  }, [minScale, maxScale, safeImageWidth, safeImageHeight, safeScreenWidth, safeScreenHeight]);
 
-  // Pinch gesture handler
-  const pinchGestureHandler = useAnimatedGestureHandler<PinchGestureHandlerGestureEvent>({
-    onStart: (event) => {
-      baseScale.value = scale.value;
-      baseTranslateX.value = translateX.value;
-      baseTranslateY.value = translateY.value;
-      focalX.value = event.focalX;
-      focalY.value = event.focalY;
-    },
-    onActive: (event) => {
-      const newScale = baseScale.value * (event.scale ?? 1);
-      
-      // זום סביב נקודת המוקד
-      const scaleDiff = newScale - baseScale.value;
-      const newTranslateX = baseTranslateX.value - (focalX.value - baseTranslateX.value) * (scaleDiff / baseScale.value);
-      const newTranslateY = baseTranslateY.value - (focalY.value - baseTranslateY.value) * (scaleDiff / baseScale.value);
-      
-      scale.value = newScale;
-      translateX.value = newTranslateX;
-      translateY.value = newTranslateY;
-      notifyIfChanged(scale.value, translateX.value, translateY.value);
-    },
-    onEnd: () => {
-      clampAndApply(scale.value, translateX.value, translateY.value);
-    },
-  });
+  // Helper function to log from worklet (disabled for performance)
+  // const logFromWorklet = useCallback((message: string, data: any) => {
+  //   console.log(message, data);
+  // }, []);
 
-  // Double tap gesture handler
-  const doubleTapGestureHandler = useAnimatedGestureHandler<TapGestureHandlerGestureEvent>({
-    onEnd: (event) => {
-      const currentScale = scale.value;
-      const targetScale = currentScale < 2 ? 2 : 1;
-      
-      if (targetScale === 1) {
-        // איפוס מבט
-        scale.value = withSpring(1);
-        translateX.value = withSpring(0);
-        translateY.value = withSpring(0);
-      } else {
-        // זום פנימה סביב נקודת הלחיצה
-        const fx = event.x;
-        const fy = event.y;
-        const scaleDiff = targetScale - currentScale;
+  // Pan gesture using new Gesture API
+  const panGesture = useMemo(() => 
+    Gesture.Pan()
+      .minDistance(5) // Require minimum movement to start
+      .onStart(() => {
+        baseTranslateX.value = translateX.value;
+        baseTranslateY.value = translateY.value;
+      })
+      .onUpdate((event) => {
+        const newX = baseTranslateX.value + event.translationX;
+        const newY = baseTranslateY.value + event.translationY;
+        // Clamp during gesture to prevent going beyond bounds
+        const clamped = clampTranslation(scale.value, newX, newY);
+        translateX.value = clamped.x;
+        translateY.value = clamped.y;
+      })
+      .onEnd((event) => {
+        // Add velocity-based momentum with spring animation
+        const velocityX = event.velocityX * 0.1;
+        const velocityY = event.velocityY * 0.1;
         
-        const newTranslateX = translateX.value - (fx - translateX.value) * (scaleDiff / currentScale);
-        const newTranslateY = translateY.value - (fy - translateY.value) * (scaleDiff / currentScale);
+        const targetX = translateX.value + velocityX;
+        const targetY = translateY.value + velocityY;
+        const clamped = clampTranslation(scale.value, targetX, targetY);
         
-        scale.value = withSpring(targetScale);
-        translateX.value = withSpring(newTranslateX);
-        translateY.value = withSpring(newTranslateY);
-      }
-      
-      if (onTransformChange) {
-        runOnJS(onTransformChange)({
-          scale: scale.value,
-          translateX: translateX.value,
-          translateY: translateY.value,
+        translateX.value = withSpring(clamped.x, {
+          velocity: event.velocityX,
+          damping: 20,
+          stiffness: 200,
         });
-      }
-    },
-  });
+        translateY.value = withSpring(clamped.y, {
+          velocity: event.velocityY,
+          damping: 20,
+          stiffness: 200,
+        });
+      }),
+    [clampTranslation]
+  );
+
+  // Pinch gesture using new Gesture API
+  const pinchGesture = useMemo(() =>
+    Gesture.Pinch()
+      .onStart((event) => {
+        baseScale.value = scale.value;
+        baseTranslateX.value = translateX.value;
+        baseTranslateY.value = translateY.value;
+        focalX.value = event.focalX;
+        focalY.value = event.focalY;
+      })
+      .onUpdate((event) => {
+        // Smooth scale calculation with clamping
+        const rawScale = baseScale.value * (event.scale ?? 1);
+        const newScale = Math.max(minScale, Math.min(maxScale, rawScale));
+        
+        // Calculate zoom around focal point
+        const scaleRatio = newScale / baseScale.value;
+        
+        // Adjust translation to zoom around focal point
+        const newTranslateX = focalX.value - (focalX.value - baseTranslateX.value) * scaleRatio;
+        const newTranslateY = focalY.value - (focalY.value - baseTranslateY.value) * scaleRatio;
+        
+        // Clamp translation during pinch
+        const clamped = clampTranslation(newScale, newTranslateX, newTranslateY);
+        
+        scale.value = newScale;
+        translateX.value = clamped.x;
+        translateY.value = clamped.y;
+      })
+      .onEnd((event) => {
+        // Smooth spring animation to final position
+        const finalScale = Math.max(minScale, Math.min(maxScale, scale.value));
+        const clamped = clampTranslation(finalScale, translateX.value, translateY.value);
+        
+        scale.value = withSpring(finalScale, {
+          damping: 15,
+          stiffness: 150,
+        });
+        translateX.value = withSpring(clamped.x, {
+          damping: 15,
+          stiffness: 150,
+        });
+        translateY.value = withSpring(clamped.y, {
+          damping: 15,
+          stiffness: 150,
+        });
+      }),
+    [clampTranslation, minScale, maxScale]
+  );
+
+  // Double tap gesture using new Gesture API
+  const doubleTapGesture = useMemo(() =>
+    Gesture.Tap()
+      .numberOfTaps(2)
+      .onEnd((event) => {
+        const currentScale = scale.value;
+        const targetScale = currentScale < 2 ? 2 : 1;
+        
+        if (targetScale === 1) {
+          // איפוס מבט
+          scale.value = withSpring(1);
+          translateX.value = withSpring(0);
+          translateY.value = withSpring(0);
+          
+          if (onTransformChange) {
+            runOnJS(onTransformChange)({ scale: 1, translateX: 0, translateY: 0 });
+          }
+        } else {
+          // זום פנימה סביב נקודת הלחיצה
+          const fx = event.x;
+          const fy = event.y;
+          const scaleDiff = targetScale - currentScale;
+          
+          const newTranslateX = translateX.value - (fx - translateX.value) * (scaleDiff / currentScale);
+          const newTranslateY = translateY.value - (fy - translateY.value) * (scaleDiff / currentScale);
+          
+          scale.value = withSpring(targetScale);
+          translateX.value = withSpring(newTranslateX);
+          translateY.value = withSpring(newTranslateY);
+          
+          if (onTransformChange) {
+            runOnJS(onTransformChange)({
+              scale: targetScale,
+              translateX: newTranslateX,
+              translateY: newTranslateY,
+            });
+          }
+        }
+      }),
+    [onTransformChange]
+  );
+
+  // Compose all gestures - pan and pinch work simultaneously, double tap is separate
+  const composedGesture = useMemo(() => 
+    Gesture.Race(
+      doubleTapGesture,
+      Gesture.Simultaneous(panGesture, pinchGesture)
+    ),
+    [panGesture, pinchGesture, doubleTapGesture]
+  );
 
   // סטייל אנימטיבי לקונטיינר המפה
   const mapContainerStyle = useAnimatedStyle(() => {
@@ -255,15 +324,11 @@ export function useMapTransforms({
     translateX,
     translateY,
     
-    // Gesture handlers
-    panGestureHandler,
-    pinchGestureHandler,
-    doubleTapGestureHandler,
-    
-    // Gesture refs
-    panRef,
-    pinchRef,
-    doubleTapRef,
+    // Gesture handlers (new Gesture API)
+    panGesture,
+    pinchGesture,
+    doubleTapGesture,
+    composedGesture,
     
     // Styles
     mapContainerStyle,
@@ -276,9 +341,10 @@ export function useMapTransforms({
     scale,
     translateX, 
     translateY,
-    panGestureHandler,
-    pinchGestureHandler,
-    doubleTapGestureHandler,
+    panGesture,
+    pinchGesture,
+    doubleTapGesture,
+    composedGesture,
     mapContainerStyle,
     zoomIn,
     zoomOut,

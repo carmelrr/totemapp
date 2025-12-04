@@ -77,67 +77,7 @@ const storage = getStorage(app);
 // Export configured instances
 export { auth, db, storage };
 
-import { Wall } from "@/features/spraywall/types";
 import { Route } from "@/features/routes/types";
-
-// ===== WALL MANAGEMENT =====
-
-export async function saveWall(wall: Wall): Promise<void> {
-  try {
-    await setDoc(doc(db, "walls", wall.id), {
-      ...wall,
-      updatedAt: Date.now(),
-    });
-  } catch (error) {
-    console.error("Error saving wall:", error);
-    throw new Error("Failed to save wall");
-  }
-}
-
-export async function getWall(id: string): Promise<Wall | null> {
-  try {
-    const docRef = doc(db, "walls", id);
-    const docSnap = await getDoc(docRef);
-
-    if (docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() } as Wall;
-    }
-
-    return null;
-  } catch (error) {
-    console.error("Error getting wall:", error);
-    throw new Error("Failed to get wall");
-  }
-}
-
-export async function uploadWallImage(
-  imageUri: string,
-  wallId: string,
-): Promise<string> {
-  try {
-    const response = await fetch(imageUri);
-    const blob = await response.blob();
-
-    const imageRef = ref(storage, `walls/${wallId}/image.jpg`);
-    await uploadBytes(imageRef, blob);
-
-    const downloadUrl = await getDownloadURL(imageRef);
-    return downloadUrl;
-  } catch (error) {
-    console.error("Error uploading wall image:", error);
-    throw new Error("Failed to upload image");
-  }
-}
-
-export async function deleteWallImage(imageUrl: string): Promise<void> {
-  try {
-    const imageRef = ref(storage, imageUrl);
-    await deleteObject(imageRef);
-  } catch (error) {
-    console.error("Error deleting wall image:", error);
-    // לא זורק שגיאה כי זה לא קריטי
-  }
-}
 
 // ===== ROUTE MANAGEMENT =====
 

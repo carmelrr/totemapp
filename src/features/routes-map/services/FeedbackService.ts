@@ -245,11 +245,17 @@ export class FeedbackService {
 
     /**
      * Calculate average star rating from feedbacks
+     * IMPORTANT: Only count ratings from users who completed the route
      */
     static calculateAverageStarRating(feedbacks: any[]): number {
         if (!feedbacks || feedbacks.length === 0) return 0;
 
-        const validRatings = feedbacks
+        // Filter only completed feedbacks
+        const completedFeedbacks = feedbacks.filter(f => f.isCompleted);
+        
+        if (completedFeedbacks.length === 0) return 0;
+
+        const validRatings = completedFeedbacks
             .map(f => f.starRating)
             .filter(rating => typeof rating === 'number' && rating >= 1 && rating <= 5);
 
@@ -261,11 +267,17 @@ export class FeedbackService {
 
     /**
      * Calculate smart average grade from feedbacks
+     * IMPORTANT: Only count grades from users who completed the route
      */
     static calculateSmartAverageGrade(route: any, feedbacks: any[]): string | null {
         if (!feedbacks || feedbacks.length === 0) return null;
 
-        const gradeValues = feedbacks
+        // Filter only completed feedbacks
+        const completedFeedbacks = feedbacks.filter(f => f.isCompleted);
+        
+        if (completedFeedbacks.length === 0) return null;
+
+        const gradeValues = completedFeedbacks
             .map(f => f.suggestedGrade)
             .filter(grade => grade && typeof grade === 'string')
             .map(grade => this.gradeToNumericValue(grade))

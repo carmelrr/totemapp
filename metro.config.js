@@ -1,5 +1,5 @@
 // metro.config.js - תצורה מותאמת ל־Expo עם תמיכה ב־SVG ו־CJS
-const { getDefaultConfig } = require("@expo/metro-config");
+const { getDefaultConfig } = require("expo/metro-config");
 
 const config = getDefaultConfig(__dirname);
 

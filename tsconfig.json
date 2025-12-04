@@ -34,13 +34,11 @@
   ],
   "exclude": [
     "src/components/image/**",
-    "src/components/spray/**",
     "src/components/routes/**",
     "src/components/shared/**",
     "src/components/ui/**",
     "src/components/index.ts",
     "src/screens/admin/**",
-    "src/features/spraywall/**",
     "src/features/social/**",
     "src/hooks/index.ts",
     "src/hooks/MapTransformState.ts"

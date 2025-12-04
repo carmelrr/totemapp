@@ -1,11 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, LayoutChangeEvent, StyleSheet } from 'react-native';
 import Animated from 'react-native-reanimated';
-import {
-  PanGestureHandler,
-  PinchGestureHandler,
-  TapGestureHandler,
-} from 'react-native-gesture-handler';
+import { GestureDetector } from 'react-native-gesture-handler';
 import WallMapSVG from '@/assets/WallMapSVG';
 import { useMapTransforms } from '../hooks/useMapTransforms';
 import { MapTransforms } from '../types/route';
@@ -101,40 +97,18 @@ export default function MapViewport({
 
   return (
     <View style={styles.container} onLayout={handleLayout}>
-      <PanGestureHandler
-        ref={transforms.panRef}
-        onGestureEvent={transforms.panGestureHandler}
-        simultaneousHandlers={[transforms.pinchRef]}
-        minPointers={1}
-        maxPointers={1}
-      >
+      <GestureDetector gesture={transforms.composedGesture}>
         <Animated.View style={styles.gestureContainer}>
-          <PinchGestureHandler
-            ref={transforms.pinchRef}
-            onGestureEvent={transforms.pinchGestureHandler}
-            simultaneousHandlers={[transforms.panRef]}
-          >
-            <Animated.View style={styles.gestureContainer}>
-              <TapGestureHandler
-                ref={transforms.doubleTapRef}
-                onGestureEvent={transforms.doubleTapGestureHandler}
-                numberOfTaps={2}
-              >
-                <Animated.View style={styles.gestureContainer}>
-                  <Animated.View style={[styles.mapContainer, transforms.mapContainerStyle]}>
-                    <WallMapSVG
-                      width={imageDimensions.imgW}
-                      height={imageDimensions.imgH}
-                      preserveAspectRatio="xMidYMid meet"
-                    />
-                    {children}
-                  </Animated.View>
-                </Animated.View>
-              </TapGestureHandler>
-            </Animated.View>
-          </PinchGestureHandler>
+          <Animated.View style={[styles.mapContainer, transforms.mapContainerStyle]}>
+            <WallMapSVG
+              width={imageDimensions.imgW}
+              height={imageDimensions.imgH}
+              preserveAspectRatio="xMidYMid meet"
+            />
+            {children}
+          </Animated.View>
         </Animated.View>
-      </PanGestureHandler>
+      </GestureDetector>
     </View>
   );
 }

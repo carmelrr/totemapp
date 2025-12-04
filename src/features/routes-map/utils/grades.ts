@@ -1,10 +1,12 @@
 export const GRADES = [
-  'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12'
+  'VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 
+  'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18'
 ] as const;
 
 export type Grade = typeof GRADES[number];
 
 export function getGradeNumber(grade: string): number {
+  if (grade === 'VB') return -1;
   const match = grade.match(/V(\d+)/);
   return match ? parseInt(match[1], 10) : 0;
 }
@@ -26,5 +28,6 @@ export function getGradeColor(grade: string): string {
   if (gradeNum <= 6) return '#f97316'; // orange
   if (gradeNum <= 8) return '#ef4444'; // red
   if (gradeNum <= 10) return '#8b5cf6'; // purple
-  return '#1f2937'; // dark for V11+
+  if (gradeNum <= 14) return '#6366f1'; // indigo
+  return '#1f2937'; // dark for V15+
 }

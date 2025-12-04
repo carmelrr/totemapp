@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { TouchableOpacity } from 'react-native';
-import Animated, { useAnimatedStyle, useDerivedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useDerivedValue, SharedValue, runOnJS } from 'react-native-reanimated';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { RouteDoc } from '@/features/routes-map/types/route';
 import { getColorHex, getContrastTextColor } from '@/constants/colors';
 
@@ -10,9 +10,11 @@ interface RouteCircleProps {
   imageHeight: number;
   wallWidth: number;
   wallHeight: number;
-  scale: Animated.SharedValue<number>;
+  scale: SharedValue<number>;
   onPress?: (route: RouteDoc) => void;
+  onLongPress?: (route: RouteDoc) => void;
   selected?: boolean;
+  gesturesDisabled?: boolean; // Disable gestures when in move mode
 }
 
 /**
@@ -27,7 +29,9 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   wallHeight,
   scale,
   onPress,
+  onLongPress,
   selected = false,
+  gesturesDisabled = false,
 }) => {
   
   // חישובים מוקדמים - מחוץ לworklet
@@ -133,17 +137,50 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   };
 
   const handlePress = () => {
+    console.log('[RouteCircle] Tap on route:', route.id);
     onPress?.(route);
   };
 
+  const handleLongPress = () => {
+    console.log('[RouteCircle] LongPress on route:', route.id);
+    onLongPress?.(route);
+  };
+
+  // Gesture handlers using react-native-gesture-handler
+  const tapGesture = useMemo(() => 
+    Gesture.Tap()
+      .enabled(!gesturesDisabled)
+      .onEnd(() => {
+        'worklet';
+        runOnJS(handlePress)();
+      }),
+    [route, onPress, gesturesDisabled]
+  );
+
+  const longPressGesture = useMemo(() =>
+    Gesture.LongPress()
+      .minDuration(400)
+      .enabled(!gesturesDisabled)
+      .onEnd(() => {
+        'worklet';
+        runOnJS(handleLongPress)();
+      }),
+    [route, onLongPress, gesturesDisabled]
+  );
+
+  const composedGesture = useMemo(() =>
+    Gesture.Exclusive(longPressGesture, tapGesture),
+    [longPressGesture, tapGesture]
+  );
+
   return (
-    <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
+    <GestureDetector gesture={composedGesture}>
       <Animated.View style={[circleStyle, shadowStyle]}>
         <Animated.Text style={textStyle}>
-          {route.grade || '?'}
+          {route.calculatedGrade || route.grade || '?'}
         </Animated.Text>
       </Animated.View>
-    </TouchableOpacity>
+    </GestureDetector>
   );
 }, (prevProps, nextProps) => {
   // React.memo comparison function for optimization
@@ -155,7 +192,8 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     prevProps.imageHeight === nextProps.imageHeight &&
     prevProps.wallWidth === nextProps.wallWidth &&
     prevProps.wallHeight === nextProps.wallHeight &&
-    prevProps.scale === nextProps.scale // השוואת reference במקום קריאת value
+    prevProps.scale === nextProps.scale && // השוואת reference במקום קריאת value
+    prevProps.gesturesDisabled === nextProps.gesturesDisabled
   );
 });
 

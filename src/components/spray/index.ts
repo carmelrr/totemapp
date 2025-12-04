@@ -1,10 +1,13 @@
 // src/components/spray/index.ts
-export { default as SprayHeader } from "./SprayHeader";
-export { default as ZoomableImage } from "./ZoomableImage";
-export { default as Toolbar } from "./Toolbar";
-export { default as SprayHoldRing } from "./SprayHoldRing";
-export { default as GlobalHoldEditor } from "./GlobalHoldEditor";
-export { default as HoldTypeSelector } from "./HoldTypeSelector";
-export { default as Cropper4x3 } from "./Cropper4x3";
-export { default as RobustCropper4x3 } from "./RobustCropper4x3";
-export { default as Simple4x3Viewer } from "./Simple4x3Viewer";
+// Export all spray components
+
+export { HoldMarker } from "./HoldMarker";
+export { WallImageWithHolds } from "./WallImageWithHolds";
+export { WallPicker } from "./WallPicker";
+export { WallForm } from "./WallForm";
+export { ColorPicker } from "./ColorPicker";
+export { GradePicker } from "./GradePicker";
+export { HoldRingsOverlay } from "./HoldRingsOverlay";
+export { StaticHoldRing } from "./StaticHoldRing";
+export { EditableHoldRing } from "./EditableHoldRing";
+export { HoldTypePicker } from "./HoldTypePicker";

@@ -20,6 +20,7 @@ export const useTheme = () => {
 
 // Light theme colors
 export const lightTheme = {
+  isDark: false,
   primary: "#667eea",
   secondary: "#9b59b6",
   accent: "#f39c12",
@@ -48,6 +49,7 @@ export const lightTheme = {
 
 // Dark theme colors
 export const darkTheme = {
+  isDark: true,
   primary: "#667eea",
   secondary: "#bb86fc",
   accent: "#ffa726",

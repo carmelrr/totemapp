@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Text, TouchableOpacity, InteractionManager } from "react-native";
-import { PanGestureHandler, State } from "react-native-gesture-handler";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
-  useAnimatedGestureHandler,
   runOnJS,
   withSpring,
   useDerivedValue,
@@ -193,66 +192,73 @@ export default React.memo(function RouteCircle({
   // עכשיו scale הוא number רגיל - לא צריך useAnimatedReaction
   const currentScale = scale || 1;
 
-  // Gesture handler for dragging when in moving mode
-  const gestureHandler = useAnimatedGestureHandler({
-    onStart: () => {
-      if (!isMovingRoute) return;
-      isDragging.value = 1;
-    },
-    onActive: (event) => {
-      if (!isMovingRoute) return;
-      // שמור את התזוזה הגולמית מהgesture
-      translateX.value = event.translationX;
-      translateY.value = event.translationY;
-    },
-    onEnd: () => {
-      if (!isMovingRoute) return;
-      isDragging.value = 0;
+  // Pan gesture for dragging when in moving mode
+  const panGesture = useMemo(() =>
+    Gesture.Pan()
+      .enabled(isMovingRoute)
+      .minPointers(1)
+      .maxPointers(1)
+      .activeOffsetX([-4, 4])
+      .activeOffsetY([-4, 4])
+      .onStart(() => {
+        if (!isMovingRoute) return;
+        isDragging.value = 1;
+      })
+      .onUpdate((event) => {
+        if (!isMovingRoute) return;
+        // שמור את התזוזה הגולמית מהgesture
+        translateX.value = event.translationX;
+        translateY.value = event.translationY;
+      })
+      .onEnd(() => {
+        if (!isMovingRoute) return;
+        isDragging.value = 0;
 
-      // Calculate final position and save immediately
-      // השתמש ב-scale ישירות
-      const scaleValue = currentScale;
+        // Calculate final position and save immediately
+        // השתמש ב-scale ישירות
+        const scaleValue = currentScale;
 
-      // ודא שהערך תקין
-      if (!scaleValue || scaleValue <= 0) {
-        return;
-      }
+        // ודא שהערך תקין
+        if (!scaleValue || scaleValue <= 0) {
+          return;
+        }
 
-      // התזוזה בפיקסלים על המפה הווירטואלית
-      // כאשר יש זום, התזוזה הפיזית של האצבע מתורגמת לתזוזה קטנה יותר על המפה
-      const actualMoveX = translateX.value / scaleValue;
-      const actualMoveY = translateY.value / scaleValue;
+        // התזוזה בפיקסלים על המפה הווירטואלית
+        // כאשר יש זום, התזוזה הפיזית של האצבע מתורגמת לתזוזה קטנה יותר על המפה
+        const actualMoveX = translateX.value / scaleValue;
+        const actualMoveY = translateY.value / scaleValue;
 
-      // המר את התזוזה לקואורדינטות נורמליזה (0-1)
-      const deltaXNorm = actualMoveX / mapWidth;
-      const deltaYNorm = actualMoveY / mapHeight;
+        // המר את התזוזה לקואורדינטות נורמליזה (0-1)
+        const deltaXNorm = actualMoveX / mapWidth;
+        const deltaYNorm = actualMoveY / mapHeight;
 
-      // Current route position (normalized 0-1 or pixel coordinates)
-      const currentX = route.x > 2 ? route.x / ORIGINAL_MAP_WIDTH : route.x;
-      const currentY = route.y > 2 ? route.y / ORIGINAL_MAP_HEIGHT : route.y;
+        // Current route position (normalized 0-1 or pixel coordinates)
+        const currentX = route.x > 2 ? route.x / ORIGINAL_MAP_WIDTH : route.x;
+        const currentY = route.y > 2 ? route.y / ORIGINAL_MAP_HEIGHT : route.y;
 
-      // Calculate new normalized position
-      const newXNorm = currentX + deltaXNorm;
-      const newYNorm = currentY + deltaYNorm;
+        // Calculate new normalized position
+        const newXNorm = currentX + deltaXNorm;
+        const newYNorm = currentY + deltaYNorm;
 
-      // Clamp to valid range (0-1 for normalized coordinates)
-      const clampedX = Math.max(0, Math.min(1, newXNorm));
-      const clampedY = Math.max(0, Math.min(1, newYNorm));
+        // Clamp to valid range (0-1 for normalized coordinates)
+        const clampedX = Math.max(0, Math.min(1, newXNorm));
+        const clampedY = Math.max(0, Math.min(1, newYNorm));
 
-      // Convert back to original format (pixel coordinates)
-      const newX = clampedX * ORIGINAL_MAP_WIDTH;
-      const newY = clampedY * ORIGINAL_MAP_HEIGHT;
+        // Convert back to original format (pixel coordinates)
+        const newX = clampedX * ORIGINAL_MAP_WIDTH;
+        const newY = clampedY * ORIGINAL_MAP_HEIGHT;
 
-      // Reset values with smooth animation
-      translateX.value = withSpring(0, { damping: 20, stiffness: 300 });
-      translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
+        // Reset values with smooth animation
+        translateX.value = withSpring(0, { damping: 20, stiffness: 300 });
+        translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
 
-      // Save the move
-      if (onMoveComplete) {
-        runOnJS(onMoveComplete)(newX, newY);
-      }
-    },
-  });
+        // Save the move
+        if (onMoveComplete) {
+          runOnJS(onMoveComplete)(newX, newY);
+        }
+      }),
+    [isMovingRoute, currentScale, mapWidth, mapHeight, route.x, route.y, onMoveComplete]
+  );
 
   // Animation style for dragging
   const dragStyle = useAnimatedStyle(() => {
@@ -401,17 +407,7 @@ export default React.memo(function RouteCircle({
   }, [route, mapWidth, mapHeight, isSelected, isMovingRoute, currentScale]);
 
   return (
-    <PanGestureHandler
-      onGestureEvent={gestureHandler}
-      enabled={isMovingRoute}
-      minPointers={1}
-      maxPointers={1}
-      avgTouches={false}
-      enableTrackpadTwoFingerGesture={false}
-      shouldCancelWhenOutside={false}
-      activeOffsetX={[-4, 4]}
-      activeOffsetY={[-4, 4]}
-    >
+    <GestureDetector gesture={panGesture}>
       <Animated.View style={[animatedStyle, dragStyle]}>
         {onPress ? (
           <TouchableOpacity
@@ -434,6 +430,6 @@ export default React.memo(function RouteCircle({
           </Animated.Text>
         )}
       </Animated.View>
-    </PanGestureHandler>
+    </GestureDetector>
   );
 });

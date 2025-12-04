@@ -1,5 +1,5 @@
 // utils/matrix.ts
-import { Vec2 } from "@/features/spraywall/types";
+import { Vec2 } from "@/types/geometry";
 
 // Transform יחיד לכל המסך
 export function screenToCanonical(

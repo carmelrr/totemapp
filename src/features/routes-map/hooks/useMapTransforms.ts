@@ -2,19 +2,10 @@ import { useRef, useCallback, useMemo } from 'react';
 import {
   useSharedValue,
   useAnimatedStyle,
-  useAnimatedGestureHandler,
   withTiming,
   runOnJS,
 } from 'react-native-reanimated';
-import {
-  PinchGestureHandler,
-  PanGestureHandler,
-  TapGestureHandler,
-  PinchGestureHandlerGestureEvent,
-  PanGestureHandlerGestureEvent,
-  TapGestureHandlerGestureEvent,
-  State,
-} from 'react-native-gesture-handler';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { clampViewport } from '@/utils/coordinateUtils';
 import { MapTransforms } from '../types/route';
 
@@ -80,23 +71,14 @@ export function useMapTransforms({
   const focalX = useSharedValue(0);
   const focalY = useSharedValue(0);
 
-  // Refs for gesture handlers
-  const panRef = useRef<PanGestureHandler>(null);
-  const pinchRef = useRef<PinchGestureHandler>(null);
-  const doubleTapRef = useRef<TapGestureHandler>(null);
-
   // Helper to safely clamp and apply transforms
   const clampAndApply = (newScale: number, newTranslateX: number, newTranslateY: number) => {
     'worklet';
 
-    // Ensure we have valid dimensions before clamping
-    // ✅ Safety: בודק שכל הערכים תקינים לפני שליחה ל־clampViewport
     if (!safeScreenWidth || !safeScreenHeight || !safeImageWidth || !safeImageHeight) {
-      console.warn('clampAndUpdateTransforms: Invalid dimensions');
       return;
     }
 
-    // וידוא שהערכים החדשים תקינים
     const safeNewScale = Math.max(0.1, isFinite(newScale) ? newScale : 1);
     const safeNewTranslateX = isFinite(newTranslateX) ? newTranslateX : 0;
     const safeNewTranslateY = isFinite(newTranslateY) ? newTranslateY : 0;
@@ -111,7 +93,6 @@ export function useMapTransforms({
       safeMaxScale
     );
 
-    // Ensure values are finite
     scale.value = isFinite(clamped.scale) ? clamped.scale : 1;
     translateX.value = isFinite(clamped.translateX) ? clamped.translateX : 0;
     translateY.value = isFinite(clamped.translateY) ? clamped.translateY : 0;
@@ -125,111 +106,164 @@ export function useMapTransforms({
     }
   };
 
-  // Pan gesture handler
-  const panGestureHandler = useAnimatedGestureHandler<PanGestureHandlerGestureEvent>({
-    onStart: () => {
-      baseTranslateX.value = translateX.value;
-      baseTranslateY.value = translateY.value;
-    },
-    onActive: (event) => {
-      translateX.value = baseTranslateX.value + event.translationX;
-      translateY.value = baseTranslateY.value + event.translationY;
-    },
-    onEnd: () => {
-      // Clamp on gesture end with animation
-      const clamped = clampViewport(
-        { scale: scale.value, translateX: translateX.value, translateY: translateY.value },
-        safeScreenWidth,
-        safeScreenHeight,
-        safeImageWidth,
-        safeImageHeight,
-        safeMinScale,
-        safeMaxScale
-      );
+  // Pan gesture using new Gesture API
+  const panGesture = useMemo(() => 
+    Gesture.Pan()
+      .onStart(() => {
+        baseTranslateX.value = translateX.value;
+        baseTranslateY.value = translateY.value;
+      })
+      .onUpdate((event) => {
+        const newTranslateX = baseTranslateX.value + event.translationX;
+        const newTranslateY = baseTranslateY.value + event.translationY;
+        
+        // Clamp during gesture to prevent going beyond bounds
+        const clamped = clampViewport(
+          { scale: scale.value, translateX: newTranslateX, translateY: newTranslateY },
+          safeScreenWidth,
+          safeScreenHeight,
+          safeImageWidth,
+          safeImageHeight,
+          safeMinScale,
+          safeMaxScale
+        );
+        
+        translateX.value = clamped.translateX;
+        translateY.value = clamped.translateY;
+      })
+      .onEnd(() => {
+        const clamped = clampViewport(
+          { scale: scale.value, translateX: translateX.value, translateY: translateY.value },
+          safeScreenWidth,
+          safeScreenHeight,
+          safeImageWidth,
+          safeImageHeight,
+          safeMinScale,
+          safeMaxScale
+        );
 
-      translateX.value = withTiming(clamped.translateX);
-      translateY.value = withTiming(clamped.translateY);
+        translateX.value = withTiming(clamped.translateX);
+        translateY.value = withTiming(clamped.translateY);
 
-      if (onTransformChange) {
-        runOnJS(onTransformChangeGuarded)(clamped);
-      }
-    },
-  });
+        if (onTransformChange) {
+          runOnJS(onTransformChangeGuarded)(clamped);
+        }
+      }),
+    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale]
+  );
 
-  // Pinch gesture handler
-  const pinchGestureHandler = useAnimatedGestureHandler<PinchGestureHandlerGestureEvent>({
-    onStart: (event) => {
-      if (LOG) console.log('🔍 Pinch onStart');
-      baseScale.value = scale.value;
-      baseTranslateX.value = translateX.value;
-      baseTranslateY.value = translateY.value;
-      focalX.value = event.focalX;
-      focalY.value = event.focalY;
-    },
-    onUpdate: (event) => {
-      // ✅ קלמפ מיידי של ה-scale החדש
-      const rawScale = baseScale.value * (event.scale ?? 1);
-      const clampedScale = Math.max(safeMinScale, Math.min(safeMaxScale, rawScale));
+  // Pinch gesture using new Gesture API
+  const pinchGesture = useMemo(() =>
+    Gesture.Pinch()
+      .onStart((event) => {
+        baseScale.value = scale.value;
+        baseTranslateX.value = translateX.value;
+        baseTranslateY.value = translateY.value;
+        focalX.value = event.focalX;
+        focalY.value = event.focalY;
+      })
+      .onUpdate((event) => {
+        const rawScale = baseScale.value * (event.scale ?? 1);
+        const clampedScale = Math.max(safeMinScale, Math.min(safeMaxScale, rawScale));
 
-      // ✅ Zoom around focal point - מתרגמים focal לעולם התמונה
-      const currentScale = scale.value || 1;
-      const fxImg = (focalX.value - translateX.value) / currentScale;
-      const fyImg = (focalY.value - translateY.value) / currentScale;
+        const currentScale = scale.value || 1;
+        const fxImg = (focalX.value - translateX.value) / currentScale;
+        const fyImg = (focalY.value - translateY.value) / currentScale;
 
-      // עדכון עם ה-scale המקולמפ
-      scale.value = clampedScale;
-      translateX.value = focalX.value - fxImg * clampedScale;
-      translateY.value = focalY.value - fyImg * clampedScale;
-    },
-    onEnd: () => {
-      if (LOG) console.log('🔍 Pinch onEnd - final clamp');
-      // Clamp on gesture end with animation
-      const clamped = clampViewport(
-        { scale: scale.value, translateX: translateX.value, translateY: translateY.value },
-        safeScreenWidth,
-        safeScreenHeight,
-        safeImageWidth,
-        safeImageHeight,
-        safeMinScale,
-        safeMaxScale
-      );
+        const newTranslateX = focalX.value - fxImg * clampedScale;
+        const newTranslateY = focalY.value - fyImg * clampedScale;
+        
+        // Clamp translation during pinch to stay within bounds
+        const clamped = clampViewport(
+          { scale: clampedScale, translateX: newTranslateX, translateY: newTranslateY },
+          safeScreenWidth,
+          safeScreenHeight,
+          safeImageWidth,
+          safeImageHeight,
+          safeMinScale,
+          safeMaxScale
+        );
 
-      scale.value = withTiming(clamped.scale);
-      translateX.value = withTiming(clamped.translateX);
-      translateY.value = withTiming(clamped.translateY);
+        scale.value = clamped.scale;
+        translateX.value = clamped.translateX;
+        translateY.value = clamped.translateY;
+      })
+      .onEnd(() => {
+        const clamped = clampViewport(
+          { scale: scale.value, translateX: translateX.value, translateY: translateY.value },
+          safeScreenWidth,
+          safeScreenHeight,
+          safeImageWidth,
+          safeImageHeight,
+          safeMinScale,
+          safeMaxScale
+        );
 
-      if (onTransformChange) {
-        runOnJS(onTransformChangeGuarded)(clamped);
-      }
-    },
-  });
+        scale.value = withTiming(clamped.scale);
+        translateX.value = withTiming(clamped.translateX);
+        translateY.value = withTiming(clamped.translateY);
 
-  // Double tap gesture handler (zoom to fit or zoom in)
-  const doubleTapGestureHandler = useAnimatedGestureHandler<TapGestureHandlerGestureEvent>({
-    onEnd: (event) => {
-      const currentScale = scale.value;
-      const targetScale = currentScale < 2 ? 2 : 1;
+        if (onTransformChange) {
+          runOnJS(onTransformChangeGuarded)(clamped);
+        }
+      }),
+    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale]
+  );
 
-      if (targetScale === 1) {
-        // Reset view
-        clampAndApply(1, 0, 0);
-      } else {
-        // Zoom in around tap point
-        const fx = event.x;
-        const fy = event.y;
-        const scaleDiff = targetScale - currentScale;
+  // Double tap gesture using new Gesture API
+  const doubleTapGesture = useMemo(() =>
+    Gesture.Tap()
+      .numberOfTaps(2)
+      .onEnd((event) => {
+        const currentScale = scale.value;
+        const targetScale = currentScale < 2 ? 2 : 1;
 
-        const newTranslateX = translateX.value - (fx - translateX.value) * scaleDiff / currentScale;
-        const newTranslateY = translateY.value - (fy - translateY.value) * scaleDiff / currentScale;
+        if (targetScale === 1) {
+          scale.value = withTiming(1);
+          translateX.value = withTiming(0);
+          translateY.value = withTiming(0);
+          
+          if (onTransformChange) {
+            runOnJS(onTransformChangeGuarded)({ scale: 1, translateX: 0, translateY: 0 });
+          }
+        } else {
+          const fx = event.x;
+          const fy = event.y;
+          const scaleDiff = targetScale - currentScale;
 
-        clampAndApply(targetScale, newTranslateX, newTranslateY);
-      }
+          const newTranslateX = translateX.value - (fx - translateX.value) * scaleDiff / currentScale;
+          const newTranslateY = translateY.value - (fy - translateY.value) * scaleDiff / currentScale;
 
-      scale.value = withTiming(scale.value);
-      translateX.value = withTiming(translateX.value);
-      translateY.value = withTiming(translateY.value);
-    },
-  });
+          const clamped = clampViewport(
+            { scale: targetScale, translateX: newTranslateX, translateY: newTranslateY },
+            safeScreenWidth,
+            safeScreenHeight,
+            safeImageWidth,
+            safeImageHeight,
+            safeMinScale,
+            safeMaxScale
+          );
+
+          scale.value = withTiming(clamped.scale);
+          translateX.value = withTiming(clamped.translateX);
+          translateY.value = withTiming(clamped.translateY);
+
+          if (onTransformChange) {
+            runOnJS(onTransformChangeGuarded)(clamped);
+          }
+        }
+      }),
+    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale]
+  );
+
+  // Compose all gestures - pan and pinch work simultaneously, double tap is separate
+  const composedGesture = useMemo(() => 
+    Gesture.Race(
+      doubleTapGesture,
+      Gesture.Simultaneous(panGesture, pinchGesture)
+    ),
+    [panGesture, pinchGesture, doubleTapGesture]
+  );
 
   // Animated style for the map container
   const mapContainerStyle = useAnimatedStyle(() => {
@@ -319,15 +353,11 @@ export function useMapTransforms({
     translateX,
     translateY,
 
-    // Gesture handlers
-    panGestureHandler,
-    pinchGestureHandler,
-    doubleTapGestureHandler,
-
-    // Gesture refs
-    panRef,
-    pinchRef,
-    doubleTapRef,
+    // Gesture handlers (new Gesture API)
+    panGesture,
+    pinchGesture,
+    doubleTapGesture,
+    composedGesture,
 
     // Animated styles
     mapContainerStyle,
@@ -341,9 +371,10 @@ export function useMapTransforms({
     minScale,
     maxScale,
   }), [
-    panGestureHandler,
-    pinchGestureHandler,
-    doubleTapGestureHandler,
+    panGesture,
+    pinchGesture,
+    doubleTapGesture,
+    composedGesture,
     mapContainerStyle,
     resetView,
     zoomIn,
@@ -353,8 +384,5 @@ export function useMapTransforms({
     scale,
     translateX,
     translateY,
-    panRef,
-    pinchRef,
-    doubleTapRef,
   ]);
 }
