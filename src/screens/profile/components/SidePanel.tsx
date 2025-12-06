@@ -13,6 +13,8 @@ import { useTheme } from "@/features/theme/ThemeContext";
 import { createStyles } from "../styles";
 import type { PrivacySettings } from "../types";
 
+const defaultAvatar = require("@/assets/splash.png");
+
 interface SidePanelProps {
   visible: boolean;
   onClose: () => void;
@@ -68,9 +70,9 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   if (!visible) return null;
 
   const circleSizes = [
-    { size: 8, label: "קטן", color: "#3498db" },
+    { size: 6, label: "קטן", color: "#3498db" },
     { size: 12, label: "בינוני", color: "#2ecc71" },
-    { size: 16, label: "גדול", color: "#e74c3c" },
+    { size: 20, label: "גדול", color: "#e74c3c" },
   ];
 
   const renderCircleSize = (sizeData: any) => (
@@ -81,6 +83,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
         circleSize === sizeData.size && styles.circleSizeRowSelected,
       ]}
       onPress={() => onCircleSizeChange(sizeData.size)}
+      activeOpacity={0.7}
+      delayPressIn={0}
     >
       <View style={styles.circleSizeRowContent}>
         <Text
@@ -127,25 +131,28 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           <ScrollView
             style={styles.sidePanelScrollContent}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
             {/* Avatar Section */}
             <View style={styles.avatarSection}>
-              <View style={styles.sideAvatar}>
-                {user?.photoURL ? (
-                  <Image
-                    source={{ uri: user.photoURL }}
-                    style={styles.sideAvatar as any}
-                  />
-                ) : (
-                  <View style={[styles.sideAvatar, { backgroundColor: "#ddd" }]} />
-                )}
-              </View>
+              <Image
+                source={user?.photoURL ? { uri: user.photoURL } : defaultAvatar}
+                style={styles.sideAvatar as any}
+              />
               <View style={styles.avatarButtons}>
-                <TouchableOpacity onPress={onImagePick}>
+                <TouchableOpacity 
+                  onPress={onImagePick}
+                  activeOpacity={0.7}
+                  delayPressIn={0}
+                >
                   <Text style={styles.editPhoto}>ערוך תמונה</Text>
                 </TouchableOpacity>
                 {user?.photoURL && (
-                  <TouchableOpacity onPress={onImageRemove}>
+                  <TouchableOpacity 
+                    onPress={onImageRemove}
+                    activeOpacity={0.7}
+                    delayPressIn={0}
+                  >
                     <Text style={styles.removePhoto}>הסר תמונה</Text>
                   </TouchableOpacity>
                 )}

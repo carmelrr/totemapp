@@ -32,6 +32,7 @@ interface WallImageWithHoldsProps {
   routeColor?: string;                    // Color for new holds
   onCreateHold?: (normalizedX: number, normalizedY: number) => void;
   onUpdateActiveHold?: (updated: Hold) => void;
+  onSelectHold?: (hold: Hold) => void;    // Callback when existing hold is tapped
   editable?: boolean;
 }
 
@@ -42,6 +43,7 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
   routeColor = "#FF4444",
   onCreateHold,
   onUpdateActiveHold,
+  onSelectHold,
   editable = true,
 }) => {
   const [imageWidth, setImageWidth] = useState(0);
@@ -52,6 +54,10 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
   // Ref to always have the latest activeHold value
   const activeHoldRef = React.useRef<Hold | null>(null);
   activeHoldRef.current = activeHold;
+
+  // Ref to always have the latest holds array
+  const holdsRef = React.useRef<Hold[]>([]);
+  holdsRef.current = holds;
 
   // Image zoom/pan state
   const imageScale = useSharedValue(1);
@@ -164,9 +170,26 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
     imageTranslateY.value = clamped.y;
   }, [clampImagePosition]);
 
-  // Create new hold on tap
-  const createHoldAtPosition = useCallback((x: number, y: number) => {
-    if (!onCreateHold || !imageWidth || !imageHeight) return;
+  // Check if tap position is inside an existing hold
+  const findHoldAtPosition = useCallback((normalizedX: number, normalizedY: number): Hold | null => {
+    const currentHolds = holdsRef.current;
+    // Check in reverse order (last added holds are on top)
+    for (let i = currentHolds.length - 1; i >= 0; i--) {
+      const hold = currentHolds[i];
+      const dx = normalizedX - hold.x;
+      const dy = normalizedY - hold.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      // Check if tap is within the hold's radius
+      if (distance <= hold.radius) {
+        return hold;
+      }
+    }
+    return null;
+  }, []);
+
+  // Handle tap on image - either select existing hold or create new one
+  const handleTapAtPosition = useCallback((x: number, y: number) => {
+    if (!imageWidth || !imageHeight) return;
     
     const scale = imageScale.value;
     const translateX = imageTranslateX.value;
@@ -200,9 +223,15 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
     const normalizedY = imageY / imageHeight;
     
     if (normalizedX >= 0 && normalizedX <= 1 && normalizedY >= 0 && normalizedY <= 1) {
-      onCreateHold(normalizedX, normalizedY);
+      // First check if there's an existing hold at this position
+      const existingHold = findHoldAtPosition(normalizedX, normalizedY);
+      if (existingHold && onSelectHold) {
+        onSelectHold(existingHold);
+      } else if (onCreateHold) {
+        onCreateHold(normalizedX, normalizedY);
+      }
     }
-  }, [onCreateHold, imageWidth, imageHeight]);
+  }, [imageWidth, imageHeight, findHoldAtPosition, onSelectHold, onCreateHold]);
 
   // Reset zoom
   const resetZoom = useCallback(() => {
@@ -216,11 +245,11 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
 
   // === GESTURES ===
 
-  // Tap gesture - create new hold (only when no active hold)
+  // Tap gesture - select existing hold or create new one (only when no active hold)
   const tapGesture = Gesture.Tap()
     .onEnd((event) => {
       if (!hasActiveHold.value) {
-        runOnJS(createHoldAtPosition)(event.x, event.y);
+        runOnJS(handleTapAtPosition)(event.x, event.y);
       }
     });
 

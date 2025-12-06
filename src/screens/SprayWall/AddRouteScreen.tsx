@@ -1,7 +1,7 @@
 // src/screens/SprayWall/AddRouteScreen.tsx
 // Screen for users to mark holds on the wall - name and grade are set in the next screen
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { WallPicker } from "@/components/spray/WallPicker";
@@ -16,6 +17,7 @@ import { WallImageWithHolds } from "@/components/spray/WallImageWithHolds";
 import { HoldTypePicker } from "@/components/spray/HoldTypePicker";
 import { useWalls } from "@/features/walls/hooks";
 import { Wall, Hold, HoldType, HOLD_TYPES } from "@/features/spraywall/types";
+import { updateRoute } from "@/features/spraywall/routesService";
 
 // Generate unique ID
 const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -25,11 +27,40 @@ export const AddRouteScreen: React.FC = () => {
   const route = useRoute<any>();
   const { walls, loading: wallsLoading } = useWalls();
 
+  // Edit mode params
+  const isEditMode = route.params?.editMode === true;
+  const editRouteId = route.params?.routeId;
+  const existingHolds = route.params?.existingHolds;
+  const editRouteName = route.params?.routeName;
+  const editRouteGrade = route.params?.routeGrade;
+
   // Pre-selected wall from navigation params
   const preSelectedWallId = route.params?.wallId;
   const preSelectedWall = walls.find((w) => w.id === preSelectedWallId);
 
   const [selectedWall, setSelectedWall] = useState<Wall | null>(preSelectedWall || null);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Auto-select wall when there's only one wall
+  useEffect(() => {
+    if (!selectedWall && !wallsLoading && walls.length === 1) {
+      setSelectedWall(walls[0]);
+    }
+  }, [walls, wallsLoading, selectedWall]);
+
+  // Load existing holds in edit mode
+  useEffect(() => {
+    if (isEditMode && existingHolds && existingHolds.length > 0) {
+      setLockedHolds(existingHolds);
+    }
+  }, [isEditMode, existingHolds]);
+
+  // Update header title for edit mode
+  useEffect(() => {
+    if (isEditMode) {
+      navigation.setOptions({ title: "ערוך אחיזות" });
+    }
+  }, [isEditMode, navigation]);
   
   // Current hold type selection
   const [selectedHoldType, setSelectedHoldType] = useState<HoldType>('middle');
@@ -47,6 +78,13 @@ export const AddRouteScreen: React.FC = () => {
     setLockedHolds([]);
     setActiveHold(null);
   };
+
+  // Select existing hold for editing
+  const handleSelectExistingHold = useCallback((hold: Hold) => {
+    // Remove from locked holds and make it active for editing
+    setLockedHolds((prev) => prev.filter((h) => h.id !== hold.id));
+    setActiveHold(hold);
+  }, []);
 
   // Create new hold when tapping on image
   const handleCreateHold = useCallback((normalizedX: number, normalizedY: number) => {
@@ -86,8 +124,8 @@ export const AddRouteScreen: React.FC = () => {
     setActiveHold(null);
   }, []);
 
-  // Navigate to next screen (Route Details)
-  const handleContinue = () => {
+  // Navigate to next screen (Route Details) or save in edit mode
+  const handleContinue = async () => {
     if (!selectedWall) {
       Alert.alert("שגיאה", "יש לבחור קיר");
       return;
@@ -97,11 +135,35 @@ export const AddRouteScreen: React.FC = () => {
       return;
     }
 
-    // Navigate to route details screen with the holds data
-    navigation.navigate("RouteDetails", {
-      wallId: selectedWall.id,
-      holds: lockedHolds,
-    });
+    if (isEditMode && editRouteId) {
+      // In edit mode, save the holds directly
+      setIsSaving(true);
+      try {
+        await updateRoute(editRouteId, {
+          holds: lockedHolds,
+        });
+        Alert.alert("הצלחה", "האחיזות עודכנו בהצלחה", [
+          {
+            text: "אישור",
+            onPress: () => {
+              // Go back twice to return to SprayRouteDetail (skip past this screen)
+              navigation.pop(1);
+            },
+          },
+        ]);
+      } catch (error) {
+        console.error("Error updating route holds:", error);
+        Alert.alert("שגיאה", "לא הצלחנו לעדכן את האחיזות");
+      } finally {
+        setIsSaving(false);
+      }
+    } else {
+      // Navigate to route details screen with the holds data
+      navigation.navigate("RouteDetails", {
+        wallId: selectedWall.id,
+        holds: lockedHolds,
+      });
+    }
   };
 
   // Get current hold color for the editable ring
@@ -123,11 +185,8 @@ export const AddRouteScreen: React.FC = () => {
         {/* Wall Image with Hold Rings */}
         {selectedWall && (
           <View style={styles.imageSection}>
-            {/* Selected wall header with change option */}
+            {/* Wall name header */}
             <View style={styles.wallHeader}>
-              <TouchableOpacity onPress={() => setSelectedWall(null)}>
-                <Text style={styles.changeWallText}>החלף קיר</Text>
-              </TouchableOpacity>
               <Text style={styles.wallName}>{selectedWall.name}</Text>
             </View>
 
@@ -158,6 +217,7 @@ export const AddRouteScreen: React.FC = () => {
                 routeColor={currentHoldColor}
                 onCreateHold={handleCreateHold}
                 onUpdateActiveHold={handleUpdateActiveHold}
+                onSelectHold={handleSelectExistingHold}
                 editable={true}
               />
             </View>
@@ -187,12 +247,18 @@ export const AddRouteScreen: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.continueButton,
-                lockedHolds.length === 0 && styles.continueButtonDisabled,
+                (lockedHolds.length === 0 || isSaving) && styles.continueButtonDisabled,
               ]}
               onPress={handleContinue}
-              disabled={lockedHolds.length === 0}
+              disabled={lockedHolds.length === 0 || isSaving}
             >
-              <Text style={styles.continueButtonText}>המשך לפרטי המסלול</Text>
+              {isSaving ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.continueButtonText}>
+                  {isEditMode ? "שמור שינויים" : "המשך לפרטי המסלול"}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         )}

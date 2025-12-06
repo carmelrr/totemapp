@@ -1,8 +1,7 @@
-import { useCallback, useMemo } from 'react';
+import React, { useRef, useCallback, useMemo } from 'react';
 import {
   useSharedValue,
   useAnimatedStyle,
-  withTiming,
   withSpring,
   runOnJS,
 } from 'react-native-reanimated';
@@ -23,6 +22,60 @@ export interface UseMapTransformsConfig {
 }
 
 /**
+ * Clamp viewport transforms to keep image in view
+ * When image is smaller than screen, center it
+ * When image is larger than screen, prevent over-panning
+ */
+function clampViewport(
+  scale: number,
+  translateX: number,
+  translateY: number,
+  screenW: number,
+  screenH: number,
+  imgW: number,
+  imgH: number,
+  minScale: number,
+  maxScale: number
+): { scale: number; translateX: number; translateY: number } {
+  'worklet';
+  
+  // Clamp scale
+  const clampedScale = Math.max(minScale, Math.min(maxScale, scale));
+  
+  // Calculate scaled image dimensions
+  const scaledImgW = imgW * clampedScale;
+  const scaledImgH = imgH * clampedScale;
+  
+  let clampedTranslateX = translateX;
+  let clampedTranslateY = translateY;
+  
+  // If image is larger than screen, prevent over-panning
+  if (scaledImgW > screenW) {
+    const maxTranslateX = 0;
+    const minTranslateX = screenW - scaledImgW;
+    clampedTranslateX = Math.max(minTranslateX, Math.min(maxTranslateX, translateX));
+  } else {
+    // If image is smaller than screen, center it
+    clampedTranslateX = (screenW - scaledImgW) / 2;
+  }
+  
+  if (scaledImgH > screenH) {
+    const maxTranslateY = 0;
+    const minTranslateY = screenH - scaledImgH;
+    clampedTranslateY = Math.max(minTranslateY, Math.min(maxTranslateY, translateY));
+  } else {
+    // If image is smaller than screen, center it
+    clampedTranslateY = (screenH - scaledImgH) / 2;
+  }
+  
+  return {
+    scale: clampedScale,
+    translateX: clampedTranslateX,
+    translateY: clampedTranslateY,
+  };
+}
+
+/**
  * Hook לניהול טרנספורמציות המפה (Pan/Zoom) עם Reanimated 3
  * מחזיר מטריצת טרנספורם יציבה ופונקציות זום
  */
@@ -31,110 +84,88 @@ export function useMapTransforms({
   screenHeight,
   imageWidth,
   imageHeight,
-  minScale = 1, // Set minimum scale to 1 (initial view size)
+  minScale = 1,
   maxScale = 4,
   onTransformChange,
 }: UseMapTransformsConfig) {
   
-  console.log('[useMapTransforms] INIT with config:', {
-    screenWidth, screenHeight, imageWidth, imageHeight, minScale, maxScale
-  });
-  
-  // ערכים בטוחים למניעת חלוקה באפס
+  // Safe values to prevent division by zero
   const safeScreenWidth = Math.max(1, screenWidth || 1);
   const safeScreenHeight = Math.max(1, screenHeight || 1);
   const safeImageWidth = Math.max(1, imageWidth || 1);
   const safeImageHeight = Math.max(1, imageHeight || 1);
+  const safeMinScale = Math.max(0.1, minScale);
+  const safeMaxScale = Math.max(safeMinScale, maxScale);
   
-  // Shared values עבור הטרנספורם
+  // Shared values for transforms
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
-  // Throttled notification state
-  const lastNotifyScale = useSharedValue(1);
-  const lastNotifyX = useSharedValue(0);
-  const lastNotifyY = useSharedValue(0);
   
-  // ערכי בסיס לגסטורות
+  // Base values for gestures
   const baseScale = useSharedValue(1);
   const baseTranslateX = useSharedValue(0);
   const baseTranslateY = useSharedValue(0);
   const focalX = useSharedValue(0);
   const focalY = useSharedValue(0);
-
-  // פונקציה לקליפינג והחלת טרנספורם
-  const clampAndApply = useCallback((newScale: number, newX: number, newY: number) => {
-    'worklet';
-    
-    // קליפינג של סקייל
-    const clampedScale = Math.max(minScale, Math.min(maxScale, newScale));
-    
-    // חישוב גבולות תרגום
-    const scaledImageWidth = safeImageWidth * clampedScale;
-    const scaledImageHeight = safeImageHeight * clampedScale;
-    
-    const maxTranslateX = Math.max(0, (scaledImageWidth - safeScreenWidth) / 2);
-    const maxTranslateY = Math.max(0, (scaledImageHeight - safeScreenHeight) / 2);
-    
-    const clampedX = Math.max(-maxTranslateX, Math.min(maxTranslateX, newX));
-    const clampedY = Math.max(-maxTranslateY, Math.min(maxTranslateY, newY));
-    
-    // החלת הערכים
-    scale.value = clampedScale;
-    translateX.value = clampedX;
-    translateY.value = clampedY;
-    
-    // התראה לקומפוננט ההורה
-    if (onTransformChange) {
-      runOnJS(onTransformChange)({
-        scale: clampedScale,
-        translateX: clampedX,
-        translateY: clampedY,
-      });
-    }
-  }, [minScale, maxScale, safeImageWidth, safeImageHeight, safeScreenWidth, safeScreenHeight, onTransformChange]);
-
-  // Notify JS with a small threshold to avoid spamming during gestures
-  const notifyIfChanged = useCallback((s: number, x: number, y: number) => {
-    'worklet';
-    const ds = Math.abs(s - lastNotifyScale.value);
-    const dx = Math.abs(x - lastNotifyX.value);
-    const dy = Math.abs(y - lastNotifyY.value);
-    if (ds > 0.01 || dx > 4 || dy > 4) {
-      lastNotifyScale.value = s;
-      lastNotifyX.value = x;
-      lastNotifyY.value = y;
-      if (onTransformChange) {
-        runOnJS(onTransformChange)({ scale: s, translateX: x, translateY: y });
+  
+  // Prevent notification spam
+  const lastNotifyRef = useRef<{ scale: number; translateX: number; translateY: number } | null>(null);
+  const EPS = 0.01; // Smaller threshold for more accurate updates
+  
+  const notifyChange = useCallback((s: number, x: number, y: number) => {
+    const prev = lastNotifyRef.current;
+    if (prev) {
+      const near = (a: number, b: number) => Math.abs(a - b) < EPS;
+      if (near(prev.scale, s) && near(prev.translateX, x) && near(prev.translateY, y)) {
+        return;
       }
     }
+    lastNotifyRef.current = { scale: s, translateX: x, translateY: y };
+    onTransformChange?.({ scale: s, translateX: x, translateY: y });
   }, [onTransformChange]);
 
-  // Helper to clamp values inline (for use during gestures)
-  const clampTranslation = useCallback((currentScale: number, newX: number, newY: number) => {
-    'worklet';
-    const clampedScale = Math.max(minScale, Math.min(maxScale, currentScale));
-    const scaledImageWidth = safeImageWidth * clampedScale;
-    const scaledImageHeight = safeImageHeight * clampedScale;
-    
-    const maxTranslateX = Math.max(0, (scaledImageWidth - safeScreenWidth) / 2);
-    const maxTranslateY = Math.max(0, (scaledImageHeight - safeScreenHeight) / 2);
-    
-    return {
-      x: Math.max(-maxTranslateX, Math.min(maxTranslateX, newX)),
-      y: Math.max(-maxTranslateY, Math.min(maxTranslateY, newY)),
-    };
-  }, [minScale, maxScale, safeImageWidth, safeImageHeight, safeScreenWidth, safeScreenHeight]);
+  // Track dimensions for detecting changes and applying initial centering
+  const prevDimensionsRef = useRef({ imgW: 0, imgH: 0, screenW: 0, screenH: 0 });
 
-  // Helper function to log from worklet (disabled for performance)
-  // const logFromWorklet = useCallback((message: string, data: any) => {
-  //   console.log(message, data);
-  // }, []);
+  // Apply initial centering when dimensions are available or change
+  React.useEffect(() => {
+    const prev = prevDimensionsRef.current;
+    const dimensionsChanged = 
+      prev.imgW !== safeImageWidth || 
+      prev.imgH !== safeImageHeight ||
+      prev.screenW !== safeScreenWidth ||
+      prev.screenH !== safeScreenHeight;
+    
+    if (dimensionsChanged && safeImageWidth > 1 && safeImageHeight > 1 && safeScreenWidth > 1 && safeScreenHeight > 1) {
+      prevDimensionsRef.current = { 
+        imgW: safeImageWidth, 
+        imgH: safeImageHeight, 
+        screenW: safeScreenWidth, 
+        screenH: safeScreenHeight 
+      };
+      
+      // Calculate initial centered position
+      const initialCentered = clampViewport(
+        1, 0, 0,
+        safeScreenWidth,
+        safeScreenHeight,
+        safeImageWidth,
+        safeImageHeight,
+        safeMinScale,
+        safeMaxScale
+      );
+      translateX.value = initialCentered.translateX;
+      translateY.value = initialCentered.translateY;
+      scale.value = 1;
+      notifyChange(1, initialCentered.translateX, initialCentered.translateY);
+    }
+  }, [safeImageWidth, safeImageHeight, safeScreenWidth, safeScreenHeight, safeMinScale, safeMaxScale, notifyChange]);
 
-  // Pan gesture using new Gesture API
+  // Pan gesture
   const panGesture = useMemo(() => 
     Gesture.Pan()
-      .minDistance(5) // Require minimum movement to start
+      .minDistance(5)
       .onStart(() => {
         baseTranslateX.value = translateX.value;
         baseTranslateY.value = translateY.value;
@@ -142,35 +173,42 @@ export function useMapTransforms({
       .onUpdate((event) => {
         const newX = baseTranslateX.value + event.translationX;
         const newY = baseTranslateY.value + event.translationY;
-        // Clamp during gesture to prevent going beyond bounds
-        const clamped = clampTranslation(scale.value, newX, newY);
-        translateX.value = clamped.x;
-        translateY.value = clamped.y;
+        
+        const clamped = clampViewport(
+          scale.value, newX, newY,
+          safeScreenWidth, safeScreenHeight,
+          safeImageWidth, safeImageHeight,
+          safeMinScale, safeMaxScale
+        );
+        
+        translateX.value = clamped.translateX;
+        translateY.value = clamped.translateY;
       })
       .onEnd((event) => {
-        // Add velocity-based momentum with spring animation
+        // Apply velocity for momentum
         const velocityX = event.velocityX * 0.1;
         const velocityY = event.velocityY * 0.1;
         
-        const targetX = translateX.value + velocityX;
-        const targetY = translateY.value + velocityY;
-        const clamped = clampTranslation(scale.value, targetX, targetY);
+        const projectedX = translateX.value + velocityX;
+        const projectedY = translateY.value + velocityY;
         
-        translateX.value = withSpring(clamped.x, {
-          velocity: event.velocityX,
-          damping: 20,
-          stiffness: 200,
-        });
-        translateY.value = withSpring(clamped.y, {
-          velocity: event.velocityY,
-          damping: 20,
-          stiffness: 200,
-        });
+        const clamped = clampViewport(
+          scale.value, projectedX, projectedY,
+          safeScreenWidth, safeScreenHeight,
+          safeImageWidth, safeImageHeight,
+          safeMinScale, safeMaxScale
+        );
+        
+        const springConfig = { damping: 20, stiffness: 200 };
+        translateX.value = withSpring(clamped.translateX, springConfig);
+        translateY.value = withSpring(clamped.translateY, springConfig);
+        
+        runOnJS(notifyChange)(scale.value, clamped.translateX, clamped.translateY);
       }),
-    [clampTranslation]
+    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange]
   );
 
-  // Pinch gesture using new Gesture API
+  // Pinch gesture
   const pinchGesture = useMemo(() =>
     Gesture.Pinch()
       .onStart((event) => {
@@ -181,88 +219,100 @@ export function useMapTransforms({
         focalY.value = event.focalY;
       })
       .onUpdate((event) => {
-        // Smooth scale calculation with clamping
         const rawScale = baseScale.value * (event.scale ?? 1);
-        const newScale = Math.max(minScale, Math.min(maxScale, rawScale));
+        const clampedScale = Math.max(safeMinScale, Math.min(safeMaxScale, rawScale));
         
-        // Calculate zoom around focal point
-        const scaleRatio = newScale / baseScale.value;
+        // Calculate image coordinates of focal point using base values
+        const fxImg = (focalX.value - baseTranslateX.value) / baseScale.value;
+        const fyImg = (focalY.value - baseTranslateY.value) / baseScale.value;
         
-        // Adjust translation to zoom around focal point
-        const newTranslateX = focalX.value - (focalX.value - baseTranslateX.value) * scaleRatio;
-        const newTranslateY = focalY.value - (focalY.value - baseTranslateY.value) * scaleRatio;
+        // Calculate new translation to keep focal point in place
+        const newTranslateX = focalX.value - fxImg * clampedScale;
+        const newTranslateY = focalY.value - fyImg * clampedScale;
         
-        // Clamp translation during pinch
-        const clamped = clampTranslation(newScale, newTranslateX, newTranslateY);
+        const clamped = clampViewport(
+          clampedScale, newTranslateX, newTranslateY,
+          safeScreenWidth, safeScreenHeight,
+          safeImageWidth, safeImageHeight,
+          safeMinScale, safeMaxScale
+        );
         
-        scale.value = newScale;
-        translateX.value = clamped.x;
-        translateY.value = clamped.y;
+        scale.value = clamped.scale;
+        translateX.value = clamped.translateX;
+        translateY.value = clamped.translateY;
       })
-      .onEnd((event) => {
-        // Smooth spring animation to final position
-        const finalScale = Math.max(minScale, Math.min(maxScale, scale.value));
-        const clamped = clampTranslation(finalScale, translateX.value, translateY.value);
+      .onEnd(() => {
+        const clamped = clampViewport(
+          scale.value, translateX.value, translateY.value,
+          safeScreenWidth, safeScreenHeight,
+          safeImageWidth, safeImageHeight,
+          safeMinScale, safeMaxScale
+        );
         
-        scale.value = withSpring(finalScale, {
-          damping: 15,
-          stiffness: 150,
-        });
-        translateX.value = withSpring(clamped.x, {
-          damping: 15,
-          stiffness: 150,
-        });
-        translateY.value = withSpring(clamped.y, {
-          damping: 15,
-          stiffness: 150,
-        });
+        const springConfig = { damping: 15, stiffness: 150 };
+        scale.value = withSpring(clamped.scale, springConfig);
+        translateX.value = withSpring(clamped.translateX, springConfig);
+        translateY.value = withSpring(clamped.translateY, springConfig);
+        
+        runOnJS(notifyChange)(clamped.scale, clamped.translateX, clamped.translateY);
       }),
-    [clampTranslation, minScale, maxScale]
+    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange]
   );
 
-  // Double tap gesture using new Gesture API
+  // Double tap gesture
   const doubleTapGesture = useMemo(() =>
     Gesture.Tap()
       .numberOfTaps(2)
       .onEnd((event) => {
         const currentScale = scale.value;
         const targetScale = currentScale < 2 ? 2 : 1;
+        const springConfig = { damping: 15, stiffness: 150 };
         
         if (targetScale === 1) {
-          // איפוס מבט
-          scale.value = withSpring(1);
-          translateX.value = withSpring(0);
-          translateY.value = withSpring(0);
+          // Reset to initial centered position
+          const centered = clampViewport(
+            1, 0, 0,
+            safeScreenWidth, safeScreenHeight,
+            safeImageWidth, safeImageHeight,
+            safeMinScale, safeMaxScale
+          );
           
-          if (onTransformChange) {
-            runOnJS(onTransformChange)({ scale: 1, translateX: 0, translateY: 0 });
-          }
+          scale.value = withSpring(1, springConfig);
+          translateX.value = withSpring(centered.translateX, springConfig);
+          translateY.value = withSpring(centered.translateY, springConfig);
+          
+          runOnJS(notifyChange)(1, centered.translateX, centered.translateY);
         } else {
-          // זום פנימה סביב נקודת הלחיצה
+          // Zoom in around tap point
           const fx = event.x;
           const fy = event.y;
-          const scaleDiff = targetScale - currentScale;
           
-          const newTranslateX = translateX.value - (fx - translateX.value) * (scaleDiff / currentScale);
-          const newTranslateY = translateY.value - (fy - translateY.value) * (scaleDiff / currentScale);
+          // Calculate image coordinates of tap point
+          const imgX = (fx - translateX.value) / currentScale;
+          const imgY = (fy - translateY.value) / currentScale;
           
-          scale.value = withSpring(targetScale);
-          translateX.value = withSpring(newTranslateX);
-          translateY.value = withSpring(newTranslateY);
+          // Calculate new translation to keep tap point in place
+          const newTranslateX = fx - imgX * targetScale;
+          const newTranslateY = fy - imgY * targetScale;
           
-          if (onTransformChange) {
-            runOnJS(onTransformChange)({
-              scale: targetScale,
-              translateX: newTranslateX,
-              translateY: newTranslateY,
-            });
-          }
+          const clamped = clampViewport(
+            targetScale, newTranslateX, newTranslateY,
+            safeScreenWidth, safeScreenHeight,
+            safeImageWidth, safeImageHeight,
+            safeMinScale, safeMaxScale
+          );
+          
+          scale.value = withSpring(clamped.scale, springConfig);
+          translateX.value = withSpring(clamped.translateX, springConfig);
+          translateY.value = withSpring(clamped.translateY, springConfig);
+          
+          runOnJS(notifyChange)(clamped.scale, clamped.translateX, clamped.translateY);
         }
       }),
-    [onTransformChange]
+    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange]
   );
 
-  // Compose all gestures - pan and pinch work simultaneously, double tap is separate
+  // Compose all gestures
   const composedGesture = useMemo(() => 
     Gesture.Race(
       doubleTapGesture,
@@ -271,7 +321,7 @@ export function useMapTransforms({
     [panGesture, pinchGesture, doubleTapGesture]
   );
 
-  // סטייל אנימטיבי לקונטיינר המפה
+  // Animated style for map container
   const mapContainerStyle = useAnimatedStyle(() => {
     return {
       transform: [
@@ -282,49 +332,87 @@ export function useMapTransforms({
     } as any;
   });
 
-  // פונקציות זום מתוכנתות
-  const zoomIn = useCallback(() => {
-    const newScale = Math.min(maxScale, scale.value * 1.5);
-    const centerX = safeScreenWidth / 2;
-    const centerY = safeScreenHeight / 2;
-    
-    const scaleDiff = newScale - scale.value;
-    const newTranslateX = translateX.value - (centerX - translateX.value) * (scaleDiff / scale.value);
-    const newTranslateY = translateY.value - (centerY - translateY.value) * (scaleDiff / scale.value);
-    
-    scale.value = withTiming(newScale);
-    translateX.value = withTiming(newTranslateX);
-    translateY.value = withTiming(newTranslateY);
-  }, [maxScale, safeScreenWidth, safeScreenHeight]);
-
-  const zoomOut = useCallback(() => {
-    const newScale = Math.max(minScale, scale.value / 1.5);
-    const centerX = safeScreenWidth / 2;
-    const centerY = safeScreenHeight / 2;
-    
-    const scaleDiff = newScale - scale.value;
-    const newTranslateX = translateX.value - (centerX - translateX.value) * (scaleDiff / scale.value);
-    const newTranslateY = translateY.value - (centerY - translateY.value) * (scaleDiff / scale.value);
-    
-    scale.value = withTiming(newScale);
-    translateX.value = withTiming(newTranslateX);
-    translateY.value = withTiming(newTranslateY);
-  }, [minScale, safeScreenWidth, safeScreenHeight]);
-
+  // Reset view function
   const resetView = useCallback(() => {
-    scale.value = withSpring(1);
-    translateX.value = withSpring(0);
-    translateY.value = withSpring(0);
-  }, []);
+    const centered = clampViewport(
+      1, 0, 0,
+      safeScreenWidth, safeScreenHeight,
+      safeImageWidth, safeImageHeight,
+      safeMinScale, safeMaxScale
+    );
+    const springConfig = { damping: 15, stiffness: 150 };
+    scale.value = withSpring(1, springConfig);
+    translateX.value = withSpring(centered.translateX, springConfig);
+    translateY.value = withSpring(centered.translateY, springConfig);
+    notifyChange(1, centered.translateX, centered.translateY);
+  }, [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange]);
 
-  // החזרת אובייקט יציב
+  // Zoom in function
+  const zoomIn = useCallback(() => {
+    const currentScale = scale.value || 1;
+    const newScale = Math.min(safeMaxScale, currentScale * 1.5);
+    const centerX = safeScreenWidth / 2;
+    const centerY = safeScreenHeight / 2;
+    
+    // Calculate image coordinates at center
+    const imgX = (centerX - translateX.value) / currentScale;
+    const imgY = (centerY - translateY.value) / currentScale;
+    
+    // Calculate new translation to keep center
+    const newTranslateX = centerX - imgX * newScale;
+    const newTranslateY = centerY - imgY * newScale;
+    
+    const clamped = clampViewport(
+      newScale, newTranslateX, newTranslateY,
+      safeScreenWidth, safeScreenHeight,
+      safeImageWidth, safeImageHeight,
+      safeMinScale, safeMaxScale
+    );
+    
+    const springConfig = { damping: 15, stiffness: 150 };
+    scale.value = withSpring(clamped.scale, springConfig);
+    translateX.value = withSpring(clamped.translateX, springConfig);
+    translateY.value = withSpring(clamped.translateY, springConfig);
+    notifyChange(clamped.scale, clamped.translateX, clamped.translateY);
+  }, [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange]);
+
+  // Zoom out function
+  const zoomOut = useCallback(() => {
+    const currentScale = scale.value || 1;
+    const newScale = Math.max(safeMinScale, currentScale / 1.5);
+    const centerX = safeScreenWidth / 2;
+    const centerY = safeScreenHeight / 2;
+    
+    // Calculate image coordinates at center
+    const imgX = (centerX - translateX.value) / currentScale;
+    const imgY = (centerY - translateY.value) / currentScale;
+    
+    // Calculate new translation to keep center
+    const newTranslateX = centerX - imgX * newScale;
+    const newTranslateY = centerY - imgY * newScale;
+    
+    const clamped = clampViewport(
+      newScale, newTranslateX, newTranslateY,
+      safeScreenWidth, safeScreenHeight,
+      safeImageWidth, safeImageHeight,
+      safeMinScale, safeMaxScale
+    );
+    
+    const springConfig = { damping: 15, stiffness: 150 };
+    scale.value = withSpring(clamped.scale, springConfig);
+    translateX.value = withSpring(clamped.translateX, springConfig);
+    translateY.value = withSpring(clamped.translateY, springConfig);
+    notifyChange(clamped.scale, clamped.translateX, clamped.translateY);
+  }, [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange]);
+
+  // Return stable object
   return useMemo(() => ({
     // Shared values
     scale,
     translateX,
     translateY,
     
-    // Gesture handlers (new Gesture API)
+    // Gesture handlers
     panGesture,
     pinchGesture,
     doubleTapGesture,
@@ -337,6 +425,10 @@ export function useMapTransforms({
     zoomIn,
     zoomOut,
     resetView,
+    
+    // Config
+    minScale: safeMinScale,
+    maxScale: safeMaxScale,
   }), [
     scale,
     translateX, 
@@ -349,5 +441,7 @@ export function useMapTransforms({
     zoomIn,
     zoomOut,
     resetView,
+    safeMinScale,
+    safeMaxScale,
   ]);
 }

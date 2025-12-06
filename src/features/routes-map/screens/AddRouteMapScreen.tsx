@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
 
 import MapViewport from '../components/MapViewport';
 import RouteMarker from '../components/RouteMarker';
@@ -20,7 +22,8 @@ import { CoordinateUtils } from '@/utils/coordinateUtils';
 import { GRADES } from '../utils/grades';
 import { ROUTE_COLORS, getRandomRouteColor, getColorName, isValidHexColor, getContrastTextColor } from '../utils/colors';
 import { RoutesService } from '../services/RoutesService';
-import { MapTransforms } from '../types/route';
+import { MapTransforms, RouteDoc } from '../types/route';
+import { useFirebaseRoutes } from '../hooks/useFirebaseRoutes';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -40,6 +43,9 @@ interface PreviewRoute {
 
 export default function AddRouteMapScreen() {
   const navigation = useNavigation<NavigationProp>();
+
+  // Load existing routes
+  const { routes: existingRoutes } = useFirebaseRoutes();
 
   // Form state
   const [grade, setGrade] = useState('V0');
@@ -70,6 +76,17 @@ export default function AddRouteMapScreen() {
     scale: 1,
   });
   const [preview, setPreview] = useState<PreviewRoute | null>(null);
+  
+  // Marker state - whether the marker is locked in place or can be moved
+  const [isMarkerLocked, setIsMarkerLocked] = useState(false);
+  
+  // Store transforms ref for gesture callbacks
+  const transformsRef = useRef<any>(null);
+
+  // Draggable marker state
+  const markerTranslateX = useSharedValue(0);
+  const markerTranslateY = useSharedValue(0);
+  const isDragging = useSharedValue(false);
 
   // Validation
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -79,15 +96,51 @@ export default function AddRouteMapScreen() {
     setImageDimensions(dimensions);
   }, []);
 
-  const handleMapPress = useCallback((event: any) => {
+  // Handle transforms ready from MapViewport
+  const handleTransformsReady = useCallback((transforms: any) => {
+    transformsRef.current = transforms;
+  }, []);
+
+  // Update preview position (called from drag gesture)
+  const updatePreviewPosition = useCallback((xImg: number, yImg: number) => {
+    if (imageDimensions.imgW === 0 || imageDimensions.imgH === 0) return;
+    
+    // Clamp to image bounds
+    const clampedXImg = Math.max(0, Math.min(imageDimensions.imgW, xImg));
+    const clampedYImg = Math.max(0, Math.min(imageDimensions.imgH, yImg));
+
+    // Convert to normalized coordinates
+    const { xNorm, yNorm } = CoordinateUtils.toNorm(
+      { xImg: clampedXImg, yImg: clampedYImg },
+      imageDimensions
+    );
+
+    setPreview({
+      xImg: clampedXImg,
+      yImg: clampedYImg,
+      xNorm,
+      yNorm,
+    });
+  }, [imageDimensions]);
+
+  // Handle tap on map to place marker
+  const handleMapTap = useCallback((xS: number, yS: number) => {
     if (imageDimensions.imgW === 0 || imageDimensions.imgH === 0) return;
 
-    const { locationX, locationY } = event.nativeEvent;
+    // Get current transform values from shared values (most up-to-date)
+    let transforms = currentTransforms;
+    if (transformsRef.current) {
+      transforms = {
+        scale: transformsRef.current.scale.value,
+        translateX: transformsRef.current.translateX.value,
+        translateY: transformsRef.current.translateY.value,
+      };
+    }
 
     // Convert screen coordinates to image coordinates
     const { xImg, yImg } = CoordinateUtils.toImg(
-      { xS: locationX, yS: locationY },
-      currentTransforms
+      { xS, yS },
+      transforms
     );
 
     // Clamp to image bounds
@@ -106,12 +159,73 @@ export default function AddRouteMapScreen() {
       xNorm,
       yNorm,
     });
+    
+    // New marker is not locked - can be dragged
+    setIsMarkerLocked(false);
+    
+    // Reset marker drag offset
+    markerTranslateX.value = 0;
+    markerTranslateY.value = 0;
 
     // Clear position error if it exists
     if (errors.position) {
       setErrors(prev => ({ ...prev, position: '' }));
     }
-  }, [imageDimensions, currentTransforms, errors.position]);
+  }, [imageDimensions, errors.position, markerTranslateX, markerTranslateY, currentTransforms]);
+
+  // Confirm marker position (lock it)
+  const handleConfirmMarker = useCallback(() => {
+    setIsMarkerLocked(true);
+  }, []);
+
+  // Unlock marker to allow repositioning
+  const handleUnlockMarker = useCallback(() => {
+    setIsMarkerLocked(false);
+  }, []);
+
+  // Cancel/remove marker
+  const handleCancelMarker = useCallback(() => {
+    setPreview(null);
+    setIsMarkerLocked(false);
+    markerTranslateX.value = 0;
+    markerTranslateY.value = 0;
+  }, [markerTranslateX, markerTranslateY]);
+
+  // Drag gesture for the preview marker - only enabled when not locked
+  const markerDragGesture = useMemo(() => 
+    Gesture.Pan()
+      .enabled(!isMarkerLocked)
+      .onStart(() => {
+        isDragging.value = true;
+      })
+      .onUpdate((event) => {
+        markerTranslateX.value = event.translationX;
+        markerTranslateY.value = event.translationY;
+      })
+      .onEnd((event) => {
+        isDragging.value = false;
+        // Calculate new position based on current preview position + drag offset
+        if (preview) {
+          // Get current scale from shared values for accuracy
+          const currentScale = transformsRef.current?.scale.value ?? currentTransforms.scale;
+          const newXImg = preview.xImg + event.translationX / currentScale;
+          const newYImg = preview.yImg + event.translationY / currentScale;
+          runOnJS(updatePreviewPosition)(newXImg, newYImg);
+        }
+        // Reset translation
+        markerTranslateX.value = 0;
+        markerTranslateY.value = 0;
+      }),
+    [isMarkerLocked, preview, currentTransforms.scale, updatePreviewPosition, isDragging, markerTranslateX, markerTranslateY]
+  );
+
+  // Animated style for draggable marker
+  const markerAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: markerTranslateX.value },
+      { translateY: markerTranslateY.value },
+    ],
+  }));
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -211,8 +325,8 @@ export default function AddRouteMapScreen() {
           <Text style={styles.cancelButton}>Cancel</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Add Route</Text>
-        <TouchableOpacity onPress={handleSave} disabled={isSubmitting}>
-          <Text style={[styles.saveButton, isSubmitting && styles.disabledButton]}>
+        <TouchableOpacity onPress={handleSave} disabled={isSubmitting || !isMarkerLocked}>
+          <Text style={[styles.saveButton, (isSubmitting || !isMarkerLocked) && styles.disabledButton]}>
             {isSubmitting ? 'Saving...' : 'Save'}
           </Text>
         </TouchableOpacity>
@@ -220,36 +334,114 @@ export default function AddRouteMapScreen() {
 
       {/* Map Section */}
       <View style={styles.mapSection}>
-        <View style={styles.instructionBanner}>
-          <Text style={styles.instructionText}>
-            Tap on the wall to place your route marker
-          </Text>
-        </View>
+        {/* Marker action bar - shown when marker exists */}
+        {preview && !isMarkerLocked && (
+          <View style={styles.markerActionBar}>
+            <TouchableOpacity
+              style={styles.markerCancelButton}
+              onPress={handleCancelMarker}
+            >
+              <Text style={styles.markerActionText}>✕</Text>
+            </TouchableOpacity>
+            <Text style={styles.markerActionHint}>גרור להזיז • לחץ ✔ לאישור</Text>
+            <TouchableOpacity
+              style={styles.markerConfirmButton}
+              onPress={handleConfirmMarker}
+            >
+              <Text style={styles.markerActionText}>✔</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {/* Locked marker indicator */}
+        {preview && isMarkerLocked && (
+          <View style={styles.markerLockedBar}>
+            <Text style={styles.markerLockedText}>✓ המיקום נקבע</Text>
+            <TouchableOpacity
+              style={styles.markerEditButton}
+              onPress={handleUnlockMarker}
+            >
+              <Text style={styles.markerEditText}>שנה מיקום</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
-        <TouchableOpacity style={styles.mapTouchable} onPress={handleMapPress}>
+        {/* Instruction banner - only when no marker */}
+        {!preview && (
+          <View style={styles.instructionBanner}>
+            <Text style={styles.instructionText}>
+              Tap on the wall to place your route marker
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.mapTouchable}>
           <MapViewport
             onMeasured={handleMapMeasured}
             onTransformChange={setCurrentTransforms}
+            onTransformsReady={handleTransformsReady}
+            onTap={isMarkerLocked ? undefined : handleMapTap}
           >
+            {/* Show existing routes (dimmed) */}
+            {existingRoutes.map((route) => {
+              const { xImg, yImg } = CoordinateUtils.fromNorm(
+                { xNorm: route.xNorm, yNorm: route.yNorm },
+                imageDimensions
+              );
+              return (
+                <View
+                  key={route.id}
+                  style={[
+                    styles.existingMarkerContainer,
+                    {
+                      left: xImg - 14,
+                      top: yImg - 14,
+                    },
+                  ]}
+                  pointerEvents="none"
+                >
+                  <View style={[styles.existingMarker, { backgroundColor: route.color }]}>
+                    <Text style={styles.existingMarkerText}>{route.grade}</Text>
+                  </View>
+                </View>
+              );
+            })}
+            
+            {/* Preview marker (draggable when not locked) */}
             {previewRoute && imageDimensions.imgW > 0 && (
-              <View
-                style={[
-                  styles.previewMarkerContainer,
-                  {
-                    left: preview!.xImg - 18,
-                    top: preview!.yImg - 18,
-                  },
-                ]}
-              >
-                <RouteMarker
-                  route={previewRoute}
-                  scale={null as any}
-                  selected={true}
-                />
-              </View>
+              <GestureDetector gesture={markerDragGesture}>
+                <Animated.View
+                  style={[
+                    styles.previewMarkerContainer,
+                    {
+                      left: preview!.xImg - 18,
+                      top: preview!.yImg - 18,
+                    },
+                    !isMarkerLocked && markerAnimatedStyle,
+                  ]}
+                >
+                  <RouteMarker
+                    route={previewRoute}
+                    scale={null as any}
+                    selected={!isMarkerLocked}
+                  />
+                  {/* Show drag hint only when marker is not locked */}
+                  {!isMarkerLocked && (
+                    <View style={styles.dragHint}>
+                      <Text style={styles.dragHintText}>⤧</Text>
+                    </View>
+                  )}
+                  {/* Show lock indicator when marker is locked */}
+                  {isMarkerLocked && (
+                    <View style={styles.lockIndicator}>
+                      <Text style={styles.lockIndicatorText}>✓</Text>
+                    </View>
+                  )}
+                </Animated.View>
+              </GestureDetector>
             )}
           </MapViewport>
-        </TouchableOpacity>
+        </View>
 
         {errors.position && (
           <Text style={styles.errorText}>{errors.position}</Text>
@@ -493,12 +685,85 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
-    zIndex: 1,
+    zIndex: 10,
   },
   instructionText: {
     fontSize: 14,
     color: '#ffffff',
     textAlign: 'center',
+    fontWeight: '500',
+  },
+  // Marker action bar styles (like SprayWall)
+  markerActionBar: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(51, 51, 51, 0.95)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  markerCancelButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markerConfirmButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#22c55e',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  markerActionText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  markerActionHint: {
+    fontSize: 13,
+    color: '#aaa',
+    textAlign: 'center',
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  markerLockedBar: {
+    position: 'absolute',
+    top: 12,
+    left: 12,
+    right: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(34, 197, 94, 0.95)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    zIndex: 10,
+  },
+  markerLockedText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  markerEditButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 8,
+  },
+  markerEditText: {
+    fontSize: 13,
+    color: '#fff',
     fontWeight: '500',
   },
   mapTouchable: {
@@ -508,6 +773,66 @@ const styles = StyleSheet.create({
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 10,
+  },
+  existingMarkerContainer: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.5,
+  },
+  existingMarker: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.8)',
+  },
+  existingMarkerText: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  dragHint: {
+    position: 'absolute',
+    bottom: -8,
+    right: -8,
+    backgroundColor: '#3b82f6',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  dragHintText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+  lockIndicator: {
+    position: 'absolute',
+    bottom: -8,
+    right: -8,
+    backgroundColor: '#22c55e',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  lockIndicatorText: {
+    fontSize: 12,
+    color: '#fff',
+    fontWeight: 'bold',
   },
   formSection: {
     flex: 1,

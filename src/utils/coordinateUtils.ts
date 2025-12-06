@@ -21,8 +21,10 @@ const ORIGINAL_MAP_HEIGHT = 1600;
 
 /**
  * Safety utility to ensure numeric values are finite and within reasonable bounds
+ * Marked as worklet to allow usage in gesture handlers on UI thread
  */
 function safeNumber(value: number, fallback: number = 0, min?: number, max?: number): number {
+    'worklet';
     if (!isFinite(value)) return fallback;
     if (min !== undefined && value < min) return min;
     if (max !== undefined && value > max) return max;
@@ -197,6 +199,7 @@ export function toRelativeCoords(
 
 /**
  * Clamp viewport transforms to keep image in view
+ * Marked as worklet to allow usage in gesture handlers on UI thread
  */
 export function clampViewport(
     { translateX, translateY, scale }: MapTransforms,
@@ -207,6 +210,7 @@ export function clampViewport(
     minScale: number = 0.5,
     maxScale: number = 4
 ): MapTransforms {
+    'worklet';
     // Ensure all inputs are finite and positive
     const safeScale = safeNumber(scale, 1, minScale, maxScale);
     const safeTranslateX = safeNumber(translateX, 0);

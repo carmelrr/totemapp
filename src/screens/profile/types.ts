@@ -15,10 +15,11 @@ export type PrivacySettings = {
 };
 
 export type UserStats = {
-  totalRoutesSent: number;
-  highestGrade: string;
+  totalRoutesSent: number; // כל המסלולים שסגר אי פעם (כולל ארכיון)
+  highestGrade: string; // הדירוג הגבוה ביותר אי פעם (כולל ארכיון)
   totalFeedbacks: number;
   averageStarRating: number;
+  completionPercentage: number; // אחוז סגירה מהמסלולים שעל הקיר כרגע
   joinDate: Date | null;
 };
 

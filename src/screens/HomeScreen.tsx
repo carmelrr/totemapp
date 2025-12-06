@@ -80,17 +80,7 @@ export default function HomeScreen() {
         delayPressIn={0}
         delayPressOut={100}
       >
-        <Text style={styles.buttonText}>לוחות מובילים 🏆</Text>
-      </TouchableOpacity>
-
-      <TouchableOpacity
-        style={[styles.button, { backgroundColor: "#ff6b35" }]}
-        onPress={() => handleNavigation("Analytics")}
-        activeOpacity={0.7}
-        delayPressIn={0}
-        delayPressOut={100}
-      >
-        <Text style={styles.buttonText}>אנליטיקה והישגים 📊</Text>
+        <Text style={styles.buttonText}>לוח שיאים 🏆</Text>
       </TouchableOpacity>
 
       <TouchableOpacity

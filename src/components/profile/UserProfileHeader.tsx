@@ -25,7 +25,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
 }) => {
     const avatarSource = userProfile.photoURL
         ? { uri: userProfile.photoURL }
-        : require("../../assets/default-avatar.png");
+        : require("../../assets/splash.png");
 
     return (
         <View style={styles.profileHeader}>

@@ -11,6 +11,7 @@ export function useProfileStats() {
     highestGrade: "N/A",
     totalFeedbacks: 0,
     averageStarRating: 0,
+    completionPercentage: 0,
     joinDate: null,
   });
   const [gradeStats, setGradeStats] = useState<GradeStatsMap>({});

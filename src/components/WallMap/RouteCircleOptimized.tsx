@@ -72,8 +72,8 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       ? Math.min(Math.max(currentScale, 0.1), 10) 
       : 1;
     
-    // גודל שנשאר קבוע במסך
-    return Math.max(24, precomputedValues.baseSize / Math.sqrt(safeScale));
+    // גודל שנשאר קבוע לגמרי במסך - מחלקים בscale המלא
+    return Math.max(20, precomputedValues.baseSize / safeScale);
   });
 
   const compensatedFontSize = useDerivedValue(() => {
@@ -82,23 +82,40 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       ? Math.min(Math.max(currentScale, 0.1), 10) 
       : 1;
     
-    // גודל גופן שנשאר קריא
-    return Math.max(8, Math.min(16, precomputedValues.baseFontSize / Math.sqrt(safeScale)));
+    // גודל גופן שנשאר קבוע לגמרי במסך
+    return Math.max(8, Math.min(14, precomputedValues.baseFontSize / safeScale));
+  });
+
+  // Offset למרכוז העיגול
+  const compensatedOffset = useDerivedValue(() => {
+    return compensatedSize.value / 2;
+  });
+
+  // Border width שמפצה על הזום
+  const compensatedBorderWidth = useDerivedValue(() => {
+    const currentScale = scale?.value ?? 1;
+    const safeScale = Number.isFinite(currentScale) && currentScale > 0 
+      ? Math.min(Math.max(currentScale, 0.1), 10) 
+      : 1;
+    const baseBorder = selected ? 3 : 1;
+    return Math.max(0.5, baseBorder / safeScale);
   });
 
   // עיצוב העיגול עם אופטימיזציה
   const circleStyle = useAnimatedStyle(() => {
     const size = compensatedSize.value;
+    const offset = compensatedOffset.value;
+    const borderW = compensatedBorderWidth.value;
     
     return {
       position: 'absolute',
-      left: precomputedValues.xImg - size / 2,
-      top: precomputedValues.yImg - size / 2,
+      left: precomputedValues.xImg - offset,
+      top: precomputedValues.yImg - offset,
       width: size,
       height: size,
       borderRadius: size / 2,
       backgroundColor: precomputedValues.colorHex,
-      borderWidth: selected ? 3 : 1,
+      borderWidth: borderW,
       borderColor: selected ? '#0066cc' : '#ffffff',
       elevation: selected ? 8 : 4,
       shadowColor: '#000000',

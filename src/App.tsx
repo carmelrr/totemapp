@@ -17,7 +17,6 @@ import SprayNavigator from "@/navigation/SprayNavigator";
 import RoutesMapScreen from "@/features/routes-map/screens/RoutesMapScreen";
 import AddRouteMapScreen from "@/features/routes-map/screens/AddRouteMapScreen";
 import RouteDetailsScreen from "@/screens/routes/RouteDetailsScreen";
-import AnalyticsScreen from "@/components/analytics/AnalyticsScreen";
 import { UserProvider } from "@/features/auth/UserContext";
 import { ThemeProvider, useTheme } from "@/features/theme/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
@@ -121,12 +120,7 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
         <Stack.Screen
           name="LeaderboardScreen"
           component={LeaderboardScreen}
-          options={{ title: "לוחות מובילים" }}
-        />
-        <Stack.Screen
-          name="Analytics"
-          component={AnalyticsScreen}
-          options={{ title: "אנליטיקה" }}
+          options={{ title: "לוח שיאים" }}
         />
         <Stack.Screen
           name="SprayWall"

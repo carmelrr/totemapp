@@ -17,12 +17,14 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { GradePicker } from "@/components/spray/GradePicker";
 import { useAddRoute } from "@/features/spraywall/hooks";
+import { useAuth } from "@/context/AuthContext";
 import { Hold } from "@/features/spraywall/types";
 
 export const RouteDetailsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { addRoute, loading: addingRoute } = useAddRoute();
+  const { user } = useAuth();
 
   // Get data from previous screen
   const { wallId, holds } = route.params as { wallId: string; holds: Hold[] };
@@ -42,14 +44,19 @@ export const RouteDetailsScreen: React.FC = () => {
         name: routeName.trim(),
         grade: routeGrade,
         holds,
+        createdBy: user?.uid || null,
+        creatorName: user?.displayName || user?.email || undefined,
       });
 
       Alert.alert("הצלחה", "המסלול נוסף בהצלחה!", [
         {
           text: "אישור",
           onPress: () => {
-            // Go back to SprayWall home
-            navigation.navigate("SprayWallHome");
+            // Reset navigation stack to SprayHome to prevent back button issues
+            navigation.reset({
+              index: 0,
+              routes: [{ name: "SprayHome" }],
+            });
           },
         },
       ]);

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import { View, ScrollView, Text, ActivityIndicator } from "react-native";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useAdmin } from "@/context/AdminContext";
@@ -15,6 +15,7 @@ import {
   SidePanel,
 } from "./";
 import { UnifiedStatsDashboard as StatsDashboard, UnifiedGradeStatsModal as GradeStatsModal } from "../../components/profile";
+import { pickImage, removeProfileImage } from "./services/imageService";
 
 const ProfileScreen: React.FC = () => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
@@ -38,6 +39,22 @@ const ProfileScreen: React.FC = () => {
     email: profileData.email,
     photoURL: profileData.photoURL,
   };
+
+  // Image pick handler
+  const handleImagePick = useCallback(async () => {
+    const uri = await pickImage();
+    if (uri) {
+      await profileData.handleImageUpload(uri);
+    }
+  }, [profileData]);
+
+  // Image remove handler
+  const handleImageRemove = useCallback(async () => {
+    if (profileData.userId) {
+      await removeProfileImage(profileData.userId, profileData.photoURL);
+      profileData.setPhotoURL(null);
+    }
+  }, [profileData]);
 
   // Get current social users based on active tab
   const getCurrentSocialUsers = () => {
@@ -122,13 +139,17 @@ const ProfileScreen: React.FC = () => {
         onEditToggle={() => profileData.setEditing(!profileData.editing)}
         onSave={profileData.handleSave}
         editedUser={{ displayName: profileData.displayName }}
-        onUserChange={() => { }} // Placeholder
+        onUserChange={(field, value) => {
+          if (field === 'displayName') {
+            profileData.setDisplayName(value);
+          }
+        }}
         privacySettings={privacyData.privacySettings}
         onPrivacyChange={privacyData.updatePrivacySetting}
         circleSize={profileData.circleSize}
         onCircleSizeChange={profileData.setCircleSize}
-        onImagePick={() => { }} // Placeholder - need to implement
-        onImageRemove={() => { }} // Placeholder - need to implement
+        onImagePick={handleImagePick}
+        onImageRemove={handleImageRemove}
         onThemeToggle={toggleTheme}
         isDarkMode={isDarkMode}
         onLogout={profileData.handleLogout}

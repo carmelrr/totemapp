@@ -29,9 +29,10 @@ import {
   getUserFollowers,
   getUserFollowing,
 } from "@/features/social/socialService";
-import defaultAvatar from "@/assets/default-avatar.png";
+import defaultAvatar from "@/assets/splash.png";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { UnifiedStatsDashboard as StatsDashboard, UnifiedGradeStatsModal as GradeStatsModal, UserProfileHeader } from "../../components/profile";
+import { fetchUserStats as fetchUserStatsService } from "./services/statsService";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -49,6 +50,7 @@ export default function UserProfileScreen({ route, navigation }) {
     highestGrade: "N/A",
     totalFeedbacks: 0,
     averageStarRating: 0,
+    completionPercentage: 0,
     joinDate: null,
   });
   const [gradeStats, setGradeStats] = useState({});
@@ -147,21 +149,29 @@ export default function UserProfileScreen({ route, navigation }) {
   };
 
   const fetchUserStats = async () => {
-    const userDoc = await getDoc(doc(db, "users", userId));
+    try {
+      // נסה להשתמש בשירות הסטטיסטיקות המרכזי
+      const stats = await fetchUserStatsService(userId);
+      setUserStats(stats);
+    } catch (error) {
+      // Fallback למשתמשים שאינם מחוברים או צופים בפרופיל של אחר
+      const userDoc = await getDoc(doc(db, "users", userId));
 
-    if (userDoc.exists()) {
-      const userData = userDoc.data();
-      const persistentStats = userData.stats || {};
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        const persistentStats = userData.stats || {};
 
-      setUserStats({
-        totalRoutesSent: persistentStats.totalRoutesSent || 0,
-        highestGrade: persistentStats.highestGrade || "N/A",
-        totalFeedbacks: persistentStats.totalFeedbacks || 0,
-        averageStarRating: persistentStats.averageStarRating || 0,
-        joinDate: userData.createdAt
-          ? new Date(userData.createdAt.seconds * 1000)
-          : null,
-      });
+        setUserStats({
+          totalRoutesSent: persistentStats.totalRoutesSent || 0,
+          highestGrade: persistentStats.highestGrade || "N/A",
+          totalFeedbacks: persistentStats.totalFeedbacks || 0,
+          averageStarRating: persistentStats.averageStarRating || 0,
+          completionPercentage: 0, // לא ניתן לחשב ללא גישה מלאה
+          joinDate: userData.createdAt
+            ? new Date(userData.createdAt.seconds * 1000)
+            : null,
+        });
+      }
     }
   };
 

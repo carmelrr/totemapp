@@ -178,10 +178,18 @@ export async function updateWallImage(
   // Try to delete old image from storage (optional, don't fail if it errors)
   if (currentWall.imageUrl) {
     try {
-      const oldImageRef = ref(storage, currentWall.imageUrl);
-      await deleteObject(oldImageRef);
-    } catch (e) {
-      console.log("Could not delete old image:", e);
+      // Extract storage path from Firebase download URL
+      // URL format: https://firebasestorage.googleapis.com/v0/b/BUCKET/o/PATH?token=...
+      const urlMatch = currentWall.imageUrl.match(/\/o\/([^?]+)/);
+      if (urlMatch) {
+        const storagePath = decodeURIComponent(urlMatch[1]);
+        console.log("🗑️ Deleting old image from storage:", storagePath);
+        const oldImageRef = ref(storage, storagePath);
+        await deleteObject(oldImageRef);
+        console.log("✅ Old image deleted successfully");
+      }
+    } catch (e: any) {
+      console.log("⚠️ Could not delete old image:", e.message || e);
     }
   }
   
