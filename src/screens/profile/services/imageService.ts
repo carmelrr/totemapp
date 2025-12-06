@@ -96,7 +96,7 @@ export async function deleteOldFirebaseImage(imageUrl: string): Promise<void> {
   }
 }
 
-export async function removeProfileImage(userId: string): Promise<void> {
+export async function removeProfileImage(userId: string, currentPhotoURL: string | null): Promise<void> {
   const user = auth.currentUser;
   if (!user || user.uid !== userId) {
     throw new Error("User not authenticated");
@@ -117,9 +117,6 @@ export async function removeProfileImage(userId: string): Promise<void> {
           style: "destructive",
           onPress: async () => {
             try {
-              // Get current photo URL before removing
-              const currentPhotoURL = user.photoURL;
-
               // Update to default image
               await setDoc(
                 doc(db, "users", userId),

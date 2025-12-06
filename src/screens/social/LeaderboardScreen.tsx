@@ -24,7 +24,7 @@ import {
 } from "react-native";
 import { auth, db } from "@/features/data/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
-import defaultAvatar from "@/assets/default-avatar.png";
+import defaultAvatar from "@/assets/splash.png";
 import { useTheme } from "@/features/theme/ThemeContext";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -282,7 +282,7 @@ export default function LeaderboardScreen() {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>🏆 לוח מובילים</Text>
+        <Text style={styles.headerTitle}>🏆 לוח שיאים</Text>
       </View>
 
       <ScrollView

@@ -23,6 +23,8 @@ import {
   getUserFeedbackForRoute,
   getFeedbacksForRoute,
   listenToFeedbacksForRoute,
+  updateRoute,
+  deleteRoute,
 } from "@/features/spraywall/routesService";
 import { useWalls } from "@/features/walls/hooks";
 
@@ -53,6 +55,16 @@ export const SprayRouteDetailScreen: React.FC = () => {
 
   // Current route data (may update with feedbacks)
   const [currentRoute, setCurrentRoute] = useState<SprayRoute>(sprayRoute);
+
+  // Edit route state
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState(sprayRoute.name);
+  const [editGrade, setEditGrade] = useState(sprayRoute.grade);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Check if current user is the route creator
+  const isRouteCreator = user?.uid && sprayRoute.createdBy === user.uid;
 
   // Load feedbacks
   useEffect(() => {
@@ -114,6 +126,87 @@ export const SprayRouteDetailScreen: React.FC = () => {
     }
   };
 
+  // Handle route update (name and grade only - doesn't affect statistics)
+  const handleUpdateRoute = async () => {
+    if (!editName.trim()) {
+      Alert.alert("שגיאה", "יש להזין שם למסלול");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      await updateRoute(sprayRoute.id, {
+        name: editName.trim(),
+        grade: editGrade,
+      });
+      
+      // Update local state
+      setCurrentRoute((prev) => ({
+        ...prev,
+        name: editName.trim(),
+        grade: editGrade,
+      }));
+      
+      setShowEditModal(false);
+      Alert.alert("הצלחה", "המסלול עודכן בהצלחה");
+    } catch (error) {
+      console.error("Error updating route:", error);
+      Alert.alert("שגיאה", "לא הצלחנו לעדכן את המסלול");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Handle route deletion
+  const handleDeleteRoute = () => {
+    Alert.alert(
+      "מחיקת מסלול",
+      `האם אתה בטוח שברצונך למחוק את המסלול "${sprayRoute.name}"?\n\nפעולה זו אינה ניתנת לביטול.`,
+      [
+        { text: "ביטול", style: "cancel" },
+        {
+          text: "מחק",
+          style: "destructive",
+          onPress: async () => {
+            setIsDeleting(true);
+            try {
+              await deleteRoute(sprayRoute.id);
+              Alert.alert("הצלחה", "המסלול נמחק בהצלחה", [
+                {
+                  text: "אישור",
+                  onPress: () => {
+                    // Reset navigation stack to SprayHome after deletion
+                    navigation.reset({
+                      index: 0,
+                      routes: [{ name: "SprayHome" }],
+                    });
+                  },
+                },
+              ]);
+            } catch (error) {
+              console.error("Error deleting route:", error);
+              Alert.alert("שגיאה", "לא הצלחנו למחוק את המסלול");
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Navigate to edit holds screen
+  const handleEditHolds = () => {
+    setShowEditModal(false);
+    navigation.navigate("AddRoute", {
+      wallId,
+      editMode: true,
+      routeId: sprayRoute.id,
+      existingHolds: sprayRoute.holds,
+      routeName: currentRoute.name,
+      routeGrade: currentRoute.grade,
+    });
+  };
+
   const displayGrade = currentRoute.calculatedGrade || currentRoute.grade;
   const averageRating = currentRoute.averageStarRating || 0;
   const feedbackCount = currentRoute.feedbackCount || 0;
@@ -140,17 +233,19 @@ export const SprayRouteDetailScreen: React.FC = () => {
               routeColor={sprayRoute.color || "#FF4444"}
               editable={false}
             />
-            <View style={styles.routeOverlay}>
-              <Text style={styles.routeName}>{sprayRoute.name}</Text>
-              <View style={styles.gradeContainer}>
-                <Text style={styles.routeGrade}>{displayGrade}</Text>
-                {currentRoute.calculatedGrade && currentRoute.calculatedGrade !== currentRoute.grade && (
-                  <Text style={styles.communityBadge}>👥 קהילה</Text>
-                )}
-              </View>
-            </View>
           </View>
         )}
+
+        {/* Route Header - Name and Grade */}
+        <View style={styles.routeHeaderSection}>
+          <Text style={styles.routeName}>{currentRoute.name}</Text>
+          <View style={styles.gradeContainer}>
+            <Text style={styles.routeGrade}>{displayGrade}</Text>
+            {currentRoute.calculatedGrade && currentRoute.calculatedGrade !== currentRoute.grade && (
+              <Text style={styles.communityBadge}>👥 קהילה</Text>
+            )}
+          </View>
+        </View>
 
         {/* Stats Cards */}
         <View style={styles.statsSection}>
@@ -201,6 +296,36 @@ export const SprayRouteDetailScreen: React.FC = () => {
             )}
           </View>
         </View>
+
+        {/* Owner Actions - Edit/Delete (only for route creator) */}
+        {isRouteCreator && (
+          <View style={styles.ownerActionsSection}>
+            <Text style={styles.sectionTitle}>ניהול המסלול</Text>
+            <View style={styles.ownerActionsRow}>
+              <TouchableOpacity
+                style={styles.editRouteButton}
+                onPress={() => setShowEditModal(true)}
+              >
+                <Text style={styles.editRouteIcon}>✏️</Text>
+                <Text style={styles.editRouteText}>ערוך מסלול</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deleteRouteButton}
+                onPress={handleDeleteRoute}
+                disabled={isDeleting}
+              >
+                {isDeleting ? (
+                  <ActivityIndicator color="#ff6b6b" size="small" />
+                ) : (
+                  <>
+                    <Text style={styles.deleteRouteIcon}>🗑️</Text>
+                    <Text style={styles.deleteRouteText}>מחק</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Feedback Section */}
         <View style={styles.feedbackSection}>
@@ -393,6 +518,101 @@ export const SprayRouteDetailScreen: React.FC = () => {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {/* Edit Route Modal */}
+      <Modal
+        visible={showEditModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowEditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>ערוך מסלול</Text>
+            
+            {/* Route Name */}
+            <View style={styles.modalFormSection}>
+              <Text style={styles.modalLabel}>שם המסלול</Text>
+              <TextInput
+                style={styles.modalInput}
+                value={editName}
+                onChangeText={setEditName}
+                placeholder="שם המסלול"
+                placeholderTextColor="#888"
+              />
+            </View>
+
+            {/* Route Grade */}
+            <View style={styles.modalFormSection}>
+              <Text style={styles.modalLabel}>דירוג קושי</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.gradeScroller}
+              >
+                {V_GRADES.map((grade) => (
+                  <TouchableOpacity
+                    key={grade}
+                    onPress={() => setEditGrade(grade)}
+                    style={[
+                      styles.gradeOption,
+                      editGrade === grade && styles.gradeOptionSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.gradeOptionText,
+                        editGrade === grade && styles.gradeOptionTextSelected,
+                      ]}
+                    >
+                      {grade}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* Edit Holds Button */}
+            <TouchableOpacity
+              style={styles.editHoldsButton}
+              onPress={handleEditHolds}
+            >
+              <Text style={styles.editHoldsIcon}>🎯</Text>
+              <Text style={styles.editHoldsText}>ערוך אחיזות על הקיר</Text>
+            </TouchableOpacity>
+
+            {/* Note about statistics */}
+            <Text style={styles.modalNote}>
+              💡 עריכה אינה משפיעה על הסטטיסטיקות והדירוגים מהקהילה
+            </Text>
+
+            {/* Modal Buttons */}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowEditModal(false);
+                  setEditName(currentRoute.name);
+                  setEditGrade(currentRoute.grade);
+                }}
+              >
+                <Text style={styles.modalCancelText}>ביטול</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalSaveButton, isUpdating && styles.buttonDisabled]}
+                onPress={handleUpdateRoute}
+                disabled={isUpdating}
+              >
+                {isUpdating ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalSaveText}>שמור</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -406,8 +626,14 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   imageContainer: {
-    height: 280,
+    height: 350,
     position: "relative",
+  },
+  routeHeaderSection: {
+    backgroundColor: "#2a2a2a",
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
   },
   routeOverlay: {
     position: "absolute",
@@ -443,9 +669,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 8,
     backgroundColor: "#2a2a2a",
-    marginTop: -12,
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
   },
   statCard: {
     alignItems: "center",
@@ -702,6 +925,142 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 40,
+  },
+  // Owner Actions Styles
+  ownerActionsSection: {
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
+  ownerActionsRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  editRouteButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#3a3a3a",
+    paddingVertical: 12,
+    borderRadius: 12,
+    gap: 8,
+  },
+  editRouteIcon: {
+    fontSize: 18,
+  },
+  editRouteText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  deleteRouteButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255, 107, 107, 0.15)",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 8,
+  },
+  deleteRouteIcon: {
+    fontSize: 18,
+  },
+  deleteRouteText: {
+    color: "#ff6b6b",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: "#2a2a2a",
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    maxWidth: 400,
+  },
+  modalTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  modalFormSection: {
+    marginBottom: 16,
+  },
+  modalLabel: {
+    color: "#aaa",
+    fontSize: 14,
+    marginBottom: 8,
+  },
+  modalInput: {
+    backgroundColor: "#3a3a3a",
+    borderRadius: 8,
+    padding: 12,
+    color: "#fff",
+    fontSize: 16,
+  },
+  modalNote: {
+    color: "#888",
+    fontSize: 12,
+    textAlign: "center",
+    marginBottom: 20,
+    fontStyle: "italic",
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  modalCancelButton: {
+    flex: 1,
+    backgroundColor: "#3a3a3a",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  modalCancelText: {
+    color: "#888",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalSaveButton: {
+    flex: 1,
+    backgroundColor: "#8E4EC6",
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  modalSaveText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  // Edit Holds Button
+  editHoldsButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#3a3a3a",
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginBottom: 16,
+    gap: 8,
+  },
+  editHoldsIcon: {
+    fontSize: 18,
+  },
+  editHoldsText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
 

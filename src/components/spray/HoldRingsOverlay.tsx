@@ -53,7 +53,7 @@ const StaticRingView: React.FC<{
         borderRadius: r,
         borderWidth: strokeWidth,
         borderColor: hold.color,
-        backgroundColor: 'rgba(255, 0, 255, 0.1)', // DEBUG: נוסיף רקע ורוד קלוש כדי לראות שזה עובד
+        backgroundColor: 'transparent',
         borderStyle: 'solid',
       }}
     />

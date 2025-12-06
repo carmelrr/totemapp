@@ -3,6 +3,7 @@ import Animated, { useAnimatedStyle, useDerivedValue, SharedValue, runOnJS } fro
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { RouteDoc } from '@/features/routes-map/types/route';
 import { getColorHex, getContrastTextColor } from '@/constants/colors';
+import { useUser } from '@/features/auth/UserContext';
 
 interface RouteCircleProps {
   route: RouteDoc;
@@ -33,6 +34,8 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   selected = false,
   gesturesDisabled = false,
 }) => {
+  // קבל גודל עיגול מהעדפות המשתמש
+  const { circleSize } = useUser();
   
   // חישובים מוקדמים - מחוץ לworklet
   const precomputedValues = useMemo(() => {
@@ -63,9 +66,10 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       console.warn('🎨 Invalid route.color:', route?.id, route?.color);
     }
 
-    // גדלים בסיסיים
-    const baseSize = 32;
-    const baseFontSize = 12;
+    // גדלים בסיסיים - משתמשים בהעדפת המשתמש (circleSize * 2 כי זה רדיוס)
+    // circleSize יכול להיות 6 (קטן), 12 (בינוני), 20 (גדול)
+    const baseSize = circleSize * 2.5; // מכפיל לגודל הכולל
+    const baseFontSize = Math.max(8, circleSize * 0.8);
 
     return {
       xImg,
@@ -75,22 +79,23 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       baseSize,
       baseFontSize,
     };
-  }, [route.id, route.xNorm, route.yNorm, route.color, route.grade, wallWidth, wallHeight, imageWidth, imageHeight]);
+  }, [route.id, route.xNorm, route.yNorm, route.color, route.grade, wallWidth, wallHeight, imageWidth, imageHeight, circleSize]);
 
   // אם הקואורדינטות לא תקינות
   if (!precomputedValues) {
     return null;
   }
 
-  // Derived values לחישובים smooth
+  // גודל קבוע על המסך - העיגולים שומרים על אותו קוטר פיזי (למשל 32px) 
+  // גם כשעושים זום על המפה. מחלקים ב-scale כדי לפצות על הזום.
   const compensatedSize = useDerivedValue(() => {
     const currentScale = scale?.value ?? 1;
     const safeScale = Number.isFinite(currentScale) && currentScale > 0 
       ? Math.min(Math.max(currentScale, 0.1), 10) 
       : 1;
     
-    // גודל שנשאר קבוע במסך
-    return Math.max(24, precomputedValues.baseSize / Math.sqrt(safeScale));
+    // מחלקים בscale כדי שהגודל על המסך יישאר קבוע
+    return precomputedValues.baseSize / safeScale;
   });
 
   const compensatedFontSize = useDerivedValue(() => {
@@ -99,23 +104,39 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       ? Math.min(Math.max(currentScale, 0.1), 10) 
       : 1;
     
-    // גודל גופן שנשאר קריא
-    return Math.max(8, Math.min(16, precomputedValues.baseFontSize / Math.sqrt(safeScale)));
+    return precomputedValues.baseFontSize / safeScale;
   });
 
-  // עיצוב העיגול עם אופטימיזציה
+  // Offset למרכוז העיגול
+  const compensatedOffset = useDerivedValue(() => {
+    return compensatedSize.value / 2;
+  });
+
+  // Border width שמפצה על הזום
+  const compensatedBorderWidth = useDerivedValue(() => {
+    const currentScale = scale?.value ?? 1;
+    const safeScale = Number.isFinite(currentScale) && currentScale > 0 
+      ? Math.min(Math.max(currentScale, 0.1), 10) 
+      : 1;
+    const baseBorder = selected ? 3 : 1;
+    return baseBorder / safeScale;
+  });
+
+  // עיצוב העיגול - גודל קבוע על המסך
   const circleStyle = useAnimatedStyle(() => {
     const size = compensatedSize.value;
+    const offset = compensatedOffset.value;
+    const borderW = compensatedBorderWidth.value;
     
     return {
       position: 'absolute',
-      left: precomputedValues.xImg - size / 2,
-      top: precomputedValues.yImg - size / 2,
+      left: precomputedValues.xImg - offset,
+      top: precomputedValues.yImg - offset,
       width: size,
       height: size,
       borderRadius: size / 2,
       backgroundColor: precomputedValues.colorHex,
-      borderWidth: selected ? 3 : 1,
+      borderWidth: borderW,
       borderColor: selected ? '#0066cc' : '#ffffff',
       elevation: selected ? 8 : 4,
       justifyContent: 'center',

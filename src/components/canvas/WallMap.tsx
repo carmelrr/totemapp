@@ -158,9 +158,11 @@ const styles = StyleSheet.create({
         // המפה תמלא את כל המקום הפנוי במסגרת
         width: '100%',
         height: '100%',
+        overflow: 'hidden', // Prevent map from visually going outside bounds
     },
     gestureContainer: {
         flex: 1,
+        overflow: 'hidden', // Double ensure clipping
     },
     mapContainer: {
         position: 'absolute',

@@ -18,6 +18,9 @@ export async function fetchUserStats(userId: string): Promise<UserStats> {
 
   try {
     const userDoc = await getDoc(doc(db, "users", userId));
+    
+    // חישוב אחוז סגירה מהמסלולים הפעילים בלבד
+    const completionPercentage = await calculateActiveRoutesCompletionPercentage(userId);
 
     if (userDoc.exists()) {
       const userData = userDoc.data();
@@ -28,6 +31,7 @@ export async function fetchUserStats(userId: string): Promise<UserStats> {
         highestGrade: persistentStats.highestGrade || "N/A",
         totalFeedbacks: persistentStats.totalFeedbacks || 0,
         averageStarRating: persistentStats.averageStarRating || 0,
+        completionPercentage,
         joinDate: userData.createdAt
           ? new Date(userData.createdAt.seconds * 1000)
           : new Date(user.metadata.creationTime),
@@ -39,6 +43,56 @@ export async function fetchUserStats(userId: string): Promise<UserStats> {
   } catch (error) {
     console.error("Error fetching user stats:", error);
     throw error;
+  }
+}
+
+// חישוב אחוז סגירה מהמסלולים שעל הקיר כרגע
+// מסלול נחשב "על הקיר" אם status === 'active' או אם אין לו status (ברירת מחדל)
+async function calculateActiveRoutesCompletionPercentage(userId: string): Promise<number> {
+  try {
+    // קבל את כל המסלולים ונסנן מקומית
+    // זה כי Firestore לא תומך ב-OR queries או ב-checking for null/missing fields בקלות
+    const allRoutesSnapshot = await getDocs(collection(db, "routes"));
+    
+    // סנן מסלולים פעילים (status === 'active' או status לא קיים/undefined)
+    const activeRoutes = allRoutesSnapshot.docs.filter(doc => {
+      const data = doc.data();
+      // מסלול פעיל אם: אין לו status, או status הוא 'active', או status הוא undefined/null
+      return !data.status || data.status === 'active';
+    });
+    
+    if (activeRoutes.length === 0) {
+      console.log('[Stats] No active routes found');
+      return 0;
+    }
+    
+    console.log(`[Stats] Found ${activeRoutes.length} active routes`);
+    
+    let completedCount = 0;
+    
+    // בדוק כמה מהמסלולים הפעילים המשתמש סגר
+    for (const routeDoc of activeRoutes) {
+      const feedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
+      const userFeedbackQuery = query(
+        feedbacksRef,
+        where("userId", "==", userId),
+        where("closedRoute", "==", true)
+      );
+      const userFeedbackSnapshot = await getDocs(userFeedbackQuery);
+      
+      if (!userFeedbackSnapshot.empty) {
+        completedCount++;
+        console.log(`[Stats] User completed route: ${routeDoc.id}`);
+      }
+    }
+    
+    const percentage = Math.round((completedCount / activeRoutes.length) * 100);
+    console.log(`[Stats] Completion: ${completedCount}/${activeRoutes.length} = ${percentage}%`);
+    
+    return percentage;
+  } catch (error) {
+    console.error("Error calculating active routes completion:", error);
+    return 0;
   }
 }
 
@@ -108,6 +162,9 @@ export async function initializeUserStats(userId: string): Promise<UserStats> {
         ? starRatings.reduce((sum, rating) => sum + rating, 0) / starRatings.length
         : 0;
 
+    // חישוב אחוז סגירה מהמסלולים הפעילים
+    const completionPercentage = await calculateActiveRoutesCompletionPercentage(userId);
+
     const joinDate = new Date(user.metadata.creationTime);
 
     const initialStats: UserStats = {
@@ -115,6 +172,7 @@ export async function initializeUserStats(userId: string): Promise<UserStats> {
       highestGrade,
       totalFeedbacks,
       averageStarRating,
+      completionPercentage,
       joinDate,
     };
 

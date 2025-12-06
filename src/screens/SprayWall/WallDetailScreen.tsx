@@ -1,5 +1,5 @@
 // src/screens/SprayWall/WallDetailScreen.tsx
-// Screen showing a wall with its routes
+// Main Spray Wall screen showing the wall with its routes
 
 import React, { useState } from "react";
 import {
@@ -24,18 +24,21 @@ import { updateWallImage } from "@/features/walls/wallsService";
 export const WallDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { wallId } = route.params;
-  const { isAdmin } = useAdmin();
+  const { isAdmin, adminModeEnabled } = useAdmin();
 
+  // Get walls and use the first one (Spray Wall has only one wall)
   const { walls, loading: wallsLoading } = useWalls();
-  const { routes, loading: routesLoading } = useRoutesForWall(wallId);
+  const wall = walls.length > 0 ? walls[0] : null;
+  const wallId = wall?.id;
+
+  const { routes, loading: routesLoading } = useRoutesForWall(wallId || "");
 
   const [selectedRoute, setSelectedRoute] = useState<SprayRoute | null>(null);
   const [updatingWall, setUpdatingWall] = useState(false);
-
-  const wall = walls.find((w) => w.id === wallId);
+  const [editMode, setEditMode] = useState(false);
 
   const handleAddRoute = () => {
+    if (!wallId) return;
     navigation.navigate("AddRoute", { wallId });
   };
 
@@ -130,10 +133,32 @@ export const WallDetailScreen: React.FC = () => {
     );
   };
 
-  if (wallsLoading || !wall) {
+  if (wallsLoading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#8E4EC6" />
+        <Text style={styles.loadingText}>טוען...</Text>
+      </View>
+    );
+  }
+
+  // No wall exists yet - show empty state with option to add wall (admin only)
+  if (!wall) {
+    return (
+      <View style={styles.emptyContainer}>
+        <Text style={styles.emptyIcon}>🧗‍♂️</Text>
+        <Text style={styles.emptyText}>אין קיר עדיין</Text>
+        {isAdmin && adminModeEnabled && (
+          <TouchableOpacity 
+            style={styles.addWallButton} 
+            onPress={() => navigation.navigate("AddWall")}
+          >
+            <Text style={styles.addWallButtonText}>+ הוסף קיר</Text>
+          </TouchableOpacity>
+        )}
+        {(!isAdmin || !adminModeEnabled) && (
+          <Text style={styles.emptySubtext}>רק מנהל במצב עריכה יכול להוסיף קיר</Text>
+        )}
       </View>
     );
   }
@@ -162,8 +187,18 @@ export const WallDetailScreen: React.FC = () => {
           </View>
         )}
         
-        {/* Admin button to change wall image */}
-        {isAdmin && (
+        {/* Admin edit mode toggle */}
+        {isAdmin && adminModeEnabled && (
+          <TouchableOpacity 
+            style={[styles.editModeButton, editMode && styles.editModeButtonActive]}
+            onPress={() => setEditMode(!editMode)}
+          >
+            <Text style={styles.editModeButtonText}>{editMode ? '✓ עריכה' : '✏️'}</Text>
+          </TouchableOpacity>
+        )}
+        
+        {/* Admin button to change wall image - only in edit mode */}
+        {isAdmin && adminModeEnabled && editMode && (
           <TouchableOpacity 
             style={styles.changeWallButton}
             onPress={handleChangeWallImage}
@@ -365,6 +400,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
+  editModeButton: {
+    position: "absolute",
+    top: 12,
+    left: 12,
+    backgroundColor: "rgba(100,100,100,0.7)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  editModeButtonActive: {
+    backgroundColor: "rgba(142,78,198,0.9)",
+  },
+  editModeButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
   routesLoading: {
     padding: 40,
     alignItems: "center",
@@ -381,6 +433,46 @@ const styles = StyleSheet.create({
     color: "#8E4EC6",
     fontSize: 14,
     marginTop: 8,
+  },
+  // Empty state styles (no wall)
+  emptyContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#1a1a1a",
+    padding: 20,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
+  },
+  emptyText: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  emptySubtext: {
+    color: "#888",
+    fontSize: 14,
+    marginTop: 8,
+  },
+  addWallButton: {
+    backgroundColor: "#8E4EC6",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 24,
+    marginTop: 16,
+  },
+  addWallButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  loadingText: {
+    color: "#888",
+    fontSize: 14,
+    marginTop: 12,
   },
 });
 

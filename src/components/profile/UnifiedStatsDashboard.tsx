@@ -93,8 +93,8 @@ export const UnifiedStatsDashboard: React.FC<StatsDashboardProps> = ({
                         style={[styles.simpleStatCard, styles.clickableCard, { backgroundColor: theme.background }]}
                         onPress={onStatsPress}
                     >
-                        <Text style={[styles.statValue, { color: theme.text }]}>{stats.averageStarRating.toFixed(1)}</Text>
-                        <Text style={[styles.statLabel, { color: theme.textSecondary }]}>דירוג ממוצע</Text>
+                        <Text style={[styles.statValue, { color: theme.text }]}>{stats.completionPercentage || 0}%</Text>
+                        <Text style={[styles.statLabel, { color: theme.textSecondary }]}>אחוז סגירה (על הקיר)</Text>
                         <Text style={[styles.clickHint, { color: theme.primary }]}>לחץ לפרטים</Text>
                     </TouchableOpacity>
                 </View>
@@ -188,9 +188,9 @@ export const UnifiedStatsDashboard: React.FC<StatsDashboardProps> = ({
                         />
 
                         <StatCard
-                            title="דירוג כוכבים ממוצע"
-                            value={userStats.averageStarRating.toFixed(1)}
-                            icon="⭐"
+                            title="אחוז סגירה (על הקיר)"
+                            value={`${userStats.completionPercentage || 0}%`}
+                            icon="📈"
                             color="#fd7e14"
                             isVisible={privacySettings.showAverageRating}
                             settingKey="showAverageRating"

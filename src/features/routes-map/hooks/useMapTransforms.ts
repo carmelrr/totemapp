@@ -1,8 +1,9 @@
-import { useRef, useCallback, useMemo } from 'react';
+import React, { useRef, useCallback, useMemo } from 'react';
 import {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
+  withSpring,
   runOnJS,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -64,6 +65,45 @@ export function useMapTransforms({
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
 
+  // Track dimensions for detecting changes
+  const prevDimensionsRef = useRef({ imgW: 0, imgH: 0, screenW: 0, screenH: 0 });
+
+  // Apply initial centering when dimensions are available or change
+  React.useEffect(() => {
+    const prev = prevDimensionsRef.current;
+    const dimensionsChanged = 
+      prev.imgW !== safeImageWidth || 
+      prev.imgH !== safeImageHeight ||
+      prev.screenW !== safeScreenWidth ||
+      prev.screenH !== safeScreenHeight;
+    
+    if (dimensionsChanged && safeImageWidth > 1 && safeImageHeight > 1 && safeScreenWidth > 1 && safeScreenHeight > 1) {
+      prevDimensionsRef.current = { 
+        imgW: safeImageWidth, 
+        imgH: safeImageHeight, 
+        screenW: safeScreenWidth, 
+        screenH: safeScreenHeight 
+      };
+      
+      // Calculate initial centered position
+      const initialCentered = clampViewport(
+        { scale: 1, translateX: 0, translateY: 0 },
+        safeScreenWidth,
+        safeScreenHeight,
+        safeImageWidth,
+        safeImageHeight,
+        safeMinScale,
+        safeMaxScale
+      );
+      translateX.value = initialCentered.translateX;
+      translateY.value = initialCentered.translateY;
+      scale.value = 1;
+      if (onTransformChange) {
+        onTransformChangeGuarded(initialCentered);
+      }
+    }
+  }, [safeImageWidth, safeImageHeight, safeScreenWidth, safeScreenHeight, safeMinScale, safeMaxScale, onTransformChange, onTransformChangeGuarded]);
+
   // Gesture state
   const baseScale = useSharedValue(1);
   const baseTranslateX = useSharedValue(0);
@@ -109,6 +149,7 @@ export function useMapTransforms({
   // Pan gesture using new Gesture API
   const panGesture = useMemo(() => 
     Gesture.Pan()
+      .minDistance(5) // Require minimum movement before starting pan
       .onStart(() => {
         baseTranslateX.value = translateX.value;
         baseTranslateY.value = translateY.value;
@@ -131,9 +172,16 @@ export function useMapTransforms({
         translateX.value = clamped.translateX;
         translateY.value = clamped.translateY;
       })
-      .onEnd(() => {
+      .onEnd((event) => {
+        // Apply velocity for momentum scrolling
+        const velocityX = event.velocityX * 0.1;
+        const velocityY = event.velocityY * 0.1;
+        
+        const projectedX = translateX.value + velocityX;
+        const projectedY = translateY.value + velocityY;
+        
         const clamped = clampViewport(
-          { scale: scale.value, translateX: translateX.value, translateY: translateY.value },
+          { scale: scale.value, translateX: projectedX, translateY: projectedY },
           safeScreenWidth,
           safeScreenHeight,
           safeImageWidth,
@@ -142,8 +190,10 @@ export function useMapTransforms({
           safeMaxScale
         );
 
-        translateX.value = withTiming(clamped.translateX);
-        translateY.value = withTiming(clamped.translateY);
+        // Use spring animation for smoother deceleration
+        const springConfig = { damping: 20, stiffness: 200 };
+        translateX.value = withSpring(clamped.translateX, springConfig);
+        translateY.value = withSpring(clamped.translateY, springConfig);
 
         if (onTransformChange) {
           runOnJS(onTransformChangeGuarded)(clamped);
@@ -166,9 +216,9 @@ export function useMapTransforms({
         const rawScale = baseScale.value * (event.scale ?? 1);
         const clampedScale = Math.max(safeMinScale, Math.min(safeMaxScale, rawScale));
 
-        const currentScale = scale.value || 1;
-        const fxImg = (focalX.value - translateX.value) / currentScale;
-        const fyImg = (focalY.value - translateY.value) / currentScale;
+        // Use base values for focal point calculation, not current animated values
+        const fxImg = (focalX.value - baseTranslateX.value) / baseScale.value;
+        const fyImg = (focalY.value - baseTranslateY.value) / baseScale.value;
 
         const newTranslateX = focalX.value - fxImg * clampedScale;
         const newTranslateY = focalY.value - fyImg * clampedScale;
@@ -199,9 +249,11 @@ export function useMapTransforms({
           safeMaxScale
         );
 
-        scale.value = withTiming(clamped.scale);
-        translateX.value = withTiming(clamped.translateX);
-        translateY.value = withTiming(clamped.translateY);
+        // Use spring animation for smoother feel
+        const springConfig = { damping: 15, stiffness: 150 };
+        scale.value = withSpring(clamped.scale, springConfig);
+        translateX.value = withSpring(clamped.translateX, springConfig);
+        translateY.value = withSpring(clamped.translateY, springConfig);
 
         if (onTransformChange) {
           runOnJS(onTransformChangeGuarded)(clamped);
@@ -217,22 +269,37 @@ export function useMapTransforms({
       .onEnd((event) => {
         const currentScale = scale.value;
         const targetScale = currentScale < 2 ? 2 : 1;
+        const springConfig = { damping: 15, stiffness: 150 };
 
         if (targetScale === 1) {
-          scale.value = withTiming(1);
-          translateX.value = withTiming(0);
-          translateY.value = withTiming(0);
+          // Reset to initial centered position
+          const centered = clampViewport(
+            { scale: 1, translateX: 0, translateY: 0 },
+            safeScreenWidth,
+            safeScreenHeight,
+            safeImageWidth,
+            safeImageHeight,
+            safeMinScale,
+            safeMaxScale
+          );
+          scale.value = withSpring(1, springConfig);
+          translateX.value = withSpring(centered.translateX, springConfig);
+          translateY.value = withSpring(centered.translateY, springConfig);
           
           if (onTransformChange) {
-            runOnJS(onTransformChangeGuarded)({ scale: 1, translateX: 0, translateY: 0 });
+            runOnJS(onTransformChangeGuarded)(centered);
           }
         } else {
           const fx = event.x;
           const fy = event.y;
-          const scaleDiff = targetScale - currentScale;
+          
+          // Calculate image coordinates of the tap point
+          const imgX = (fx - translateX.value) / currentScale;
+          const imgY = (fy - translateY.value) / currentScale;
 
-          const newTranslateX = translateX.value - (fx - translateX.value) * scaleDiff / currentScale;
-          const newTranslateY = translateY.value - (fy - translateY.value) * scaleDiff / currentScale;
+          // Calculate new translation to keep that point under the finger
+          const newTranslateX = fx - imgX * targetScale;
+          const newTranslateY = fy - imgY * targetScale;
 
           const clamped = clampViewport(
             { scale: targetScale, translateX: newTranslateX, translateY: newTranslateY },
@@ -244,9 +311,9 @@ export function useMapTransforms({
             safeMaxScale
           );
 
-          scale.value = withTiming(clamped.scale);
-          translateX.value = withTiming(clamped.translateX);
-          translateY.value = withTiming(clamped.translateY);
+          scale.value = withSpring(clamped.scale, springConfig);
+          translateX.value = withSpring(clamped.translateX, springConfig);
+          translateY.value = withSpring(clamped.translateY, springConfig);
 
           if (onTransformChange) {
             runOnJS(onTransformChangeGuarded)(clamped);
@@ -278,25 +345,39 @@ export function useMapTransforms({
 
   // Reset view function
   const resetView = () => {
-    scale.value = withTiming(1);
-    translateX.value = withTiming(0);
-    translateY.value = withTiming(0);
+    const centered = clampViewport(
+      { scale: 1, translateX: 0, translateY: 0 },
+      safeScreenWidth,
+      safeScreenHeight,
+      safeImageWidth,
+      safeImageHeight,
+      safeMinScale,
+      safeMaxScale
+    );
+    const springConfig = { damping: 15, stiffness: 150 };
+    scale.value = withSpring(1, springConfig);
+    translateX.value = withSpring(centered.translateX, springConfig);
+    translateY.value = withSpring(centered.translateY, springConfig);
 
     if (onTransformChange) {
-      onTransformChangeGuarded({ scale: 1, translateX: 0, translateY: 0 });
+      onTransformChangeGuarded(centered);
     }
   };
 
   // Manual zoom functions
   const zoomIn = () => {
-    const newScale = Math.min(safeMaxScale, scale.value * 1.5);
+    const currentScale = scale.value || 1;
+    const newScale = Math.min(safeMaxScale, currentScale * 1.5);
     const centerX = safeScreenWidth / 2;
     const centerY = safeScreenHeight / 2;
 
-    // Zoom around center
-    const scaleDiff = newScale - scale.value;
-    const newTranslateX = translateX.value - (centerX - translateX.value) * scaleDiff / scale.value;
-    const newTranslateY = translateY.value - (centerY - translateY.value) * scaleDiff / scale.value;
+    // Calculate image coordinates at center
+    const imgX = (centerX - translateX.value) / currentScale;
+    const imgY = (centerY - translateY.value) / currentScale;
+
+    // Calculate new translation to keep center point
+    const newTranslateX = centerX - imgX * newScale;
+    const newTranslateY = centerY - imgY * newScale;
 
     const clamped = clampViewport(
       { scale: newScale, translateX: newTranslateX, translateY: newTranslateY },
@@ -308,9 +389,10 @@ export function useMapTransforms({
       safeMaxScale
     );
 
-    scale.value = withTiming(clamped.scale);
-    translateX.value = withTiming(clamped.translateX);
-    translateY.value = withTiming(clamped.translateY);
+    const springConfig = { damping: 15, stiffness: 150 };
+    scale.value = withSpring(clamped.scale, springConfig);
+    translateX.value = withSpring(clamped.translateX, springConfig);
+    translateY.value = withSpring(clamped.translateY, springConfig);
 
     if (onTransformChange) {
       onTransformChangeGuarded(clamped);
@@ -318,14 +400,18 @@ export function useMapTransforms({
   };
 
   const zoomOut = () => {
-    const newScale = Math.max(safeMinScale, scale.value / 1.5);
+    const currentScale = scale.value || 1;
+    const newScale = Math.max(safeMinScale, currentScale / 1.5);
     const centerX = safeScreenWidth / 2;
     const centerY = safeScreenHeight / 2;
 
-    // Zoom around center
-    const scaleDiff = newScale - scale.value;
-    const newTranslateX = translateX.value - (centerX - translateX.value) * scaleDiff / scale.value;
-    const newTranslateY = translateY.value - (centerY - translateY.value) * scaleDiff / scale.value;
+    // Calculate image coordinates at center
+    const imgX = (centerX - translateX.value) / currentScale;
+    const imgY = (centerY - translateY.value) / currentScale;
+
+    // Calculate new translation to keep center point
+    const newTranslateX = centerX - imgX * newScale;
+    const newTranslateY = centerY - imgY * newScale;
 
     const clamped = clampViewport(
       { scale: newScale, translateX: newTranslateX, translateY: newTranslateY },
@@ -337,9 +423,10 @@ export function useMapTransforms({
       safeMaxScale
     );
 
-    scale.value = withTiming(clamped.scale);
-    translateX.value = withTiming(clamped.translateX);
-    translateY.value = withTiming(clamped.translateY);
+    const springConfig2 = { damping: 15, stiffness: 150 };
+    scale.value = withSpring(clamped.scale, springConfig2);
+    translateX.value = withSpring(clamped.translateX, springConfig2);
+    translateY.value = withSpring(clamped.translateY, springConfig2);
 
     if (onTransformChange) {
       onTransformChangeGuarded(clamped);

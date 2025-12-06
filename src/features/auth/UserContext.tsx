@@ -4,12 +4,12 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 
 const UserContext = createContext({
   isAdmin: false,
-  circleSize: 15,
+  circleSize: 12, // ברירת מחדל: גודל בינוני (6=קטן, 12=בינוני, 20=גדול)
   setCircleSize: (newSize: number) => {},
 });
 
 export function UserProvider({ children, isAdmin }) {
-  const [circleSize, setCircleSize] = useState(15); // Default to medium size
+  const [circleSize, setCircleSize] = useState(12); // Default to medium size
 
   // Load user preferences from Firestore
   useEffect(() => {

@@ -4,7 +4,6 @@
 import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import {
-  SprayWallHomeScreen,
   AddWallScreen,
   AddRouteScreen,
   WallDetailScreen,
@@ -15,11 +14,9 @@ import { Hold, SprayRoute } from "@/features/spraywall/types";
 
 export type SprayStackParamList = {
   SprayHome: undefined;
-  SprayWallHome: undefined; // Alias for SprayHome
   AddWall: undefined;
   AddRoute: { wallId?: string } | undefined;
   RouteDetails: { wallId: string; holds: Hold[] };
-  WallDetail: { wallId: string; wallName?: string };
   SprayRouteDetail: { sprayRoute: SprayRoute; wallId: string };
 };
 
@@ -46,13 +43,8 @@ export const SprayNavigator: React.FC = () => {
     >
       <Stack.Screen
         name="SprayHome"
-        component={SprayWallHomeScreen}
+        component={WallDetailScreen}
         options={{ title: "Spray Wall" }}
-      />
-      <Stack.Screen
-        name="SprayWallHome"
-        component={SprayWallHomeScreen}
-        options={{ title: "Spray Wall", headerShown: false }}
       />
       <Stack.Screen
         name="AddWall"
@@ -68,13 +60,6 @@ export const SprayNavigator: React.FC = () => {
         name="RouteDetails"
         component={RouteDetailsScreen}
         options={{ title: "פרטי המסלול" }}
-      />
-      <Stack.Screen
-        name="WallDetail"
-        component={WallDetailScreen}
-        options={({ route }) => ({
-          title: route.params?.wallName || "פרטי קיר",
-        })}
       />
       <Stack.Screen
         name="SprayRouteDetail"
