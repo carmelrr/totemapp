@@ -31,16 +31,18 @@ export async function addRoute(payload: {
   wallId: string;
   name: string;
   grade: string;
+  description?: string;
   holds: Hold[];
   createdBy?: string | null;
   creatorName?: string;
 }): Promise<string> {
-  const { wallId, name, grade, holds, createdBy, creatorName } = payload;
+  const { wallId, name, grade, description, holds, createdBy, creatorName } = payload;
 
   const docRef = await addDoc(collection(db, "sprayRoutes"), {
     wallId,
     name,
     grade,
+    description: description || null,
     holds,
     createdAt: serverTimestamp(),
     createdBy: createdBy ?? null,
@@ -147,6 +149,7 @@ export async function addFeedbackToRoute(
     starRating: number;
     suggestedGrade: string;
     comment: string;
+    closedRoute: boolean;  // האם המשתמש סגר את המסלול
   }
 ): Promise<string> {
   const feedbacksRef = collection(db, "sprayRoutes", routeId, "feedbacks");
@@ -231,6 +234,9 @@ export function listenToFeedbacksForRoute(
 
 /**
  * Recalculate route statistics based on feedbacks
+ * Uses the same logic as wall map routes:
+ * - Only count ratings from users who completed the route (closedRoute=true)
+ * - Only accept grade suggestions within ±1 of the original grade
  */
 async function recalculateRouteStats(routeId: string): Promise<void> {
   const feedbacksRef = collection(db, "sprayRoutes", routeId, "feedbacks");
@@ -241,28 +247,67 @@ async function recalculateRouteStats(routeId: string): Promise<void> {
       averageStarRating: 0,
       feedbackCount: 0,
       topsCount: 0,
+      calculatedGrade: null,  // Use null instead of undefined for Firestore
     });
     return;
   }
   
-  let totalStars = 0;
-  const gradeVotes: Record<string, number> = {};
+  // Get the route's original grade for ±1 validation
+  const routeRef = doc(db, "sprayRoutes", routeId);
+  const routeDoc = await getDoc(routeRef);
+  const originalGrade = routeDoc.exists() ? routeDoc.data()?.grade : undefined;
+  const originalGradeNum = gradeToNumber(originalGrade);
   
-  snapshot.forEach((doc) => {
-    const data = doc.data();
-    totalStars += data.starRating || 0;
+  // Helper to convert grade to number
+  function gradeToNumber(grade: string | undefined): number | null {
+    if (!grade || typeof grade !== 'string') return null;
+    if (grade === 'VB') return -1;
+    const match = grade.match(/^V(\d+)$/);
+    if (!match) return null;
+    return parseInt(match[1], 10);
+  }
+  
+  // Helper to convert number back to grade
+  function numberToGrade(num: number): string {
+    if (num < 0) return 'VB';
+    return `V${num}`;
+  }
+  
+  let totalStars = 0;
+  let completedCount = 0;
+  const gradeVotes: Record<string, number> = {};
+  const feedbackCount = snapshot.size;
+  
+  snapshot.forEach((docSnap) => {
+    const data = docSnap.data();
     
-    const grade = data.suggestedGrade;
-    if (grade) {
-      gradeVotes[grade] = (gradeVotes[grade] || 0) + 1;
+    // Only count stars and grades from users who completed the route
+    if (data.closedRoute) {
+      completedCount++;
+      totalStars += data.starRating || 0;
+      
+      const grade = data.suggestedGrade;
+      if (grade) {
+        const suggestedNum = gradeToNumber(grade);
+        // Validate: only accept grades within ±1 of original grade
+        // Grades outside this range are silently ignored (no error)
+        const isValid = suggestedNum !== null && (
+          originalGradeNum === null || 
+          Math.abs(suggestedNum - originalGradeNum) <= 1
+        );
+        
+        if (isValid) {
+          gradeVotes[grade] = (gradeVotes[grade] || 0) + 1;
+        }
+      }
     }
   });
   
-  const feedbackCount = snapshot.size;
-  const averageStarRating = totalStars / feedbackCount;
+  // Calculate average star rating only from completed routes
+  const averageStarRating = completedCount > 0 ? totalStars / completedCount : 0;
   
-  // Calculate consensus grade (most voted)
-  let calculatedGrade: string | undefined;
+  // Calculate consensus grade (most voted among valid grades)
+  let calculatedGrade: string | null = null;  // Use null for Firestore compatibility
   let maxVotes = 0;
   
   for (const [grade, votes] of Object.entries(gradeVotes)) {
@@ -275,7 +320,7 @@ async function recalculateRouteStats(routeId: string): Promise<void> {
   await updateRoute(routeId, {
     averageStarRating: Math.round(averageStarRating * 10) / 10,
     feedbackCount,
-    topsCount: feedbackCount, // Each feedback = one top
+    topsCount: completedCount,
     calculatedGrade,
   });
 }

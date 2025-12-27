@@ -81,7 +81,7 @@ export const UnifiedStatsDashboard: React.FC<StatsDashboardProps> = ({
                 <View style={styles.statsGrid}>
                     <View style={[styles.simpleStatCard, { backgroundColor: theme.background }]}>
                         <Text style={[styles.statValue, { color: theme.text }]}>{stats.totalRoutesSent}</Text>
-                        <Text style={[styles.statLabel, { color: theme.textSecondary }]}>מסלולים שסגר</Text>
+                        <Text style={[styles.statLabel, { color: theme.textSecondary }]}>מסלולים שנסגרו</Text>
                     </View>
 
                     <View style={[styles.simpleStatCard, { backgroundColor: theme.background }]}>
@@ -158,7 +158,7 @@ export const UnifiedStatsDashboard: React.FC<StatsDashboardProps> = ({
                 {userStats && privacySettings && (
                     <>
                         <StatCard
-                            title="מסלולים שסגר"
+                            title="מסלולים שנסגרו"
                             value={userStats.totalRoutesSent}
                             icon="🎯"
                             color="#28a745"

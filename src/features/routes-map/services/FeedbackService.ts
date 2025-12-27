@@ -219,6 +219,11 @@ export class FeedbackService {
      */
     private static async updateRouteStatistics(routeId: string): Promise<void> {
         try {
+            // Get original route grade for validation
+            const routeRef = doc(routesRef, routeId);
+            const routeDoc = await getDoc(routeRef);
+            const originalGrade = routeDoc.exists() ? routeDoc.data()?.grade : undefined;
+
             const q = query(feedbacksRef, where("routeId", "==", routeId));
             const snapshot = await getDocs(q);
 
@@ -228,10 +233,10 @@ export class FeedbackService {
             const averageStarRating = this.calculateAverageStarRating(feedbacks);
             const completionCount = feedbacks.filter(f => f.isCompleted).length;
             const feedbackCount = feedbacks.length;
-            const calculatedGrade = this.calculateSmartAverageGrade(null, feedbacks);
+            // Pass route with original grade for ±1 validation
+            const calculatedGrade = this.calculateSmartAverageGrade({ grade: originalGrade }, feedbacks);
 
             // Update route document
-            const routeRef = doc(routesRef, routeId);
             await updateDoc(routeRef, {
                 averageStarRating,
                 completionCount,
@@ -268,24 +273,39 @@ export class FeedbackService {
     /**
      * Calculate smart average grade from feedbacks
      * IMPORTANT: Only count grades from users who completed the route
+     * VALIDATION: Only count ratings within ±1 grade of the original route grade
      */
     static calculateSmartAverageGrade(route: any, feedbacks: any[]): string | null {
         if (!feedbacks || feedbacks.length === 0) return null;
+
+        // Get original route grade as numeric value
+        const originalGradeNum = this.gradeToNumericValue(route?.grade);
 
         // Filter only completed feedbacks
         const completedFeedbacks = feedbacks.filter(f => f.isCompleted);
         
         if (completedFeedbacks.length === 0) return null;
 
-        const gradeValues = completedFeedbacks
-            .map(f => f.suggestedGrade)
-            .filter(grade => grade && typeof grade === 'string')
-            .map(grade => this.gradeToNumericValue(grade))
-            .filter(value => value !== null);
+        // Filter out ratings that are more than ±1 grade from original
+        // This prevents users from manipulating the average with extreme ratings
+        const validGradeValues = completedFeedbacks
+            .map(f => ({
+                suggestedGrade: f.suggestedGrade,
+                numericValue: this.gradeToNumericValue(f.suggestedGrade)
+            }))
+            .filter(item => {
+                if (item.numericValue === null) return false;
+                // If no original grade, accept all valid grades
+                if (originalGradeNum === null) return true;
+                // Only accept grades within ±1 of original
+                const difference = Math.abs(item.numericValue - originalGradeNum);
+                return difference <= 1;
+            })
+            .map(item => item.numericValue!);
 
-        if (gradeValues.length === 0) return null;
+        if (validGradeValues.length === 0) return null;
 
-        const average = gradeValues.reduce((sum, val) => sum + val!, 0) / gradeValues.length;
+        const average = validGradeValues.reduce((sum, val) => sum + val, 0) / validGradeValues.length;
         return this.numericValueToGrade(Math.round(average));
     }
 

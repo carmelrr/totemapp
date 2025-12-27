@@ -20,6 +20,7 @@ import { SprayRoute } from "@/features/spraywall/types";
 import { useAdmin } from "@/context/AdminContext";
 import * as ImagePicker from "expo-image-picker";
 import { updateWallImage } from "@/features/walls/wallsService";
+import { deleteAllRoutesForWall } from "@/features/spraywall/routesService";
 
 export const WallDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -57,6 +58,36 @@ export const WallDetailScreen: React.FC = () => {
     } else {
       setSelectedRoute(routeItem);
     }
+  };
+
+  // Admin function to reset all routes (without changing wall image)
+  const handleResetAllRoutes = () => {
+    if (!isAdmin || !wallId) return;
+
+    Alert.alert(
+      "איפוס כל המסלולים",
+      `⚠️ שים לב: פעולה זו תמחק את כל ${routes.length} המסלולים מהספריי וואל!\n\nהתמונה תישאר.\n\nהאם להמשיך?`,
+      [
+        { text: "ביטול", style: "cancel" },
+        {
+          text: "מחק הכל",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              setUpdatingWall(true);
+              await deleteAllRoutesForWall(wallId);
+              setSelectedRoute(null);
+              Alert.alert("הצלחה", "כל המסלולים נמחקו בהצלחה");
+            } catch (error) {
+              console.error("Error deleting all routes:", error);
+              Alert.alert("שגיאה", "לא הצלחנו למחוק את המסלולים");
+            } finally {
+              setUpdatingWall(false);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Admin function to change wall image
@@ -212,6 +243,19 @@ export const WallDetailScreen: React.FC = () => {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Admin actions bar - only in edit mode */}
+      {isAdmin && adminModeEnabled && editMode && routes.length > 0 && (
+        <View style={styles.adminActionsBar}>
+          <TouchableOpacity 
+            style={styles.resetRoutesButton}
+            onPress={handleResetAllRoutes}
+            disabled={updatingWall}
+          >
+            <Text style={styles.resetRoutesButtonText}>🗑️ מחק את כל המסלולים ({routes.length})</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Routes List */}
       <View style={styles.routesSection}>
@@ -473,6 +517,28 @@ const styles = StyleSheet.create({
     color: "#888",
     fontSize: 14,
     marginTop: 12,
+  },
+  // Admin actions bar
+  adminActionsBar: {
+    backgroundColor: "#2a2a2a",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#3a3a3a",
+  },
+  resetRoutesButton: {
+    backgroundColor: "rgba(255, 107, 107, 0.15)",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#ff6b6b",
+  },
+  resetRoutesButtonText: {
+    color: "#ff6b6b",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });
 

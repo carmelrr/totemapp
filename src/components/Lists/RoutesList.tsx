@@ -3,6 +3,7 @@ import { View, FlatList, Text, StyleSheet, TouchableOpacity } from 'react-native
 import { RouteDoc } from '@/features/routes-map/types/route';
 import { useFiltersStore } from '@/store/useFiltersStore';
 import { getColorHex, getContrastTextColor } from '@/constants/colors';
+import { getColorName } from '@/features/routes-map/utils/colors';
 import { useTheme } from '@/features/theme/ThemeContext';
 
 interface RoutesListProps {
@@ -84,7 +85,9 @@ const RouteItem = React.memo(({ route, onPress, theme }: RouteItemProps) => {
         <View style={styles.routeInfo}>
           <View style={styles.routeHeader}>
             <Text style={styles.routeName} numberOfLines={1}>
-              {route.name || `מסלול ${route.id.slice(-6)}`}
+              {route.calculatedGrade && route.color 
+                ? `${route.calculatedGrade} ${getColorName(route.color)}`
+                : route.name || `מסלול ${route.id.slice(-6)}`}
             </Text>
             
             {/* Star Rating - inline */}

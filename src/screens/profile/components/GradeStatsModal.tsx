@@ -112,7 +112,7 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
             {stats && (
               <View style={styles.overallStatsContainer}>
                 <Text style={styles.overallStatsText}>
-                  סה״כ {stats.totalRoutesSent} קווים נשלחו
+                  סה״כ {stats.totalRoutesSent} מסלולים שנסגרו
                 </Text>
                 <Text style={styles.overallStatsText}>
                   גרייד הכי גבוה: {stats.highestGrade}

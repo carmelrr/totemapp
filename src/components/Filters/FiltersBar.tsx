@@ -13,9 +13,9 @@ interface FiltersBarProps {
 }
 
 const SORT_OPTIONS: { value: SortOption; label: string; icon: string }[] = [
-  { value: 'grade-asc', label: 'דירוג קל לקשה (משתמשים)', icon: '📈' },
-  { value: 'grade-desc', label: 'דירוג קשה לקל (משתמשים)', icon: '�' },
-  { value: 'popularity', label: 'הכי פופולרי (כוכבים)', icon: '⭐' },
+  { value: 'grade-asc', label: 'דירוג קל לקשה', icon: '📈' },
+  { value: 'grade-desc', label: 'דירוג קשה לקל', icon: '📉' },
+  { value: 'popularity', label: 'הכי פופולרי', icon: '⭐' },
 ];
 
 /**

@@ -3,7 +3,8 @@ import { Alert, Animated, Dimensions } from "react-native";
 import { signOut } from "firebase/auth";
 import { auth } from "@/features/data/firebase";
 import { useUser } from "@/features/auth/UserContext";
-import { saveProfile } from "../services/profileService";
+import { useUserStore, useUserProfile } from "@/store/userStore";
+import { saveProfile, fetchProfile } from "../services/profileService";
 import { uploadImage, deleteOldFirebaseImage } from "../services/imageService";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -13,12 +14,24 @@ declare global {
 }
 
 export function useProfileBasics() {
-  const user = auth.currentUser;
+  const firebaseUser = auth.currentUser;
   const { circleSize, setCircleSize } = useUser();
   
-  const [displayName, setDisplayName] = useState(user?.displayName || "");
-  const [email, setEmail] = useState(user?.email || "");
-  const [photoURL, setPhotoURL] = useState(user?.photoURL || null);
+  // Get persisted profile from Zustand store
+  const userProfile = useUserProfile();
+  const updateUserProfile = useUserStore((state) => state.updateUserProfile);
+  const loadUserProfile = useUserStore((state) => state.loadUserProfile);
+  
+  // Initialize state from Zustand cache first, fallback to Firebase Auth
+  const [displayName, setDisplayName] = useState(
+    userProfile?.displayName || firebaseUser?.displayName || ""
+  );
+  const [email, setEmail] = useState(
+    userProfile?.email || firebaseUser?.email || ""
+  );
+  const [photoURL, setPhotoURL] = useState<string | null>(
+    userProfile?.photoURL || null
+  );
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -37,6 +50,43 @@ export function useProfileBasics() {
       adminModeRef.current = !!saved;
     }
   }, []);
+
+  // Sync state from Zustand profile when it updates
+  useEffect(() => {
+    if (userProfile) {
+      if (userProfile.displayName) setDisplayName(userProfile.displayName);
+      if (userProfile.email) setEmail(userProfile.email);
+      if (userProfile.photoURL !== undefined) setPhotoURL(userProfile.photoURL || null);
+      setIsAdmin(userProfile.isAdmin || false);
+    }
+  }, [userProfile]);
+
+  // Fetch profile from Firestore on mount if not in Zustand cache
+  useEffect(() => {
+    const fetchAndSyncProfile = async () => {
+      if (!firebaseUser?.uid) return;
+      
+      // If no cached profile or photoURL missing, fetch from Firestore
+      if (!userProfile?.photoURL) {
+        try {
+          const firestoreProfile = await fetchProfile(firebaseUser.uid);
+          if (firestoreProfile.photoURL) {
+            setPhotoURL(firestoreProfile.photoURL);
+          }
+          if (firestoreProfile.displayName) {
+            setDisplayName(firestoreProfile.displayName);
+          }
+          if (firestoreProfile.isAdmin !== undefined) {
+            setIsAdmin(firestoreProfile.isAdmin);
+          }
+        } catch (error) {
+          console.warn('[useProfileBasics] Failed to fetch profile from Firestore:', error);
+        }
+      }
+    };
+    
+    fetchAndSyncProfile();
+  }, [firebaseUser?.uid, userProfile?.photoURL]);
 
   useEffect(() => {
     (globalThis as any).__adminMode = adminMode;
@@ -61,11 +111,15 @@ export function useProfileBasics() {
   };
 
   const handleSave = async () => {
-    if (!user) return;
+    if (!firebaseUser) return;
     
     try {
       setLoading(true);
-      await saveProfile(user.uid, { displayName, photoURL });
+      await saveProfile(firebaseUser.uid, { displayName, photoURL });
+      
+      // Sync to Zustand store for persistence
+      updateUserProfile({ displayName, photoURL: photoURL || undefined });
+      
       setEditing(false);
       Alert.alert("הצלחה", "הפרופיל עודכן");
     } catch (e: any) {
@@ -76,18 +130,24 @@ export function useProfileBasics() {
   };
 
   const handleLogout = async () => {
+    // Clear Zustand store on logout
+    useUserStore.getState().clearUser();
     await signOut(auth);
   };
 
   const handleImageUpload = async (uri: string) => {
-    if (!user) return;
+    if (!firebaseUser) return;
     
     try {
       setLoading(true);
       const currentPhotoURL = photoURL;
-      const downloadURL = await uploadImage(user.uid, uri);
+      const downloadURL = await uploadImage(firebaseUser.uid, uri);
       
+      // Update local state
       setPhotoURL(downloadURL);
+      
+      // Sync to Zustand store for persistence across app restarts
+      updateUserProfile({ photoURL: downloadURL });
       
       // Delete old image if it exists
       if (
@@ -110,7 +170,7 @@ export function useProfileBasics() {
   };
 
   return {
-    userId: user?.uid || "",
+    userId: firebaseUser?.uid || "",
     displayName,
     email,
     photoURL,

@@ -31,6 +31,9 @@ export default function RouteMarker({
 
   const textColor = getContrastTextColor(route.color);
 
+  // Display calculated grade (community consensus) if available, otherwise original
+  const displayGrade = route.calculatedGrade || route.grade;
+
   const handlePress = () => {
     onPress?.(route);
   };
@@ -57,7 +60,7 @@ export default function RouteMarker({
             { color: textColor }, // Use contrast color for text
           ]}
         >
-          {route.grade}
+          {displayGrade}
         </Text>
       </TouchableOpacity>
       

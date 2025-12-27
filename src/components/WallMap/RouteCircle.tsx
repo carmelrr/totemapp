@@ -206,8 +206,12 @@ const RouteCircle = React.memo<RouteCircleProps>(({
 }, (prevProps, nextProps) => {
   // React.memo comparison function for optimization
   // אל תקרא את scale.value כאן כי זה גורם לרנדור warning
+  // ✅ חשוב: חייבים להשוות גם calculatedGrade ו-grade כדי שהעיגול יתעדכן אחרי feedback
   return (
     prevProps.route.id === nextProps.route.id &&
+    prevProps.route.calculatedGrade === nextProps.route.calculatedGrade && // ✅ FIX: re-render on grade change
+    prevProps.route.grade === nextProps.route.grade && // ✅ FIX: also check original grade
+    prevProps.route.color === nextProps.route.color && // ✅ FIX: also check color changes
     prevProps.selected === nextProps.selected &&
     prevProps.imageWidth === nextProps.imageWidth &&
     prevProps.imageHeight === nextProps.imageHeight &&

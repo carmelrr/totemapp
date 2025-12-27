@@ -191,7 +191,7 @@ export function useMapTransforms({
         );
 
         // Use spring animation for smoother deceleration
-        const springConfig = { damping: 20, stiffness: 200 };
+        const springConfig = { damping: 25, stiffness: 120, mass: 0.8 };
         translateX.value = withSpring(clamped.translateX, springConfig);
         translateY.value = withSpring(clamped.translateY, springConfig);
 
@@ -250,7 +250,7 @@ export function useMapTransforms({
         );
 
         // Use spring animation for smoother feel
-        const springConfig = { damping: 15, stiffness: 150 };
+        const springConfig = { damping: 22, stiffness: 100, mass: 0.9 };
         scale.value = withSpring(clamped.scale, springConfig);
         translateX.value = withSpring(clamped.translateX, springConfig);
         translateY.value = withSpring(clamped.translateY, springConfig);
@@ -269,7 +269,7 @@ export function useMapTransforms({
       .onEnd((event) => {
         const currentScale = scale.value;
         const targetScale = currentScale < 2 ? 2 : 1;
-        const springConfig = { damping: 15, stiffness: 150 };
+        const springConfig = { damping: 22, stiffness: 100, mass: 0.9 };
 
         if (targetScale === 1) {
           // Reset to initial centered position
@@ -354,7 +354,7 @@ export function useMapTransforms({
       safeMinScale,
       safeMaxScale
     );
-    const springConfig = { damping: 15, stiffness: 150 };
+    const springConfig = { damping: 22, stiffness: 100, mass: 0.9 };
     scale.value = withSpring(1, springConfig);
     translateX.value = withSpring(centered.translateX, springConfig);
     translateY.value = withSpring(centered.translateY, springConfig);
@@ -389,7 +389,7 @@ export function useMapTransforms({
       safeMaxScale
     );
 
-    const springConfig = { damping: 15, stiffness: 150 };
+    const springConfig = { damping: 22, stiffness: 100, mass: 0.9 };
     scale.value = withSpring(clamped.scale, springConfig);
     translateX.value = withSpring(clamped.translateX, springConfig);
     translateY.value = withSpring(clamped.translateY, springConfig);
@@ -423,10 +423,10 @@ export function useMapTransforms({
       safeMaxScale
     );
 
-    const springConfig2 = { damping: 15, stiffness: 150 };
-    scale.value = withSpring(clamped.scale, springConfig2);
-    translateX.value = withSpring(clamped.translateX, springConfig2);
-    translateY.value = withSpring(clamped.translateY, springConfig2);
+    const springConfig = { damping: 22, stiffness: 100, mass: 0.9 };
+    scale.value = withSpring(clamped.scale, springConfig);
+    translateX.value = withSpring(clamped.translateX, springConfig);
+    translateY.value = withSpring(clamped.translateY, springConfig);
 
     if (onTransformChange) {
       onTransformChangeGuarded(clamped);

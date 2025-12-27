@@ -21,8 +21,9 @@ export interface FeedbackData {
  * Calculate route statistics from feedback array
  * IMPORTANT: Only feedbacks from users who completed the route (isCompleted=true) 
  * are counted towards averageStarRating and calculatedGrade
+ * VALIDATION: Only count ratings within ±1 grade of the original route grade
  */
-export const calculateRouteStats = (feedbacks: FeedbackData[]): RouteStats => {
+export const calculateRouteStats = (feedbacks: FeedbackData[], originalGrade?: string): RouteStats => {
     if (feedbacks.length === 0) {
         return {
             averageStarRating: 0,
@@ -32,6 +33,16 @@ export const calculateRouteStats = (feedbacks: FeedbackData[]): RouteStats => {
             gradeDistribution: {},
         };
     }
+
+    // Helper function to parse grade to number
+    const gradeToNumber = (grade: string): number | null => {
+        if (!grade || typeof grade !== 'string') return null;
+        const match = grade.match(/^V(\d+)$/);
+        if (!match) return null;
+        return parseInt(match[1], 10);
+    };
+
+    const originalGradeNum = gradeToNumber(originalGrade || '');
 
     // Filter only completed feedbacks for rating calculations
     const completedFeedbacks = feedbacks.filter((fb) => fb.isCompleted);
@@ -46,10 +57,19 @@ export const calculateRouteStats = (feedbacks: FeedbackData[]): RouteStats => {
     }
 
     // Calculate grade distribution ONLY from completed feedbacks
+    // VALIDATION: Only include grades within ±1 of original grade
     const gradeDistribution: Record<string, number> = {};
     completedFeedbacks.forEach((fb) => {
         if (fb.suggestedGrade) {
-            gradeDistribution[fb.suggestedGrade] = (gradeDistribution[fb.suggestedGrade] || 0) + 1;
+            const suggestedNum = gradeToNumber(fb.suggestedGrade);
+            // If no original grade, accept all valid grades
+            // Otherwise, only accept grades within ±1 of original
+            if (suggestedNum !== null) {
+                const isValid = originalGradeNum === null || Math.abs(suggestedNum - originalGradeNum) <= 1;
+                if (isValid) {
+                    gradeDistribution[fb.suggestedGrade] = (gradeDistribution[fb.suggestedGrade] || 0) + 1;
+                }
+            }
         }
     });
 

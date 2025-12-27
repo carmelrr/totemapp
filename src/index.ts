@@ -1,9 +1,11 @@
 // src/index.ts - מרכז ייצואים לארכיטקטורה החדשה
 
 // ===== COMPONENTS =====
-export { ToolButton } from "@/components/ui/ToolButton";
-export { BottomToolbar } from "@/components/ui/BottomToolbar";
-export { FloatingPanel } from "@/components/ui/FloatingPanel";
+// Note: BottomToolbar, FloatingPanel, ToolButton are available but not currently used
+// Re-enable exports when implementing new features:
+// export { ToolButton } from "@/components/ui/ToolButton";
+// export { BottomToolbar } from "@/components/ui/BottomToolbar";
+// export { FloatingPanel } from "@/components/ui/FloatingPanel";
 
 // ===== STORES =====
 export { useRouteStore } from "@/features/routes/store";
@@ -21,7 +23,6 @@ export type {
 } from "@/features/routes/types";
 
 // ===== UTILITIES =====
-export * from "@/utils/matrix";
 export * from "@/utils/geometry";
 export * from "@/utils/throttle";
 

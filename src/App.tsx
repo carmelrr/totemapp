@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, AppState, AppStateStatus } from "react-native";
 import { enableScreens } from "react-native-screens";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/features/data/firebase";
+import { useUserStore, useHasHydrated } from "@/store/userStore";
 import ProfileScreen from "@/screens/profile/ProfileScreen";
 import UserProfileScreen from "@/screens/profile/UserProfileScreen";
 import HomeScreen from "@/screens/HomeScreen";
@@ -136,10 +137,38 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+  const appState = useRef(AppState.currentState);
+  
+  // Get Zustand store actions and hydration status
+  const hasHydrated = useHasHydrated();
+  const setCurrentUser = useUserStore((state) => state.setCurrentUser);
+  const loadUserProfile = useUserStore((state) => state.loadUserProfile);
+
+  // Refresh profile when app returns to foreground (covers edge cases)
+  const handleAppStateChange = useCallback((nextAppState: AppStateStatus) => {
+    if (
+      appState.current.match(/inactive|background/) && 
+      nextAppState === 'active' &&
+      user
+    ) {
+      // App has come to the foreground - refresh profile to catch any missed updates
+      console.log('[App] Resuming - refreshing user profile');
+      loadUserProfile((user as any).uid);
+    }
+    appState.current = nextAppState;
+  }, [user, loadUserProfile]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription?.remove();
+  }, [handleAppStateChange]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      
+      // Sync Firebase auth user to Zustand store (triggers profile load)
+      setCurrentUser(firebaseUser);
 
       if (firebaseUser) {
         try {
@@ -160,9 +189,10 @@ export default function App() {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [setCurrentUser]);
 
-  if (loading) return null;
+  // Wait for both Firebase auth check AND Zustand hydration
+  if (loading || !hasHydrated) return null;
 
   // If user is not logged in, show login screen
   if (!user) {

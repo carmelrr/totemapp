@@ -31,6 +31,7 @@ export const RouteDetailsScreen: React.FC = () => {
 
   const [routeName, setRouteName] = useState("");
   const [routeGrade, setRouteGrade] = useState("V0");
+  const [routeDescription, setRouteDescription] = useState("");
 
   const handleSave = async () => {
     if (!routeName.trim()) {
@@ -43,6 +44,7 @@ export const RouteDetailsScreen: React.FC = () => {
         wallId,
         name: routeName.trim(),
         grade: routeGrade,
+        description: routeDescription.trim() || undefined,
         holds,
         createdBy: user?.uid || null,
         creatorName: user?.displayName || user?.email || undefined,
@@ -116,6 +118,21 @@ export const RouteDetailsScreen: React.FC = () => {
             placeholder="הזן שם למסלול"
             placeholderTextColor="#666"
             autoFocus
+          />
+        </View>
+
+        {/* Route Description Input (Optional) */}
+        <View style={styles.inputSection}>
+          <Text style={styles.label}>הערות / בטא (לא חובה)</Text>
+          <TextInput
+            style={[styles.input, styles.descriptionInput]}
+            value={routeDescription}
+            onChangeText={setRouteDescription}
+            placeholder="טיפים, בטא, או הערות על המסלול..."
+            placeholderTextColor="#666"
+            multiline
+            numberOfLines={3}
+            textAlignVertical="top"
           />
         </View>
 
@@ -219,6 +236,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#444",
     textAlign: "right",
+  },
+  descriptionInput: {
+    minHeight: 80,
+    paddingTop: 12,
   },
   saveButton: {
     backgroundColor: "#8E4EC6",

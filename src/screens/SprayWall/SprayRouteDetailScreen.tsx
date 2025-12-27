@@ -51,6 +51,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
   const [starRating, setStarRating] = useState(0);
   const [suggestedGrade, setSuggestedGrade] = useState("");
   const [comment, setComment] = useState("");
+  const [closedRoute, setClosedRoute] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Current route data (may update with feedbacks)
@@ -82,6 +83,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
           setStarRating(myFeedback.starRating);
           setSuggestedGrade(myFeedback.suggestedGrade);
           setComment(myFeedback.comment || "");
+          setClosedRoute(myFeedback.closedRoute || false);
         }
       }
     });
@@ -114,6 +116,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
         starRating,
         suggestedGrade,
         comment: comment.trim(),
+        closedRoute,
       });
 
       Alert.alert("כל הכבוד! 🏆", "הדירוג שלך נשמר בהצלחה!");
@@ -295,6 +298,13 @@ export const SprayRouteDetailScreen: React.FC = () => {
               </View>
             )}
           </View>
+          {/* Route Description/Beta */}
+          {sprayRoute.description && (
+            <View style={styles.descriptionCard}>
+              <Text style={styles.descriptionTitle}>💡 בטא / הערות</Text>
+              <Text style={styles.descriptionText}>{sprayRoute.description}</Text>
+            </View>
+          )}
         </View>
 
         {/* Owner Actions - Edit/Delete (only for route creator) */}
@@ -366,6 +376,12 @@ export const SprayRouteDetailScreen: React.FC = () => {
               <View style={styles.feedbackRow}>
                 <Text style={styles.feedbackLabel}>דרגת קושי:</Text>
                 <Text style={styles.feedbackValue}>{userFeedback.suggestedGrade}</Text>
+              </View>
+              <View style={styles.feedbackRow}>
+                <Text style={styles.feedbackLabel}>סטטוס:</Text>
+                <Text style={styles.feedbackValue}>
+                  {userFeedback.closedRoute ? "🏆 נסגר!" : "בעבודה..."}
+                </Text>
               </View>
               {userFeedback.comment && (
                 <View style={styles.feedbackCommentRow}>
@@ -450,6 +466,18 @@ export const SprayRouteDetailScreen: React.FC = () => {
                 />
               </View>
 
+              {/* Closed Route Checkbox */}
+              <TouchableOpacity
+                style={styles.closedRouteRow}
+                onPress={() => setClosedRoute(!closedRoute)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.checkbox, closedRoute && styles.checkboxChecked]}>
+                  {closedRoute && <Text style={styles.checkmark}>✓</Text>}
+                </View>
+                <Text style={styles.closedRouteLabel}>סגרתי את המסלול! 🏆</Text>
+              </TouchableOpacity>
+
               {/* Submit Buttons */}
               <View style={styles.formButtons}>
                 <TouchableOpacity
@@ -460,10 +488,12 @@ export const SprayRouteDetailScreen: React.FC = () => {
                       setStarRating(userFeedback.starRating || 0);
                       setSuggestedGrade(userFeedback.suggestedGrade || "");
                       setComment(userFeedback.comment || "");
+                      setClosedRoute(userFeedback.closedRoute || false);
                     } else {
                       setStarRating(0);
                       setSuggestedGrade("");
                       setComment("");
+                      setClosedRoute(false);
                     }
                   }}
                 >
@@ -701,6 +731,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#2a2a2a",
     borderRadius: 12,
     padding: 16,
+  },
+  descriptionCard: {
+    backgroundColor: "#2a2a2a",
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+  },
+  descriptionTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  descriptionText: {
+    color: "#ccc",
+    fontSize: 14,
+    lineHeight: 22,
+    textAlign: "right",
   },
   detailRow: {
     flexDirection: "row",
@@ -1061,6 +1109,40 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
+  },
+  // Closed Route Checkbox Styles
+  closedRouteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#3a3a3a",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#666",
+    backgroundColor: "#2a2a2a",
+    marginRight: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxChecked: {
+    backgroundColor: "#4CAF50",
+    borderColor: "#4CAF50",
+  },
+  checkmark: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+  closedRouteLabel: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "500",
   },
 });
 

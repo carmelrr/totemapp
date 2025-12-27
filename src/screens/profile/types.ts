@@ -15,7 +15,7 @@ export type PrivacySettings = {
 };
 
 export type UserStats = {
-  totalRoutesSent: number; // כל המסלולים שסגר אי פעם (כולל ארכיון)
+  totalRoutesSent: number; // כל המסלולים שנסגרו אי פעם (כולל ארכיון)
   highestGrade: string; // הדירוג הגבוה ביותר אי פעם (כולל ארכיון)
   totalFeedbacks: number;
   averageStarRating: number;

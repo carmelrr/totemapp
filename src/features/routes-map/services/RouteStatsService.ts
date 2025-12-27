@@ -31,6 +31,11 @@ export class RouteStatsService {
      */
     static async updateRouteStatistics(routeId: string): Promise<void> {
         try {
+            // Get route document to get original grade
+            const routeRef = doc(this.routesRef, routeId);
+            const routeDoc = await getDoc(routeRef);
+            const originalGrade = routeDoc.exists() ? routeDoc.data()?.grade : undefined;
+
             // Get all feedbacks for this route
             const feedbackQuery = query(
                 this.feedbacksRef,
@@ -52,12 +57,13 @@ export class RouteStatsService {
             }
 
             // Calculate statistics using business logic utility
+            // Pass originalGrade to enable ±1 validation
             const typedFeedbacks: FeedbackData[] = feedbacks.map(fb => ({
                 starRating: fb.starRating || 0,
                 suggestedGrade: fb.suggestedGrade,
                 isCompleted: fb.isCompleted || false,
             }));
-            const stats = calculateRouteStats(typedFeedbacks);
+            const stats = calculateRouteStats(typedFeedbacks, originalGrade);
 
             // Update route document
             await this.updateRouteDoc(routeId, stats);

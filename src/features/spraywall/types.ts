@@ -32,6 +32,7 @@ export interface SprayRouteFeedback {
   starRating: number;       // 1-5
   suggestedGrade: string;   // הדירוג שהמשתמש מציע
   comment: string;
+  closedRoute?: boolean;    // האם המשתמש סגר את המסלול (נחוץ לחישוב סטטיסטיקות)
   createdAt?: any;
   updatedAt?: any;
 }
@@ -41,6 +42,7 @@ export interface SprayRoute {
   wallId: string;
   name: string;
   grade: string;                  // הדירוג המקורי של היוצר
+  description?: string;           // הערות/בטא על המסלול
   holds: Hold[];
   createdAt?: any;
   createdBy?: string | null;

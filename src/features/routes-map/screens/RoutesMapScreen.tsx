@@ -354,31 +354,23 @@ export default function RoutesMapScreen() {
       imageWidth = containerHeight / wallAspectRatio;
     }
 
-    // The viewport shows a portion of the image
-    // scale = 1 means the whole image fits in the viewport
-    // scale = 2 means we see half the image width/height
+    // With transformOrigin='left top':
+    // - The image is scaled from the top-left corner
+    // - translateX/Y move the scaled image
+    // - Visible area starts at screen position (0,0)
     
-    // translateX/Y are relative to the center of the image
-    // translateX > 0 means the image moved right (we see more of the left side)
-    // translateX < 0 means the image moved left (we see more of the right side)
+    // Convert screen coordinates to image coordinates:
+    // screenX = translateX + imageX * scale
+    // imageX = (screenX - translateX) / scale
     
-    // The visible portion width/height in image coordinates:
-    const visibleWidth = imageWidth / scale;
-    const visibleHeight = imageHeight / scale;
+    // The visible portion of the screen is from (0,0) to (containerWidth, containerHeight)
+    // In image coordinates:
+    const leftImg = (0 - translateX) / scale;
+    const topImg = (0 - translateY) / scale;
+    const rightImg = (containerWidth - translateX) / scale;
+    const bottomImg = (containerHeight - translateY) / scale;
     
-    // The center of the visible portion in image coordinates:
-    // When translateX = 0, the center is at imageWidth/2
-    // When translateX > 0, the center moves left (smaller x)
-    const centerX = (imageWidth / 2) - (translateX / scale);
-    const centerY = (imageHeight / 2) - (translateY / scale);
-    
-    // Calculate bounds in image coordinates
-    const leftImg = centerX - visibleWidth / 2;
-    const rightImg = centerX + visibleWidth / 2;
-    const topImg = centerY - visibleHeight / 2;
-    const bottomImg = centerY + visibleHeight / 2;
-    
-    // Convert to normalized coordinates (0-1)
+    // Convert to normalized coordinates (0-1) based on image dimensions
     let leftN = leftImg / imageWidth;
     let rightN = rightImg / imageWidth;
     let topN = topImg / imageHeight;
@@ -403,8 +395,8 @@ export default function RoutesMapScreen() {
       scale: scale.toFixed(2),
       translate: { x: translateX.toFixed(1), y: translateY.toFixed(1) },
       image: { w: imageWidth.toFixed(0), h: imageHeight.toFixed(0) },
-      visible: { w: visibleWidth.toFixed(0), h: visibleHeight.toFixed(0) },
-      center: { x: centerX.toFixed(0), y: centerY.toFixed(0) },
+      container: { w: containerWidth.toFixed(0), h: containerHeight.toFixed(0) },
+      boundsImg: { left: leftImg.toFixed(0), right: rightImg.toFixed(0), top: topImg.toFixed(0), bottom: bottomImg.toFixed(0) },
       bounds: {
         left: newBounds.leftN.toFixed(3),
         right: newBounds.rightN.toFixed(3),

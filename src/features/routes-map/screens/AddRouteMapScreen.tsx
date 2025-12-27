@@ -220,12 +220,14 @@ export default function AddRouteMapScreen() {
   );
 
   // Animated style for draggable marker
-  const markerAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: markerTranslateX.value },
-      { translateY: markerTranslateY.value },
-    ],
-  }));
+  const markerAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: markerTranslateX.value },
+        { translateY: markerTranslateY.value },
+      ] as const,
+    };
+  });
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};

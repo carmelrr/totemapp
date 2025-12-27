@@ -109,10 +109,11 @@ export async function initializeUserStats(userId: string): Promise<UserStats> {
     let totalRoutesSent = 0;
     let totalFeedbacks = 0;
     let starRatings: number[] = [];
-    let grades: string[] = [];
+    let closedRouteGrades: string[] = [];
 
-    // Process each route
+    // Process each wall map route
     for (const routeDoc of routesSnapshot.docs) {
+      const routeData = routeDoc.data();
       const feedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
       const userFeedbackQuery = query(
         feedbacksRef,
@@ -126,29 +127,61 @@ export async function initializeUserStats(userId: string): Promise<UserStats> {
 
         if (feedback.closedRoute) {
           totalRoutesSent++;
+          // שמור את הדירוג של המסלול שנסגר (דירוג מחושב או דירוג מקורי)
+          const routeGrade = routeData.calculatedGrade || routeData.grade;
+          if (routeGrade) {
+            closedRouteGrades.push(routeGrade);
+          }
         }
 
         if (feedback.starRating) {
           starRatings.push(feedback.starRating);
         }
+      });
+    }
 
-        if (feedback.suggestedGrade) {
-          grades.push(feedback.suggestedGrade);
+    // Also process spray wall routes
+    const sprayRoutesSnapshot = await getDocs(collection(db, "sprayRoutes"));
+    for (const sprayRouteDoc of sprayRoutesSnapshot.docs) {
+      const sprayRouteData = sprayRouteDoc.data();
+      const feedbacksRef = collection(db, "sprayRoutes", sprayRouteDoc.id, "feedbacks");
+      const userFeedbackQuery = query(
+        feedbacksRef,
+        where("userId", "==", userId),
+      );
+      const userFeedbackSnapshot = await getDocs(userFeedbackQuery);
+
+      userFeedbackSnapshot.forEach((feedbackDoc) => {
+        const feedback = feedbackDoc.data();
+        totalFeedbacks++;
+
+        if (feedback.closedRoute) {
+          totalRoutesSent++;
+          // שמור את הדירוג של מסלול הספריי שנסגר
+          const sprayGrade = sprayRouteData.calculatedGrade || sprayRouteData.grade;
+          if (sprayGrade) {
+            closedRouteGrades.push(sprayGrade);
+          }
+        }
+
+        if (feedback.starRating) {
+          starRatings.push(feedback.starRating);
         }
       });
     }
 
-    // Calculate highest grade
+    // Calculate highest grade from all closed routes
     const gradeValues: Record<string, number> = {
+      VB: 0, V0: 0.5,
       V1: 1, V2: 2, V3: 3, V4: 4, V5: 5,
-      V6: 6, V7: 7, V8: 8, V9: 9, V10: 10,
+      V6: 6, V7: 7, V8: 8, V9: 9, V10: 10, V11: 11, V12: 12,
     };
 
     let highestGrade = "N/A";
-    if (grades.length > 0) {
-      const sentGrades = grades.filter((grade) => grade);
-      if (sentGrades.length > 0) {
-        highestGrade = sentGrades.reduce((highest, current) => {
+    if (closedRouteGrades.length > 0) {
+      const validGrades = closedRouteGrades.filter((grade) => grade && gradeValues[grade] !== undefined);
+      if (validGrades.length > 0) {
+        highestGrade = validGrades.reduce((highest, current) => {
           return (gradeValues[current] || 0) > (gradeValues[highest] || 0)
             ? current
             : highest;
@@ -205,11 +238,17 @@ export async function calculateGradeStats(userId: string): Promise<{ routes: any
   }
 
   try {
-    // Get all routes
+    // Get all wall map routes
     const routesSnapshot = await getDocs(collection(db, "routes"));
     const routes: any[] = [];
     routesSnapshot.forEach((doc) => {
-      routes.push({ id: doc.id, ...doc.data() });
+      routes.push({ id: doc.id, ...doc.data(), type: 'wallmap' });
+    });
+
+    // Get all spray wall routes
+    const sprayRoutesSnapshot = await getDocs(collection(db, "sprayRoutes"));
+    sprayRoutesSnapshot.forEach((doc) => {
+      routes.push({ id: doc.id, ...doc.data(), type: 'spray' });
     });
 
     // Count routes by grade
@@ -223,7 +262,8 @@ export async function calculateGradeStats(userId: string): Promise<{ routes: any
     const completedByGrade: Record<string, number> = {};
 
     for (const route of routes) {
-      const feedbacksRef = collection(db, "routes", route.id, "feedbacks");
+      const collectionName = route.type === 'spray' ? "sprayRoutes" : "routes";
+      const feedbacksRef = collection(db, collectionName, route.id, "feedbacks");
       const userFeedbackQuery = query(
         feedbacksRef,
         where("userId", "==", userId),

@@ -24,7 +24,8 @@ export interface UseMapTransformsConfig {
 /**
  * Clamp viewport transforms to keep image in view
  * When image is smaller than screen, center it
- * When image is larger than screen, prevent over-panning
+ * When image is larger than screen, allow panning to see all parts
+ * but prevent panning beyond image edges (no empty space)
  */
 function clampViewport(
   scale: number,
@@ -49,7 +50,9 @@ function clampViewport(
   let clampedTranslateX = translateX;
   let clampedTranslateY = translateY;
   
-  // If image is larger than screen, prevent over-panning
+  // If image is larger than screen, allow panning within image bounds
+  // maxTranslate = 0: image left/top edge can reach screen left/top edge
+  // minTranslate = screen - scaledImg: image right/bottom edge can reach screen right/bottom edge
   if (scaledImgW > screenW) {
     const maxTranslateX = 0;
     const minTranslateX = screenW - scaledImgW;
@@ -110,18 +113,33 @@ export function useMapTransforms({
   const focalY = useSharedValue(0);
   
   // Prevent notification spam
-  const lastNotifyRef = useRef<{ scale: number; translateX: number; translateY: number } | null>(null);
+  const lastNotifyRef = useRef<{ scale: number; translateX: number; translateY: number; time: number } | null>(null);
   const EPS = 0.01; // Smaller threshold for more accurate updates
+  const THROTTLE_MS = 50; // Minimum time between notifications (20 fps for list updates)
   
   const notifyChange = useCallback((s: number, x: number, y: number) => {
+    const now = Date.now();
     const prev = lastNotifyRef.current;
     if (prev) {
       const near = (a: number, b: number) => Math.abs(a - b) < EPS;
+      const timeSinceLastUpdate = now - prev.time;
+      
+      // Skip if values haven't changed significantly
       if (near(prev.scale, s) && near(prev.translateX, x) && near(prev.translateY, y)) {
         return;
       }
+      
+      // Skip if we've notified too recently (throttle), unless significant change
+      const significantChange = 
+        Math.abs(prev.scale - s) > 0.1 || 
+        Math.abs(prev.translateX - x) > 10 || 
+        Math.abs(prev.translateY - y) > 10;
+      
+      if (timeSinceLastUpdate < THROTTLE_MS && !significantChange) {
+        return;
+      }
     }
-    lastNotifyRef.current = { scale: s, translateX: x, translateY: y };
+    lastNotifyRef.current = { scale: s, translateX: x, translateY: y, time: now };
     onTransformChange?.({ scale: s, translateX: x, translateY: y });
   }, [onTransformChange]);
 
@@ -183,6 +201,9 @@ export function useMapTransforms({
         
         translateX.value = clamped.translateX;
         translateY.value = clamped.translateY;
+        
+        // Notify about transform change during pan for real-time list updates
+        runOnJS(notifyChange)(scale.value, clamped.translateX, clamped.translateY);
       })
       .onEnd((event) => {
         // Apply velocity for momentum
@@ -240,6 +261,9 @@ export function useMapTransforms({
         scale.value = clamped.scale;
         translateX.value = clamped.translateX;
         translateY.value = clamped.translateY;
+        
+        // Notify about transform change during pinch for real-time list updates
+        runOnJS(notifyChange)(clamped.scale, clamped.translateX, clamped.translateY);
       })
       .onEnd(() => {
         const clamped = clampViewport(
@@ -322,8 +346,11 @@ export function useMapTransforms({
   );
 
   // Animated style for map container
+  // IMPORTANT: transformOrigin must be 'left top' (0, 0) for the clamp calculations to work correctly
+  // The scale is applied from the top-left corner, then translation moves the scaled image
   const mapContainerStyle = useAnimatedStyle(() => {
     return {
+      transformOrigin: 'left top',
       transform: [
         { translateX: translateX.value },
         { translateY: translateY.value },

@@ -23,44 +23,12 @@ import {
   tagUsersInFeedback,
 } from "@/features/social/socialService";
 import { useUser } from "@/features/auth/UserContext";
+import { isHebrewText } from "@/utils/textUtils";
 
 const { width: screenWidth } = Dimensions.get("window");
 
 // Define the height where the tab should start - adjust this to match your map height
 const INITIAL_TAB_HEIGHT = 500; // Start even higher
-
-// Function to detect if text is Hebrew
-const isHebrewText = (text) => {
-  if (!text || typeof text !== "string") return false;
-
-  // Remove common characters that are language-neutral
-  const cleanText = text.replace(
-    /[\s\d\-.,!?@#$%^&*()_+=\[\]{}|\\:";'<>?/~`]/g,
-    "",
-  );
-
-  if (cleanText.length === 0) return true; // Default to Hebrew for empty/neutral text
-
-  // Hebrew Unicode range: 0x0590-0x05FF
-  const hebrewChars = cleanText.match(/[\u0590-\u05FF]/g);
-  const hebrewCount = hebrewChars ? hebrewChars.length : 0;
-
-  // English characters: a-z, A-Z
-  const englishChars = cleanText.match(/[a-zA-Z]/g);
-  const englishCount = englishChars ? englishChars.length : 0;
-
-  // If we have both Hebrew and English, prefer Hebrew (since it's the app's main language)
-  if (hebrewCount > 0 && englishCount > 0) {
-    return hebrewCount >= englishCount;
-  }
-
-  // If only one type exists, return accordingly
-  if (hebrewCount > 0) return true;
-  if (englishCount > 0) return false;
-
-  // Default to Hebrew for edge cases
-  return true;
-};
 
 const StarRating = ({ rating, onRatingChange, disabled = false }) => {
   const stars = [1, 2, 3, 4, 5];
