@@ -3,7 +3,7 @@ import { Alert, Animated, Dimensions } from "react-native";
 import { signOut } from "firebase/auth";
 import { auth } from "@/features/data/firebase";
 import { useUser } from "@/features/auth/UserContext";
-import { saveProfile } from "../services/profileService";
+import { saveProfile, fetchProfile } from "../services/profileService";
 import { uploadImage, deleteOldFirebaseImage } from "../services/imageService";
 
 const { width: screenWidth } = Dimensions.get("window");
@@ -16,14 +16,47 @@ export function useProfileBasics() {
   const user = auth.currentUser;
   const { circleSize, setCircleSize } = useUser();
   
+  // Initialize with auth values, then load from Firestore
   const [displayName, setDisplayName] = useState(user?.displayName || "");
   const [email, setEmail] = useState(user?.email || "");
-  const [photoURL, setPhotoURL] = useState(user?.photoURL || null);
+  const [photoURL, setPhotoURL] = useState<string | null>(user?.photoURL || null);
   const [editing, setEditing] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading=true
   const [isAdmin, setIsAdmin] = useState(false);
   const [adminMode, setAdminMode] = useState(false);
   const adminModeRef = useRef(false);
+
+  // Load profile from Firestore on mount to get persisted data
+  useEffect(() => {
+    const loadProfileFromFirestore = async () => {
+      if (!user?.uid) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const profile = await fetchProfile(user.uid);
+        
+        // Update state with Firestore data (source of truth)
+        if (profile.displayName !== undefined) {
+          setDisplayName(profile.displayName || user.displayName || "");
+        }
+        if (profile.photoURL !== undefined) {
+          setPhotoURL(profile.photoURL);
+        }
+        if (profile.isAdmin !== undefined) {
+          setIsAdmin(profile.isAdmin);
+        }
+      } catch (error) {
+        console.warn("Failed to load profile from Firestore:", error);
+        // Fallback to auth values (already set in initial state)
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadProfileFromFirestore();
+  }, [user?.uid]);
   
   // Side panel animation
   const slideAnim = useRef(new Animated.Value(screenWidth)).current;

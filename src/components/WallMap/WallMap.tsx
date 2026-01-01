@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
+import { View, StyleSheet, LayoutChangeEvent, Vibration } from 'react-native';
 import Animated, { runOnJS } from 'react-native-reanimated';
 import { 
   GestureDetector,
@@ -205,10 +205,13 @@ export default function WallMap({
     Gesture.LongPress()
       .minDuration(1000) // 1 second - longer than RouteCircle's 400ms
       .enabled(effectiveGesturesEnabled && !!onLongPress) // Only if onLongPress callback exists
-      .onEnd((event) => {
+      // שימוש ב-onStart במקום onEnd כדי להפעיל מיד כשהלחיצה הארוכה מזוהה
+      .onStart((event) => {
         'worklet';
         if (onLongPress) {
           const processLongPress = (screenX: number, screenY: number) => {
+            // הפעלת רטט קצר לפידבק
+            Vibration.vibrate(50);
             // כבה מחוות לפני הניווט
             setInternalGesturesEnabled(false);
             onGestureStateChange?.(false);

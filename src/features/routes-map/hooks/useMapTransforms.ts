@@ -333,12 +333,28 @@ export function useMapTransforms({
   );
 
   // Animated style for the map container
+  // We use scale-first transform order. The translation values represent where the 
+  // image's top-left corner should be in screen coordinates. After scaling from center,
+  // we compensate to position the image correctly.
   const mapContainerStyle = useAnimatedStyle(() => {
+    const s = scale.value;
+    const imgW = safeImageWidth;
+    const imgH = safeImageHeight;
+    
+    // When scaling from center, the center stays in place.
+    // Original center: (imgW/2, imgH/2)
+    // After scale: center is still at (imgW/2, imgH/2) but image extends from:
+    //   left: imgW/2 - (imgW*s)/2 = imgW*(1-s)/2
+    //   top: imgH/2 - (imgH*s)/2 = imgH*(1-s)/2
+    // We want top-left to be at (translateX, translateY), so we need to add compensation
+    const scaleCompensationX = imgW * (1 - s) / 2;
+    const scaleCompensationY = imgH * (1 - s) / 2;
+    
     return {
       transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { scale: scale.value },
+        { scale: s },
+        { translateX: (translateX.value - scaleCompensationX) / s },
+        { translateY: (translateY.value - scaleCompensationY) / s },
       ],
     } as any;
   });

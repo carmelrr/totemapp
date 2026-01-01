@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from "react";
 import { View, ScrollView, Text, ActivityIndicator } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useAdmin } from "@/context/AdminContext";
 import {
@@ -73,15 +74,15 @@ const ProfileScreen: React.FC = () => {
   // Show loading if profile is still loading
   if (profileData.loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center", alignItems: "center" }]}>
+      <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]} edges={["top"]}>
         <ActivityIndicator size="large" color={theme.primary} />
         <Text style={styles.loadingText}>טוען פרופיל...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.mainContent}>
         <ProfileHeader onMenuPress={sidePanelData.toggleSidePanel} />
 
@@ -158,7 +159,7 @@ const ProfileScreen: React.FC = () => {
         adminModeEnabled={adminModeEnabled}
         onAdminModeToggle={toggleAdminMode}
       />
-    </View>
+    </SafeAreaView>
   );
 };
 

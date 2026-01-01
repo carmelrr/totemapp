@@ -1,7 +1,6 @@
 import React from "react";
-import { View, Text, TouchableOpacity, Switch, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useTheme } from "@/features/theme/ThemeContext";
-import { StatCard } from "../../screens/profile/components/StatCard";
 import { UserStats, GradeStatsMap, PrivacySettings } from "../../screens/profile/types";
 
 interface StatsDashboardProps {
@@ -114,6 +113,22 @@ export const UnifiedStatsDashboard: React.FC<StatsDashboardProps> = ({
             : "0.0";
     const isOwner = currentUserId === userId;
 
+    // Simple list item for viewing other users' stats
+    const StatListItem = ({ icon, title, value, isVisible }: { icon: string; title: string; value: string | number; isVisible: boolean }) => {
+        if (!isVisible && !isOwner) return null;
+        return (
+            <View style={[styles.statListItem, { borderBottomColor: theme.border }]}>
+                <View style={styles.statListLeft}>
+                    <Text style={styles.statListIcon}>{icon}</Text>
+                    <Text style={[styles.statListTitle, { color: theme.textSecondary }]}>{title}</Text>
+                </View>
+                <Text style={[styles.statListValue, { color: theme.text }]}>
+                    {isVisible || isOwner ? value : "🔒 פרטי"}
+                </Text>
+            </View>
+        );
+    };
+
     return (
         <View style={[styles.statsContainer, { backgroundColor: theme.surface }]}>
             <View style={styles.statsHeader}>
@@ -123,97 +138,59 @@ export const UnifiedStatsDashboard: React.FC<StatsDashboardProps> = ({
                         ? "הסטטיסטיקות שלי"
                         : `הסטטיסטיקות של ${userProfile?.displayName}`}
                 </Text>
-                {isOwner && setIsEditingPrivacy && (
-                    <TouchableOpacity
-                        style={[
-                            styles.editButton,
-                            { backgroundColor: theme.background },
-                            isEditingPrivacy && { backgroundColor: theme.primary },
-                        ]}
-                        onPress={() => setIsEditingPrivacy(!isEditingPrivacy)}
-                    >
-                        <Text
-                            style={[
-                                styles.editButtonText,
-                                { color: theme.textSecondary },
-                                isEditingPrivacy && { color: theme.onPrimary },
-                            ]}
-                        >
-                            {isEditingPrivacy ? "✓ סיום עריכה" : "⚙️ עריכה"}
-                        </Text>
-                    </TouchableOpacity>
-                )}
             </View>
 
-            {/* Auto-edit notification */}
-            {isOwner && isEditingPrivacy && autoEdit && (
-                <View style={[styles.autoEditNotification, { backgroundColor: theme.warning + '20' }]}>
-                    <Text style={[styles.autoEditText, { color: theme.warning }]}>
-                        🔧 מצב עריכה פעיל - ערוך את הגדרות הפרטיות שלך
-                    </Text>
+            {userStats && privacySettings && (
+                <View style={styles.statsList}>
+                    <StatListItem 
+                        icon="⭐" 
+                        title="ממוצע דירוג" 
+                        value={userStats.averageStarRating ? userStats.averageStarRating.toFixed(1) + " ⭐" : "אין"}
+                        isVisible={privacySettings.showAverageRating}
+                    />
+                    <StatListItem 
+                        icon="🎯" 
+                        title="מסלולים שסגר" 
+                        value={userStats.totalRoutesSent}
+                        isVisible={privacySettings.showTotalRoutes}
+                    />
+                    <StatListItem 
+                        icon="💬" 
+                        title="סה״כ תגובות" 
+                        value={userStats.totalFeedbacks}
+                        isVisible={privacySettings.showFeedbackCount}
+                    />
+                    <StatListItem 
+                        icon="📈" 
+                        title="אחוז סגירה (על הקיר)" 
+                        value={`${userStats.completionPercentage || 0}%`}
+                        isVisible={privacySettings.showGradeStats}
+                    />
+                    <StatListItem 
+                        icon="🏆" 
+                        title="דירוג הכי גבוה" 
+                        value={userStats.highestGrade}
+                        isVisible={privacySettings.showHighestGrade}
+                    />
+                    
+                    {/* Clickable item for grade breakdown - only if grade stats are visible */}
+                    {(privacySettings.showGradeStats || isOwner) && (
+                        <TouchableOpacity 
+                            style={[styles.statListItem, styles.statListClickable, { borderBottomColor: theme.border }]}
+                            onPress={() => setShowStatsModal?.(true)}
+                        >
+                            <View style={styles.statListLeft}>
+                                <Text style={styles.statListIcon}>📊</Text>
+                                <Text style={[styles.statListTitle, { color: theme.textSecondary }]}>אחוזי סגירה לפי דירוג</Text>
+                            </View>
+                            <View style={styles.statListRight}>
+                                <Text style={[styles.statListValue, { color: theme.text }]}>{overallPercentage}%</Text>
+                                <Text style={[styles.statListArrow, { color: theme.primary }]}>→</Text>
+                            </View>
+                        </TouchableOpacity>
+                    )}
                 </View>
             )}
-
-            <View style={styles.statsGrid}>
-                {userStats && privacySettings && (
-                    <>
-                        <StatCard
-                            title="מסלולים שסגר"
-                            value={userStats.totalRoutesSent}
-                            icon="🎯"
-                            color="#28a745"
-                            isVisible={privacySettings.showTotalRoutes}
-                            settingKey="showTotalRoutes"
-                            isOwner={isOwner}
-                        />
-
-                        <StatCard
-                            title="דירוג הכי גבוה"
-                            value={userStats.highestGrade}
-                            icon="🏆"
-                            color="#ffc107"
-                            isVisible={privacySettings.showHighestGrade}
-                            settingKey="showHighestGrade"
-                            isOwner={isOwner}
-                        />
-
-                        <StatCard
-                            title="סה״כ פידבקים"
-                            value={userStats.totalFeedbacks}
-                            icon="💬"
-                            color="#17a2b8"
-                            isVisible={privacySettings.showFeedbackCount}
-                            settingKey="showFeedbackCount"
-                            isOwner={isOwner}
-                        />
-
-                        <StatCard
-                            title="אחוז סגירה (על הקיר)"
-                            value={`${userStats.completionPercentage || 0}%`}
-                            icon="📈"
-                            color="#fd7e14"
-                            isVisible={privacySettings.showAverageRating}
-                            settingKey="showAverageRating"
-                            isOwner={isOwner}
-                        />
-
-                        <StatCard
-                            title="אחוזי סגירה לכל הקיר"
-                            value={`${overallPercentage}%`}
-                            icon="📈"
-                            color="#8e44ad"
-                            onPress={
-                                privacySettings.showGradeStats || isOwner
-                                    ? () => setShowStatsModal?.(true)
-                                    : undefined
-                            }
-                            isVisible={privacySettings.showGradeStats}
-                            settingKey="showGradeStats"
-                            isOwner={isOwner}
-                        />
-                    </>
-                )}
-            </View>
 
             {userStats && userStats.joinDate && privacySettings && (privacySettings.showJoinDate || isOwner) && (
                 <View style={styles.joinDateContainer}>
@@ -221,24 +198,6 @@ export const UnifiedStatsDashboard: React.FC<StatsDashboardProps> = ({
                         <Text style={[styles.joinDateText, { color: theme.textSecondary }]}>
                             🗓️ חבר מאז: {userStats.joinDate.toLocaleDateString("he-IL")}
                         </Text>
-                        {isOwner && isEditingPrivacy && savePrivacySettings && (
-                            <View style={styles.joinDatePrivacy}>
-                                <Text style={[styles.privacyToggleLabel, { color: theme.textSecondary }]}>הצג לאחרים</Text>
-                                <Switch
-                                    value={privacySettings.showJoinDate}
-                                    onValueChange={(value) => {
-                                        const newSettings = {
-                                            ...privacySettings,
-                                            showJoinDate: value,
-                                        };
-                                        savePrivacySettings(newSettings);
-                                    }}
-                                    trackColor={{ false: theme.border, true: theme.primary }}
-                                    thumbColor={privacySettings.showJoinDate ? theme.primary : theme.background}
-                                    style={styles.privacySwitch}
-                                />
-                            </View>
-                        )}
                     </View>
                 </View>
             )}
@@ -337,23 +296,52 @@ const styles = StyleSheet.create({
     },
     joinDateContent: {
         flexDirection: "row",
-        justifyContent: "space-between",
+        justifyContent: "center",
         alignItems: "center",
     },
     joinDateText: {
         fontSize: 16,
         fontWeight: "500",
     },
-    joinDatePrivacy: {
+    // New list-style stats
+    statsList: {
+        marginTop: 8,
+    },
+    statListItem: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        paddingVertical: 14,
+        paddingHorizontal: 4,
+        borderBottomWidth: 1,
+    },
+    statListClickable: {
+        paddingRight: 0,
+    },
+    statListLeft: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 12,
+    },
+    statListRight: {
         flexDirection: "row",
         alignItems: "center",
         gap: 8,
     },
-    privacyToggleLabel: {
-        fontSize: 14,
+    statListIcon: {
+        fontSize: 20,
     },
-    privacySwitch: {
-        transform: [{ scaleX: 0.8 }, { scaleY: 0.8 }],
+    statListTitle: {
+        fontSize: 15,
+        fontWeight: "500",
+    },
+    statListValue: {
+        fontSize: 16,
+        fontWeight: "bold",
+    },
+    statListArrow: {
+        fontSize: 18,
+        fontWeight: "bold",
     },
 });
 

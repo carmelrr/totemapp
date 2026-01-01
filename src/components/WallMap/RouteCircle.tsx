@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Vibration } from 'react-native';
 import Animated, { useAnimatedStyle, useDerivedValue, SharedValue, runOnJS } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { RouteDoc } from '@/features/routes-map/types/route';
@@ -164,6 +165,8 @@ const RouteCircle = React.memo<RouteCircleProps>(({
 
   const handleLongPress = () => {
     console.log('[RouteCircle] LongPress on route:', route.id);
+    // הפעלת רטט קצר לפידבק
+    Vibration.vibrate(50);
     onLongPress?.(route);
   };
 
@@ -182,7 +185,9 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     Gesture.LongPress()
       .minDuration(400)
       .enabled(!gesturesDisabled)
-      .onEnd(() => {
+      // שימוש ב-onStart במקום onEnd כדי להפעיל מיד כשהלחיצה הארוכה מזוהה
+      // ולא לחכות עד שהאצבע עוזבת את המסך
+      .onStart(() => {
         'worklet';
         runOnJS(handleLongPress)();
       }),

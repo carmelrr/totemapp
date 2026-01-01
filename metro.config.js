@@ -1,4 +1,4 @@
-// metro.config.js - תצורה מותאמת ל־Expo עם תמיכה ב־SVG ו־CJS
+// Learn more: https://docs.expo.dev/guides/customizing-metro/
 const { getDefaultConfig } = require("expo/metro-config");
 
 const config = getDefaultConfig(__dirname);
@@ -11,31 +11,5 @@ config.resolver.assetExts = config.resolver.assetExts.filter(
   (ext) => ext !== "svg",
 );
 config.resolver.sourceExts.push("svg");
-
-// ✅ Fix for module resolution issues
-config.resolver.platforms = ["ios", "android", "native", "web"];
-
-// ✅ Reset cache on restart to avoid stale module references
-config.resetCache = true;
-
-// ✅ הגדרות רשת לחיבור יציב עם Expo Go
-config.server = {
-  ...config.server,
-  enhanceMiddleware: (middleware) => {
-    return (req, res, next) => {
-      // הוספת headers לחיבור טוב יותר
-      res.setHeader("Access-Control-Allow-Origin", "*");
-      res.setHeader(
-        "Access-Control-Allow-Methods",
-        "GET, POST, PUT, DELETE, OPTIONS",
-      );
-      res.setHeader(
-        "Access-Control-Allow-Headers",
-        "Content-Type, Authorization",
-      );
-      return middleware(req, res, next);
-    };
-  },
-};
 
 module.exports = config;

@@ -15,7 +15,6 @@ export const SocialTabs: React.FC<SocialTabsProps> = ({ activeTab, onTabPress })
   const tabs = [
     { id: "followers", label: "עוקבים" },
     { id: "following", label: "נעקבים" },
-    { id: "requests", label: "בקשות" },
     { id: "search", label: "חיפוש" },
   ];
 

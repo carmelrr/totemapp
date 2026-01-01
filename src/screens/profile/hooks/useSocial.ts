@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { auth } from "@/features/data/firebase";
@@ -8,6 +8,7 @@ import {
   unfollowUser,
   getUserFollowers,
   getUserFollowing,
+  getAllUsers,
 } from "@/features/social/socialService";
 import type { SocialUser, ProfileNavigation } from "../types";
 
@@ -37,21 +38,11 @@ export function useSocial() {
     }
   };
 
-  const handleSearch = async (text: string) => {
+  const handleSearch = useCallback(async (text: string) => {
     setSearchTerm(text);
-    if (text.length > 1) {
-      try {
-        const results = await searchUsers(text);
-        // Filter out current user
-        const filteredResults = results.filter((u) => u.id !== user?.uid);
-        setSearchResults(filteredResults);
-      } catch (error) {
-        console.error("Error searching users:", error);
-      }
-    } else {
-      setSearchResults([]);
-    }
-  };
+    // Search is now handled in SocialList component directly
+    // This function is kept for backward compatibility and state management
+  }, []);
 
   const handleFollowToggle = async (userId: string, isFollowing: boolean) => {
     if (!user) return;
@@ -68,10 +59,8 @@ export function useSocial() {
         }
       }
 
-      // Refresh search results
-      if (searchTerm.length > 1) {
-        handleSearch(searchTerm);
-      }
+      // Refresh social data
+      await loadSocialData();
     } catch (error) {
       Alert.alert("שגיאה", "נכשל בעדכון מעקב");
     }

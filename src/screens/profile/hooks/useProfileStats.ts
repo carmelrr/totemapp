@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Alert } from "react-native";
 import { auth } from "@/features/data/firebase";
 import { fetchUserStats, calculateGradeStats } from "../services/statsService";
+import { statsRefreshEvent } from "@/utils/events/statsRefreshEvent";
 import type { UserStats, GradeStatsMap } from "../types";
 
 export function useProfileStats() {
@@ -18,7 +19,7 @@ export function useProfileStats() {
   const [allRoutes, setAllRoutes] = useState<any[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     if (!user) return;
     
     try {
@@ -33,7 +34,7 @@ export function useProfileStats() {
     } catch (error) {
       console.error("Error loading stats:", error);
     }
-  };
+  }, [user]);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -46,9 +47,18 @@ export function useProfileStats() {
     }
   };
 
+  // Initial load
   useEffect(() => {
     loadStats();
-  }, [user]);
+  }, [loadStats]);
+
+  // Subscribe to stats refresh events (e.g., when feedback is submitted elsewhere)
+  useEffect(() => {
+    const unsubscribe = statsRefreshEvent.subscribe(() => {
+      loadStats();
+    });
+    return unsubscribe;
+  }, [loadStats]);
 
   return {
     userStats,

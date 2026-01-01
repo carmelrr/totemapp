@@ -39,6 +39,22 @@ const RouteItem = React.memo(({ route, onPress, theme }: RouteItemProps) => {
   // Check if grade was changed by community
   const isGradeFromCommunity = route.calculatedGrade && route.calculatedGrade !== route.grade;
 
+  // Get display name - replace original grade with community grade if different
+  const getDisplayName = (route: RouteDoc) => {
+    const baseName = route.name || `מסלול ${route.id.slice(-6)}`;
+    // If community grade exists and is different from original, replace the grade in the name
+    if (route.calculatedGrade && route.calculatedGrade !== route.grade && route.grade) {
+      // Replace the original grade (V-scale pattern) with the community grade
+      const gradePattern = /V\d+B?|VB/g;
+      const hasGradeInName = gradePattern.test(baseName);
+      if (hasGradeInName) {
+        // Replace the original grade with community grade
+        return baseName.replace(route.grade, route.calculatedGrade);
+      }
+    }
+    return baseName;
+  };
+
   // Get star rating display
   const getStarDisplay = (rating?: number) => {
     if (!rating || rating === 0) return null;
@@ -84,7 +100,7 @@ const RouteItem = React.memo(({ route, onPress, theme }: RouteItemProps) => {
         <View style={styles.routeInfo}>
           <View style={styles.routeHeader}>
             <Text style={styles.routeName} numberOfLines={1}>
-              {route.name || `מסלול ${route.id.slice(-6)}`}
+              {getDisplayName(route)}
             </Text>
             
             {/* Star Rating - inline */}

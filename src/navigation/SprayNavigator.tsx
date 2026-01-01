@@ -44,7 +44,7 @@ export const SprayNavigator: React.FC = () => {
       <Stack.Screen
         name="SprayHome"
         component={WallDetailScreen}
-        options={{ title: "Spray Wall" }}
+        options={{ headerShown: false }}
       />
       <Stack.Screen
         name="AddWall"

@@ -117,13 +117,30 @@ export const useWallTransform = (p: Params) => {
         pan
     );
 
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [
-            { translateX: tx.value },
-            { translateY: ty.value },
-            { scale: scale.value },
-        ] as const,
-    }));
+    // Animated style with scale-first transform order.
+    // The translation values (tx, ty) represent where the image's top-left 
+    // corner should be in screen coordinates. After scaling from center,
+    // we compensate to position the image correctly.
+    const animatedStyle = useAnimatedStyle(() => {
+        const s = scale.value;
+        
+        // When scaling from center, the center stays in place.
+        // Original center: (imgW/2, imgH/2)
+        // After scale: center is still at (imgW/2, imgH/2) but image extends from:
+        //   left: imgW/2 - (imgW*s)/2 = imgW*(1-s)/2
+        //   top: imgH/2 - (imgH*s)/2 = imgH*(1-s)/2
+        // We want top-left to be at (tx, ty), so we need to add compensation
+        const scaleCompensationX = imgW * (1 - s) / 2;
+        const scaleCompensationY = imgH * (1 - s) / 2;
+        
+        return {
+            transform: [
+                { scale: s },
+                { translateX: (tx.value - scaleCompensationX) / s },
+                { translateY: (ty.value - scaleCompensationY) / s },
+            ],
+        } as const;
+    });
 
     return {
         scale,

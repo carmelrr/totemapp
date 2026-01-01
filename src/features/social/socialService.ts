@@ -15,6 +15,8 @@ import {
   addDoc,
   orderBy,
   limit,
+  startAfter,
+  DocumentSnapshot,
 } from "firebase/firestore";
 
 // Follow/Unfollow users
@@ -23,15 +25,21 @@ export async function followUser(currentUserId, targetUserId) {
     const currentUserRef = doc(db, "users", currentUserId);
     const targetUserRef = doc(db, "users", targetUserId);
 
-    // Add to current user's following list
-    await updateDoc(currentUserRef, {
+    // Check if target user exists first
+    const targetUserDoc = await getDoc(targetUserRef);
+    if (!targetUserDoc.exists()) {
+      throw new Error("User not found");
+    }
+
+    // Add to current user's following list (use setDoc with merge to handle missing docs)
+    await setDoc(currentUserRef, {
       following: arrayUnion(targetUserId),
-    });
+    }, { merge: true });
 
     // Add to target user's followers list
-    await updateDoc(targetUserRef, {
+    await setDoc(targetUserRef, {
       followers: arrayUnion(currentUserId),
-    });
+    }, { merge: true });
 
     // Create follow notification
     await createNotification(targetUserId, {
@@ -51,15 +59,15 @@ export async function unfollowUser(currentUserId, targetUserId) {
     const currentUserRef = doc(db, "users", currentUserId);
     const targetUserRef = doc(db, "users", targetUserId);
 
-    // Remove from current user's following list
-    await updateDoc(currentUserRef, {
+    // Remove from current user's following list (use setDoc with merge to handle missing docs)
+    await setDoc(currentUserRef, {
       following: arrayRemove(targetUserId),
-    });
+    }, { merge: true });
 
     // Remove from target user's followers list
-    await updateDoc(targetUserRef, {
+    await setDoc(targetUserRef, {
       followers: arrayRemove(currentUserId),
-    });
+    }, { merge: true });
   } catch (error) {
     console.error("Error unfollowing user:", error);
     throw error;
@@ -127,28 +135,30 @@ export async function searchUsers(searchTerm) {
     snapshot.forEach((doc) => {
       const userData = doc.data();
       const displayName = userData.displayName || "";
+      const email = userData.email || "";
 
       if (!searchTerm || searchTerm.trim() === "") {
-        // If no search term, return all users (can be limited later)
+        // If no search term, return all users
         users.push({
           id: doc.id,
           ...userData,
         });
-      } else if (displayName.toLowerCase().includes(searchTerm.toLowerCase())) {
-        users.push({
-          id: doc.id,
-          ...userData,
-        });
+      } else {
+        const searchLower = searchTerm.toLowerCase();
+        if (displayName.toLowerCase().includes(searchLower) || 
+            email.toLowerCase().includes(searchLower)) {
+          users.push({
+            id: doc.id,
+            ...userData,
+          });
+        }
       }
     });
 
-    // Sort by followers count for better suggestions when no search term
-    if (!searchTerm || searchTerm.trim() === "") {
-      users.sort(
-        (a, b) => (b.followers?.length || 0) - (a.followers?.length || 0),
-      );
-      return users.slice(0, 10); // Return top 10 users
-    }
+    // Sort by followers count for better suggestions
+    users.sort(
+      (a, b) => (b.followers?.length || 0) - (a.followers?.length || 0),
+    );
 
     return users;
   } catch (error) {
@@ -157,7 +167,268 @@ export async function searchUsers(searchTerm) {
   }
 }
 
-// Activity Feed
+// Get all users - fetches WITHOUT orderBy to include ALL users regardless of field existence
+// Sorting is done client-side to ensure no users are excluded
+export async function getAllUsers(pageSize = 50, lastDoc = null) {
+  try {
+    const usersRef = collection(db, "users");
+    
+    // Fetch all users without orderBy - this ensures users with missing fields are included
+    // Firestore orderBy excludes documents where the ordered field is null/undefined
+    const snapshot = await getDocs(usersRef);
+    
+    const users: any[] = [];
+    
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      users.push({
+        id: docSnap.id,
+        displayName: data.displayName || data.email || "משתמש",
+        email: data.email || "",
+        photoURL: data.photoURL || null,
+        ...data,
+      });
+    });
+    
+    // Sort alphabetically by displayName for consistent display
+    users.sort((a, b) => {
+      const nameA = (a.displayName || "").toLowerCase();
+      const nameB = (b.displayName || "").toLowerCase();
+      return nameA.localeCompare(nameB, "he");
+    });
+    
+    // Implement client-side pagination
+    const startIndex = lastDoc ? users.findIndex(u => u.id === lastDoc) + 1 : 0;
+    const paginatedUsers = users.slice(startIndex, startIndex + pageSize);
+    const lastVisible = paginatedUsers.length > 0 ? paginatedUsers[paginatedUsers.length - 1].id : null;
+    
+    return {
+      users: paginatedUsers,
+      lastDoc: lastVisible,
+      hasMore: startIndex + pageSize < users.length,
+    };
+  } catch (error) {
+    console.error("Error getting all users:", error);
+    return { users: [], lastDoc: null, hasMore: false };
+  }
+}
+
+// Activity Feed - Get feed of followed users' closures and feedbacks
+export async function getFollowingFeed(userId, pageSize = 20, lastTimestamp = null) {
+  try {
+    const userDoc = await getDoc(doc(db, "users", userId));
+    if (!userDoc.exists()) return { items: [], hasMore: false };
+
+    const following = userDoc.data().following || [];
+    if (following.length === 0) return { items: [], hasMore: false };
+
+    const feedItems = [];
+
+    // Get feedbacks from followed users
+    const routesRef = collection(db, "routes");
+    const routesSnapshot = await getDocs(routesRef);
+
+    for (const routeDoc of routesSnapshot.docs) {
+      const routeData = routeDoc.data();
+      const feedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
+      
+      // Query feedbacks for all followed users
+      for (const followedUserId of following) {
+        const userFeedbackQuery = query(
+          feedbacksRef,
+          where("userId", "==", followedUserId),
+        );
+        const feedbackSnapshot = await getDocs(userFeedbackQuery);
+
+        feedbackSnapshot.forEach((feedbackDoc) => {
+          const feedback = feedbackDoc.data();
+          const createdAt = feedback.submittedAt?.toDate?.() || feedback.submittedAt || new Date();
+          
+          feedItems.push({
+            id: `${routeDoc.id}_${feedbackDoc.id}`,
+            type: feedback.closedRoute ? "closure" : "feedback",
+            userId: followedUserId,
+            userDisplayName: feedback.userDisplayName || "משתמש",
+            userPhotoURL: feedback.userPhotoURL || null,
+            routeId: routeDoc.id,
+            routeName: routeData.name || "מסלול ללא שם",
+            routeGrade: routeData.grade || "N/A",
+            routeColor: routeData.color || "#8e44ad",
+            feedback: {
+              starRating: feedback.starRating,
+              suggestedGrade: feedback.suggestedGrade,
+              comment: feedback.comment,
+              closedRoute: feedback.closedRoute,
+            },
+            createdAt: createdAt,
+          });
+        });
+      }
+    }
+
+    // Sort by date (newest first)
+    feedItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    // Apply pagination
+    let filteredItems = feedItems;
+    if (lastTimestamp) {
+      filteredItems = feedItems.filter(
+        (item) => new Date(item.createdAt).getTime() < new Date(lastTimestamp).getTime()
+      );
+    }
+
+    const paginatedItems = filteredItems.slice(0, pageSize);
+    const hasMore = filteredItems.length > pageSize;
+
+    return {
+      items: paginatedItems,
+      hasMore,
+      lastTimestamp: paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1].createdAt : null,
+    };
+  } catch (error) {
+    console.error("Error getting following feed:", error);
+    return { items: [], hasMore: false };
+  }
+}
+
+// Get user's activity history (closures and feedbacks)
+// onlyActiveRoutes: if true, only show feedbacks for active routes (on the wall now)
+export async function getUserHistory(userId, pageSize = 20, lastTimestamp = null, onlyActiveRoutes = false) {
+  try {
+    const historyItems = [];
+    const seenFeedbackIds = new Set<string>(); // Avoid duplicates
+
+    // Get all routes first to have route data for lookups
+    const routesRef = collection(db, "routes");
+    const routesSnapshot = await getDocs(routesRef);
+    
+    // Build a map of route data for quick lookup
+    const routesMap = new Map();
+    routesSnapshot.docs.forEach(doc => {
+      routesMap.set(doc.id, { id: doc.id, ...doc.data() });
+    });
+
+    // 1. Query from the main routeFeedbacks collection (new way)
+    const mainFeedbacksRef = collection(db, "routeFeedbacks");
+    const mainFeedbackQuery = query(
+      mainFeedbacksRef,
+      where("userId", "==", userId)
+    );
+    const mainFeedbackSnapshot = await getDocs(mainFeedbackQuery);
+
+    mainFeedbackSnapshot.forEach((feedbackDoc) => {
+      const feedback = feedbackDoc.data();
+      const routeId = feedback.routeId;
+      const routeData = routesMap.get(routeId);
+      
+      // Skip if route doesn't exist
+      if (!routeData) return;
+      
+      // If onlyActiveRoutes is true, skip inactive/archived routes
+      if (onlyActiveRoutes) {
+        const isActive = !routeData.status || routeData.status === 'active';
+        if (!isActive) return;
+      }
+      
+      const uniqueId = `main_${feedbackDoc.id}`;
+      seenFeedbackIds.add(uniqueId);
+      
+      const createdAt = feedback.createdAt?.toDate?.() || feedback.updatedAt?.toDate?.() || new Date();
+      const isCompleted = feedback.isCompleted === true || feedback.closedRoute === true;
+      
+      historyItems.push({
+        id: uniqueId,
+        type: isCompleted ? "closure" : "feedback",
+        routeId: routeId,
+        routeName: routeData.name || "מסלול ללא שם",
+        routeGrade: routeData.grade || "N/A",
+        routeColor: routeData.color || "#8e44ad",
+        feedback: {
+          starRating: feedback.starRating,
+          suggestedGrade: feedback.suggestedGrade,
+          comment: feedback.comment,
+          closedRoute: isCompleted,
+        },
+        createdAt: createdAt,
+        feedbackId: feedbackDoc.id,
+        isActiveRoute: !routeData.status || routeData.status === 'active',
+      });
+    });
+
+    // 2. Also query from subcollections (legacy way) for backwards compatibility
+    for (const routeDoc of routesSnapshot.docs) {
+      const routeData = routeDoc.data();
+      
+      // If onlyActiveRoutes is true, skip inactive/archived routes
+      if (onlyActiveRoutes) {
+        const isActive = !routeData.status || routeData.status === 'active';
+        if (!isActive) continue;
+      }
+      
+      const subcollectionFeedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
+      const userFeedbackQuery = query(
+        subcollectionFeedbacksRef,
+        where("userId", "==", userId),
+      );
+      const feedbackSnapshot = await getDocs(userFeedbackQuery);
+
+      feedbackSnapshot.forEach((feedbackDoc) => {
+        const uniqueId = `sub_${routeDoc.id}_${feedbackDoc.id}`;
+        
+        // Skip if we already have this from main collection
+        if (seenFeedbackIds.has(uniqueId)) return;
+        seenFeedbackIds.add(uniqueId);
+        
+        const feedback = feedbackDoc.data();
+        const createdAt = feedback.submittedAt?.toDate?.() || feedback.submittedAt || new Date();
+        
+        historyItems.push({
+          id: uniqueId,
+          type: feedback.closedRoute ? "closure" : "feedback",
+          routeId: routeDoc.id,
+          routeName: routeData.name || "מסלול ללא שם",
+          routeGrade: routeData.grade || "N/A",
+          routeColor: routeData.color || "#8e44ad",
+          feedback: {
+            starRating: feedback.starRating,
+            suggestedGrade: feedback.suggestedGrade,
+            comment: feedback.comment,
+            closedRoute: feedback.closedRoute,
+          },
+          createdAt: createdAt,
+          feedbackId: feedbackDoc.id,
+          isActiveRoute: !routeData.status || routeData.status === 'active',
+        });
+      });
+    }
+
+    // Sort by date (newest first)
+    historyItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    // Apply pagination
+    let filteredItems = historyItems;
+    if (lastTimestamp) {
+      filteredItems = historyItems.filter(
+        (item) => new Date(item.createdAt).getTime() < new Date(lastTimestamp).getTime()
+      );
+    }
+
+    const paginatedItems = filteredItems.slice(0, pageSize);
+    const hasMore = filteredItems.length > pageSize;
+
+    return {
+      items: paginatedItems,
+      hasMore,
+      lastTimestamp: paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1].createdAt : null,
+    };
+  } catch (error) {
+    console.error("Error getting user history:", error);
+    return { items: [], hasMore: false };
+  }
+}
+
+// Activity Feed (legacy - keeping for backwards compatibility)
+// Updated to query from both main routeFeedbacks collection and legacy subcollections
 export async function getUserActivityFeed(userId) {
   try {
     const userDoc = await getDoc(doc(db, "users", userId));
@@ -167,12 +438,58 @@ export async function getUserActivityFeed(userId) {
     following.push(userId); // Include own activities
 
     const activities = [];
+    const seenIds = new Set<string>();
 
-    // Get recent feedbacks from followed users
+    // Build a map of route data for quick lookup
+    const routesRef = collection(db, "routes");
+    const routesSnapshot = await getDocs(routesRef);
+    const routesMap = new Map();
+    routesSnapshot.docs.forEach(doc => {
+      routesMap.set(doc.id, { id: doc.id, ...doc.data() });
+    });
+
+    // 1. Query from main routeFeedbacks collection (new way)
     for (const followedUserId of following) {
-      const routesRef = collection(db, "routes");
-      const routesSnapshot = await getDocs(routesRef);
+      const mainFeedbacksRef = collection(db, "routeFeedbacks");
+      const feedbackQuery = query(
+        mainFeedbacksRef,
+        where("userId", "==", followedUserId)
+      );
+      const feedbackSnapshot = await getDocs(feedbackQuery);
 
+      feedbackSnapshot.forEach((feedbackDoc) => {
+        const feedback = feedbackDoc.data();
+        const routeId = feedback.routeId;
+        const routeData = routesMap.get(routeId);
+        
+        if (!routeData) return;
+        
+        const uniqueId = `main_${feedbackDoc.id}`;
+        if (seenIds.has(uniqueId)) return;
+        seenIds.add(uniqueId);
+        
+        const isCompleted = feedback.isCompleted === true || feedback.closedRoute === true;
+        
+        activities.push({
+          id: uniqueId,
+          type: isCompleted ? "route_closure" : "route_feedback",
+          userId: followedUserId,
+          userDisplayName: feedback.userDisplayName,
+          routeId: routeId,
+          routeGrade: routeData.grade,
+          routeName: routeData.name,
+          routeColor: routeData.color,
+          feedback: {
+            ...feedback,
+            closedRoute: isCompleted,
+          },
+          createdAt: feedback.createdAt?.toDate?.() || feedback.updatedAt?.toDate?.() || new Date(),
+        });
+      });
+    }
+
+    // 2. Query from legacy subcollections for backwards compatibility
+    for (const followedUserId of following) {
       for (const routeDoc of routesSnapshot.docs) {
         const feedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
         const userFeedbackQuery = query(
@@ -182,16 +499,22 @@ export async function getUserActivityFeed(userId) {
         const feedbackSnapshot = await getDocs(userFeedbackQuery);
 
         feedbackSnapshot.forEach((feedbackDoc) => {
+          const uniqueId = `sub_${routeDoc.id}_${feedbackDoc.id}`;
+          if (seenIds.has(uniqueId)) return;
+          seenIds.add(uniqueId);
+          
           const feedback = feedbackDoc.data();
           activities.push({
-            id: `${routeDoc.id}_${feedbackDoc.id}`,
-            type: "route_feedback",
+            id: uniqueId,
+            type: feedback.closedRoute ? "route_closure" : "route_feedback",
             userId: followedUserId,
             userDisplayName: feedback.userDisplayName,
             routeId: routeDoc.id,
             routeGrade: routeDoc.data().grade,
+            routeName: routeDoc.data().name,
+            routeColor: routeDoc.data().color,
             feedback: feedback,
-            createdAt: feedback.submittedAt,
+            createdAt: feedback.submittedAt?.toDate?.() || feedback.submittedAt || new Date(),
           });
         });
       }
@@ -426,5 +749,102 @@ export async function tagUsersInFeedback(
     }
   } catch (error) {
     console.error("Error tagging users:", error);
+  }
+}
+
+// ==================== ADMIN FUNCTIONS ====================
+
+// Promote user to admin
+export async function promoteToAdmin(targetUserId: string) {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) throw new Error("User not authenticated");
+
+    // Verify current user is admin
+    const currentUserDoc = await getDoc(doc(db, "users", currentUser.uid));
+    if (!currentUserDoc.exists() || !currentUserDoc.data()?.isAdmin) {
+      throw new Error("Not authorized - you must be an admin");
+    }
+
+    // Update target user to admin
+    await updateDoc(doc(db, "users", targetUserId), {
+      isAdmin: true,
+      promotedBy: currentUser.uid,
+      promotedAt: new Date(),
+    });
+
+    // Create notification for the promoted user
+    await createNotification(targetUserId, {
+      type: "admin_promotion",
+      fromUserId: currentUser.uid,
+      message: "קודמת לאדמין!",
+      createdAt: new Date(),
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error promoting user to admin:", error);
+    throw error;
+  }
+}
+
+// Remove admin privileges
+export async function removeAdminPrivileges(targetUserId: string) {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) throw new Error("User not authenticated");
+
+    // Verify current user is admin
+    const currentUserDoc = await getDoc(doc(db, "users", currentUser.uid));
+    if (!currentUserDoc.exists() || !currentUserDoc.data()?.isAdmin) {
+      throw new Error("Not authorized - you must be an admin");
+    }
+
+    // Remove admin status from target user
+    await updateDoc(doc(db, "users", targetUserId), {
+      isAdmin: false,
+      adminRemovedBy: currentUser.uid,
+      adminRemovedAt: new Date(),
+    });
+
+    return true;
+  } catch (error) {
+    console.error("Error removing admin privileges:", error);
+    throw error;
+  }
+}
+
+// Delete feedback (admin only)
+export async function deleteFeedback(routeId: string, feedbackId: string) {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) throw new Error("User not authenticated");
+
+    // Verify current user is admin
+    const currentUserDoc = await getDoc(doc(db, "users", currentUser.uid));
+    if (!currentUserDoc.exists() || !currentUserDoc.data()?.isAdmin) {
+      throw new Error("Not authorized - you must be an admin");
+    }
+
+    // Delete the feedback
+    const feedbackRef = doc(db, "routes", routeId, "feedbacks", feedbackId);
+    await deleteDoc(feedbackRef);
+
+    return true;
+  } catch (error) {
+    console.error("Error deleting feedback:", error);
+    throw error;
+  }
+}
+
+// Check if user is admin
+export async function checkUserIsAdmin(userId: string): Promise<boolean> {
+  try {
+    const userDoc = await getDoc(doc(db, "users", userId));
+    if (!userDoc.exists()) return false;
+    return userDoc.data()?.isAdmin === true;
+  } catch (error) {
+    console.error("Error checking admin status:", error);
+    return false;
   }
 }

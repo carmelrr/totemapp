@@ -1,0 +1,132 @@
+// Firestore Security Rules - Competition System
+// כללי אבטחה למערכת התחרויות
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ==================== Helper Functions ====================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    
+    function isJudge(competitionId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/competitions/$(competitionId)/judges/$(request.auth.uid));
+    }
+    
+    function getJudgePermissions(competitionId) {
+      return get(/databases/$(database)/documents/competitions/$(competitionId)/judges/$(request.auth.uid)).data.permissions;
+    }
+    
+    function canJudgeEnterResults(competitionId) {
+      return isJudge(competitionId) && getJudgePermissions(competitionId).canEnterResults == true;
+    }
+    
+    function canJudgeEditResults(competitionId) {
+      return isJudge(competitionId) && getJudgePermissions(competitionId).canEditResults == true;
+    }
+    
+    function canJudgeAddParticipants(competitionId) {
+      return isJudge(competitionId) && getJudgePermissions(competitionId).canAddParticipants == true;
+    }
+    
+    function isCompetitionActive(competitionId) {
+      return get(/databases/$(database)/documents/competitions/$(competitionId)).data.status == 'active';
+    }
+    
+    // ==================== Competitions Collection ====================
+    
+    match /competitions/{competitionId} {
+      // Anyone can read competition details
+      allow read: if true;
+      
+      // Only admins can create/update/delete competitions
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+      
+      // ==================== Routes Sub-collection ====================
+      match /routes/{routeId} {
+        // Anyone can read routes
+        allow read: if true;
+        
+        // Only admins can manage routes
+        allow create, update, delete: if isAdmin();
+      }
+      
+      // ==================== Participants Sub-collection ====================
+      match /participants/{participantId} {
+        // Anyone can read participants
+        allow read: if true;
+        
+        // Judges with permission can add participants
+        allow create: if isAdmin() || canJudgeAddParticipants(competitionId);
+        
+        // Judges can update participants (limited fields)
+        allow update: if isAdmin() || 
+          (isJudge(competitionId) && 
+           getJudgePermissions(competitionId).canEditParticipants == true);
+        
+        // Only admins can delete participants
+        allow delete: if isAdmin();
+      }
+      
+      // ==================== Results Sub-collection ====================
+      match /results/{participantId} {
+        // Anyone can read results (for leaderboard)
+        allow read: if true;
+        
+        // Judges can enter/update results when competition is active
+        allow create: if isCompetitionActive(competitionId) && 
+          (isAdmin() || canJudgeEnterResults(competitionId));
+          
+        allow update: if (isCompetitionActive(competitionId) && 
+          (isAdmin() || canJudgeEditResults(competitionId))) ||
+          // Admins can always edit
+          isAdmin();
+        
+        // Only admins can delete results
+        allow delete: if isAdmin();
+      }
+      
+      // ==================== Judges Sub-collection ====================
+      match /judges/{judgeId} {
+        // Anyone can read judge list
+        allow read: if true;
+        
+        // Only admins can manage judges
+        allow create, update, delete: if isAdmin();
+      }
+      
+      // ==================== Categories Sub-collection ====================
+      match /categories/{categoryId} {
+        // Anyone can read categories
+        allow read: if true;
+        
+        // Admins and senior judges can manage categories
+        allow create, update, delete: if isAdmin() ||
+          (isJudge(competitionId) && 
+           getJudgePermissions(competitionId).canManageCategories == true);
+      }
+    }
+    
+    // ==================== Competition Leaderboards (Denormalized) ====================
+    match /competition_leaderboards/{competitionId} {
+      // Anyone can read leaderboards
+      allow read: if true;
+      
+      // Only the system (or admins) can write
+      // In production, use Cloud Functions for this
+      allow write: if isAdmin();
+    }
+    
+  }
+}

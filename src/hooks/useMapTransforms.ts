@@ -109,21 +109,39 @@ export function useMapTransforms({
   const focalX = useSharedValue(0);
   const focalY = useSharedValue(0);
   
+  // Flag to track if gesture is active (to skip notifications during gesture)
+  const isGestureActive = useSharedValue(false);
+  
   // Prevent notification spam
   const lastNotifyRef = useRef<{ scale: number; translateX: number; translateY: number } | null>(null);
-  const EPS = 0.01; // Smaller threshold for more accurate updates
+  const pendingNotifyRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const EPS = 0.01; // Threshold for detecting significant changes
   
   const notifyChange = useCallback((s: number, x: number, y: number) => {
     const prev = lastNotifyRef.current;
+    
+    // Check if values changed significantly
     if (prev) {
       const near = (a: number, b: number) => Math.abs(a - b) < EPS;
       if (near(prev.scale, s) && near(prev.translateX, x) && near(prev.translateY, y)) {
         return;
       }
     }
+    
     lastNotifyRef.current = { scale: s, translateX: x, translateY: y };
     onTransformChange?.({ scale: s, translateX: x, translateY: y });
   }, [onTransformChange]);
+  
+  // Debounced notification for during gestures - only notify after gesture ends or pauses
+  const debouncedNotify = useCallback((s: number, x: number, y: number) => {
+    if (pendingNotifyRef.current) {
+      clearTimeout(pendingNotifyRef.current);
+    }
+    pendingNotifyRef.current = setTimeout(() => {
+      notifyChange(s, x, y);
+      pendingNotifyRef.current = null;
+    }, 100);
+  }, [notifyChange]);
 
   // Track dimensions for detecting changes and applying initial centering
   const prevDimensionsRef = useRef({ imgW: 0, imgH: 0, screenW: 0, screenH: 0 });
@@ -167,10 +185,17 @@ export function useMapTransforms({
     Gesture.Pan()
       .minDistance(5)
       .onStart(() => {
+        'worklet';
+        // Cancel any ongoing spring animations for immediate response
+        translateX.value = translateX.value;
+        translateY.value = translateY.value;
+        
         baseTranslateX.value = translateX.value;
         baseTranslateY.value = translateY.value;
+        isGestureActive.value = true;
       })
       .onUpdate((event) => {
+        'worklet';
         const newX = baseTranslateX.value + event.translationX;
         const newY = baseTranslateY.value + event.translationY;
         
@@ -183,11 +208,17 @@ export function useMapTransforms({
         
         translateX.value = clamped.translateX;
         translateY.value = clamped.translateY;
+        
+        // Debounced notification during pan (won't block UI thread)
+        runOnJS(debouncedNotify)(scale.value, clamped.translateX, clamped.translateY);
       })
       .onEnd((event) => {
-        // Apply velocity for momentum
-        const velocityX = event.velocityX * 0.1;
-        const velocityY = event.velocityY * 0.1;
+        'worklet';
+        isGestureActive.value = false;
+        
+        // Apply velocity for momentum (reduced for smoother feel)
+        const velocityX = event.velocityX * 0.08;
+        const velocityY = event.velocityY * 0.08;
         
         const projectedX = translateX.value + velocityX;
         const projectedY = translateY.value + velocityY;
@@ -199,34 +230,45 @@ export function useMapTransforms({
           safeMinScale, safeMaxScale
         );
         
-        const springConfig = { damping: 20, stiffness: 200 };
+        // Gentler spring for smoother ending
+        const springConfig = { damping: 22, stiffness: 180, mass: 0.8 };
         translateX.value = withSpring(clamped.translateX, springConfig);
         translateY.value = withSpring(clamped.translateY, springConfig);
         
+        // Immediate notification at end
         runOnJS(notifyChange)(scale.value, clamped.translateX, clamped.translateY);
       }),
-    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange]
+    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange, debouncedNotify]
   );
 
-  // Pinch gesture
+  // Pinch gesture - simplified for maximum smoothness
   const pinchGesture = useMemo(() =>
     Gesture.Pinch()
       .onStart((event) => {
+        'worklet';
+        // Cancel any ongoing spring animations for immediate response
+        scale.value = scale.value;
+        translateX.value = translateX.value;
+        translateY.value = translateY.value;
+        
         baseScale.value = scale.value;
         baseTranslateX.value = translateX.value;
         baseTranslateY.value = translateY.value;
         focalX.value = event.focalX;
         focalY.value = event.focalY;
+        isGestureActive.value = true;
       })
       .onUpdate((event) => {
+        'worklet';
         const rawScale = baseScale.value * (event.scale ?? 1);
         const clampedScale = Math.max(safeMinScale, Math.min(safeMaxScale, rawScale));
         
         // Calculate image coordinates of focal point using base values
+        // This keeps the focal point stationary during zoom
         const fxImg = (focalX.value - baseTranslateX.value) / baseScale.value;
         const fyImg = (focalY.value - baseTranslateY.value) / baseScale.value;
         
-        // Calculate new translation to keep focal point in place
+        // Calculate new translation to keep the original focal point in place on screen
         const newTranslateX = focalX.value - fxImg * clampedScale;
         const newTranslateY = focalY.value - fyImg * clampedScale;
         
@@ -240,8 +282,14 @@ export function useMapTransforms({
         scale.value = clamped.scale;
         translateX.value = clamped.translateX;
         translateY.value = clamped.translateY;
+        
+        // Debounced notification during pinch (won't block UI thread)
+        runOnJS(debouncedNotify)(clamped.scale, clamped.translateX, clamped.translateY);
       })
       .onEnd(() => {
+        'worklet';
+        isGestureActive.value = false;
+        
         const clamped = clampViewport(
           scale.value, translateX.value, translateY.value,
           safeScreenWidth, safeScreenHeight,
@@ -249,14 +297,16 @@ export function useMapTransforms({
           safeMinScale, safeMaxScale
         );
         
-        const springConfig = { damping: 15, stiffness: 150 };
+        // Gentler spring for smoother ending
+        const springConfig = { damping: 20, stiffness: 100, mass: 1 };
         scale.value = withSpring(clamped.scale, springConfig);
         translateX.value = withSpring(clamped.translateX, springConfig);
         translateY.value = withSpring(clamped.translateY, springConfig);
         
+        // Immediate notification at end
         runOnJS(notifyChange)(clamped.scale, clamped.translateX, clamped.translateY);
       }),
-    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange]
+    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange, debouncedNotify]
   );
 
   // Double tap gesture
@@ -264,9 +314,10 @@ export function useMapTransforms({
     Gesture.Tap()
       .numberOfTaps(2)
       .onEnd((event) => {
+        'worklet';
         const currentScale = scale.value;
         const targetScale = currentScale < 2 ? 2 : 1;
-        const springConfig = { damping: 15, stiffness: 150 };
+        const springConfig = { damping: 18, stiffness: 130, mass: 0.9 };
         
         if (targetScale === 1) {
           // Reset to initial centered position
@@ -322,12 +373,28 @@ export function useMapTransforms({
   );
 
   // Animated style for map container
+  // We use scale-first transform order. The translation values represent where the 
+  // image's top-left corner should be in screen coordinates. After scaling from center,
+  // we compensate to position the image correctly.
   const mapContainerStyle = useAnimatedStyle(() => {
+    const s = scale.value;
+    const imgW = safeImageWidth;
+    const imgH = safeImageHeight;
+    
+    // When scaling from center, the center stays in place.
+    // Original center: (imgW/2, imgH/2)
+    // After scale: center is still at (imgW/2, imgH/2) but image extends from:
+    //   left: imgW/2 - (imgW*s)/2 = imgW*(1-s)/2
+    //   top: imgH/2 - (imgH*s)/2 = imgH*(1-s)/2
+    // We want top-left to be at (translateX, translateY), so we need to add compensation
+    const scaleCompensationX = imgW * (1 - s) / 2;
+    const scaleCompensationY = imgH * (1 - s) / 2;
+    
     return {
       transform: [
-        { translateX: translateX.value },
-        { translateY: translateY.value },
-        { scale: scale.value },
+        { scale: s },
+        { translateX: (translateX.value - scaleCompensationX) / s },
+        { translateY: (translateY.value - scaleCompensationY) / s },
       ],
     } as any;
   });

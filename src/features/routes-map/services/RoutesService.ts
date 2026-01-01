@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/features/data/firebase';
 import { RouteDoc } from '../types/route';
+import { triggerStatsRefresh } from '@/utils/events/statsRefreshEvent';
 
 /**
  * ממיר Firestore לבטיחות טיפוסים
@@ -226,6 +227,8 @@ export class RoutesService {
       console.log('📝 Adding route to Firestore:', JSON.stringify(newRoute, null, 2));
 
       const docRef = await addDoc(routesRef, newRoute);
+      // Trigger stats refresh so profile statistics update immediately
+      triggerStatsRefresh();
       return docRef.id;
     } catch (error) {
       console.error('Error adding route:', error);
@@ -260,6 +263,8 @@ export class RoutesService {
     try {
       const routeRef = doc(db, this.COLLECTION_NAME, id);
       await deleteDoc(routeRef);
+      // Trigger stats refresh so profile statistics update immediately
+      triggerStatsRefresh();
     } catch (error) {
       console.error('Error deleting route:', error);
       throw error;
@@ -270,14 +275,18 @@ export class RoutesService {
    * Archive a route (soft delete)
    */
   static async archiveRoute(id: string): Promise<void> {
-    return this.updateRoute(id, { status: 'archived' });
+    await this.updateRoute(id, { status: 'archived' });
+    // Trigger stats refresh so profile statistics update immediately
+    triggerStatsRefresh();
   }
 
   /**
    * Restore an archived route
    */
   static async restoreRoute(id: string): Promise<void> {
-    return this.updateRoute(id, { status: 'active' });
+    await this.updateRoute(id, { status: 'active' });
+    // Trigger stats refresh so profile statistics update immediately
+    triggerStatsRefresh();
   }
 
   /**

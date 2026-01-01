@@ -13,7 +13,9 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.yourdomain.climbinggymapp",
@@ -41,7 +43,9 @@
         {
           "photosPermission": "אפליקציה זו זקוקה לגישה לגלריה כדי להעלות תמונות של קירות טיפוס"
         }
-      ]
+      ],
+      "expo-font",
+      "expo-asset"
     ],
     "extra": {
       "eas": {

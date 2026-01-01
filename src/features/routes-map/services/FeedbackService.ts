@@ -19,6 +19,7 @@ import {
 import { db } from "@/features/data/firebase";
 import { RouteStatsService } from "./RouteStatsService";
 import { UserStatsService } from "./UserStatsService";
+import { triggerStatsRefresh } from "@/utils/events/statsRefreshEvent";
 
 /**
  * הפניות לאוספי Firestore
@@ -93,6 +94,9 @@ export class FeedbackService {
                 },
                 "add"
             );
+
+            // Trigger stats refresh for any listening components (e.g., ProfileScreen)
+            triggerStatsRefresh();
         } catch (error) {
             console.error("Error adding feedback:", error);
             throw error;
@@ -139,6 +143,9 @@ export class FeedbackService {
                     },
                     "update"
                 );
+
+                // Trigger stats refresh for any listening components
+                triggerStatsRefresh();
             }
         } catch (error) {
             console.error("Error updating feedback:", error);
@@ -175,6 +182,9 @@ export class FeedbackService {
                     },
                     "remove"
                 );
+
+                // Trigger stats refresh for any listening components
+                triggerStatsRefresh();
             }
         } catch (error) {
             console.error("Error deleting feedback:", error);

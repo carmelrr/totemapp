@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useWalls } from "@/features/walls/hooks";
 import { useRoutesForWall } from "@/features/spraywall/hooks";
@@ -135,17 +136,17 @@ export const WallDetailScreen: React.FC = () => {
 
   if (wallsLoading) {
     return (
-      <View style={styles.loadingContainer}>
+      <SafeAreaView style={styles.loadingContainer} edges={["top"]}>
         <ActivityIndicator size="large" color="#8E4EC6" />
         <Text style={styles.loadingText}>טוען...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   // No wall exists yet - show empty state with option to add wall (admin only)
   if (!wall) {
     return (
-      <View style={styles.emptyContainer}>
+      <SafeAreaView style={styles.emptyContainer} edges={["top"]}>
         <Text style={styles.emptyIcon}>🧗‍♂️</Text>
         <Text style={styles.emptyText}>אין קיר עדיין</Text>
         {isAdmin && adminModeEnabled && (
@@ -159,12 +160,12 @@ export const WallDetailScreen: React.FC = () => {
         {(!isAdmin || !adminModeEnabled) && (
           <Text style={styles.emptySubtext}>רק מנהל במצב עריכה יכול להוסיף קיר</Text>
         )}
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Wall Image with Selected Route's Holds */}
       <View style={styles.imageContainer}>
         <WallImageWithHolds
@@ -243,7 +244,7 @@ export const WallDetailScreen: React.FC = () => {
           />
         )}
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 

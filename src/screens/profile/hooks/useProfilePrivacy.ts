@@ -1,20 +1,52 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Alert } from "react-native";
 import { auth } from "@/features/data/firebase";
-import { savePrivacySettings as savePrivacySettingsService } from "../services/profileService";
+import { savePrivacySettings as savePrivacySettingsService, fetchProfile } from "../services/profileService";
 import type { PrivacySettings } from "../types";
+
+const defaultPrivacySettings: PrivacySettings = {
+  showTotalRoutes: true,
+  showHighestGrade: true,
+  showFeedbackCount: true,
+  showAverageRating: true,
+  showGradeStats: true,
+  showJoinDate: true,
+  showHistory: true,
+};
 
 export function useProfilePrivacy() {
   const user = auth.currentUser;
-  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>({
-    showTotalRoutes: true,
-    showHighestGrade: true,
-    showFeedbackCount: true,
-    showAverageRating: true,
-    showGradeStats: true,
-    showJoinDate: true,
-  });
+  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(defaultPrivacySettings);
   const [isEditingPrivacy, setIsEditingPrivacy] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load privacy settings from Firestore on mount
+  useEffect(() => {
+    const loadPrivacySettings = async () => {
+      if (!user?.uid) {
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        const profile = await fetchProfile(user.uid);
+        if (profile.privacySettings) {
+          // Merge with defaults to ensure all keys exist
+          setPrivacySettings({
+            ...defaultPrivacySettings,
+            ...profile.privacySettings,
+          });
+        }
+      } catch (error) {
+        console.warn("Failed to load privacy settings:", error);
+        // Keep defaults on error
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPrivacySettings();
+  }, [user?.uid]);
 
   const savePrivacySettings = async (newSettings: PrivacySettings) => {
     if (!user) return;
@@ -36,6 +68,7 @@ export function useProfilePrivacy() {
   return {
     privacySettings,
     isEditingPrivacy,
+    isLoading,
     setPrivacySettings,
     setIsEditingPrivacy,
     savePrivacySettings,

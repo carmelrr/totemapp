@@ -7,6 +7,7 @@ import {
   Alert,
   Dimensions
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -354,29 +355,24 @@ export default function RoutesMapScreen() {
       imageWidth = containerHeight / wallAspectRatio;
     }
 
-    // The viewport shows a portion of the image
-    // scale = 1 means the whole image fits in the viewport
-    // scale = 2 means we see half the image width/height
+    // The scaled image dimensions
+    const scaledImgW = imageWidth * scale;
+    const scaledImgH = imageHeight * scale;
     
-    // translateX/Y are relative to the center of the image
-    // translateX > 0 means the image moved right (we see more of the left side)
-    // translateX < 0 means the image moved left (we see more of the right side)
+    // Calculate the offset from the image being centered
+    // When image is smaller than container, it's centered
+    // When image is larger, translateX/Y range from (container - scaledImg) to 0
     
-    // The visible portion width/height in image coordinates:
-    const visibleWidth = imageWidth / scale;
-    const visibleHeight = imageHeight / scale;
+    // The visible portion in image coordinates (unscaled)
+    // translateX is the position of the scaled image's left edge relative to container's left edge
+    // So the visible left edge of the image is at: -translateX / scale
+    // And the visible right edge is at: (-translateX + containerWidth) / scale
+    // But we need to clamp to actual image bounds
     
-    // The center of the visible portion in image coordinates:
-    // When translateX = 0, the center is at imageWidth/2
-    // When translateX > 0, the center moves left (smaller x)
-    const centerX = (imageWidth / 2) - (translateX / scale);
-    const centerY = (imageHeight / 2) - (translateY / scale);
-    
-    // Calculate bounds in image coordinates
-    const leftImg = centerX - visibleWidth / 2;
-    const rightImg = centerX + visibleWidth / 2;
-    const topImg = centerY - visibleHeight / 2;
-    const bottomImg = centerY + visibleHeight / 2;
+    const leftImg = Math.max(0, Math.min(imageWidth, -translateX / scale));
+    const topImg = Math.max(0, Math.min(imageHeight, -translateY / scale));
+    const rightImg = Math.max(0, Math.min(imageWidth, (-translateX + containerWidth) / scale));
+    const bottomImg = Math.max(0, Math.min(imageHeight, (-translateY + containerHeight) / scale));
     
     // Convert to normalized coordinates (0-1)
     let leftN = leftImg / imageWidth;
@@ -403,8 +399,8 @@ export default function RoutesMapScreen() {
       scale: scale.toFixed(2),
       translate: { x: translateX.toFixed(1), y: translateY.toFixed(1) },
       image: { w: imageWidth.toFixed(0), h: imageHeight.toFixed(0) },
-      visible: { w: visibleWidth.toFixed(0), h: visibleHeight.toFixed(0) },
-      center: { x: centerX.toFixed(0), y: centerY.toFixed(0) },
+      container: { w: containerWidth.toFixed(0), h: containerHeight.toFixed(0) },
+      boundsImg: { left: leftImg.toFixed(0), right: rightImg.toFixed(0), top: topImg.toFixed(0), bottom: bottomImg.toFixed(0) },
       bounds: {
         left: newBounds.leftN.toFixed(3),
         right: newBounds.rightN.toFixed(3),
@@ -589,7 +585,7 @@ export default function RoutesMapScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Content Area */}
       <View style={styles.contentArea}>
         {viewMode === 'map' && renderFullMapView()}
@@ -654,7 +650,7 @@ export default function RoutesMapScreen() {
           <Text style={styles.adminBannerText}>🔧 מצב עריכה פעיל - לחץ ארוך לעריכה | + להוספה</Text>
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -1,29 +1,148 @@
-// Firestore Security Rules - DEVELOPMENT MODE
-// כללי אבטחה פרמיסיביים לסביבת פיתוח
+// Firestore Security Rules - DEVELOPMENT MODE with Competition System
+// כללי אבטחה לסביבת פיתוח כולל מערכת תחרויות
 
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Users collection - כל פעולה מותרת לצורך פיתוח
+    // ==================== Helper Functions ====================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
+    }
+    
+    function isJudge(competitionId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/competitions/$(competitionId)/judges/$(request.auth.uid));
+    }
+    
+    function getJudgePermissions(competitionId) {
+      return get(/databases/$(database)/documents/competitions/$(competitionId)/judges/$(request.auth.uid)).data.permissions;
+    }
+    
+    function canJudgeEnterResults(competitionId) {
+      return isJudge(competitionId) && getJudgePermissions(competitionId).canEnterResults == true;
+    }
+    
+    function canJudgeEditResults(competitionId) {
+      return isJudge(competitionId) && getJudgePermissions(competitionId).canEditResults == true;
+    }
+    
+    function canJudgeAddParticipants(competitionId) {
+      return isJudge(competitionId) && getJudgePermissions(competitionId).canAddParticipants == true;
+    }
+    
+    function isCompetitionActive(competitionId) {
+      return get(/databases/$(database)/documents/competitions/$(competitionId)).data.status == 'active';
+    }
+    
+    // ==================== Users Collection ====================
     match /users/{userId} {
       allow read, write: if true;
     }
 
-    // Routes collection - כל פעולה מותרת לצורך פיתוח  
+    // ==================== Routes Collection ====================
     match /routes/{routeId} {
       allow read, write: if true;
     }
 
-    // Feedbacks collection - כל פעולה מותרת לצורך פיתוח
+    // ==================== Feedbacks Collection ====================
     match /feedbacks/{feedbackId} {
       allow read, write: if true;
     }
+    
+    // ==================== Community Routes ====================
+    // מסלולי קהילה - מסלולים על תמונות אמיתיות עם תפוגה אוטומטית
+    
+    match /communityRoutes/{routeId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && 
+        (request.auth.uid == resource.data.createdBy || 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+    }
+    
+    match /communityRouteComments/{commentId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    match /communityRouteLikes/{likeId} {
+      allow read: if true;
+      allow create, delete: if request.auth != null;
+    }
 
-    // Sub-collections under any document
+    // ==================== Competitions Collection ====================
+    // מערכת תחרויות - ליגה ארצית וטוטמטישן
+    
+    match /competitions/{competitionId} {
+      // Anyone can read competition details
+      allow read: if true;
+      
+      // Only admins can create/update/delete competitions
+      allow create: if isAdmin();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+      
+      // Routes Sub-collection
+      match /routes/{routeId} {
+        allow read: if true;
+        allow create, update, delete: if isAdmin();
+      }
+      
+      // Participants Sub-collection
+      match /participants/{participantId} {
+        allow read: if true;
+        allow create: if isAdmin() || canJudgeAddParticipants(competitionId);
+        allow update: if isAdmin() || 
+          (isJudge(competitionId) && 
+           getJudgePermissions(competitionId).canEditParticipants == true);
+        allow delete: if isAdmin();
+      }
+      
+      // Results Sub-collection
+      match /results/{participantId} {
+        allow read: if true;
+        allow create: if isCompetitionActive(competitionId) && 
+          (isAdmin() || canJudgeEnterResults(competitionId));
+        allow update: if (isCompetitionActive(competitionId) && 
+          (isAdmin() || canJudgeEditResults(competitionId))) ||
+          isAdmin();
+        allow delete: if isAdmin();
+      }
+      
+      // Judges Sub-collection
+      match /judges/{judgeId} {
+        allow read: if true;
+        allow create, update, delete: if isAdmin();
+      }
+      
+      // Categories Sub-collection
+      match /categories/{categoryId} {
+        allow read: if true;
+        allow create, update, delete: if isAdmin() ||
+          (isJudge(competitionId) && 
+           getJudgePermissions(competitionId).canManageCategories == true);
+      }
+    }
+    
+    // Competition Leaderboards (Denormalized)
+    match /competition_leaderboards/{competitionId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Sub-collections under any document (fallback for development)
     match /{document=**} {
       allow read, write: if true;
     }
   }
 }
+

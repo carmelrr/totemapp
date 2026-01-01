@@ -22,6 +22,7 @@ import {
   Dimensions,
   ScrollView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { auth, db } from "@/features/data/firebase";
 import { collection, getDocs, query, where } from "firebase/firestore";
 import defaultAvatar from "@/assets/splash.png";
@@ -41,35 +42,38 @@ export default function LeaderboardScreen() {
 
   const calculateUserPoints = async (userId) => {
     try {
-      // Get all routes from the wall
+      // Query feedbacks from the main routeFeedbacks collection
+      // (not from subcollection routes/{routeId}/feedbacks)
+      const feedbacksRef = collection(db, "routeFeedbacks");
+      const userFeedbackQuery = query(
+        feedbacksRef,
+        where("userId", "==", userId),
+      );
+      const userFeedbackSnapshot = await getDocs(userFeedbackQuery);
+
+      // Get all routes to check which ones are active (on the wall)
       const routesSnapshot = await getDocs(collection(db, "routes"));
-      const routes = [];
+      const activeRouteIds = new Set();
       routesSnapshot.forEach((doc) => {
-        routes.push({ id: doc.id, ...doc.data() });
+        activeRouteIds.add(doc.id);
       });
 
       let totalPoints = 0;
 
-      // Calculate points for each route the user completed
-      for (const route of routes) {
-        const feedbacksRef = collection(db, "routes", route.id, "feedbacks");
-        const userFeedbackQuery = query(
-          feedbacksRef,
-          where("userId", "==", userId),
-          where("closedRoute", "==", true),
-        );
-        const userFeedbackSnapshot = await getDocs(userFeedbackQuery);
-
-        userFeedbackSnapshot.forEach((feedbackDoc) => {
-          const feedback = feedbackDoc.data();
+      // Calculate points for each completed route
+      userFeedbackSnapshot.forEach((feedbackDoc) => {
+        const feedback = feedbackDoc.data();
+        // Check both isCompleted and closedRoute fields for compatibility
+        const isCompleted = feedback.isCompleted === true || feedback.closedRoute === true;
+        
+        // Only count if the feedback is for a completed route that's still active on the wall
+        if (isCompleted && activeRouteIds.has(feedback.routeId)) {
           // Use the grade that the user suggested when they closed the route
-          // This represents the difficulty they climbed at that time
-          const gradeAtTimeOfCompletion =
-            feedback.suggestedGrade || route.grade;
+          const gradeAtTimeOfCompletion = feedback.suggestedGrade || feedback.routeGrade;
           const points = getPointsForGrade(gradeAtTimeOfCompletion);
           totalPoints += points;
-        });
-      }
+        }
+      });
 
       return totalPoints;
     } catch (error) {
@@ -79,17 +83,21 @@ export default function LeaderboardScreen() {
   };
 
   const getPointsForGrade = (grade) => {
+    // Points table for V-grades
     const gradePoints = {
-      V1: 1,
-      V2: 2,
-      V3: 3,
-      V4: 4,
-      V5: 5,
-      V6: 6,
-      V7: 7,
-      V8: 8,
-      V9: 9,
-      V10: 10,
+      V0: 1,
+      V1: 2,
+      V2: 3,
+      V3: 4,
+      V4: 5,
+      V5: 6,
+      V6: 7,
+      V7: 8,
+      V8: 9,
+      V9: 10,
+      V10: 11,
+      V11: 12,
+      V12: 13,
     };
 
     return gradePoints[grade] || 0;
@@ -279,7 +287,7 @@ export default function LeaderboardScreen() {
   const styles = createStyles(theme);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.headerContainer}>
         <Text style={styles.headerTitle}>🏆 לוח שיאים</Text>
@@ -312,7 +320,7 @@ export default function LeaderboardScreen() {
           )}
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 

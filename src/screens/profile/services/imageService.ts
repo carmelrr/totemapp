@@ -61,7 +61,10 @@ export async function uploadImage(userId: string, uri: string): Promise<string> 
     const downloadURL = await getDownloadURL(snapshot.ref);
     console.log("Image uploaded successfully:", downloadURL);
 
-    // Update Firestore
+    // Update Firebase Authentication profile (for persistence)
+    await updateProfile(user, { photoURL: downloadURL });
+
+    // Update Firestore (source of truth)
     await setDoc(
       doc(db, "users", userId),
       { photoURL: downloadURL },

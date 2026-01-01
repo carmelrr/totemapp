@@ -12,6 +12,7 @@ import {
   Dimensions,
   Modal,
   Switch,
+  FlatList,
 } from "react-native";
 import { auth, db } from "@/features/data/firebase";
 import {
@@ -22,24 +23,35 @@ import {
   query,
   where,
   getDocs,
+  deleteDoc,
 } from "firebase/firestore";
 import {
   followUser,
   unfollowUser,
   getUserFollowers,
   getUserFollowing,
+  getUserHistory,
+  promoteToAdmin,
+  removeAdminPrivileges,
+  deleteFeedback,
 } from "@/features/social/socialService";
 import defaultAvatar from "@/assets/splash.png";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useAdmin } from "@/context/AdminContext";
 import { UnifiedStatsDashboard as StatsDashboard, UnifiedGradeStatsModal as GradeStatsModal, UserProfileHeader } from "../../components/profile";
-import { fetchUserStats as fetchUserStatsService } from "./services/statsService";
+import { fetchUserStats as fetchUserStatsService, fetchOtherUserStats } from "./services/statsService";
+import { ProfileSettingsTab } from "./components/ProfileSettingsTab";
 
 const { width: screenWidth } = Dimensions.get("window");
+
+// Tab types for profile view
+type ProfileTab = "statistics" | "settings";
 
 export default function UserProfileScreen({ route, navigation }) {
   const { userId, autoEdit = false } = route.params;
   const currentUserId = auth.currentUser?.uid;
   const { theme } = useTheme();
+  const { isAdmin, adminModeEnabled } = useAdmin();
   
   // Create dynamic styles based on theme
   const styles = useMemo(() => createStyles(theme), [theme]);
@@ -69,7 +81,21 @@ export default function UserProfileScreen({ route, navigation }) {
     showAverageRating: true,
     showGradeStats: true,
     showJoinDate: true,
+    showHistory: true,
   });
+  
+  // History state
+  const [history, setHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyHasMore, setHistoryHasMore] = useState(true);
+  const [historyLastTimestamp, setHistoryLastTimestamp] = useState(null);
+  
+  // Admin state
+  const [targetUserIsAdmin, setTargetUserIsAdmin] = useState(false);
+  
+  // Tab state - only relevant for own profile
+  const [activeTab, setActiveTab] = useState<ProfileTab>("statistics");
+  const isOwner = currentUserId === userId;
 
   useEffect(() => {
     loadUserProfile();
@@ -129,6 +155,9 @@ export default function UserProfileScreen({ route, navigation }) {
     if (docSnap.exists()) {
       const userData = docSnap.data();
       setUserProfile(userData);
+      
+      // Check if target user is admin
+      setTargetUserIsAdmin(userData.isAdmin === true);
 
       // Load privacy settings only if it's the current user's profile
       if (userData.privacySettings && currentUserId === userId) {
@@ -150,10 +179,18 @@ export default function UserProfileScreen({ route, navigation }) {
 
   const fetchUserStats = async () => {
     try {
-      // נסה להשתמש בשירות הסטטיסטיקות המרכזי
-      const stats = await fetchUserStatsService(userId);
-      setUserStats(stats);
+      // If viewing own profile, use authenticated service
+      // If viewing another user's profile, use the public service
+      if (currentUserId === userId) {
+        const stats = await fetchUserStatsService(userId);
+        setUserStats(stats);
+      } else {
+        // Use the service that doesn't require authentication for the target user
+        const stats = await fetchOtherUserStats(userId);
+        setUserStats(stats);
+      }
     } catch (error) {
+      console.log("Error fetching stats, using fallback:", error);
       // Fallback למשתמשים שאינם מחוברים או צופים בפרופיל של אחר
       const userDoc = await getDoc(doc(db, "users", userId));
 
@@ -246,6 +283,124 @@ export default function UserProfileScreen({ route, navigation }) {
     }
   };
 
+  // Load user history (closures and feedbacks)
+  // For other users: only show feedbacks on active routes (currently on the wall)
+  const loadHistory = async (refresh = false) => {
+    if (loadingHistory && !refresh) return;
+    
+    // Check privacy settings - only load if visible
+    if (currentUserId !== userId && !privacySettings.showHistory) return;
+    
+    setLoadingHistory(true);
+    try {
+      // When viewing another user's profile, only show active routes
+      const onlyActiveRoutes = currentUserId !== userId;
+      
+      const result = await getUserHistory(
+        userId, 
+        20, 
+        refresh ? null : historyLastTimestamp,
+        onlyActiveRoutes
+      );
+      
+      if (refresh) {
+        setHistory(result.items);
+      } else {
+        setHistory((prev) => [...prev, ...result.items]);
+      }
+      
+      setHistoryHasMore(result.hasMore);
+      setHistoryLastTimestamp(result.lastTimestamp);
+    } catch (error) {
+      console.error("Error loading history:", error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Load history on mount
+  useEffect(() => {
+    if (userProfile) {
+      loadHistory(true);
+    }
+  }, [userProfile, privacySettings.showHistory]);
+
+  // Admin actions
+  const handlePromoteToAdmin = async () => {
+    if (!isAdmin || !adminModeEnabled) return;
+    
+    Alert.alert(
+      "קידום לאדמין",
+      `האם אתה בטוח שברצונך לקדם את ${userProfile?.displayName || "משתמש"} לאדמין?`,
+      [
+        { text: "ביטול", style: "cancel" },
+        {
+          text: "אישור",
+          onPress: async () => {
+            try {
+              await promoteToAdmin(userId);
+              setTargetUserIsAdmin(true);
+              Alert.alert("הצלחה", "המשתמש קודם לאדמין");
+            } catch (error) {
+              Alert.alert("שגיאה", "לא ניתן לקדם משתמש לאדמין");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRemoveAdmin = async () => {
+    if (!isAdmin || !adminModeEnabled) return;
+    
+    Alert.alert(
+      "הסרת הרשאות אדמין",
+      `האם אתה בטוח שברצונך להסיר הרשאות אדמין מ${userProfile?.displayName || "משתמש"}?`,
+      [
+        { text: "ביטול", style: "cancel" },
+        {
+          text: "אישור",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await removeAdminPrivileges(userId);
+              setTargetUserIsAdmin(false);
+              Alert.alert("הצלחה", "הרשאות אדמין הוסרו");
+            } catch (error) {
+              Alert.alert("שגיאה", "לא ניתן להסיר הרשאות אדמין");
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleDeleteFeedback = async (routeId: string, feedbackId: string) => {
+    if (!isAdmin || !adminModeEnabled) return;
+    
+    Alert.alert(
+      "מחיקת פידבק",
+      "האם אתה בטוח שברצונך למחוק פידבק זה?",
+      [
+        { text: "ביטול", style: "cancel" },
+        {
+          text: "מחק",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteFeedback(routeId, feedbackId);
+              // Refresh history
+              loadHistory(true);
+              Alert.alert("הצלחה", "הפידבק נמחק");
+            } catch (error) {
+              Alert.alert("שגיאה", "לא ניתן למחוק פידבק");
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Save privacy settings to Firestore
   const savePrivacySettings = async (newSettings) => {
     if (!currentUserId || currentUserId !== userId) return;
@@ -312,6 +467,71 @@ export default function UserProfileScreen({ route, navigation }) {
     ? { uri: userProfile.photoURL }
     : defaultAvatar;
 
+  // Format date for history items
+  const formatDate = (date: Date | string) => {
+    const d = new Date(date);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return "הרגע";
+    if (diffMins < 60) return `לפני ${diffMins} דקות`;
+    if (diffHours < 24) return `לפני ${diffHours} שעות`;
+    if (diffDays < 7) return `לפני ${diffDays} ימים`;
+    
+    return d.toLocaleDateString("he-IL");
+  };
+
+  // Render history item
+  const renderHistoryItem = (item: any) => (
+    <View key={item.id} style={styles.historyItem}>
+      <View style={styles.historyHeader}>
+        <View style={[
+          styles.historyTypeIndicator,
+          item.type === "closure" ? styles.closureIndicator : styles.feedbackIndicator
+        ]}>
+          <Text style={styles.historyTypeText}>
+            {item.type === "closure" ? "סגירה 🎯" : "פידבק 💬"}
+          </Text>
+        </View>
+        <Text style={styles.historyDate}>{formatDate(item.createdAt)}</Text>
+      </View>
+      
+      <View style={styles.historyRouteInfo}>
+        <View style={[styles.historyGradeChip, { backgroundColor: item.routeColor }]}>
+          <Text style={styles.historyGradeText}>{item.routeGrade}</Text>
+        </View>
+        <Text style={styles.historyRouteName}>{item.routeName}</Text>
+      </View>
+      
+      {item.feedback.comment && (
+        <Text style={styles.historyComment}>{item.feedback.comment}</Text>
+      )}
+      
+      {item.feedback.starRating > 0 && (
+        <View style={styles.historyStars}>
+          {Array.from({ length: 5 }, (_, i) => (
+            <Text key={i} style={styles.star}>
+              {i < item.feedback.starRating ? "⭐" : "☆"}
+            </Text>
+          ))}
+        </View>
+      )}
+      
+      {/* Admin delete button */}
+      {isAdmin && adminModeEnabled && (
+        <TouchableOpacity
+          style={styles.adminDeleteButton}
+          onPress={() => handleDeleteFeedback(item.routeId, item.feedbackId)}
+        >
+          <Text style={styles.adminDeleteButtonText}>🗑️ מחק פידבק</Text>
+        </TouchableOpacity>
+      )}
+    </View>
+  );
+
   return (
     <ScrollView
       style={styles.container}
@@ -337,22 +557,192 @@ export default function UserProfileScreen({ route, navigation }) {
           handleFollowToggle={handleFollowToggle}
         />
 
-        {/* Stats Dashboard */}
-        <StatsDashboard
-          mode="detailed"
-          userStats={userStats}
-          userProfile={userProfile}
-          allRoutes={allRoutes}
-          gradeStats={gradeStats}
-          privacySettings={privacySettings}
-          currentUserId={currentUserId}
-          userId={userId}
-          isEditingPrivacy={isEditingPrivacy}
-          autoEdit={autoEdit}
-          setIsEditingPrivacy={setIsEditingPrivacy}
-          setShowStatsModal={setShowStatsModal}
-          savePrivacySettings={savePrivacySettings}
-        />
+        {/* Admin Controls - Only visible in admin edit mode */}
+        {isAdmin && adminModeEnabled && currentUserId !== userId && (
+          <View style={styles.adminControlsSection}>
+            <Text style={styles.adminSectionTitle}>🔧 פעולות אדמין</Text>
+            <View style={styles.adminButtonsRow}>
+              {!targetUserIsAdmin ? (
+                <TouchableOpacity
+                  style={styles.adminPromoteButton}
+                  onPress={handlePromoteToAdmin}
+                >
+                  <Text style={styles.adminButtonText}>⬆️ קדם לאדמין</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.adminRemoveButton}
+                  onPress={handleRemoveAdmin}
+                >
+                  <Text style={styles.adminButtonText}>⬇️ הסר הרשאות אדמין</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Tabs - Only for owner's profile */}
+        {isOwner && (
+          <View style={styles.tabsContainer}>
+            <TouchableOpacity
+              style={[
+                styles.tabButton,
+                activeTab === "statistics" && styles.tabButtonActive,
+                { borderColor: theme.primary }
+              ]}
+              onPress={() => setActiveTab("statistics")}
+            >
+              <Text style={[
+                styles.tabButtonText,
+                activeTab === "statistics" && styles.tabButtonTextActive,
+                { color: activeTab === "statistics" ? theme.primary : theme.textSecondary }
+              ]}>
+                📊 סטטיסטיקה
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.tabButton,
+                activeTab === "settings" && styles.tabButtonActive,
+                { borderColor: theme.primary }
+              ]}
+              onPress={() => setActiveTab("settings")}
+            >
+              <Text style={[
+                styles.tabButtonText,
+                activeTab === "settings" && styles.tabButtonTextActive,
+                { color: activeTab === "settings" ? theme.primary : theme.textSecondary }
+              ]}>
+                ⚙️ הגדרות פרופיל
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Content based on active tab or user type */}
+        {isOwner ? (
+          // Owner's profile: show tab content
+          activeTab === "statistics" ? (
+            <>
+              {/* Stats Dashboard */}
+              <StatsDashboard
+                mode="detailed"
+                userStats={userStats}
+                userProfile={userProfile}
+                allRoutes={allRoutes}
+                gradeStats={gradeStats}
+                privacySettings={privacySettings}
+                currentUserId={currentUserId}
+                userId={userId}
+                setShowStatsModal={setShowStatsModal}
+              />
+
+              {/* User History Section - for own profile */}
+              {privacySettings.showHistory && (
+                <View style={styles.historySection}>
+                  <Text style={styles.historySectionTitle}>היסטוריית פעילות</Text>
+                  
+                  {loadingHistory && history.length === 0 ? (
+                    <View style={styles.historyLoading}>
+                      <ActivityIndicator size="small" color={theme.primary} />
+                      <Text style={styles.historyLoadingText}>טוען היסטוריה...</Text>
+                    </View>
+                  ) : history.length === 0 ? (
+                    <View style={styles.historyEmpty}>
+                      <Text style={styles.historyEmptyIcon}>📝</Text>
+                      <Text style={styles.historyEmptyText}>אין פעילות עדיין</Text>
+                    </View>
+                  ) : (
+                    <>
+                      {history.map(renderHistoryItem)}
+                      
+                      {historyHasMore && (
+                        <TouchableOpacity
+                          style={styles.loadMoreButton}
+                          onPress={() => loadHistory(false)}
+                          disabled={loadingHistory}
+                        >
+                          {loadingHistory ? (
+                            <ActivityIndicator size="small" color={theme.primary} />
+                          ) : (
+                            <Text style={styles.loadMoreText}>טען עוד</Text>
+                          )}
+                        </TouchableOpacity>
+                      )}
+                    </>
+                  )}
+                </View>
+              )}
+            </>
+          ) : (
+            // Settings tab
+            <ProfileSettingsTab
+              privacySettings={privacySettings}
+              onPrivacyChange={(key, value) => {
+                const newSettings = { ...privacySettings, [key]: value };
+                savePrivacySettings(newSettings);
+              }}
+              isOwner={isOwner}
+              userDisplayName={userProfile?.displayName}
+            />
+          )
+        ) : (
+          // Other user's profile: show Statistics and Activity History
+          <>
+            {/* Stats Dashboard */}
+            <StatsDashboard
+              mode="detailed"
+              userStats={userStats}
+              userProfile={userProfile}
+              allRoutes={allRoutes}
+              gradeStats={gradeStats}
+              privacySettings={privacySettings}
+              currentUserId={currentUserId}
+              userId={userId}
+              setShowStatsModal={setShowStatsModal}
+            />
+
+            {/* User History Section - for other user, only active routes */}
+            {privacySettings.showHistory && (
+              <View style={styles.historySection}>
+                <Text style={styles.historySectionTitle}>היסטוריית פעילות (מסלולים פעילים)</Text>
+                <Text style={[styles.historySubtitle, { color: theme.textSecondary }]}>
+                  פידבקים ודירוגים למסלולים שעל הקיר כרגע
+                </Text>
+                
+                {loadingHistory && history.length === 0 ? (
+                  <View style={styles.historyLoading}>
+                    <ActivityIndicator size="small" color={theme.primary} />
+                    <Text style={styles.historyLoadingText}>טוען היסטוריה...</Text>
+                  </View>
+                ) : history.length === 0 ? (
+                  <View style={styles.historyEmpty}>
+                    <Text style={styles.historyEmptyIcon}>📝</Text>
+                    <Text style={styles.historyEmptyText}>אין פעילות על מסלולים פעילים</Text>
+                  </View>
+                ) : (
+                  <>
+                    {history.map(renderHistoryItem)}
+                    
+                    {historyHasMore && (
+                      <TouchableOpacity
+                        style={styles.loadMoreButton}
+                        onPress={() => loadHistory(false)}
+                        disabled={loadingHistory}
+                      >
+                        {loadingHistory ? (
+                          <ActivityIndicator size="small" color={theme.primary} />
+                        ) : (
+                          <Text style={styles.loadMoreText}>טען עוד</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </>
+                )}
+              </View>
+            )}
+          </>
+        )}
       </View>
 
       {/* Grade Statistics Modal */}
@@ -714,5 +1104,226 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 12,
     color: theme.textSecondary,
     textAlign: "center",
+  },
+  // History section styles
+  historySection: {
+    backgroundColor: theme.surface,
+    borderRadius: 20,
+    padding: 20,
+    marginTop: 20,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  historySectionTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: theme.text,
+    marginBottom: 8,
+    textAlign: "right",
+  },
+  historySubtitle: {
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: "right",
+  },
+  // Tabs styles
+  tabsContainer: {
+    flexDirection: "row",
+    marginBottom: 20,
+    backgroundColor: theme.surface,
+    borderRadius: 16,
+    padding: 8,
+    shadowColor: theme.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tabButtonActive: {
+    backgroundColor: "rgba(142, 68, 173, 0.1)",
+    borderWidth: 1,
+  },
+  tabButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  tabButtonTextActive: {
+    fontWeight: "700",
+  },
+  historyItem: {
+    backgroundColor: theme.card,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: theme.primary,
+  },
+  historyHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  historyTypeIndicator: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  closureIndicator: {
+    backgroundColor: "#2ecc71",
+  },
+  feedbackIndicator: {
+    backgroundColor: theme.primary,
+  },
+  historyTypeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  historyDate: {
+    fontSize: 12,
+    color: theme.textSecondary,
+  },
+  historyRouteInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  historyRouteName: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "600",
+    color: theme.text,
+    textAlign: "right",
+    marginRight: 8,
+  },
+  historyGradeChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  historyGradeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
+  historyComment: {
+    fontSize: 14,
+    color: theme.text,
+    textAlign: "right",
+    marginTop: 4,
+    lineHeight: 20,
+  },
+  historyStars: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 8,
+  },
+  star: {
+    fontSize: 14,
+    marginLeft: 2,
+  },
+  historyLoading: {
+    paddingVertical: 30,
+    alignItems: "center",
+  },
+  historyLoadingText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: theme.textSecondary,
+  },
+  historyEmpty: {
+    paddingVertical: 30,
+    alignItems: "center",
+  },
+  historyEmptyIcon: {
+    fontSize: 40,
+    marginBottom: 12,
+  },
+  historyEmptyText: {
+    fontSize: 16,
+    color: theme.textSecondary,
+    textAlign: "center",
+  },
+  loadMoreButton: {
+    backgroundColor: theme.card,
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: theme.border,
+  },
+  loadMoreText: {
+    color: theme.primary,
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  // Admin controls styles
+  adminControlsSection: {
+    backgroundColor: "#fff3cd",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: "#ffc107",
+  },
+  adminSectionTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#856404",
+    marginBottom: 12,
+    textAlign: "right",
+  },
+  adminButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 12,
+  },
+  adminPromoteButton: {
+    backgroundColor: "#28a745",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    flex: 1,
+  },
+  adminRemoveButton: {
+    backgroundColor: "#dc3545",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    flex: 1,
+  },
+  adminButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+    textAlign: "center",
+  },
+  adminDeleteButton: {
+    backgroundColor: "#ffebee",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "#ef5350",
+  },
+  adminDeleteButtonText: {
+    color: "#c62828",
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

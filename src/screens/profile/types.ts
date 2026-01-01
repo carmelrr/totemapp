@@ -12,6 +12,7 @@ export type PrivacySettings = {
   showAverageRating: boolean;
   showGradeStats: boolean;
   showJoinDate: boolean;
+  showHistory: boolean;
 };
 
 export type UserStats = {
@@ -36,7 +37,9 @@ export type SocialUser = {
   displayName?: string; 
   email?: string; 
   avatar?: string; 
+  photoURL?: string;
   isFollowing?: boolean;
+  isAdmin?: boolean;
 };
 
 export type ProfileNavigation = NativeStackNavigationProp<ProfileStackParamList>;

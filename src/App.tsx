@@ -2,21 +2,15 @@ import React, { useEffect, useState } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { SafeAreaProvider } from "react-native-safe-area-context";
 import { AccessibilityInfo } from "react-native";
 import { enableScreens } from "react-native-screens";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "@/features/data/firebase";
-import ProfileScreen from "@/screens/profile/ProfileScreen";
-import UserProfileScreen from "@/screens/profile/UserProfileScreen";
-import HomeScreen from "@/screens/HomeScreen";
 import LoginScreen from "@/screens/auth/LoginScreen";
-import ColorPickerScreen from "@/screens/routes/ColorPickerScreen";
-import LeaderboardScreen from "@/screens/social/LeaderboardScreen";
-import SprayNavigator from "@/navigation/SprayNavigator";
-import RoutesMapScreen from "@/features/routes-map/screens/RoutesMapScreen";
-import AddRouteMapScreen from "@/features/routes-map/screens/AddRouteMapScreen";
-import RouteDetailsScreen from "@/screens/routes/RouteDetailsScreen";
+import MainTabNavigator from "@/navigation/MainTabNavigator";
+import CompetitionNavigator from "@/navigation/CompetitionNavigator";
 import { UserProvider } from "@/features/auth/UserContext";
 import { ThemeProvider, useTheme } from "@/features/theme/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
@@ -52,82 +46,27 @@ if (__DEV__) {
 
 const Stack = createNativeStackNavigator();
 
-// Navigation wrapper that uses theme
-function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
-  const { theme } = useTheme();
+// Root stack that includes tabs and competition screens
+const RootStack = createNativeStackNavigator();
 
+// Navigation wrapper that uses the new Tab Navigator
+function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
   return (
     <NavigationContainer>
-      <Stack.Navigator
+      <RootStack.Navigator 
         id={undefined}
-        screenOptions={{
-          headerStyle: {
-            backgroundColor: theme.headerGradient,
-          },
-          headerTitleStyle: {
-            fontWeight: "bold",
-            fontSize: 20,
-            color: "#fff",
-            fontFamily: "System",
-          },
-          headerTintColor: "#fff",
-          headerTitleAlign: "center",
-        }}
+        screenOptions={{ headerShown: false }}
       >
-        <Stack.Screen
-          name="Home"
-          component={HomeScreen}
-          options={{ title: "בית" }}
-        />
-        <Stack.Screen
-          name="ProfileScreen"
-          component={ProfileScreen}
-          options={{ title: "פרופיל" }}
-        />
-        <Stack.Screen
-          name="UserProfile"
-          component={UserProfileScreen}
-          options={{ title: "פרופיל משתמש" }}
-        />
-        <Stack.Screen
-          name="RoutesMap"
-          component={RoutesMapScreen}
-          options={{ title: "Routes Map" }}
-        />
-        <Stack.Screen
-          name="AddRoute"
-          component={AddRouteMapScreen}
-          options={{
-            title: "Add Route",
-            presentation: 'modal',
-            gestureEnabled: true,
-          }}
-        />
-        <Stack.Screen
-          name="RouteDetails"
-          component={RouteDetailsScreen}
-          options={{
-            headerShown: true,
+        <RootStack.Screen name="MainTabs" component={MainTabNavigator} />
+        <RootStack.Group 
+          screenOptions={{ 
             presentation: 'card',
-            contentStyle: { backgroundColor: '#ffffff' },
+            animation: 'slide_from_left',
           }}
-        />
-        <Stack.Screen
-          name="ColorPickerScreen"
-          component={ColorPickerScreen}
-          options={{ title: "בחירת צבע" }}
-        />
-        <Stack.Screen
-          name="LeaderboardScreen"
-          component={LeaderboardScreen}
-          options={{ title: "לוח שיאים" }}
-        />
-        <Stack.Screen
-          name="SprayWall"
-          component={SprayNavigator}
-          options={{ headerShown: false }}
-        />
-      </Stack.Navigator>
+        >
+          <RootStack.Screen name="Competitions" component={CompetitionNavigator} />
+        </RootStack.Group>
+      </RootStack.Navigator>
     </NavigationContainer>
   );
 }
@@ -168,19 +107,21 @@ export default function App() {
   if (!user) {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <ThemeProvider>
-          <AuthProvider>
-            <NavigationContainer>
-              <Stack.Navigator id={undefined}>
-                <Stack.Screen
-                  name="Login"
-                  component={LoginScreen}
-                  options={{ headerShown: false }}
-                />
-              </Stack.Navigator>
-            </NavigationContainer>
-          </AuthProvider>
-        </ThemeProvider>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <NavigationContainer>
+                <Stack.Navigator id={undefined}>
+                  <Stack.Screen
+                    name="Login"
+                    component={LoginScreen}
+                    options={{ headerShown: false }}
+                  />
+                </Stack.Navigator>
+              </NavigationContainer>
+            </AuthProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
       </GestureHandlerRootView>
     );
   }
@@ -188,15 +129,17 @@ export default function App() {
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <ThemeProvider>
-          <AuthProvider>
-            <AdminProvider>
-              <UserProvider isAdmin={isAdmin}>
-                <ThemedNavigator isAdmin={isAdmin} />
-              </UserProvider>
-            </AdminProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <AdminProvider>
+                <UserProvider isAdmin={isAdmin}>
+                  <ThemedNavigator isAdmin={isAdmin} />
+                </UserProvider>
+              </AdminProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
   );
