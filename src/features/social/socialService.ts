@@ -214,42 +214,111 @@ export async function getAllUsers(pageSize = 50, lastDoc = null) {
 }
 
 // Activity Feed - Get feed of followed users' closures and feedbacks
+// If user doesn't follow anyone, returns top recent feedbacks from all users
 export async function getFollowingFeed(userId, pageSize = 20, lastTimestamp = null) {
   try {
     const userDoc = await getDoc(doc(db, "users", userId));
     if (!userDoc.exists()) return { items: [], hasMore: false };
 
     const following = userDoc.data().following || [];
-    if (following.length === 0) return { items: [], hasMore: false };
+    
+    // If user doesn't follow anyone, show top recent feedbacks from all users
+    const showAllUsers = following.length === 0;
 
     const feedItems = [];
+    const seenIds = new Set<string>();
 
-    // Get feedbacks from followed users
+    // Build a map of route data for quick lookup
     const routesRef = collection(db, "routes");
     const routesSnapshot = await getDocs(routesRef);
+    const routesMap = new Map();
+    routesSnapshot.docs.forEach(doc => {
+      routesMap.set(doc.id, { id: doc.id, ...doc.data() });
+    });
 
-    for (const routeDoc of routesSnapshot.docs) {
-      const routeData = routeDoc.data();
-      const feedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
-      
-      // Query feedbacks for all followed users
-      for (const followedUserId of following) {
-        const userFeedbackQuery = query(
-          feedbacksRef,
-          where("userId", "==", followedUserId),
-        );
-        const feedbackSnapshot = await getDocs(userFeedbackQuery);
+    // Build a map of user data for photo URL lookup
+    const usersRef = collection(db, "users");
+    const usersSnapshot = await getDocs(usersRef);
+    const usersMap = new Map();
+    usersSnapshot.docs.forEach(doc => {
+      usersMap.set(doc.id, { id: doc.id, ...doc.data() });
+    });
+
+    // Helper function to get user photo URL
+    const getUserPhotoURL = (feedbackUserId: string, feedbackPhotoURL: string | null): string | null => {
+      // First try to get from feedback
+      if (feedbackPhotoURL) return feedbackPhotoURL;
+      // Then try to get from users collection
+      const userData = usersMap.get(feedbackUserId);
+      return userData?.photoURL || null;
+    };
+
+    if (showAllUsers) {
+      // Get recent feedbacks from ALL users
+      const mainFeedbacksRef = collection(db, "routeFeedbacks");
+      const allFeedbacksSnapshot = await getDocs(mainFeedbacksRef);
+
+      allFeedbacksSnapshot.forEach((feedbackDoc) => {
+        const feedback = feedbackDoc.data();
+        const routeData = routesMap.get(feedback.routeId);
+        
+        // Skip if route doesn't exist or if it's the current user
+        if (!routeData || feedback.userId === userId) return;
+        
+        const uniqueId = `main_${feedbackDoc.id}`;
+        if (seenIds.has(uniqueId)) return;
+        seenIds.add(uniqueId);
+        
+        const createdAt = feedback.createdAt?.toDate?.() || feedback.updatedAt?.toDate?.() || feedback.submittedAt?.toDate?.() || new Date();
+        
+        // Check both closedRoute and isCompleted for compatibility
+        const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
+        
+        feedItems.push({
+          id: uniqueId,
+          type: isCompleted ? "closure" : "feedback",
+          userId: feedback.userId,
+          userDisplayName: feedback.userDisplayName || "משתמש",
+          userPhotoURL: getUserPhotoURL(feedback.userId, feedback.userPhotoURL),
+          routeId: feedback.routeId,
+          routeName: routeData.name || "מסלול ללא שם",
+          routeGrade: routeData.grade || "N/A",
+          routeColor: routeData.color || "#8e44ad",
+          feedback: {
+            starRating: feedback.starRating,
+            suggestedGrade: feedback.suggestedGrade,
+            comment: feedback.comment,
+            closedRoute: isCompleted,
+          },
+          createdAt: createdAt,
+        });
+      });
+
+      // Also query from subcollections for all users
+      for (const routeDoc of routesSnapshot.docs) {
+        const routeData = routeDoc.data();
+        const feedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
+        const feedbackSnapshot = await getDocs(feedbacksRef);
 
         feedbackSnapshot.forEach((feedbackDoc) => {
           const feedback = feedbackDoc.data();
-          const createdAt = feedback.submittedAt?.toDate?.() || feedback.submittedAt || new Date();
+          const uniqueId = `sub_${routeDoc.id}_${feedbackDoc.id}`;
+          
+          // Skip if already seen or if it's the current user
+          if (seenIds.has(uniqueId) || feedback.userId === userId) return;
+          seenIds.add(uniqueId);
+          
+          const createdAt = feedback.submittedAt?.toDate?.() || feedback.createdAt?.toDate?.() || feedback.submittedAt || new Date();
+          
+          // Check both closedRoute and isCompleted for compatibility
+          const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
           
           feedItems.push({
-            id: `${routeDoc.id}_${feedbackDoc.id}`,
-            type: feedback.closedRoute ? "closure" : "feedback",
-            userId: followedUserId,
+            id: uniqueId,
+            type: isCompleted ? "closure" : "feedback",
+            userId: feedback.userId,
             userDisplayName: feedback.userDisplayName || "משתמש",
-            userPhotoURL: feedback.userPhotoURL || null,
+            userPhotoURL: getUserPhotoURL(feedback.userId, feedback.userPhotoURL),
             routeId: routeDoc.id,
             routeName: routeData.name || "מסלול ללא שם",
             routeGrade: routeData.grade || "N/A",
@@ -258,11 +327,106 @@ export async function getFollowingFeed(userId, pageSize = 20, lastTimestamp = nu
               starRating: feedback.starRating,
               suggestedGrade: feedback.suggestedGrade,
               comment: feedback.comment,
-              closedRoute: feedback.closedRoute,
+              closedRoute: isCompleted,
             },
             createdAt: createdAt,
           });
         });
+      }
+    } else {
+      // Original logic - get feedbacks from followed users only
+      // 1. Query from main routeFeedbacks collection (current method)
+      for (const followedUserId of following) {
+        const mainFeedbacksRef = collection(db, "routeFeedbacks");
+        const feedbackQuery = query(
+          mainFeedbacksRef,
+          where("userId", "==", followedUserId)
+        );
+        const feedbackSnapshot = await getDocs(feedbackQuery);
+
+        feedbackSnapshot.forEach((feedbackDoc) => {
+          const feedback = feedbackDoc.data();
+          const routeData = routesMap.get(feedback.routeId);
+          
+          // Skip if route doesn't exist
+          if (!routeData) return;
+          
+          const uniqueId = `main_${feedbackDoc.id}`;
+          if (seenIds.has(uniqueId)) return;
+          seenIds.add(uniqueId);
+          
+          const createdAt = feedback.createdAt?.toDate?.() || feedback.updatedAt?.toDate?.() || feedback.submittedAt?.toDate?.() || new Date();
+          
+          // Check both closedRoute and isCompleted for compatibility
+          const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
+          
+          feedItems.push({
+            id: uniqueId,
+            type: isCompleted ? "closure" : "feedback",
+            userId: followedUserId,
+            userDisplayName: feedback.userDisplayName || "משתמש",
+            userPhotoURL: getUserPhotoURL(followedUserId, feedback.userPhotoURL),
+            routeId: feedback.routeId,
+            routeName: routeData.name || "מסלול ללא שם",
+            routeGrade: routeData.grade || "N/A",
+            routeColor: routeData.color || "#8e44ad",
+            feedback: {
+              starRating: feedback.starRating,
+              suggestedGrade: feedback.suggestedGrade,
+              comment: feedback.comment,
+              closedRoute: isCompleted,
+            },
+            createdAt: createdAt,
+          });
+        });
+      }
+
+      // 2. Also query from subcollections (legacy way) for backwards compatibility
+      for (const routeDoc of routesSnapshot.docs) {
+        const routeData = routeDoc.data();
+        const feedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
+        
+        // Query feedbacks for all followed users
+        for (const followedUserId of following) {
+          const userFeedbackQuery = query(
+            feedbacksRef,
+            where("userId", "==", followedUserId),
+          );
+          const feedbackSnapshot = await getDocs(userFeedbackQuery);
+
+          feedbackSnapshot.forEach((feedbackDoc) => {
+            const feedback = feedbackDoc.data();
+            const uniqueId = `sub_${routeDoc.id}_${feedbackDoc.id}`;
+            
+            // Skip if already seen
+            if (seenIds.has(uniqueId)) return;
+            seenIds.add(uniqueId);
+            
+            const createdAt = feedback.submittedAt?.toDate?.() || feedback.createdAt?.toDate?.() || feedback.submittedAt || new Date();
+            
+            // Check both closedRoute and isCompleted for compatibility
+            const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
+            
+            feedItems.push({
+              id: uniqueId,
+              type: isCompleted ? "closure" : "feedback",
+              userId: followedUserId,
+              userDisplayName: feedback.userDisplayName || "משתמש",
+              userPhotoURL: getUserPhotoURL(followedUserId, feedback.userPhotoURL),
+              routeId: routeDoc.id,
+              routeName: routeData.name || "מסלול ללא שם",
+              routeGrade: routeData.grade || "N/A",
+              routeColor: routeData.color || "#8e44ad",
+              feedback: {
+                starRating: feedback.starRating,
+                suggestedGrade: feedback.suggestedGrade,
+                comment: feedback.comment,
+                closedRoute: isCompleted,
+              },
+              createdAt: createdAt,
+            });
+          });
+        }
       }
     }
 

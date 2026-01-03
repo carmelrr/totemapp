@@ -21,14 +21,17 @@ export interface FeedbackData {
  * Calculate route statistics from feedback array
  * IMPORTANT: Only feedbacks from users who completed the route (isCompleted=true) 
  * are counted towards averageStarRating and calculatedGrade
+ * @param feedbacks - Array of feedback data
+ * @param originalGrade - The original grade set by the route builder (optional)
+ *                        When fewer than 6 feedbacks, this grade is included in the calculation
  */
-export const calculateRouteStats = (feedbacks: FeedbackData[]): RouteStats => {
+export const calculateRouteStats = (feedbacks: FeedbackData[], originalGrade?: string): RouteStats => {
     if (feedbacks.length === 0) {
         return {
             averageStarRating: 0,
             feedbackCount: 0,
             completionCount: 0,
-            calculatedGrade: null,
+            calculatedGrade: originalGrade || null,
             gradeDistribution: {},
         };
     }
@@ -53,14 +56,49 @@ export const calculateRouteStats = (feedbacks: FeedbackData[]): RouteStats => {
         }
     });
 
-    // Calculate most suggested grade from completed feedbacks
-    let calculatedGrade = null;
-    if (Object.keys(gradeDistribution).length > 0) {
-        const entries = Object.entries(gradeDistribution);
-        const [grade] = entries.reduce(([maxGrade, maxCount], [currentGrade, currentCount]) =>
-            currentCount > maxCount ? [currentGrade, currentCount] : [maxGrade, maxCount]
-        );
-        calculatedGrade = grade;
+    // V-Scale grades for index calculation
+    const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18'];
+    
+    // Calculate grade based on feedback count
+    // If fewer than 6 feedbacks, include original grade and use most voted (mode)
+    // Otherwise, use the average of community feedbacks only
+    let calculatedGrade: string | null = null;
+    
+    if (completedFeedbacks.length < 6) {
+        // פחות מ-6 תגובות - כולל את הדירוג המקורי בחישוב ומשתמש בדירוג עם הכי הרבה הצבעות
+        // Include original grade in the distribution
+        const distributionWithOriginal = { ...gradeDistribution };
+        if (originalGrade && V_GRADES.includes(originalGrade)) {
+            distributionWithOriginal[originalGrade] = (distributionWithOriginal[originalGrade] || 0) + 1;
+        }
+        
+        const gradeEntries = Object.entries(distributionWithOriginal);
+        if (gradeEntries.length > 0) {
+            const [mostVotedGrade] = gradeEntries.reduce(
+                (max, entry) => entry[1] > max[1] ? entry : max
+            );
+            calculatedGrade = mostVotedGrade;
+        } else {
+            // אין תגובות כלל - מחזיר את הדירוג המקורי
+            calculatedGrade = originalGrade || null;
+        }
+    } else {
+        // 6 או יותר תגובות - משתמשים בממוצע של תגובות הקהל בלבד
+        const gradesWithIndex = completedFeedbacks
+            .map(fb => fb.suggestedGrade)
+            .filter((g): g is string => !!g)
+            .map(g => V_GRADES.indexOf(g))
+            .filter(idx => idx >= 0);
+        
+        if (gradesWithIndex.length > 0) {
+            // Calculate average index (as float)
+            const averageIndex = gradesWithIndex.reduce((sum, idx) => sum + idx, 0) / gradesWithIndex.length;
+            // Round to nearest grade (0.5 rounds up)
+            const roundedIndex = Math.round(averageIndex);
+            // Clamp to valid range
+            const clampedIndex = Math.max(0, Math.min(roundedIndex, V_GRADES.length - 1));
+            calculatedGrade = V_GRADES[clampedIndex];
+        }
     }
 
     return {

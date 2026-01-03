@@ -77,6 +77,16 @@ const createStyles = (theme) =>
       borderWidth: 2,
       borderColor: theme.primary,
     },
+    userAvatarFallback: {
+      backgroundColor: theme.primary,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    userAvatarInitial: {
+      color: "#FFFFFF",
+      fontSize: 18,
+      fontWeight: "700",
+    },
     userInfo: {
       flex: 1,
       alignItems: "flex-end",
@@ -304,7 +314,11 @@ export default function HomeScreen() {
         {item.userPhotoURL ? (
           <Image source={{ uri: item.userPhotoURL }} style={styles.userAvatar} />
         ) : (
-          <View style={styles.userAvatar} />
+          <View style={[styles.userAvatar, styles.userAvatarFallback]}>
+            <Text style={styles.userAvatarInitial}>
+              {(item.userDisplayName || 'מ').charAt(0).toUpperCase()}
+            </Text>
+          </View>
         )}
       </TouchableOpacity>
 
@@ -344,9 +358,9 @@ export default function HomeScreen() {
       <Text style={styles.emptyIcon}>👥</Text>
       <Text style={styles.emptyTitle}>עדיין אין פעילות</Text>
       <Text style={styles.emptyText}>
-        התחל לעקוב אחרי מטפסים אחרים כדי לראות את הפעילות שלהם כאן!
+        אין עדיין פעילות מהקהילה.
         {"\n\n"}
-        עבור לפרופיל וחפש משתמשים חדשים.
+        כשמטפסים יסגרו מסלולים או ישאירו פידבקים, תראה אותם כאן!
       </Text>
     </View>
   );

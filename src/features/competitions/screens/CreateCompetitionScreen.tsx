@@ -15,12 +15,12 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-// Note: DateTimePicker requires: npm install @react-native-community/datetimepicker
-// For now, using simple date selection
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { CompetitionService } from '@/features/competitions/services/CompetitionService';
@@ -263,95 +263,121 @@ export default function CreateCompetitionScreen() {
               </TouchableOpacity>
             </View>
 
-            {showStartPicker && (
-              <View style={styles.datePickerModal}>
-                <Text style={styles.datePickerTitle}>בחר תאריך התחלה</Text>
-                <View style={styles.datePickerButtons}>
-                  <TouchableOpacity 
-                    style={styles.datePickerBtn}
-                    onPress={() => {
-                      setStartDate(new Date());
-                      setShowStartPicker(false);
-                    }}
-                  >
-                    <Text style={styles.datePickerBtnText}>היום</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.datePickerBtn}
-                    onPress={() => {
-                      const tomorrow = new Date();
-                      tomorrow.setDate(tomorrow.getDate() + 1);
-                      setStartDate(tomorrow);
-                      setShowStartPicker(false);
-                    }}
-                  >
-                    <Text style={styles.datePickerBtnText}>מחר</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.datePickerBtn}
-                    onPress={() => {
-                      const nextWeek = new Date();
-                      nextWeek.setDate(nextWeek.getDate() + 7);
-                      setStartDate(nextWeek);
-                      setShowStartPicker(false);
-                    }}
-                  >
-                    <Text style={styles.datePickerBtnText}>עוד שבוע</Text>
-                  </TouchableOpacity>
-                </View>
-                <TouchableOpacity 
-                  style={styles.datePickerCancel}
-                  onPress={() => setShowStartPicker(false)}
-                >
-                  <Text style={styles.datePickerCancelText}>ביטול</Text>
-                </TouchableOpacity>
-              </View>
+            {/* Start Date Picker */}
+            {showStartPicker && Platform.OS === 'android' && (
+              <DateTimePicker
+                value={startDate}
+                mode="date"
+                display="calendar"
+                onChange={(event, selectedDate) => {
+                  setShowStartPicker(false);
+                  if (event.type === 'set' && selectedDate) {
+                    setStartDate(selectedDate);
+                    // If end date is before start date, adjust it
+                    if (endDate <= selectedDate) {
+                      const newEndDate = new Date(selectedDate);
+                      newEndDate.setDate(newEndDate.getDate() + 7);
+                      setEndDate(newEndDate);
+                    }
+                  }
+                }}
+                minimumDate={new Date()}
+              />
             )}
-            {showEndPicker && (
-              <View style={styles.datePickerModal}>
-                <Text style={styles.datePickerTitle}>בחר תאריך סיום</Text>
-                <View style={styles.datePickerButtons}>
-                  <TouchableOpacity 
-                    style={styles.datePickerBtn}
-                    onPress={() => {
-                      const oneDay = new Date(startDate);
-                      oneDay.setDate(oneDay.getDate() + 1);
-                      setEndDate(oneDay);
-                      setShowEndPicker(false);
-                    }}
-                  >
-                    <Text style={styles.datePickerBtnText}>יום אחד</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.datePickerBtn}
-                    onPress={() => {
-                      const oneWeek = new Date(startDate);
-                      oneWeek.setDate(oneWeek.getDate() + 7);
-                      setEndDate(oneWeek);
-                      setShowEndPicker(false);
-                    }}
-                  >
-                    <Text style={styles.datePickerBtnText}>שבוע</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={styles.datePickerBtn}
-                    onPress={() => {
-                      const oneMonth = new Date(startDate);
-                      oneMonth.setMonth(oneMonth.getMonth() + 1);
-                      setEndDate(oneMonth);
-                      setShowEndPicker(false);
-                    }}
-                  >
-                    <Text style={styles.datePickerBtnText}>חודש</Text>
-                  </TouchableOpacity>
+
+            {/* iOS Start Date Picker Modal */}
+            {showStartPicker && Platform.OS === 'ios' && (
+              <Modal
+                animationType="slide"
+                transparent={true}
+                visible={showStartPicker}
+                onRequestClose={() => setShowStartPicker(false)}
+              >
+                <View style={styles.datePickerModalOverlay}>
+                  <View style={styles.datePickerModalContent}>
+                    <View style={styles.datePickerModalHeader}>
+                      <TouchableOpacity onPress={() => setShowStartPicker(false)}>
+                        <Text style={styles.datePickerCancelText}>ביטול</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.datePickerTitle}>בחר תאריך התחלה</Text>
+                      <TouchableOpacity onPress={() => setShowStartPicker(false)}>
+                        <Text style={[styles.datePickerCancelText, { color: theme.primary }]}>אישור</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={startDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={(event, selectedDate) => {
+                        if (selectedDate) {
+                          setStartDate(selectedDate);
+                          if (endDate <= selectedDate) {
+                            const newEndDate = new Date(selectedDate);
+                            newEndDate.setDate(newEndDate.getDate() + 7);
+                            setEndDate(newEndDate);
+                          }
+                        }
+                      }}
+                      minimumDate={new Date()}
+                      locale="he-IL"
+                      style={{ height: 200 }}
+                    />
+                  </View>
                 </View>
-                <TouchableOpacity 
-                  style={styles.datePickerCancel}
-                  onPress={() => setShowEndPicker(false)}
-                >
-                  <Text style={styles.datePickerCancelText}>ביטול</Text>
-                </TouchableOpacity>
-              </View>
+              </Modal>
+            )}
+
+            {/* End Date Picker */}
+            {showEndPicker && Platform.OS === 'android' && (
+              <DateTimePicker
+                value={endDate}
+                mode="date"
+                display="calendar"
+                onChange={(event, selectedDate) => {
+                  setShowEndPicker(false);
+                  if (event.type === 'set' && selectedDate) {
+                    setEndDate(selectedDate);
+                  }
+                }}
+                minimumDate={new Date(startDate.getTime() + 24 * 60 * 60 * 1000)}
+              />
+            )}
+
+            {/* iOS End Date Picker Modal */}
+            {showEndPicker && Platform.OS === 'ios' && (
+              <Modal
+                animationType="slide"
+                transparent={true}
+                visible={showEndPicker}
+                onRequestClose={() => setShowEndPicker(false)}
+              >
+                <View style={styles.datePickerModalOverlay}>
+                  <View style={styles.datePickerModalContent}>
+                    <View style={styles.datePickerModalHeader}>
+                      <TouchableOpacity onPress={() => setShowEndPicker(false)}>
+                        <Text style={styles.datePickerCancelText}>ביטול</Text>
+                      </TouchableOpacity>
+                      <Text style={styles.datePickerTitle}>בחר תאריך סיום</Text>
+                      <TouchableOpacity onPress={() => setShowEndPicker(false)}>
+                        <Text style={[styles.datePickerCancelText, { color: theme.primary }]}>אישור</Text>
+                      </TouchableOpacity>
+                    </View>
+                    <DateTimePicker
+                      value={endDate}
+                      mode="date"
+                      display="spinner"
+                      onChange={(event, selectedDate) => {
+                        if (selectedDate) {
+                          setEndDate(selectedDate);
+                        }
+                      }}
+                      minimumDate={new Date(startDate.getTime() + 24 * 60 * 60 * 1000)}
+                      locale="he-IL"
+                      style={{ height: 200 }}
+                    />
+                  </View>
+                </View>
+              </Modal>
             )}
           </View>
 
@@ -666,5 +692,25 @@ const createStyles = (theme: any) =>
     datePickerCancelText: {
       color: theme.textSecondary,
       fontSize: 14,
+    },
+    datePickerModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    datePickerModalContent: {
+      backgroundColor: theme.card,
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+      paddingBottom: 34,
+    },
+    datePickerModalHeader: {
+      flexDirection: 'row-reverse',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
     },
   });

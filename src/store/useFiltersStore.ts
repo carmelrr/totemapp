@@ -12,6 +12,10 @@ export interface RouteFilters {
     max: string;
   };
   
+  // סינון לפי תאריך הוספה (תאריך ספציפי או 'all')
+  // פורמט: 'all' או תאריך בפורמט YYYY-MM-DD
+  dateRange: string;
+  
   // סינון לפי סטטוס
   status: ('active' | 'archived' | 'draft')[];
   
@@ -59,6 +63,7 @@ const defaultFilters: RouteFilters = {
   circuits: [],
   colors: [],
   gradeRange: { min: '', max: '' },
+  dateRange: 'all',
   status: ['active'],
   walls: [],
   sectors: [],
@@ -202,6 +207,20 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
       console.log('[FiltersStore] After grades filter:', filteredRoutes.length, '(was', beforeCount, ')');
     }
 
+    // סינון לפי תאריך הוספה (תאריך ספציפי בפורמט YYYY-MM-DD)
+    if (filters.dateRange && filters.dateRange !== 'all') {
+      // תאריך ספציפי בפורמט YYYY-MM-DD
+      const selectedDate = new Date(filters.dateRange);
+      const startOfDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+      const endOfDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() + 1);
+      
+      filteredRoutes = filteredRoutes.filter(route => {
+        if (!route.createdAt) return false;
+        const routeDate = route.createdAt.toDate ? route.createdAt.toDate() : new Date(route.createdAt);
+        return routeDate >= startOfDay && routeDate < endOfDay;
+      });
+    }
+
     // סינון לפי תגיות
     if (filters.tags.length > 0) {
       filteredRoutes = filteredRoutes.filter(route => 
@@ -254,6 +273,7 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
     if (filters.circuits.length > 0) count++;
     if (filters.colors.length > 0) count++;
     if (filters.gradeRange.min || filters.gradeRange.max) count++;
+    if (filters.dateRange && filters.dateRange !== 'all') count++;
     if (filters.status.length !== 1 || filters.status[0] !== 'active') count++;
     if (filters.walls.length > 0) count++;
     if (filters.sectors.length > 0) count++;

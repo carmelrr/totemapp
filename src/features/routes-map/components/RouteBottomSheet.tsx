@@ -22,6 +22,29 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // V-Scale grades for selector
 const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12'];
 
+/**
+ * Get the index of a V-grade in the V_GRADES array
+ */
+const getGradeIndex = (grade: string): number => {
+  const index = V_GRADES.indexOf(grade);
+  return index >= 0 ? index : -1;
+};
+
+/**
+ * Get allowed grades for community rating (±2 from builder's original)
+ */
+const getAllowedGrades = (originalGrade: string): string[] => {
+  const originalIndex = getGradeIndex(originalGrade);
+  if (originalIndex < 0) {
+    return V_GRADES;
+  }
+  
+  const minIndex = Math.max(0, originalIndex - 2);
+  const maxIndex = Math.min(V_GRADES.length - 1, originalIndex + 2);
+  
+  return V_GRADES.slice(minIndex, maxIndex + 1);
+};
+
 interface RouteBottomSheetProps {
   visible: boolean;
   route: RouteDoc | null;
@@ -392,15 +415,18 @@ export default function RouteBottomSheet({
                   </View>
                 </View>
                 
-                {/* Grade Selector */}
+                {/* Grade Selector - Limited to ±2 from original grade */}
                 <View style={styles.formSection}>
                   <Text style={styles.formLabel}>מה הדירוג לדעתך? 📊</Text>
+                  <Text style={styles.gradeHint}>
+                    (טווח מותר: {getAllowedGrades(route.grade)[0]} - {getAllowedGrades(route.grade).slice(-1)[0]})
+                  </Text>
                   <ScrollView 
                     horizontal 
                     showsHorizontalScrollIndicator={false}
                     style={styles.gradeScroller}
                   >
-                    {V_GRADES.map((grade) => (
+                    {getAllowedGrades(route.grade).map((grade) => (
                       <TouchableOpacity
                         key={grade}
                         onPress={() => setSuggestedGrade(grade)}
@@ -938,6 +964,12 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   gradeScroller: {
     flexGrow: 0,
+  },
+  gradeHint: {
+    fontSize: 12,
+    color: theme.textSecondary,
+    marginBottom: 8,
+    textAlign: 'right',
   },
   gradeOption: {
     paddingHorizontal: 16,

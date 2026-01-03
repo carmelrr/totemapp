@@ -22,6 +22,32 @@ import { FeedbackService } from '@/features/routes-map/services/FeedbackService'
 // V-Scale grades for selector
 const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12'];
 
+/**
+ * Get the index of a V-grade in the V_GRADES array
+ * VB = 0, V0 = 1, V1 = 2, etc.
+ */
+const getGradeIndex = (grade: string): number => {
+  const index = V_GRADES.indexOf(grade);
+  return index >= 0 ? index : -1;
+};
+
+/**
+ * Get allowed grades for community rating (±2 from builder's original)
+ * If builder set V5, community can rate V3-V7
+ */
+const getAllowedGrades = (originalGrade: string): string[] => {
+  const originalIndex = getGradeIndex(originalGrade);
+  if (originalIndex < 0) {
+    // If original grade not found, return all grades
+    return V_GRADES;
+  }
+  
+  const minIndex = Math.max(0, originalIndex - 2);
+  const maxIndex = Math.min(V_GRADES.length - 1, originalIndex + 2);
+  
+  return V_GRADES.slice(minIndex, maxIndex + 1);
+};
+
 // Feedback interface for displaying all route completions
 interface RouteFeedback {
   id: string;
@@ -196,8 +222,12 @@ export default function RouteDetailsScreen() {
   const routeColor = routeData.color || '#3B82F6';
   const textColor = getContrastTextColor(routeColor);
   
-  // Get display grade (community consensus or original)
-  const displayGrade = (routeData as any).calculatedGrade || routeData.grade || '';
+  // Get original grade from builder
+  const originalGrade = routeData.grade || '';
+  
+  // Get community stats
+  const communityGrade = (routeData as any).calculatedGrade || null;
+  const averageStarRating = (routeData as any).averageStarRating || 0;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -214,15 +244,17 @@ export default function RouteDetailsScreen() {
         
         <View style={styles.headerContent}>
           <Text style={[styles.routeName, { color: textColor }]}>{routeData.name}</Text>
+          {/* שורה שנייה: ממוצע קהל (או דירוג מקורי) + ממוצע כוכבים */}
           <View style={styles.headerSubtitle}>
-            {displayGrade && (
-              <Text style={[styles.routeGrade, { color: textColor }]}>{displayGrade}</Text>
-            )}
-            {routeData.number && (
-              <Text style={[styles.routeNumber, { color: textColor, opacity: 0.8 }]}>
-                #{routeData.number}
-              </Text>
-            )}
+            {/* ממוצע קהל - אם אין calculatedGrade מציג את הדירוג המקורי */}
+            <Text style={[styles.headerStatText, { color: textColor }]}>
+              ממוצע קהל: {communityGrade || originalGrade}
+            </Text>
+            <Text style={[styles.headerDivider, { color: textColor }]}> · </Text>
+            {/* ממוצע כוכבים */}
+            <Text style={[styles.headerStatText, { color: textColor }]}>
+              ממוצע כוכבים: ★ {averageStarRating > 0 ? averageStarRating.toFixed(1) : '-'}
+            </Text>
           </View>
         </View>
         
@@ -310,15 +342,18 @@ export default function RouteDetailsScreen() {
                 </View>
               </View>
               
-              {/* Grade Selector */}
+              {/* Grade Selector - Limited to ±2 from original grade */}
               <View style={styles.sentFormSection}>
                 <Text style={styles.sentFormLabel}>מה הדירוג לדעתך? 📊</Text>
+                <Text style={styles.gradeHint}>
+                  (טווח מותר: {getAllowedGrades(originalGrade)[0]} - {getAllowedGrades(originalGrade).slice(-1)[0]})
+                </Text>
                 <ScrollView 
                   horizontal 
                   showsHorizontalScrollIndicator={false}
                   style={styles.gradeScrollView}
                 >
-                  {V_GRADES.map((grade) => (
+                  {getAllowedGrades(originalGrade).map((grade) => (
                     <TouchableOpacity
                       key={grade}
                       onPress={() => setSentSuggestedGrade(grade)}
@@ -502,7 +537,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 4,
-    gap: 12,
+    gap: 4,
+  },
+  headerStatText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  headerDivider: {
+    fontSize: 16,
+    fontWeight: '400',
   },
   routeGrade: {
     fontSize: 18,
@@ -511,6 +554,26 @@ const styles = StyleSheet.create({
   routeNumber: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  headerStarsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  headerStar: {
+    fontSize: 18,
+  },
+  headerStarRating: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  headerCommunityGrade: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  headerCommunityGradeText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
   content: {
     flex: 1,
@@ -655,6 +718,12 @@ const styles = StyleSheet.create({
   },
   gradeScrollView: {
     flexGrow: 0,
+  },
+  gradeHint: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 8,
+    textAlign: 'right',
   },
   gradeOption: {
     paddingHorizontal: 18,

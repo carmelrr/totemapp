@@ -15,6 +15,8 @@ import { UserProvider } from "@/features/auth/UserContext";
 import { ThemeProvider, useTheme } from "@/features/theme/ThemeContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { AdminProvider } from "@/context/AdminContext";
+import { RolesProvider } from "@/features/roles";
+import { RolesManagementScreen } from "@/features/roles";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 
 // Enable React Native Screens for better performance and native feel
@@ -65,6 +67,15 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
           }}
         >
           <RootStack.Screen name="Competitions" component={CompetitionNavigator} />
+          <RootStack.Screen 
+            name="RolesManagement" 
+            component={RolesManagementScreen}
+            options={{
+              headerShown: true,
+              title: 'ניהול תפקידים',
+              animation: 'slide_from_right',
+            }}
+          />
         </RootStack.Group>
       </RootStack.Navigator>
     </NavigationContainer>
@@ -133,9 +144,11 @@ export default function App() {
           <ThemeProvider>
             <AuthProvider>
               <AdminProvider>
-                <UserProvider isAdmin={isAdmin}>
-                  <ThemedNavigator isAdmin={isAdmin} />
-                </UserProvider>
+                <RolesProvider>
+                  <UserProvider isAdmin={isAdmin}>
+                    <ThemedNavigator isAdmin={isAdmin} />
+                  </UserProvider>
+                </RolesProvider>
               </AdminProvider>
             </AuthProvider>
           </ThemeProvider>

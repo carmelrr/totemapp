@@ -29,30 +29,17 @@ const getRouteColor = (color?: string): string => {
 const RouteItem = React.memo(({ route, onPress, theme }: RouteItemProps) => {
   const styles = createStyles(theme);
   
-  // Get display grade - use calculated grade (community consensus) if available, otherwise original
-  const getGradeDisplay = (route: RouteDoc) => {
-    const grade = route.calculatedGrade || route.grade;
-    if (!grade) return '?';
-    return grade;
-  };
-
-  // Check if grade was changed by community
-  const isGradeFromCommunity = route.calculatedGrade && route.calculatedGrade !== route.grade;
-
-  // Get display name - replace original grade with community grade if different
+  // Get display name - always use the original name as the builder set it
   const getDisplayName = (route: RouteDoc) => {
-    const baseName = route.name || `מסלול ${route.id.slice(-6)}`;
-    // If community grade exists and is different from original, replace the grade in the name
-    if (route.calculatedGrade && route.calculatedGrade !== route.grade && route.grade) {
-      // Replace the original grade (V-scale pattern) with the community grade
-      const gradePattern = /V\d+B?|VB/g;
-      const hasGradeInName = gradePattern.test(baseName);
-      if (hasGradeInName) {
-        // Replace the original grade with community grade
-        return baseName.replace(route.grade, route.calculatedGrade);
-      }
+    return route.name || `מסלול ${route.id.slice(-6)}`;
+  };
+  
+  // Get community grade display for the right side of the list
+  const getCommunityGradeDisplay = (route: RouteDoc) => {
+    if (route.calculatedGrade && route.calculatedGrade !== route.grade) {
+      return route.calculatedGrade;
     }
-    return baseName;
+    return null;
   };
 
   // Get star rating display
@@ -111,14 +98,13 @@ const RouteItem = React.memo(({ route, onPress, theme }: RouteItemProps) => {
               </View>
             )}
             
-            <View style={[styles.gradeBadge, { backgroundColor: `${routeColor}15` }]}>
-              <Text style={[styles.routeGrade, { color: routeColor }]}>
-                {getGradeDisplay(route)}
-              </Text>
-              {isGradeFromCommunity && (
-                <Text style={styles.communityBadge}>👥</Text>
-              )}
-            </View>
+            {/* Community grade badge (in route color, only if different from original) */}
+            {getCommunityGradeDisplay(route) && (
+              <View style={[styles.communityGradeBadge, { backgroundColor: `${routeColor}20` }]}>
+                <Text style={styles.communityBadgeIcon}>👥</Text>
+                <Text style={[styles.communityGradeText, { color: routeColor }]}>{getCommunityGradeDisplay(route)}</Text>
+              </View>
+            )}
           </View>
           
           {route.tags && route.tags.length > 0 && (
@@ -287,6 +273,23 @@ const createStyles = (theme: any) => StyleSheet.create({
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 4,
+  },
+  communityGradeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 4,
+    marginRight: 6,
+  },
+  communityBadgeIcon: {
+    fontSize: 10,
+  },
+  communityGradeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#4338CA',
   },
   routeGrade: {
     fontSize: 14,

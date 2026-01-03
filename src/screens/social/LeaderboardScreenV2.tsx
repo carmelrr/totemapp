@@ -27,7 +27,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { auth, db } from "@/features/data/firebase";
-import { collection, getDocs, query, where, Timestamp } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import defaultAvatar from "@/assets/splash.png";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useAdmin } from "@/context/AdminContext";
@@ -37,22 +37,62 @@ import { ActiveCompetitionBanner } from "@/features/competitions/components/Acti
 const { width: screenWidth } = Dimensions.get("window");
 
 // Time filter options
-type TimeFilter = 'week' | 'month' | 'all';
+// 'all' - all time including archived routes
+// 'onWall' - only routes currently on the wall
+type TimeFilter = 'onWall' | 'all';
 
 // Points per grade (standard leaderboard)
+// V0/V1 = 1, V2 = 2, V3 = 3, ... V11 = 11, etc.
 const GRADE_POINTS: Record<string, number> = {
-  VB: 0.5,
+  VB: 1,
   V0: 1,
-  V1: 2,
-  V2: 3,
-  V3: 4,
-  V4: 5,
-  V5: 6,
-  V6: 7,
-  V7: 8,
-  V8: 9,
-  V9: 10,
-  V10: 11,
+  V1: 1,
+  V2: 2,
+  V3: 3,
+  V4: 4,
+  V5: 5,
+  V6: 6,
+  V7: 7,
+  V8: 8,
+  V9: 9,
+  V10: 10,
+  V11: 11,
+  V12: 12,
+  V13: 13,
+  V14: 14,
+  V15: 15,
+  V16: 16,
+  V17: 17,
+};
+
+/**
+ * Parse V-grade string to points value
+ * Handles edge cases like "V0/1" -> 1, "V10" -> 10, etc.
+ * @param grade - The V-grade string (e.g., "V5", "V0/1", "V11")
+ * @returns Points value based on the grade number
+ */
+const parseGradeToPoints = (grade: string | undefined | null): number => {
+  if (!grade) return 0;
+  
+  // Check static mapping first
+  if (GRADE_POINTS[grade] !== undefined) {
+    return GRADE_POINTS[grade];
+  }
+  
+  // Handle "V0/1" style grades -> 1 point
+  if (grade === 'V0/1' || grade === 'V0-1') {
+    return 1;
+  }
+  
+  // Try to extract number from V-grade (handles V10, V11, V12, etc.)
+  const match = grade.match(/^V(\d+)/);
+  if (match) {
+    const num = parseInt(match[1], 10);
+    // V0 and V1 both give 1 point, otherwise the number itself
+    return num <= 1 ? 1 : num;
+  }
+  
+  return 0;
 };
 
 interface LeaderboardUser {
@@ -73,7 +113,7 @@ export default function LeaderboardScreen() {
   const [allUsers, setAllUsers] = useState<LeaderboardUser[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [timeFilter, setTimeFilter] = useState<TimeFilter>('all');
+  const [timeFilter, setTimeFilter] = useState<TimeFilter>('onWall');
   
   const currentUserId = auth.currentUser?.uid;
 
@@ -85,8 +125,8 @@ export default function LeaderboardScreen() {
     try {
       setLoading(true);
 
-      // Get time filter date
-      const filterDate = getFilterDate(timeFilter);
+      // Check if we should only count active routes (on the wall)
+      const onlyActiveRoutes = timeFilter === 'onWall';
 
       // Get all users
       const usersSnapshot = await getDocs(collection(db, "users"));
@@ -95,7 +135,7 @@ export default function LeaderboardScreen() {
       // Calculate points for each user
       for (const userDoc of usersSnapshot.docs) {
         const userData = userDoc.data();
-        const { points, routeCount } = await calculateUserPoints(userDoc.id, filterDate);
+        const { points, routeCount } = await calculateUserPoints(userDoc.id, onlyActiveRoutes);
 
         users.push({
           id: userDoc.id,
@@ -121,60 +161,88 @@ export default function LeaderboardScreen() {
     loadUsersData();
   }, [loadUsersData]);
 
-  const getFilterDate = (filter: TimeFilter): Date | null => {
-    const now = new Date();
-    switch (filter) {
-      case 'week':
-        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      case 'month':
-        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-      default:
-        return null;
-    }
-  };
-
   const calculateUserPoints = async (
     userId: string,
-    afterDate: Date | null
+    onlyActiveRoutes: boolean
   ): Promise<{ points: number; routeCount: number }> => {
     try {
-      // Get all routes
+      // Get all routes for grade lookup
       const routesSnapshot = await getDocs(collection(db, "routes"));
-      const routes: any[] = [];
+      const routesMap = new Map<string, any>();
+      const activeRouteIds = new Set<string>();
+      
       routesSnapshot.forEach((doc) => {
-        routes.push({ id: doc.id, ...doc.data() });
+        const routeData = { id: doc.id, ...doc.data() };
+        routesMap.set(doc.id, routeData);
+        // A route is active if it has no status or status is 'active'
+        const isActive = !routeData.status || routeData.status === 'active';
+        if (isActive) {
+          activeRouteIds.add(doc.id);
+        }
       });
 
       let totalPoints = 0;
       let routeCount = 0;
+      const seenFeedbackIds = new Set<string>();
 
-      // Calculate points for each route the user completed
-      for (const route of routes) {
-        const feedbacksRef = collection(db, "routes", route.id, "feedbacks");
+      // 1. Query from main routeFeedbacks collection (current method)
+      const mainFeedbacksRef = collection(db, "routeFeedbacks");
+      const mainFeedbackQuery = query(
+        mainFeedbacksRef,
+        where("userId", "==", userId)
+      );
+      const mainFeedbackSnapshot = await getDocs(mainFeedbackQuery);
+
+      mainFeedbackSnapshot.forEach((feedbackDoc) => {
+        const feedback = feedbackDoc.data();
+        const uniqueId = `main_${feedbackDoc.id}`;
         
-        // Build query
-        let feedbackQuery;
-        if (afterDate) {
-          feedbackQuery = query(
-            feedbacksRef,
-            where("userId", "==", userId),
-            where("closedRoute", "==", true),
-            where("createdAt", ">=", Timestamp.fromDate(afterDate))
-          );
-        } else {
-          feedbackQuery = query(
-            feedbacksRef,
-            where("userId", "==", userId),
-            where("closedRoute", "==", true)
-          );
-        }
+        // Check both closedRoute and isCompleted for compatibility
+        const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
+        if (!isCompleted) return;
+        
+        // Filter by active routes if needed
+        if (onlyActiveRoutes && !activeRouteIds.has(feedback.routeId)) return;
+        
+        seenFeedbackIds.add(uniqueId);
+        
+        // Use the ROUTE's grade for points calculation (not suggestedGrade)
+        const route = routesMap.get(feedback.routeId);
+        const routeGrade = route?.grade || 'V0';
+        const points = parseGradeToPoints(routeGrade);
+        totalPoints += points;
+        routeCount++;
+      });
+
+      // 2. Also query from subcollections (legacy way) for backwards compatibility
+      for (const route of Array.from(routesMap.values())) {
+        const feedbacksRef = collection(db, "routes", route.id, "feedbacks");
+        const feedbackQuery = query(
+          feedbacksRef,
+          where("userId", "==", userId)
+        );
 
         const feedbackSnapshot = await getDocs(feedbackQuery);
 
         feedbackSnapshot.forEach((feedbackDoc) => {
           const feedback = feedbackDoc.data();
-          const gradeAtTimeOfCompletion = feedback.suggestedGrade || route.grade;
-          const points = GRADE_POINTS[gradeAtTimeOfCompletion] || 0;
+          const uniqueId = `sub_${route.id}_${feedbackDoc.id}`;
+          
+          // Skip if already seen
+          if (seenFeedbackIds.has(uniqueId)) return;
+          
+          // Check both closedRoute and isCompleted for compatibility
+          const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
+          if (!isCompleted) return;
+          
+          // Filter by active routes if needed
+          if (onlyActiveRoutes && !activeRouteIds.has(route.id)) return;
+          
+          seenFeedbackIds.add(uniqueId);
+          
+          // Use the ROUTE's grade for points calculation (not suggestedGrade)
+          const routeGrade = route.grade || 'V0';
+          const points = parseGradeToPoints(routeGrade);
           totalPoints += points;
           routeCount++;
         });
@@ -251,7 +319,7 @@ export default function LeaderboardScreen() {
 
   const renderTimeFilterTabs = () => (
     <View style={styles.filterContainer}>
-      {(['week', 'month', 'all'] as TimeFilter[]).map((filter) => (
+      {(['onWall', 'all'] as TimeFilter[]).map((filter) => (
         <TouchableOpacity
           key={filter}
           style={[
@@ -266,7 +334,7 @@ export default function LeaderboardScreen() {
               timeFilter === filter && styles.filterTabTextActive,
             ]}
           >
-            {filter === 'week' ? 'שבוע' : filter === 'month' ? 'חודש' : 'הכל'}
+            {filter === 'onWall' ? 'על הקיר' : 'כל הזמנים'}
           </Text>
         </TouchableOpacity>
       ))}

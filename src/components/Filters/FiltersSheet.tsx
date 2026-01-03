@@ -14,19 +14,31 @@ import { getColorHex } from '@/constants/colors';
 interface FiltersSheetProps {
   availableColors?: string[];
   availableGrades?: string[];
+  availableDates?: string[]; // תאריכים זמינים בפורמט YYYY-MM-DD
 }
 
 // All possible grades in order (VB to V18)
 const ALL_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18'];
 
+// פונקציית עזר להמרת תאריך YYYY-MM-DD לתצוגה בעברית
+const formatDateForDisplay = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  const day = date.getDate();
+  const month = date.getMonth() + 1;
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 /**
- * Sheet של פילטרים - צבעים ודרגות בלבד
+ * Sheet של פילטרים - צבעים, דרגות ותאריכים
  */
 export default function FiltersSheet({
   availableColors = [],
   availableGrades = ALL_GRADES,
+  availableDates = [],
 }: FiltersSheetProps) {
   console.log('[FiltersSheet] availableColors:', availableColors);
+  console.log('[FiltersSheet] availableDates:', availableDates);
   
   const {
     filters,
@@ -218,6 +230,54 @@ export default function FiltersSheet({
               })}
             </View>
           </View>
+
+          {/* Date Filter Section - Specific dates from routes */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>תאריך הוספה</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.dateChipsRow}
+            >
+              {/* כפתור 'הכל' תמיד ראשון */}
+              <TouchableOpacity
+                style={[
+                  styles.dateChip,
+                  filters.dateRange === 'all' && styles.dateChipSelected,
+                ]}
+                onPress={() => setFilter('dateRange', 'all')}
+              >
+                <Text style={[
+                  styles.dateChipText,
+                  filters.dateRange === 'all' && styles.dateChipTextSelected,
+                ]}>
+                  הכל
+                </Text>
+              </TouchableOpacity>
+              
+              {/* תאריכים ספציפיים */}
+              {availableDates.map((dateStr) => {
+                const isSelected = filters.dateRange === dateStr;
+                return (
+                  <TouchableOpacity
+                    key={dateStr}
+                    style={[
+                      styles.dateChip,
+                      isSelected && styles.dateChipSelected,
+                    ]}
+                    onPress={() => setFilter('dateRange', dateStr)}
+                  >
+                    <Text style={[
+                      styles.dateChipText,
+                      isSelected && styles.dateChipTextSelected,
+                    ]}>
+                      {formatDateForDisplay(dateStr)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
         </ScrollView>
 
         {/* Footer */}
@@ -363,6 +423,31 @@ const styles = StyleSheet.create({
     color: '#4b5563',
   },
   gradeTextSelected: {
+    color: '#ffffff',
+  },
+  dateChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  dateChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+  },
+  dateChipSelected: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  dateChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#4b5563',
+  },
+  dateChipTextSelected: {
     color: '#ffffff',
   },
   footer: {

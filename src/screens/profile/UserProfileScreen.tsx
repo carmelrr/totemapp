@@ -223,26 +223,61 @@ export default function UserProfileScreen({ route, navigation }) {
 
       setAllRoutes(routes);
 
-      // Count routes by grade
+      // Only count active routes
+      const activeRoutes = routes.filter(
+        (route) => !route.status || route.status === "active"
+      );
+
+      // Count routes by grade (active routes only)
       const routesByGrade = {};
-      routes.forEach((route) => {
+      activeRoutes.forEach((route) => {
         const grade = route.grade || "לא מוגדר";
         routesByGrade[grade] = (routesByGrade[grade] || 0) + 1;
       });
 
       // Count completed routes by grade for this user
-      const completedByGrade = {};
+      const completedRouteIds = new Set<string>();
 
-      for (const route of routes) {
+      // 1. Query from main routeFeedbacks collection
+      const mainFeedbacksRef = collection(db, "routeFeedbacks");
+      const mainFeedbackQuery = query(
+        mainFeedbacksRef,
+        where("userId", "==", userId)
+      );
+      const mainFeedbackSnapshot = await getDocs(mainFeedbackQuery);
+      
+      mainFeedbackSnapshot.forEach((doc) => {
+        const data = doc.data();
+        // Check both isCompleted and closedRoute for compatibility
+        const isCompleted = data.isCompleted === true || data.closedRoute === true;
+        if (isCompleted && data.routeId) {
+          completedRouteIds.add(data.routeId);
+        }
+      });
+
+      // 2. Also query from legacy subcollections for backwards compatibility
+      for (const route of activeRoutes) {
         const feedbacksRef = collection(db, "routes", route.id, "feedbacks");
         const userFeedbackQuery = query(
           feedbacksRef,
-          where("userId", "==", userId),
-          where("closedRoute", "==", true),
+          where("userId", "==", userId)
         );
         const userFeedbackSnapshot = await getDocs(userFeedbackQuery);
 
-        if (!userFeedbackSnapshot.empty) {
+        userFeedbackSnapshot.forEach((doc) => {
+          const data = doc.data();
+          // Check both closedRoute and isCompleted for compatibility
+          const isCompleted = data.closedRoute === true || data.isCompleted === true;
+          if (isCompleted) {
+            completedRouteIds.add(route.id);
+          }
+        });
+      }
+
+      // Count completed routes by grade (only for active routes)
+      const completedByGrade = {};
+      for (const route of activeRoutes) {
+        if (completedRouteIds.has(route.id)) {
           const grade = route.grade || "לא מוגדר";
           completedByGrade[grade] = (completedByGrade[grade] || 0) + 1;
         }

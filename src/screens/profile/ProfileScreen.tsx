@@ -1,8 +1,10 @@
 import React, { useState, useCallback } from "react";
 import { View, ScrollView, Text, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useAdmin } from "@/context/AdminContext";
+import { useRolesContext } from "@/features/roles";
 import {
   createStyles,
   useProfileBasics,
@@ -21,7 +23,9 @@ import { pickImage, removeProfileImage } from "./services/imageService";
 const ProfileScreen: React.FC = () => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const styles = createStyles(theme);
+  const navigation = useNavigation();
   const { isAdmin, adminModeEnabled, toggleAdminMode } = useAdmin();
+  const { canManageRoles } = useRolesContext();
 
   // Local state for modals
   const [statsModalVisible, setStatsModalVisible] = useState(false);
@@ -155,9 +159,14 @@ const ProfileScreen: React.FC = () => {
         isDarkMode={isDarkMode}
         onLogout={profileData.handleLogout}
         onAdminPanel={() => { }} // Placeholder - need to implement
+        onRolesManagement={() => {
+          sidePanelData.toggleSidePanel();
+          navigation.navigate('RolesManagement' as never);
+        }}
         isAdmin={isAdmin}
         adminModeEnabled={adminModeEnabled}
         onAdminModeToggle={toggleAdminMode}
+        canManageRoles={canManageRoles}
       />
     </SafeAreaView>
   );

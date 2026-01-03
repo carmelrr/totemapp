@@ -166,6 +166,11 @@ export default function RoutesMapScreen() {
         createdAt: route.createdAt || new Date(),
         createdBy: route.setter || 'system',
         wallId: 'default-wall',
+        // Community feedback stats
+        averageStarRating: route.averageStarRating || 0,
+        calculatedGrade: route.calculatedGrade || null,
+        feedbackCount: route.feedbackCount || 0,
+        completionCount: route.completionCount || 0,
       }
     });
   }, [navigation]);
@@ -453,6 +458,20 @@ export default function RoutesMapScreen() {
     const grades = new Set(routes.map(route => route.grade).filter(Boolean));
     return Array.from(grades).sort();
   }, [routes]);
+
+  // חילוץ תאריכים ייחודיים מהמסלולים בפורמט YYYY-MM-DD
+  const availableDates = useMemo(() => {
+    const dates = new Set<string>();
+    routes.forEach(route => {
+      if (route.createdAt) {
+        const date = route.createdAt.toDate ? route.createdAt.toDate() : new Date(route.createdAt);
+        const dateStr = date.toISOString().split('T')[0]; // פורמט YYYY-MM-DD
+        dates.add(dateStr);
+      }
+    });
+    // מיון מהחדש לישן
+    return Array.from(dates).sort((a, b) => b.localeCompare(a));
+  }, [routes]);
   
   // הודעה כשאין מסלולים בתחום הראייה
   const renderEmptyMessage = () => {
@@ -611,6 +630,7 @@ export default function RoutesMapScreen() {
       <FiltersSheet
         availableColors={availableColors}
         availableGrades={availableGrades}
+        availableDates={availableDates}
       />
 
       {/* Route Bottom Sheet (Legacy) */}

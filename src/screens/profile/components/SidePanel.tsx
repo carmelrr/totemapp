@@ -35,9 +35,11 @@ interface SidePanelProps {
   isDarkMode: boolean;
   onLogout: () => void;
   onAdminPanel?: () => void;
+  onRolesManagement?: () => void;
   isAdmin?: boolean;
   adminModeEnabled?: boolean;
   onAdminModeToggle?: () => void;
+  canManageRoles?: boolean;
 }
 
 export const SidePanel: React.FC<SidePanelProps> = ({
@@ -60,9 +62,11 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   isDarkMode,
   onLogout,
   onAdminPanel,
+  onRolesManagement,
   isAdmin,
   adminModeEnabled,
   onAdminModeToggle,
+  canManageRoles,
 }) => {
   const { theme } = useTheme();
   const styles = createStyles(theme);
@@ -275,6 +279,17 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                       onPress={onAdminPanel}
                     >
                       <Text style={styles.adminButtonText}>פאנל ניהול</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                
+                {canManageRoles && onRolesManagement && (
+                  <View style={styles.adminButtons}>
+                    <TouchableOpacity
+                      style={[styles.adminButton, { backgroundColor: '#9C27B0' }]}
+                      onPress={onRolesManagement}
+                    >
+                      <Text style={styles.adminButtonText}>ניהול תפקידים</Text>
                     </TouchableOpacity>
                   </View>
                 )}

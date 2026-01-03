@@ -203,7 +203,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     <GestureDetector gesture={composedGesture}>
       <Animated.View style={[circleStyle, shadowStyle]}>
         <Animated.Text style={textStyle}>
-          {route.calculatedGrade || route.grade || '?'}
+          {route.grade || '?'}
         </Animated.Text>
       </Animated.View>
     </GestureDetector>
