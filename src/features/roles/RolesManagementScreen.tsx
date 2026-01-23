@@ -23,6 +23,7 @@ import {
   getAllUsersWithRoles,
   searchUsers,
   setUserRoles,
+  subscribeToAllUsersWithRoles,
 } from './rolesService';
 import { useRolesContext } from './RolesContext';
 
@@ -30,6 +31,7 @@ const ROLE_COLORS: Record<UserRole, string> = {
   route_setter: '#4CAF50',
   judge: '#2196F3',
   head_judge: '#9C27B0',
+  social_manager: '#F59E0B',
   admin: '#F44336',
 };
 
@@ -44,28 +46,39 @@ export function RolesManagementScreen() {
   const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const loadUsersWithRoles = useCallback(async () => {
-    setLoading(true);
-    try {
-      const usersWithRoles = await getAllUsersWithRoles();
-      setUsers(usersWithRoles);
-    } catch (error) {
-      console.error('Error loading users with roles:', error);
-      Alert.alert('שגיאה', 'לא הצלחנו לטעון את רשימת המשתמשים');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
+  // Real-time subscription to users with roles
   useEffect(() => {
-    if (canManageRoles) {
-      loadUsersWithRoles();
+    if (!canManageRoles) return;
+    
+    setLoading(true);
+    const unsubscribe = subscribeToAllUsersWithRoles(
+      (usersWithRoles) => {
+        setUsers(usersWithRoles);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error subscribing to users with roles:', error);
+        Alert.alert('שגיאה', 'לא הצלחנו לטעון את רשימת המשתמשים');
+        setLoading(false);
+      }
+    );
+    
+    return () => unsubscribe();
+  }, [canManageRoles]);
+
+  // Store original users for search reset
+  const [allUsers, setAllUsers] = useState<UserWithRoles[]>([]);
+
+  // Update allUsers when subscription updates
+  useEffect(() => {
+    if (users.length > 0 && !searchQuery.trim()) {
+      setAllUsers(users);
     }
-  }, [canManageRoles, loadUsersWithRoles]);
+  }, [users, searchQuery]);
 
   const handleSearch = useCallback(async () => {
     if (!searchQuery.trim()) {
-      loadUsersWithRoles();
+      setUsers(allUsers);
       return;
     }
 
@@ -79,7 +92,7 @@ export function RolesManagementScreen() {
     } finally {
       setSearching(false);
     }
-  }, [searchQuery, loadUsersWithRoles]);
+  }, [searchQuery, allUsers]);
 
   const openEditModal = (user: UserWithRoles) => {
     setSelectedUser(user);

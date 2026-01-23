@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,8 @@ import { getContrastTextColor } from '../utils/colors';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { FeedbackService } from '../services/FeedbackService';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/features/language';
+import { VideoLinkInput, VideoLinkButton } from '@/components/feedback';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -55,7 +57,7 @@ interface RouteBottomSheetProps {
   onReport?: (route: RouteDoc) => void;
 }
 
-export default function RouteBottomSheet({
+const RouteBottomSheet = React.memo(function RouteBottomSheet({
   visible,
   route,
   onClose,
@@ -65,6 +67,7 @@ export default function RouteBottomSheet({
   onReport,
 }: RouteBottomSheetProps) {
   const { theme } = useTheme();
+  const { t, language } = useLanguage();
   const styles = createStyles(theme);
   const { user } = useAuth();
   
@@ -73,6 +76,8 @@ export default function RouteBottomSheet({
   const [starRating, setStarRating] = useState(0);
   const [suggestedGrade, setSuggestedGrade] = useState('');
   const [comment, setComment] = useState('');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [isVideoLinkValid, setIsVideoLinkValid] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [userFeedback, setUserFeedback] = useState<any>(null);
   const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
@@ -97,6 +102,7 @@ export default function RouteBottomSheet({
         setStarRating(feedback.starRating || 0);
         setSuggestedGrade(feedback.suggestedGrade || '');
         setComment(feedback.comment || '');
+        setVideoUrl(feedback.videoUrl || '');
       }
     } catch (error) {
       console.error('Error loading user feedback:', error);
@@ -110,6 +116,7 @@ export default function RouteBottomSheet({
     setStarRating(0);
     setSuggestedGrade('');
     setComment('');
+    setVideoUrl('');
     setUserFeedback(null);
   };
   
@@ -117,19 +124,24 @@ export default function RouteBottomSheet({
 
   const textColor = getContrastTextColor(route.color);
 
-  const handleSubmitFeedback = async () => {
+  const handleSubmitFeedback = useCallback(async () => {
     if (!user) {
-      Alert.alert('שגיאה', 'יש להתחבר כדי לשלוח פידבק');
+      Alert.alert(t.common.error, t.feedback.mustLogin);
       return;
     }
     
     if (starRating === 0) {
-      Alert.alert('שגיאה', 'יש לבחור דירוג כוכבים');
+      Alert.alert(t.common.error, t.feedback.mustSelectStars);
       return;
     }
     
     if (!suggestedGrade) {
-      Alert.alert('שגיאה', 'יש לבחור דירוג קושי');
+      Alert.alert(t.common.error, t.feedback.mustSelectGrade);
+      return;
+    }
+
+    if (!isVideoLinkValid) {
+      Alert.alert(t.common.error, t.videoLink.errors.notAllowed);
       return;
     }
     
@@ -142,17 +154,18 @@ export default function RouteBottomSheet({
         starRating,
         suggestedGrade,
         comment: comment.trim(),
+        videoUrl: videoUrl.trim() || null,
         isCompleted: true, // Only completed routes can submit feedback
       };
       
       if (userFeedback) {
         // Update existing feedback
         await FeedbackService.updateFeedback(userFeedback.id, feedbackData);
-        Alert.alert('הצלחה! 🎉', 'הפידבק שלך עודכן בהצלחה');
+        Alert.alert(t.feedback.successTitle, t.feedback.feedbackUpdated);
       } else {
         // Add new feedback
         await FeedbackService.addFeedbackToRoute(route.id, feedbackData);
-        Alert.alert('כל הכבוד! 🏆', 'סגרת את המסלול בהצלחה!\nהדירוג שלך נוסף.');
+        Alert.alert(t.feedback.congratsTitle, t.feedback.routeCompleted);
       }
       
       setShowFeedbackForm(false);
@@ -160,38 +173,38 @@ export default function RouteBottomSheet({
       onMarkTop?.(route); // Notify parent
     } catch (error) {
       console.error('Error submitting feedback:', error);
-      Alert.alert('שגיאה', 'לא הצלחנו לשמור את הפידבק');
+      Alert.alert(t.common.error, t.feedback.failedToSave);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [user, starRating, suggestedGrade, comment, videoUrl, isVideoLinkValid, userFeedback, route, onMarkTop]);
 
-  const handleShare = () => {
+  const handleShare = useCallback(() => {
     onShare?.(route);
-  };
+  }, [onShare, route]);
 
-  const handleReport = () => {
+  const handleReport = useCallback(() => {
     onReport?.(route);
-  };
+  }, [onReport, route]);
 
   const formatDate = (timestamp: any) => {
-    if (!timestamp) return 'לא ידוע';
+    if (!timestamp) return t.routeSheet.unknown;
     try {
       const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return date.toLocaleDateString('he-IL');
+      return date.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US');
     } catch {
-      return 'לא ידוע';
+      return t.routeSheet.unknown;
     }
   };
 
   const getStatusInfo = (status: string) => {
     switch (status) {
       case 'active':
-        return { label: 'פעיל', color: '#10b981', bg: '#d1fae5' };
+        return { label: t.routeSheet.active, color: '#10b981', bg: '#d1fae5' };
       case 'archived':
-        return { label: 'בארכיון', color: '#f59e0b', bg: '#fef3c7' };
+        return { label: t.routeSheet.archived, color: '#f59e0b', bg: '#fef3c7' };
       case 'draft':
-        return { label: 'טיוטה', color: '#6b7280', bg: '#f3f4f6' };
+        return { label: t.routeSheet.draft, color: '#6b7280', bg: '#f3f4f6' };
       default:
         return { label: status, color: '#6b7280', bg: '#f3f4f6' };
     }
@@ -199,7 +212,8 @@ export default function RouteBottomSheet({
   
   // Get display grade (community or original)
   const displayGrade = route.calculatedGrade || route.grade;
-  const isGradeFromCommunity = route.calculatedGrade && route.calculatedGrade !== route.grade;
+  // Always show community indicator if calculatedGrade exists (even if same as original)
+  const isGradeFromCommunity = !!route.calculatedGrade;
 
   const statusInfo = getStatusInfo(route.status);
 
@@ -237,7 +251,7 @@ export default function RouteBottomSheet({
               {/* User completed badge */}
               {userFeedback && (
                 <View style={styles.completedBadge}>
-                  <Text style={styles.completedBadgeText}>✓ סגרת את המסלול!</Text>
+                  <Text style={styles.completedBadgeText}>{t.routeSheet.sentRoute}</Text>
                 </View>
               )}
               
@@ -257,49 +271,49 @@ export default function RouteBottomSheet({
             <View style={styles.statCard}>
               <Text style={styles.statEmoji}>⭐</Text>
               <Text style={styles.statValue}>{route.rating?.toFixed(1) || '0.0'}</Text>
-              <Text style={styles.statLabel}>דירוג</Text>
+              <Text style={styles.statLabel}>{t.routes.grade}</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statEmoji}>🏆</Text>
               <Text style={styles.statValue}>{route.tops || 0}</Text>
-              <Text style={styles.statLabel}>טופסים</Text>
+              <Text style={styles.statLabel}>{t.routeSheet.tops}</Text>
             </View>
             <View style={styles.statCard}>
               <Text style={styles.statEmoji}>💬</Text>
               <Text style={styles.statValue}>{route.comments || 0}</Text>
-              <Text style={styles.statLabel}>תגובות</Text>
+              <Text style={styles.statLabel}>{t.routeSheet.comments}</Text>
             </View>
           </View>
 
           {/* Details Section */}
           <View style={styles.detailsSection}>
-            <Text style={styles.sectionTitle}>פרטים</Text>
+            <Text style={styles.sectionTitle}>{t.routeSheet.details}</Text>
             
             <View style={styles.detailsCard}>
               {route.setter && (
                 <View style={styles.detailRow}>
                   <Text style={styles.detailIcon}>👤</Text>
-                  <Text style={styles.detailLabel}>מקים</Text>
+                  <Text style={styles.detailLabel}>{t.routeSheet.setter}</Text>
                   <Text style={styles.detailValue}>{route.setter}</Text>
                 </View>
               )}
               
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>📅</Text>
-                <Text style={styles.detailLabel}>נוצר</Text>
+                <Text style={styles.detailLabel}>{t.routeSheet.created}</Text>
                 <Text style={styles.detailValue}>{formatDate(route.createdAt)}</Text>
               </View>
 
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>🎨</Text>
-                <Text style={styles.detailLabel}>צבע</Text>
+                <Text style={styles.detailLabel}>{t.routeSheet.color}</Text>
                 <View style={[styles.colorSwatch, { backgroundColor: route.color }]} />
               </View>
             </View>
 
             {route.tags && route.tags.length > 0 && (
               <View style={styles.tagsSection}>
-                <Text style={styles.tagsLabel}>תגיות</Text>
+                <Text style={styles.tagsLabel}>{t.routeSheet.tags}</Text>
                 <View style={styles.tagsContainer}>
                   {route.tags.map((tag, index) => (
                     <View key={index} style={styles.tag}>
@@ -314,7 +328,7 @@ export default function RouteBottomSheet({
           {/* Community Rating Display */}
           {route.averageStarRating !== undefined && route.averageStarRating > 0 && (
             <View style={styles.communityRatingSection}>
-              <Text style={styles.sectionTitle}>דירוג קהילה</Text>
+              <Text style={styles.sectionTitle}>{t.routeSheet.communityRating}</Text>
               <View style={styles.communityRatingCard}>
                 <View style={styles.communityStars}>
                   {[1, 2, 3, 4, 5].map((star) => (
@@ -330,7 +344,7 @@ export default function RouteBottomSheet({
                   ))}
                 </View>
                 <Text style={styles.communityRatingText}>
-                  {route.averageStarRating?.toFixed(1)} ({route.feedbackCount || 0} דירוגים)
+                  {route.averageStarRating?.toFixed(1)} ({route.feedbackCount || 0} {t.routeSheet.ratings})
                 </Text>
               </View>
             </View>
@@ -339,7 +353,7 @@ export default function RouteBottomSheet({
           {/* Sent! / Feedback Section */}
           <View style={styles.sentSection}>
             <Text style={styles.sectionTitle}>
-              {userFeedback ? 'הפידבק שלך' : 'סגרת את המסלול? 🏆'}
+              {userFeedback ? t.feedback.yourFeedback : t.feedback.completedRouteQuestion}
             </Text>
             
             {!showFeedbackForm && !userFeedback && (
@@ -350,14 +364,14 @@ export default function RouteBottomSheet({
                 disabled={!user}
               >
                 <Text style={styles.actionEmoji}>🎯</Text>
-                <Text style={styles.sentButtonText}>Sent!</Text>
+                <Text style={styles.sentButtonText}>{t.routes.sent}</Text>
               </TouchableOpacity>
             )}
             
             {!showFeedbackForm && userFeedback && (
               <View style={styles.existingFeedbackCard}>
                 <View style={styles.feedbackRow}>
-                  <Text style={styles.feedbackLabel}>דירוג:</Text>
+                  <Text style={styles.feedbackLabel}>{t.feedback.rating}</Text>
                   <View style={styles.feedbackStars}>
                     {[1, 2, 3, 4, 5].map((star) => (
                       <Text
@@ -373,20 +387,23 @@ export default function RouteBottomSheet({
                   </View>
                 </View>
                 <View style={styles.feedbackRow}>
-                  <Text style={styles.feedbackLabel}>דרגת קושי:</Text>
+                  <Text style={styles.feedbackLabel}>{t.feedback.difficultyGrade}</Text>
                   <Text style={styles.feedbackValue}>{userFeedback.suggestedGrade}</Text>
                 </View>
                 {userFeedback.comment && (
                   <View style={styles.feedbackCommentRow}>
-                    <Text style={styles.feedbackLabel}>הערה:</Text>
+                    <Text style={styles.feedbackLabel}>{t.feedback.yourComment}</Text>
                     <Text style={styles.feedbackComment}>{userFeedback.comment}</Text>
                   </View>
+                )}
+                {userFeedback.videoUrl && (
+                  <VideoLinkButton url={userFeedback.videoUrl} />
                 )}
                 <TouchableOpacity 
                   style={styles.editFeedbackButton} 
                   onPress={() => setShowFeedbackForm(true)}
                 >
-                  <Text style={styles.editFeedbackText}>✏️ ערוך פידבק</Text>
+                  <Text style={styles.editFeedbackText}>{t.feedback.editFeedback}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -395,7 +412,7 @@ export default function RouteBottomSheet({
               <View style={styles.feedbackFormCard}>
                 {/* Star Rating */}
                 <View style={styles.formSection}>
-                  <Text style={styles.formLabel}>כמה נהנית מהמסלול? ⭐</Text>
+                  <Text style={styles.formLabel}>{t.feedback.howMuchEnjoy}</Text>
                   <View style={styles.starsRow}>
                     {[1, 2, 3, 4, 5].map((star) => (
                       <TouchableOpacity
@@ -417,9 +434,9 @@ export default function RouteBottomSheet({
                 
                 {/* Grade Selector - Limited to ±2 from original grade */}
                 <View style={styles.formSection}>
-                  <Text style={styles.formLabel}>מה הדירוג לדעתך? 📊</Text>
+                  <Text style={styles.formLabel}>{t.feedback.whatGradeThink}</Text>
                   <Text style={styles.gradeHint}>
-                    (טווח מותר: {getAllowedGrades(route.grade)[0]} - {getAllowedGrades(route.grade).slice(-1)[0]})
+                    ({t.feedback.allowedRange} {getAllowedGrades(route.grade)[0]} - {getAllowedGrades(route.grade).slice(-1)[0]})
                   </Text>
                   <ScrollView 
                     horizontal 
@@ -448,10 +465,10 @@ export default function RouteBottomSheet({
                 
                 {/* Comment */}
                 <View style={styles.formSection}>
-                  <Text style={styles.formLabel}>רוצה להוסיף הערה? 💬</Text>
+                  <Text style={styles.formLabel}>{t.feedback.wantToAddComment}</Text>
                   <TextInput
                     style={styles.commentInput}
-                    placeholder="בטא, טיפים, חוויה..."
+                    placeholder={t.feedback.betaTipsExperience}
                     placeholderTextColor={theme.textSecondary}
                     value={comment}
                     onChangeText={setComment}
@@ -460,6 +477,14 @@ export default function RouteBottomSheet({
                     textAlignVertical="top"
                   />
                 </View>
+
+                {/* Video Link */}
+                <VideoLinkInput
+                  value={videoUrl}
+                  onChange={setVideoUrl}
+                  onValidationChange={setIsVideoLinkValid}
+                  disabled={isSubmitting}
+                />
                 
                 {/* Submit Buttons */}
                 <View style={styles.formButtons}>
@@ -471,14 +496,16 @@ export default function RouteBottomSheet({
                         setStarRating(userFeedback.starRating || 0);
                         setSuggestedGrade(userFeedback.suggestedGrade || '');
                         setComment(userFeedback.comment || '');
+                        setVideoUrl(userFeedback.videoUrl || '');
                       } else {
                         setStarRating(0);
                         setSuggestedGrade('');
                         setComment('');
+                        setVideoUrl('');
                       }
                     }}
                   >
-                    <Text style={styles.cancelButtonText}>ביטול</Text>
+                    <Text style={styles.cancelButtonText}>{t.common.cancel}</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity 
@@ -490,7 +517,7 @@ export default function RouteBottomSheet({
                       <ActivityIndicator color="#fff" size="small" />
                     ) : (
                       <Text style={styles.submitButtonText}>
-                        {userFeedback ? 'עדכן' : 'שלח!'}
+                        {userFeedback ? t.routeSheet.update : t.routeSheet.send}
                       </Text>
                     )}
                   </TouchableOpacity>
@@ -499,7 +526,7 @@ export default function RouteBottomSheet({
             )}
             
             {!user && (
-              <Text style={styles.loginHint}>יש להתחבר כדי לדווח על סגירת מסלול</Text>
+              <Text style={styles.loginHint}>{t.feedback.mustLogin}</Text>
             )}
           </View>
 
@@ -512,7 +539,7 @@ export default function RouteBottomSheet({
                 activeOpacity={0.7}
               >
                 <Text style={styles.actionEmoji}>📤</Text>
-                <Text style={styles.secondaryActionText}>שתף</Text>
+                <Text style={styles.secondaryActionText}>{t.routeSheet.share}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity 
@@ -521,7 +548,7 @@ export default function RouteBottomSheet({
                 activeOpacity={0.7}
               >
                 <Text style={styles.actionEmoji}>🚩</Text>
-                <Text style={styles.reportActionText}>דווח</Text>
+                <Text style={styles.reportActionText}>{t.routeSheet.report}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -531,7 +558,7 @@ export default function RouteBottomSheet({
       </View>
     </Modal>
   );
-}
+});
 
 const createStyles = (theme: any) => StyleSheet.create({
   container: {
@@ -1041,3 +1068,5 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontStyle: 'italic',
   },
 });
+
+export default RouteBottomSheet;

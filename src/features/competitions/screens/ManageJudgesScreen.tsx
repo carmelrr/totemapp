@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useRolesContext } from '@/features/roles/RolesContext';
 import {
   useJudges,
   useCompetition,
@@ -26,6 +27,7 @@ import { JudgeService } from '@/features/competitions/services/JudgeService';
 import { Judge } from '@/features/competitions/types';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/features/data/firebase';
+import { useLanguage } from '@/features/language';
 
 interface UserSearchResult {
   id: string;
@@ -36,9 +38,11 @@ interface UserSearchResult {
 
 export default function ManageJudgesScreen() {
   const { theme } = useTheme();
+  const { t, language } = useLanguage();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { competitionId } = route.params;
+  const rolesContext = useRolesContext();
 
   const { competition } = useCompetition(competitionId);
   const { judges, loading, refresh } = useJudges(competitionId);
@@ -48,6 +52,37 @@ export default function ManageJudgesScreen() {
   const [isSearching, setIsSearching] = useState(false);
 
   const styles = createStyles(theme);
+
+  // Check if user has permission to manage judges
+  if (!rolesContext.canManageJudges) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-forward" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>ניהול שופטים</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="lock-closed" size={64} color={theme.error || '#e74c3c'} />
+          <Text style={styles.errorText}>אין הרשאה לגישה</Text>
+          <Text style={styles.errorSubtext}>
+            רק שופטים ראשיים ומנהלים יכולים לנהל שופטים
+          </Text>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backBtnText}>חזור</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // Search users
   const handleSearch = async (text: string) => {
@@ -206,12 +241,12 @@ export default function ManageJudgesScreen() {
             <Text style={styles.judgeName}>{item.userName}</Text>
             {item.role === 'head_judge' && (
               <View style={styles.headBadge}>
-                <Text style={styles.headBadgeText}>🏅 ראשי</Text>
+                <Text style={styles.headBadgeText}>{t.roles.headJudge}</Text>
               </View>
             )}
           </View>
           <Text style={styles.judgeDate}>
-            הוסף: {item.addedAt.toLocaleDateString('he-IL')}
+            {t.roles.added} {item.addedAt.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US')}
           </Text>
         </View>
       </View>
@@ -589,5 +624,38 @@ const createStyles = (theme: any) =>
       color: theme.textSecondary,
       marginTop: 8,
       textAlign: 'center',
+    },
+    // Error container styles
+    errorContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    errorText: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: theme.text,
+      marginTop: 16,
+      textAlign: 'center',
+    },
+    errorSubtext: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      marginTop: 8,
+      textAlign: 'center',
+      paddingHorizontal: 24,
+    },
+    backBtn: {
+      marginTop: 24,
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      backgroundColor: theme.primary,
+      borderRadius: 8,
+    },
+    backBtnText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: 'bold',
     },
   });

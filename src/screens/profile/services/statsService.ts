@@ -6,7 +6,8 @@ import {
   collection, 
   query, 
   where, 
-  getDocs 
+  getDocs,
+  onSnapshot,
 } from "firebase/firestore";
 import type { UserStats, GradeStatsMap } from "../types";
 
@@ -407,4 +408,79 @@ export async function calculateGradeStats(userId: string): Promise<{ routes: any
     console.error("Error calculating grade stats:", error);
     throw error;
   }
+}
+
+/**
+ * Subscribe to real-time updates for a user's stats
+ * Listens to changes in routeFeedbacks collection
+ * @param userId The user ID to subscribe to
+ * @param onStatsChange Callback when stats change
+ * @param onError Optional error callback
+ * @returns Unsubscribe function
+ */
+export function subscribeToUserStats(
+  userId: string,
+  onStatsChange: (stats: UserStats) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const feedbacksRef = collection(db, "routeFeedbacks");
+  const userFeedbackQuery = query(
+    feedbacksRef,
+    where("userId", "==", userId)
+  );
+  
+  return onSnapshot(
+    userFeedbackQuery,
+    async () => {
+      try {
+        // Recalculate stats when feedbacks change
+        const stats = await fetchOtherUserStats(userId);
+        onStatsChange(stats);
+      } catch (error) {
+        console.error("Error recalculating stats:", error);
+        onError?.(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Error in stats subscription:", error);
+      onError?.(error);
+    }
+  );
+}
+
+/**
+ * Subscribe to real-time grade stats updates
+ * @param userId The user ID to subscribe to
+ * @param onGradeStatsChange Callback when grade stats change
+ * @param onError Optional error callback
+ * @returns Unsubscribe function
+ */
+export function subscribeToGradeStats(
+  userId: string,
+  onGradeStatsChange: (data: { routes: any[], gradeStats: GradeStatsMap }) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const feedbacksRef = collection(db, "routeFeedbacks");
+  const userFeedbackQuery = query(
+    feedbacksRef,
+    where("userId", "==", userId)
+  );
+  
+  return onSnapshot(
+    userFeedbackQuery,
+    async () => {
+      try {
+        // Recalculate grade stats when feedbacks change
+        const gradeData = await calculateGradeStats(userId);
+        onGradeStatsChange(gradeData);
+      } catch (error) {
+        console.error("Error recalculating grade stats:", error);
+        onError?.(error as Error);
+      }
+    },
+    (error) => {
+      console.error("Error in grade stats subscription:", error);
+      onError?.(error);
+    }
+  );
 }

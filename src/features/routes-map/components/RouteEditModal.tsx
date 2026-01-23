@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,11 +7,14 @@ import {
   Modal,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
+import { FeedbackService } from '../services/FeedbackService';
 import { RouteDoc } from '../types/route';
-import { ROUTE_COLORS, getColorName, getContrastTextColor } from '../utils/colors';
+import { ROUTE_COLORS, getColorTranslationKey, getContrastTextColor } from '../utils/colors';
 import { GRADES } from '../utils/grades';
 import { RoutesService } from '../services/RoutesService';
+import { useLanguage } from '@/features/language';
 
 interface RouteEditModalProps {
   visible: boolean;
@@ -22,6 +25,17 @@ interface RouteEditModalProps {
   onMoveRoute?: (route: RouteDoc) => void;
 }
 
+interface RouteFeedback {
+  id: string;
+  userId?: string;
+  userDisplayName?: string;
+  starRating: number;
+  suggestedGrade?: string;
+  comment?: string;
+  createdAt?: any;
+  isCompleted?: boolean;
+}
+
 export default function RouteEditModal({
   visible,
   route,
@@ -30,9 +44,13 @@ export default function RouteEditModal({
   onDelete,
   onMoveRoute,
 }: RouteEditModalProps) {
+  const { t } = useLanguage();
   const [grade, setGrade] = useState(route?.grade || 'V0');
   const [color, setColor] = useState(route?.color || ROUTE_COLORS[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [feedbacks, setFeedbacks] = useState<RouteFeedback[]>([]);
+  const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
+  const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null);
 
   // Reset state when route changes
   React.useEffect(() => {
@@ -42,14 +60,40 @@ export default function RouteEditModal({
     }
   }, [route]);
 
+  // Subscribe to feedbacks when modal is visible
+  useEffect(() => {
+    if (!visible || !route?.id) {
+      setFeedbacks([]);
+      return;
+    }
+
+    setLoadingFeedbacks(true);
+    const unsubscribe = FeedbackService.subscribeFeedbacksForRoute(
+      route.id,
+      (newFeedbacks) => {
+        // Sort by date, newest first
+        const sorted = [...newFeedbacks].sort((a, b) => {
+          const dateA = a.createdAt?.toDate?.() || new Date(0);
+          const dateB = b.createdAt?.toDate?.() || new Date(0);
+          return dateB.getTime() - dateA.getTime();
+        });
+        setFeedbacks(sorted);
+        setLoadingFeedbacks(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [visible, route?.id]);
+
   const handleSave = async () => {
     if (!route) return;
 
     setIsSubmitting(true);
     try {
       // Generate new name based on grade and color
-      const colorName = getColorName(color);
-      const newName = `${grade} ${colorName}`;
+      const colorKey = getColorTranslationKey(color);
+      const colorName = t.colors[colorKey as keyof typeof t.colors] || colorKey;
+      const newName = `${colorName} ${grade}`;
 
       await RoutesService.updateRoute(route.id, {
         name: newName,
@@ -57,12 +101,12 @@ export default function RouteEditModal({
         color,
       });
 
-      Alert.alert('הצלחה', 'המסלול עודכן בהצלחה');
+      Alert.alert(t.common.success, t.routes.routeUpdated);
       onSave();
       onClose();
     } catch (error) {
       console.error('Error updating route:', error);
-      Alert.alert('שגיאה', 'לא ניתן לעדכן את המסלול');
+      Alert.alert(t.common.error, t.routes.cannotUpdateRoute);
     } finally {
       setIsSubmitting(false);
     }
@@ -90,23 +134,26 @@ export default function RouteEditModal({
     if (!route) return;
 
     Alert.alert(
-      'מחיקת מסלול',
-      'האם אתה בטוח שברצונך למחוק את המסלול?',
+      t.routes.deleteRoute || 'מחיקת מסלול',
+      t.archive?.moveToTrashConfirm || 'המסלול יועבר לארכיון וימחק לצמיתות אחרי 14 יום. האם להמשיך?',
       [
-        { text: 'ביטול', style: 'cancel' },
+        { text: t.common.cancel, style: 'cancel' },
         {
-          text: 'מחק',
+          text: t.archive?.moveToTrash || 'העבר לארכיון',
           style: 'destructive',
           onPress: async () => {
             setIsSubmitting(true);
             try {
-              await RoutesService.deleteRoute(route.id);
-              Alert.alert('הצלחה', 'המסלול נמחק');
+              await RoutesService.archiveRoute(route.id);
+              Alert.alert(
+                t.common.success, 
+                t.archive?.movedToTrash || 'המסלול הועבר לארכיון'
+              );
               onDelete?.();
               onClose();
             } catch (error) {
-              console.error('Error deleting route:', error);
-              Alert.alert('שגיאה', 'לא ניתן למחוק את המסלול');
+              console.error('Error archiving route:', error);
+              Alert.alert(t.common.error, t.routes.cannotDeleteRoute);
             } finally {
               setIsSubmitting(false);
             }
@@ -114,6 +161,46 @@ export default function RouteEditModal({
         },
       ]
     );
+  };
+
+  const handleDeleteFeedback = (feedback: RouteFeedback) => {
+    Alert.alert(
+      t.routes?.deleteFeedback || 'מחיקת תגובה',
+      t.routes?.deleteFeedbackConfirm || `האם למחוק את התגובה של ${feedback.userDisplayName || 'משתמש'}?`,
+      [
+        { text: t.common.cancel, style: 'cancel' },
+        {
+          text: t.common.delete || 'מחק',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingFeedbackId(feedback.id);
+            try {
+              await FeedbackService.deleteFeedback(feedback.id);
+              Alert.alert(t.common.success, t.routes?.feedbackDeleted || 'התגובה נמחקה');
+            } catch (error) {
+              console.error('Error deleting feedback:', error);
+              Alert.alert(t.common.error, t.routes?.cannotDeleteFeedback || 'לא ניתן למחוק את התגובה');
+            } finally {
+              setDeletingFeedbackId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const formatDate = (timestamp: any): string => {
+    if (!timestamp) return '';
+    const date = timestamp.toDate?.() || new Date(timestamp);
+    return date.toLocaleDateString('he-IL', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  const renderStars = (rating: number) => {
+    return '⭐'.repeat(Math.min(5, Math.max(0, rating)));
   };
 
   if (!route) return null;
@@ -129,12 +216,12 @@ export default function RouteEditModal({
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose}>
-            <Text style={styles.cancelButton}>ביטול</Text>
+            <Text style={styles.cancelButton}>{t.common.cancel}</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>עריכת מסלול</Text>
+          <Text style={styles.title}>{t.routes.editRoute}</Text>
           <TouchableOpacity onPress={handleSave} disabled={isSubmitting}>
             <Text style={[styles.saveButton, isSubmitting && styles.disabledButton]}>
-              {isSubmitting ? 'שומר...' : 'שמור'}
+              {isSubmitting ? t.routes.saving : t.common.save}
             </Text>
           </TouchableOpacity>
         </View>
@@ -142,13 +229,13 @@ export default function RouteEditModal({
         <ScrollView style={styles.content}>
           {/* Current Route Info */}
           <View style={styles.infoSection}>
-            <Text style={styles.infoLabel}>מסלול נוכחי:</Text>
+            <Text style={styles.infoLabel}>{t.routes.currentRoute}</Text>
             <Text style={styles.infoValue}>{route.name}</Text>
           </View>
 
           {/* Grade Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>דרגת קושי</Text>
+            <Text style={styles.sectionTitle}>{t.routes.difficultyGrade}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.gradeContainer}>
                 {GRADES.map((gradeOption) => (
@@ -176,7 +263,7 @@ export default function RouteEditModal({
 
           {/* Color Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>צבע</Text>
+            <Text style={styles.sectionTitle}>{t.routes.color}</Text>
             <View style={styles.colorGrid}>
               {ROUTE_COLORS.map((colorOption) => (
                 <TouchableOpacity
@@ -204,7 +291,7 @@ export default function RouteEditModal({
               style={styles.moveButton}
               onPress={handleMoveRoute}
             >
-              <Text style={styles.moveButtonText}>📍 הזז מיקום על המפה</Text>
+              <Text style={styles.moveButtonText}>{t.routes.moveLocationOnMap}</Text>
             </TouchableOpacity>
           )}
 
@@ -214,8 +301,63 @@ export default function RouteEditModal({
             onPress={handleDelete}
             disabled={isSubmitting}
           >
-            <Text style={styles.deleteButtonText}>מחק מסלול</Text>
+            <Text style={styles.deleteButtonText}>{t.routes.deleteRoute}</Text>
           </TouchableOpacity>
+
+          {/* Feedbacks Section */}
+          <View style={styles.feedbacksSection}>
+            <Text style={styles.sectionTitle}>
+              {t.routes?.userFeedbacks || 'תגובות משתמשים'} ({feedbacks.length})
+            </Text>
+            
+            {loadingFeedbacks ? (
+              <ActivityIndicator size="small" color="#3b82f6" style={{ marginVertical: 20 }} />
+            ) : feedbacks.length === 0 ? (
+              <Text style={styles.noFeedbacksText}>
+                {t.routes?.noFeedbacks || 'אין תגובות למסלול זה'}
+              </Text>
+            ) : (
+              feedbacks.map((feedback) => (
+                <View key={feedback.id} style={styles.feedbackCard}>
+                  <View style={styles.feedbackHeader}>
+                    <View style={styles.feedbackUserInfo}>
+                      <Text style={styles.feedbackUserName}>
+                        {feedback.userDisplayName || t.routes?.anonymousUser || 'משתמש אנונימי'}
+                      </Text>
+                      <Text style={styles.feedbackDate}>{formatDate(feedback.createdAt)}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.deleteFeedbackButton}
+                      onPress={() => handleDeleteFeedback(feedback)}
+                      disabled={deletingFeedbackId === feedback.id}
+                    >
+                      {deletingFeedbackId === feedback.id ? (
+                        <ActivityIndicator size="small" color="#ef4444" />
+                      ) : (
+                        <Text style={styles.deleteFeedbackButtonText}>🗑️</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                  
+                  <View style={styles.feedbackDetails}>
+                    <Text style={styles.feedbackStars}>{renderStars(feedback.starRating)}</Text>
+                    {feedback.suggestedGrade && (
+                      <View style={styles.suggestedGradeBadge}>
+                        <Text style={styles.suggestedGradeText}>{feedback.suggestedGrade}</Text>
+                      </View>
+                    )}
+                    {feedback.isCompleted && (
+                      <Text style={styles.completedBadge}>✓ {t.routes?.completed || 'הושלם'}</Text>
+                    )}
+                  </View>
+                  
+                  {feedback.comment && (
+                    <Text style={styles.feedbackComment}>{feedback.comment}</Text>
+                  )}
+                </View>
+              ))
+            )}
+          </View>
         </ScrollView>
       </View>
     </Modal>
@@ -350,11 +492,87 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginTop: 20,
-    marginBottom: 40,
   },
   deleteButtonText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#ffffff',
+  },
+  feedbacksSection: {
+    marginTop: 32,
+    marginBottom: 40,
+    paddingTop: 24,
+    borderTopWidth: 1,
+    borderTopColor: '#e5e7eb',
+  },
+  noFeedbacksText: {
+    fontSize: 14,
+    color: '#9ca3af',
+    textAlign: 'center',
+    marginVertical: 20,
+  },
+  feedbackCard: {
+    backgroundColor: '#f9fafb',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+  },
+  feedbackHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  feedbackUserInfo: {
+    flex: 1,
+  },
+  feedbackUserName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1f2937',
+  },
+  feedbackDate: {
+    fontSize: 12,
+    color: '#9ca3af',
+    marginTop: 2,
+  },
+  deleteFeedbackButton: {
+    padding: 8,
+    marginLeft: 8,
+  },
+  deleteFeedbackButtonText: {
+    fontSize: 18,
+  },
+  feedbackDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  feedbackStars: {
+    fontSize: 14,
+  },
+  suggestedGradeBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  suggestedGradeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  completedBadge: {
+    fontSize: 12,
+    color: '#10b981',
+    fontWeight: '500',
+  },
+  feedbackComment: {
+    fontSize: 14,
+    color: '#4b5563',
+    lineHeight: 20,
   },
 });

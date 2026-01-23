@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 
 export interface StatCardProps {
     title: string;
@@ -28,6 +29,7 @@ export const StatCard: React.FC<StatCardProps> = ({
     isOwner = false,
 }) => {
     const { theme } = useTheme();
+    const { t } = useLanguage();
 
     if (!isVisible && !isOwner) {
         return (
@@ -47,7 +49,7 @@ export const StatCard: React.FC<StatCardProps> = ({
                         <Text style={styles.statIcon}>🔒</Text>
                     </View>
                     <View style={styles.statTextContainer}>
-                        <Text style={[styles.statValue, { color: theme.text }]}>פרטי</Text>
+                        <Text style={[styles.statValue, { color: theme.text }]}>{t.profile.private}</Text>
                         <Text style={[styles.statTitle, { color: theme.textSecondary }]}>{title}</Text>
                     </View>
                 </View>
@@ -74,7 +76,7 @@ export const StatCard: React.FC<StatCardProps> = ({
                 </View>
                 <View style={styles.statTextContainer}>
                     <Text style={[styles.statValue, { color: theme.text }]}>
-                        {isVisible || isOwner ? value : "פרטי"}
+                        {isVisible || isOwner ? value : t.profile.private}
                     </Text>
                     <Text style={[styles.statTitle, { color: theme.textSecondary }]}>{title}</Text>
                 </View>

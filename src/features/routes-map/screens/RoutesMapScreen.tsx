@@ -5,15 +5,20 @@ import {
   TouchableOpacity,
   Text,
   Alert,
-  Dimensions
+  useWindowDimensions,
+  ScrollView,
+  Modal
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 // Theme
 import { useTheme } from '@/features/theme/ThemeContext';
+
+// Responsive Layout Hook
+import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
 // New Architecture Components
 import WallMap from '../../../components/WallMap/WallMap';
@@ -28,18 +33,21 @@ import RouteEditModal from '../components/RouteEditModal';
 import { useFiltersStore } from '../../../store/useFiltersStore';
 import { useFirebaseRoutes } from '../hooks/useFirebaseRoutes';
 
-// Admin Context
+// Language
+import { useLanguage } from '@/features/language';
+
+// Admin Context and Roles
 import { useAdmin } from '../../../context/AdminContext';
+import { useRolesContext } from '../../../features/roles';
 
 // Types
 import { RouteDoc, MapTransforms } from '../types/route';
 import { RoutesService } from '../services/RoutesService';
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-
 type RootStackParamList = {
   RoutesMap: undefined;
   AddRoute: undefined;
+  RoutesArchive: undefined;
   RouteDetails: {
     route: any;
   };
@@ -51,16 +59,53 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList, 'RoutesMap'>
  * RoutesMapScreen עם האדריכלות החדשה
  * משתמש ב-WallMap, FiltersBar, RoutesList ו-Zustand store
  * עם תמיכה לחזרה מדורגת בתאימות לקומפוננטים הישנים
+ * תומך ב-Landscape וב-Portrait עם layout אדפטיבי
  */
 export default function RoutesMapScreen() {
   const navigation = useNavigation<NavigationProp>();
   
   // Theme
   const { theme } = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
   
-  // Admin Mode
-  const { isAdmin, adminModeEnabled } = useAdmin();
+  // Language
+  const { t } = useLanguage();
+  
+  // Safe area insets for handling Android navigation bar
+  const insets = useSafeAreaInsets();
+  
+  // Responsive Layout - automatically updates on rotation
+  const layout = useResponsiveLayout();
+  const { isLandscape, isTablet, isPhoneLandscape, mapLayoutMode, width, height, scaleFactor } = layout;
+  
+  // Create styles with theme, layout, and insets
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
+  
+  // Admin Mode (for full admins)
+  const { isAdmin, adminModeEnabled, setAdminModeEnabled } = useAdmin();
+  
+  // Roles Context - includes route_setter permission
+  const { canEditRoutes, isRouteSetter } = useRolesContext();
+  
+  // Edit mode is enabled when:
+  // 1. Admin has toggled admin mode ON, OR
+  // 2. Route setter is logged in (they can always edit)
+  // We use a local state for route setters to toggle their edit mode
+  const [routeSetterEditMode, setRouteSetterEditMode] = useState(false);
+  
+  // Combined edit mode: admin mode OR route setter edit mode
+  const editModeEnabled = adminModeEnabled || (isRouteSetter && routeSetterEditMode);
+  
+  // Can user access edit mode at all?
+  const canAccessEditMode = isAdmin || canEditRoutes;
+  
+  // Toggle edit mode based on user type
+  const toggleEditMode = useCallback(() => {
+    if (isAdmin) {
+      setAdminModeEnabled(!adminModeEnabled);
+    } else if (canEditRoutes) {
+      setRouteSetterEditMode(!routeSetterEditMode);
+    }
+  }, [isAdmin, adminModeEnabled, setAdminModeEnabled, canEditRoutes, routeSetterEditMode]);
   
   // UI State
   const [selectedRoute, setSelectedRoute] = useState<RouteDoc | null>(null);
@@ -71,6 +116,14 @@ export default function RoutesMapScreen() {
   const [viewMode, setViewMode] = useState<'map' | 'list' | 'split'>('split');
   const [mapFrameSize, setMapFrameSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [sortBy, setSortBy] = useState<SortOption>('grade-asc');
+  const [showSortModal, setShowSortModal] = useState(false);
+  
+  // Sort options for modal
+  const sortOptions = useMemo(() => [
+    { value: 'grade-asc' as SortOption, label: t.common.gradeEasyToHard, icon: '📈' },
+    { value: 'grade-desc' as SortOption, label: t.common.gradeHardToEasy, icon: '📉' },
+    { value: 'popularity' as SortOption, label: t.common.mostPopular, icon: '⭐' },
+  ], [t]);
   
   // Data
   const { routes, isLoading, error } = useFirebaseRoutes();
@@ -80,10 +133,6 @@ export default function RoutesMapScreen() {
 
   // Filtered routes based on current filters
   const filteredRoutes = useMemo(() => {
-    console.log('[RoutesMapScreen] Recalculating filteredRoutes with filters:', {
-      colors: filters.colors,
-      gradeRange: filters.gradeRange,
-    });
     return getFilteredRoutes(routes);
   }, [routes, getFilteredRoutes, filters]);
 
@@ -141,20 +190,24 @@ export default function RoutesMapScreen() {
     }
 
     // Apply sorting
-    const sorted = sortRoutes(routesToShow);
-
-    console.log(`[Viewport] ${sorted.length}/${filteredRoutes.length} routes visible in bounds [${viewportBounds.leftN.toFixed(2)}-${viewportBounds.rightN.toFixed(2)}, ${viewportBounds.topN.toFixed(2)}-${viewportBounds.bottomN.toFixed(2)}]`);
-
-    return sorted;
+    return sortRoutes(routesToShow);
   }, [filteredRoutes, viewportBounds, viewMode, sortRoutes]);
 
   // Handlers
   const handleRoutePress = useCallback((route: RouteDoc) => {
-    console.log('🔗 opening route details', route.id, route.color);
+    // In edit mode, open edit modal instead of navigating
+    if (editModeEnabled) {
+      setEditingRoute(route);
+      setShowEditModal(true);
+      return;
+    }
+    
     navigation.navigate('RouteDetails', { 
       route: {
         id: route.id,
         name: route.name,
+        nameHe: route.nameHe,
+        nameEn: route.nameEn,
         grade: route.grade,
         color: route.color,
         difficulty: route.grade,
@@ -163,7 +216,9 @@ export default function RoutesMapScreen() {
           x: route.xNorm,
           y: route.yNorm,
         },
-        createdAt: route.createdAt || new Date(),
+        createdAt: route.createdAt?.toDate ? route.createdAt.toDate().toISOString() : 
+                   route.createdAt instanceof Date ? route.createdAt.toISOString() :
+                   new Date().toISOString(),
         createdBy: route.setter || 'system',
         wallId: 'default-wall',
         // Community feedback stats
@@ -173,18 +228,15 @@ export default function RoutesMapScreen() {
         completionCount: route.completionCount || 0,
       }
     });
-  }, [navigation]);
+  }, [navigation, editModeEnabled]);
 
   const handleRouteLongPress = useCallback((route: RouteDoc) => {
-    console.log('🔧 LongPress on route:', route.id, 'adminModeEnabled:', adminModeEnabled);
-    if (adminModeEnabled) {
-      console.log('🔧 Admin: opening edit modal for route', route.id);
+    // Long press opens edit modal if user has edit permissions (admin or route setter)
+    if (canAccessEditMode) {
       setEditingRoute(route);
       setShowEditModal(true);
-    } else {
-      console.log('🔧 Admin mode not enabled, ignoring long press');
     }
-  }, [adminModeEnabled]);
+  }, [canAccessEditMode]);
 
   const handleEditModalClose = useCallback(() => {
     setShowEditModal(false);
@@ -205,17 +257,13 @@ export default function RoutesMapScreen() {
 
   // Start moving a route - called from RouteEditModal
   const handleStartMoveRoute = useCallback((route: RouteDoc) => {
-    console.log('📍 handleStartMoveRoute called');
-    console.log('📍 route:', route?.id, route?.name);
     try {
       setMovingRoute(route);
-      console.log('📍 setMovingRoute completed');
       Alert.alert(
         'הזזת מסלול',
         'לחץ על המיקום החדש במפה',
         [{ text: 'הבנתי', style: 'default' }]
       );
-      console.log('📍 Alert shown');
     } catch (error) {
       console.error('📍 Error in handleStartMoveRoute:', error);
     }
@@ -223,11 +271,7 @@ export default function RoutesMapScreen() {
 
   // Handle tap on map to place moved route
   const handleMapTap = useCallback(async (coordinates: { xImg: number; yImg: number }) => {
-    console.log('📍 handleMapTap called with:', coordinates);
-    console.log('📍 movingRoute:', movingRoute?.id);
-    
     if (!movingRoute) {
-      console.log('📍 No movingRoute, returning');
       return;
     }
 
@@ -239,9 +283,6 @@ export default function RoutesMapScreen() {
       setMovingRoute(null);
       return;
     }
-
-    console.log('📍 Moving route to new position:', coordinates);
-    console.log('📍 mapFrameSize:', mapFrameSize);
     
     // Calculate normalized coordinates
     const wallWidth = 2560;
@@ -252,14 +293,9 @@ export default function RoutesMapScreen() {
     const imageWidth = mapFrameSize.width || 377;
     const imageHeight = mapFrameSize.height || 236;
     
-    console.log('📍 Using image dimensions:', { imageWidth, imageHeight });
-    console.log('📍 Raw coordinates:', coordinates);
-    
     // Make sure coordinates are within image bounds
     const clampedXImg = Math.max(0, Math.min(imageWidth, coordinates.xImg));
     const clampedYImg = Math.max(0, Math.min(imageHeight, coordinates.yImg));
-    
-    console.log('📍 Clamped image coordinates:', { clampedXImg, clampedYImg });
     
     const xNorm = clampedXImg / imageWidth;
     const yNorm = clampedYImg / imageHeight;
@@ -276,21 +312,16 @@ export default function RoutesMapScreen() {
     const clampedX = Math.max(0, Math.min(1, xNorm));
     const clampedY = Math.max(0, Math.min(1, yNorm));
 
-    console.log('📍 Calculated normalized coordinates:', { clampedX, clampedY });
-
     try {
-      console.log('📍 Calling RoutesService.updateRoute...');
       await RoutesService.updateRoute(movingRoute.id, {
         xNorm: clampedX,
         yNorm: clampedY,
       });
-      console.log('📍 Route updated successfully');
       Alert.alert('הצלחה', 'המסלול הוזז בהצלחה');
     } catch (error) {
       console.error('📍 Error moving route:', error);
       Alert.alert('שגיאה', 'לא ניתן להזיז את המסלול');
     } finally {
-      console.log('📍 Setting movingRoute to null');
       setMovingRoute(null);
     }
   }, [movingRoute, mapFrameSize]);
@@ -333,6 +364,10 @@ export default function RoutesMapScreen() {
 
   const handleAddRoute = useCallback(() => {
     navigation.navigate('AddRoute');
+  }, [navigation]);
+
+  const handleOpenArchive = useCallback(() => {
+    navigation.navigate('RoutesArchive' as any);
   }, [navigation]);
 
   const handleTransformChange = useCallback((transform: { scale: number; translateX: number; translateY: number }) => {
@@ -559,9 +594,220 @@ export default function RoutesMapScreen() {
         routes={visibleRoutes}
         visibleRouteIds={visibleRoutes.map(r => r.id)}
         onRoutePress={handleRoutePress}
+        onRouteLongPress={handleRouteLongPress}
       />
     );
-  };  const renderSplitView = () => (
+  };  
+
+  // Render landscape split view (map and list side by side) - for tablets
+  const renderLandscapeSplitView = () => (
+    <View style={styles.landscapeContainer}>
+      {/* Map Section - Left side */}
+      <View style={styles.landscapeMapSection}>
+        <View style={styles.mapFrame}>
+          <View
+            style={styles.mapClip}
+            onLayout={e => {
+              const { width, height } = e.nativeEvent.layout;
+              setMapFrameSize({ width, height });
+              console.log('[RoutesMapScreen] landscape frame layout', { width, height });
+            }}
+          >
+            {renderMapView()}
+          </View>
+        </View>
+      </View>
+      
+      {/* List Section - Right side */}
+      <View style={styles.landscapeListSection}>
+        <View style={styles.filterBarContainer}>
+          <View style={styles.filterBarWithActions}>
+            <View style={styles.filterBarLeft}>
+              <FiltersBar
+                routeCount={filteredRoutes.length}
+                visibleCount={visibleRoutes.length}
+                sortBy={sortBy}
+                onSortChange={setSortBy}
+              />
+            </View>
+            <View style={styles.filterBarRight}>
+              {canAccessEditMode && (
+                <TouchableOpacity
+                  style={styles.filterBarActionButton}
+                  onPress={handleOpenArchive}
+                >
+                  <Text style={styles.filterBarActionIcon}>🗑️</Text>
+                </TouchableOpacity>
+              )}
+              {canAccessEditMode && (
+                <TouchableOpacity
+                  style={[
+                    styles.filterBarActionButton,
+                    editModeEnabled && styles.filterBarActionButtonActive
+                  ]}
+                  onPress={toggleEditMode}
+                >
+                  <Text style={styles.filterBarActionIcon}>
+                    {editModeEnabled ? '✓' : '✏️'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {editModeEnabled && (
+                <TouchableOpacity
+                  style={[styles.filterBarActionButton, styles.filterBarAddButton]}
+                  onPress={handleAddRoute}
+                >
+                  <Text style={styles.filterBarAddIcon}>+</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        </View>
+        {isLoading && (
+          <View style={styles.listHeader}>
+            <Text style={styles.loadingText}>טוען...</Text>
+          </View>
+        )}
+        {renderListView()}
+      </View>
+    </View>
+  );
+
+  // Render phone landscape split view - compact horizontal layout for phones
+  const renderPhoneLandscapeSplitView = () => (
+    <View style={styles.phoneLandscapeContainer}>
+      {/* Map Section - Takes most of the width */}
+      <View style={styles.phoneLandscapeMapSection}>
+        <View style={styles.phoneLandscapeMapFrame}>
+          <View
+            style={styles.mapClip}
+            onLayout={e => {
+              const { width, height } = e.nativeEvent.layout;
+              setMapFrameSize({ width, height });
+              console.log('[RoutesMapScreen] phone landscape frame layout', { width, height });
+            }}
+          >
+            {renderMapView()}
+          </View>
+        </View>
+      </View>
+      
+      {/* Compact List Section - Right panel */}
+      <View style={styles.phoneLandscapeListSection}>
+        {/* Action bar with filter/sort and edit buttons */}
+        <View style={styles.phoneLandscapeActionBar}>
+          {/* Left side: Route count, sort and filter */}
+          <View style={styles.phoneLandscapeActionLeft}>
+            <Text style={styles.phoneLandscapeCountText}>
+              {visibleRoutes.length}/{filteredRoutes.length}
+            </Text>
+            {/* Sort button - opens modal like portrait */}
+            <TouchableOpacity
+              style={styles.phoneLandscapeActionButton}
+              onPress={() => setShowSortModal(true)}
+            >
+              <Text style={styles.phoneLandscapeActionIcon}>↕️</Text>
+              <Text style={styles.phoneLandscapeButtonLabel}>{t.common.sort}</Text>
+            </TouchableOpacity>
+            {/* Filter button */}
+            <TouchableOpacity
+              style={styles.phoneLandscapeActionButton}
+              onPress={() => useFiltersStore.getState().setFilterSheetOpen(true)}
+            >
+              <Text style={styles.phoneLandscapeActionIcon}>⚙️</Text>
+              <Text style={styles.phoneLandscapeButtonLabel}>{t.common.filter}</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {/* Right side: Edit mode toggle and add button */}
+          <View style={styles.phoneLandscapeActionRight}>
+            {canAccessEditMode && (
+              <TouchableOpacity
+                style={styles.phoneLandscapeActionButton}
+                onPress={handleOpenArchive}
+              >
+                <Text style={styles.phoneLandscapeActionIcon}>🗑️</Text>
+              </TouchableOpacity>
+            )}
+            {canAccessEditMode && (
+              <TouchableOpacity
+                style={[
+                  styles.phoneLandscapeActionButton,
+                  editModeEnabled && styles.phoneLandscapeActionButtonActive
+                ]}
+                onPress={toggleEditMode}
+              >
+                <Text style={styles.phoneLandscapeActionIcon}>
+                  {editModeEnabled ? '✓' : '✏️'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            {editModeEnabled && (
+              <TouchableOpacity
+                style={[styles.phoneLandscapeActionButton, styles.phoneLandscapeAddButton]}
+                onPress={handleAddRoute}
+              >
+                <Text style={styles.phoneLandscapeAddIcon}>+</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+        {/* Compact list for phone landscape */}
+        <RoutesList
+          routes={visibleRoutes}
+          visibleRouteIds={visibleRoutes.map(r => r.id)}
+          onRoutePress={handleRoutePress}
+          onRouteLongPress={handleRouteLongPress}
+          compact={true}
+        />
+      </View>
+
+      {/* Sort Modal for phone landscape */}
+      <Modal
+        visible={showSortModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowSortModal(false)}
+      >
+        <TouchableOpacity 
+          style={styles.sortModalOverlay} 
+          activeOpacity={1}
+          onPress={() => setShowSortModal(false)}
+        >
+          <View style={styles.sortModalContent}>
+            <Text style={styles.sortModalTitle}>{t.common.sort}</Text>
+            {sortOptions.map((option) => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.sortModalOption,
+                  sortBy === option.value && styles.sortModalOptionActive,
+                ]}
+                onPress={() => {
+                  setSortBy(option.value);
+                  setShowSortModal(false);
+                }}
+              >
+                <Text style={styles.sortModalOptionIcon}>{option.icon}</Text>
+                <Text style={[
+                  styles.sortModalOptionText,
+                  sortBy === option.value && styles.sortModalOptionTextActive,
+                ]}>
+                  {option.label}
+                </Text>
+                {sortBy === option.value && (
+                  <Text style={styles.sortModalCheckmark}>✓</Text>
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </View>
+  );
+
+  // Render portrait split view (map on top, list below)
+  const renderPortraitSplitView = () => (
     <>
       {/* Map Section with FiltersBar positioned below */}
       <View style={styles.mapSectionContainer}>
@@ -573,21 +819,56 @@ export default function RoutesMapScreen() {
             onLayout={e => {
               const { width, height } = e.nativeEvent.layout;
               setMapFrameSize({ width, height });
-              console.log('[RoutesMapScreen] frame layout', { width, height });
+              console.log('[RoutesMapScreen] portrait frame layout', { width, height });
             }}
           >
             {renderMapView()}
           </View>
         </View>
         
-        {/* FiltersBar positioned below the map */}
+        {/* FiltersBar positioned below the map with integrated action buttons */}
         <View style={styles.filterBarContainer}>
-          <FiltersBar
-            routeCount={filteredRoutes.length}
-            visibleCount={visibleRoutes.length}
-            sortBy={sortBy}
-            onSortChange={setSortBy}
-          />
+          <View style={styles.filterBarWithActions}>
+            <View style={styles.filterBarLeft}>
+              <FiltersBar
+                routeCount={filteredRoutes.length}
+                visibleCount={visibleRoutes.length}
+                sortBy={sortBy}
+                onSortChange={setSortBy}
+              />
+            </View>
+            <View style={styles.filterBarRight}>
+              {canAccessEditMode && (
+                <TouchableOpacity
+                  style={styles.filterBarActionButton}
+                  onPress={handleOpenArchive}
+                >
+                  <Text style={styles.filterBarActionIcon}>🗑️</Text>
+                </TouchableOpacity>
+              )}
+              {canAccessEditMode && (
+                <TouchableOpacity
+                  style={[
+                    styles.filterBarActionButton,
+                    editModeEnabled && styles.filterBarActionButtonActive
+                  ]}
+                  onPress={toggleEditMode}
+                >
+                  <Text style={styles.filterBarActionIcon}>
+                    {editModeEnabled ? '✓' : '✏️'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {editModeEnabled && (
+                <TouchableOpacity
+                  style={[styles.filterBarActionButton, styles.filterBarAddButton]}
+                  onPress={handleAddRoute}
+                >
+                  <Text style={styles.filterBarAddIcon}>+</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
         </View>
       </View>
       
@@ -603,8 +884,43 @@ export default function RoutesMapScreen() {
     </>
   );
 
+  const renderSplitView = () => {
+    // Use horizontal layout for tablets in landscape
+    if (mapLayoutMode === 'horizontal') {
+      return renderLandscapeSplitView();
+    }
+    // Use compact horizontal layout for phones in landscape
+    if (mapLayoutMode === 'phone-landscape') {
+      return renderPhoneLandscapeSplitView();
+    }
+    // Use vertical layout for portrait mode
+    return renderPortraitSplitView();
+  };
+
+  // In phone landscape, we need to protect left/right edges from notches and home indicators
+  const safeAreaEdges = isPhoneLandscape ? ['top', 'left', 'right', 'bottom'] as const : ['top'] as const;
+
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={styles.container} edges={safeAreaEdges}>
+      {/* Edit Mode Banner - now inside SafeAreaView and with simpler text */}
+      {editModeEnabled && !movingRoute && (
+        <View style={styles.editModeBanner}>
+          <Text style={styles.editModeBannerText}>
+            {isAdmin ? '🔧' : '🧗'} מצב עריכה פעיל - לחץ ארוך לעריכה
+          </Text>
+        </View>
+      )}
+
+      {/* Moving Route Banner */}
+      {movingRoute && (
+        <View style={styles.movingBanner}>
+          <Text style={styles.movingBannerText}>📍 לחץ על המיקום החדש במפה</Text>
+          <TouchableOpacity onPress={handleCancelMove} style={styles.cancelMoveButton}>
+            <Text style={styles.cancelMoveButtonText}>ביטול</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Content Area */}
       <View style={styles.contentArea}>
         {viewMode === 'map' && renderFullMapView()}
@@ -612,19 +928,6 @@ export default function RoutesMapScreen() {
         {viewMode === 'split' && renderSplitView()}
         {renderEmptyMessage()}
       </View>
-
-      {/* Action Buttons - Add Route Button (Admin Only in Edit Mode) */}
-      {adminModeEnabled && (
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.addButton]}
-            onPress={handleAddRoute}
-            testID="fab-add-route"
-          >
-            <Text style={styles.actionButtonText}>+</Text>
-          </TouchableOpacity>
-        </View>
-      )}
 
       {/* Filters Sheet */}
       <FiltersSheet
@@ -653,85 +956,308 @@ export default function RoutesMapScreen() {
         onDelete={handleEditModalDelete}
         onMoveRoute={handleStartMoveRoute}
       />
-
-      {/* Moving Route Banner */}
-      {movingRoute && (
-        <View style={styles.movingBanner}>
-          <Text style={styles.movingBannerText}>📍 לחץ על המיקום החדש במפה</Text>
-          <TouchableOpacity onPress={handleCancelMove} style={styles.cancelMoveButton}>
-            <Text style={styles.cancelMoveButtonText}>ביטול</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {/* Admin Mode Banner */}
-      {adminModeEnabled && !movingRoute && (
-        <View style={styles.adminBanner}>
-          <Text style={styles.adminBannerText}>🔧 מצב עריכה פעיל - לחץ ארוך לעריכה | + להוספה</Text>
-        </View>
-      )}
     </SafeAreaView>
   );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
-  contentArea: {
-    flex: 1,
-  },
-  mapSectionContainer: {
-    paddingHorizontal: 12,
-    paddingTop: 12,
-    paddingBottom: 0,
-    backgroundColor: theme.background,
-    display: 'flex',
-    flexDirection: 'column',
-  },
-  mapFrame: {
-    aspectRatio: 2560/1600, // Exact aspect ratio of the wall map (16:10)
-    width: '100%', // Take full width
-    height: undefined, // Height will be calculated based on aspect ratio
-    position: 'relative',
-    borderWidth: 2,
-    borderColor: theme.border,
-    borderRadius: 20,
-    backgroundColor: '#01467D', // Match exact wall map background color
-    shadowColor: theme.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 8,
-    overflow: 'hidden', // Important for iOS
-    marginBottom: 12,    // Space between map and filter bar
-    padding: 0,
-  },
-  mapClip: {
-    ...StyleSheet.absoluteFillObject,
-    // Ensure clipping works on both iOS and Android
-    overflow: 'hidden',
-    borderRadius: 18,    // Account for the border width (20-2)
-    backgroundColor: '#01467D', // Exact match for the wall map color
-    width: '100%',
-    height: '100%',
-    aspectRatio: 2560/1600,
-  },
-  filterBarContainer: {
-    marginHorizontal: 4,
-    marginBottom: 8,
-    borderRadius: 14,
-    backgroundColor: theme.surface,
-    borderWidth: 1,
-    borderColor: theme.border,
-    overflow: 'hidden',
-    shadowColor: theme.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
-  },
+const createStyles = (
+  theme: any, 
+  layout: ReturnType<typeof useResponsiveLayout>,
+  insets: { top: number; bottom: number; left: number; right: number }
+) => {
+  const { isLandscape, isTablet, mapLayoutMode, width, height, scaleFactor } = layout;
+  
+  // Calculate safe padding for right side (Android navigation bar in landscape)
+  const rightInset = Math.max(insets.right, 8);
+  const bottomInset = Math.max(insets.bottom, 8);
+  
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    contentArea: {
+      flex: 1,
+    },
+    // Landscape layout: side by side (for tablets)
+    landscapeContainer: {
+      flex: 1,
+      flexDirection: 'row',
+      backgroundColor: theme.background,
+    },
+    landscapeMapSection: {
+      flex: 3,
+      padding: 12,
+      justifyContent: 'center',
+    },
+    landscapeListSection: {
+      flex: 2,
+      borderLeftWidth: 1,
+      borderLeftColor: theme.border,
+      backgroundColor: theme.background,
+      // Add padding for safe areas in landscape
+      paddingRight: isLandscape ? rightInset : 0,
+      paddingTop: 8,
+      paddingBottom: bottomInset,
+    },
+    // Phone landscape layout: compact horizontal
+    phoneLandscapeContainer: {
+      flex: 1,
+      flexDirection: 'row',
+      backgroundColor: theme.background,
+    },
+    phoneLandscapeMapSection: {
+      // Map takes 55% of available width - balanced with list
+      flex: 0,
+      width: '63%',
+      padding: 6,
+      paddingLeft: Math.max(insets.left, 6),
+      paddingRight: 4,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    phoneLandscapeMapFrame: {
+      flex: 1,
+      width: '100%',
+      aspectRatio: 2560/1600,
+      maxHeight: '100%', // Don't exceed container height
+      maxWidth: '100%', // Don't exceed container width
+      borderWidth: 2,
+      borderColor: theme.border,
+      borderRadius: 10,
+      backgroundColor: '#01467D',
+      overflow: 'hidden',
+    },
+    phoneLandscapeListSection: {
+      // List takes remaining 45% of width - more space for content
+      flex: 1,
+      minWidth: 140, // Ensure list is readable
+      borderLeftWidth: 1,
+      borderLeftColor: theme.border,
+      backgroundColor: theme.background,
+      // No extra padding - RoutesList handles its own compact padding
+      // Safe area is handled by SafeAreaView edges
+      paddingRight: 0,
+    },
+    // Phone landscape action bar - replaces simple filter bar
+    phoneLandscapeActionBar: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 6,
+      paddingVertical: 4,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      backgroundColor: theme.surface,
+      gap: 2,
+    },
+    phoneLandscapeActionLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    phoneLandscapeActionRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    phoneLandscapeCountText: {
+      fontSize: 10,
+      fontWeight: '600',
+      color: theme.textSecondary,
+    },
+    phoneLandscapeActionButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 6,
+      paddingVertical: 4,
+      borderRadius: 6,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+      gap: 2,
+    },
+    phoneLandscapeActionButtonActive: {
+      backgroundColor: theme.success,
+      borderColor: theme.success,
+    },
+    phoneLandscapeActionIcon: {
+      fontSize: 12,
+    },
+    phoneLandscapeButtonLabel: {
+      fontSize: 10,
+      fontWeight: '500',
+      color: theme.text,
+    },
+    phoneLandscapeAddButton: {
+      backgroundColor: theme.success,
+      borderColor: theme.success,
+    },
+    phoneLandscapeAddIcon: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#ffffff',
+    },
+    // Sort modal styles for phone landscape
+    sortModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    sortModalContent: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      padding: 16,
+      minWidth: 250,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 8,
+    },
+    sortModalTitle: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: theme.text,
+      textAlign: 'center',
+      marginBottom: 12,
+    },
+    sortModalOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      marginBottom: 4,
+    },
+    sortModalOptionActive: {
+      backgroundColor: theme.primaryLight || `${theme.primary}20`,
+    },
+    sortModalOptionIcon: {
+      fontSize: 16,
+      marginRight: 10,
+    },
+    sortModalOptionText: {
+      flex: 1,
+      fontSize: 14,
+      color: theme.text,
+    },
+    sortModalOptionTextActive: {
+      fontWeight: '600',
+      color: theme.primary,
+    },
+    sortModalCheckmark: {
+      fontSize: 16,
+      color: theme.primary,
+      fontWeight: '700',
+    },
+    phoneLandscapeFilterBar: {
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+      backgroundColor: theme.surface,
+    },
+    phoneLandscapeFilterText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: theme.textSecondary,
+      textAlign: 'center',
+    },
+    // Portrait layout: vertical stack
+    mapSectionContainer: {
+      paddingHorizontal: 12,
+      paddingTop: 12,
+      paddingBottom: 0,
+      backgroundColor: theme.background,
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    mapFrame: {
+      aspectRatio: 2560/1600, // Exact aspect ratio of the wall map (16:10)
+      width: '100%', // Take full width
+      height: undefined, // Height will be calculated based on aspect ratio
+      maxHeight: isLandscape ? height * 0.85 : undefined, // Limit height in landscape
+      position: 'relative',
+      borderWidth: 2,
+      borderColor: theme.border,
+      borderRadius: Math.round(20 * scaleFactor),
+      backgroundColor: '#01467D', // Match exact wall map background color
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.12,
+      shadowRadius: 16,
+      elevation: 8,
+      overflow: 'hidden', // Important for iOS
+      marginBottom: isLandscape ? 0 : 12, // Space between map and filter bar in portrait
+      padding: 0,
+    },
+    mapClip: {
+      ...StyleSheet.absoluteFillObject,
+      // Ensure clipping works on both iOS and Android
+      overflow: 'hidden',
+      borderRadius: Math.round(18 * scaleFactor), // Account for the border width (20-2)
+      backgroundColor: '#01467D', // Exact match for the wall map color
+      width: '100%',
+      height: '100%',
+      aspectRatio: 2560/1600,
+    },
+    filterBarContainer: {
+      marginHorizontal: 4,
+      marginBottom: 8,
+      borderRadius: Math.round(14 * scaleFactor),
+      backgroundColor: theme.surface,
+      borderWidth: 1,
+      borderColor: theme.border,
+      overflow: 'hidden',
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 6,
+      elevation: 2,
+    },
+    // Filter bar with integrated action buttons
+    filterBarWithActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    filterBarLeft: {
+      flex: 1,
+    },
+    filterBarRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingRight: 8,
+    },
+    filterBarActionButton: {
+      width: 36,
+      height: 36,
+      borderRadius: 10,
+      backgroundColor: theme.card,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    filterBarActionButtonActive: {
+      backgroundColor: theme.success,
+      borderColor: theme.success,
+    },
+    filterBarActionIcon: {
+      fontSize: 16,
+    },
+    filterBarAddButton: {
+      backgroundColor: theme.success,
+      borderColor: theme.success,
+    },
+    filterBarAddIcon: {
+      fontSize: 22,
+      fontWeight: '700',
+      color: '#ffffff',
+    },
   mapSection: {
     flex: 3,
     position: 'relative',
@@ -778,8 +1304,9 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   actionButtons: {
     position: 'absolute',
-    bottom: 24,
-    right: 16,
+    // Respect safe area insets for bottom and right positioning
+    bottom: bottomInset + 16,
+    right: rightInset + 8,
     flexDirection: 'column',
     gap: 8,
   },
@@ -884,6 +1411,22 @@ const createStyles = (theme: any) => StyleSheet.create({
     color: theme.textSecondary,
     textAlign: 'center',
   },
+  // Edit mode banner - inside SafeAreaView, not absolute positioned
+  editModeBanner: {
+    backgroundColor: theme.warning,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editModeBannerText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  // Legacy admin banner styles (kept for reference)
   adminBanner: {
     position: 'absolute',
     top: 0,
@@ -892,7 +1435,6 @@ const createStyles = (theme: any) => StyleSheet.create({
     backgroundColor: theme.warning,
     paddingVertical: 10,
     paddingHorizontal: 16,
-    alignItems: 'center',
     zIndex: 100,
     shadowColor: theme.warning,
     shadowOffset: { width: 0, height: 2 },
@@ -900,29 +1442,61 @@ const createStyles = (theme: any) => StyleSheet.create({
     shadowRadius: 4,
     elevation: 4,
   },
+  adminBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   adminBannerText: {
     color: '#ffffff',
     fontSize: 13,
     fontWeight: '600',
     letterSpacing: 0.3,
+    flex: 1,
   },
-  movingBanner: {
+  exitEditModeButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    marginLeft: 12,
+  },
+  exitEditModeText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  editModeToggle: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
+    // Respect safe area insets for bottom and right positioning
+    bottom: bottomInset + 16,
+    right: rightInset + 8,
+    zIndex: 50,
+  },
+  editModeButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     backgroundColor: theme.primary,
-    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: theme.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  editModeButtonText: {
+    fontSize: 24,
+  },
+  // Moving banner - now inside SafeAreaView flow, not absolute
+  movingBanner: {
+    backgroundColor: theme.primary,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    zIndex: 100,
-    shadowColor: theme.primary,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
   },
   movingBannerText: {
     color: '#ffffff',
@@ -942,4 +1516,5 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
   },
-});
+  });
+};

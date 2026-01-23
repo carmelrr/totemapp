@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,8 @@ import {
   SafeAreaView,
   FlatList,
 } from "react-native";
-import { THEME_COLORS } from "@/constants/colors";
+import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 
 interface ColorPickerScreenProps {
   route: {
@@ -19,25 +20,29 @@ interface ColorPickerScreenProps {
   navigation: any;
 }
 
-const AVAILABLE_COLORS = [
-  { name: "אדום", value: "#FF0000" },
-  { name: "כחול", value: "#0000FF" },
-  { name: "ירוק", value: "#00FF00" },
-  { name: "צהוב", value: "#FFFF00" },
-  { name: "סגול", value: "#800080" },
-  { name: "כתום", value: "#FFA500" },
-  { name: "ורוד", value: "#FFC0CB" },
-  { name: "חום", value: "#A52A2A" },
-  { name: "שחור", value: "#000000" },
-  { name: "לבן", value: "#FFFFFF" },
-  { name: "אפור", value: "#808080" },
-  { name: "טורקיז", value: "#40E0D0" },
-];
-
 const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
   route,
   navigation,
 }) => {
+  const { t, isLoading: languageLoading } = useLanguage();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  
+  const AVAILABLE_COLORS = useMemo(() => [
+    { name: t.colors?.red ?? 'Red', value: "#FF0000" },
+    { name: t.colors?.blue ?? 'Blue', value: "#0000FF" },
+    { name: t.colors?.green ?? 'Green', value: "#00FF00" },
+    { name: t.colors?.yellow ?? 'Yellow', value: "#FFFF00" },
+    { name: t.colors?.purple ?? 'Purple', value: "#800080" },
+    { name: t.colors?.orange ?? 'Orange', value: "#FFA500" },
+    { name: t.colors?.pink ?? 'Pink', value: "#FFC0CB" },
+    { name: t.colors?.brown ?? 'Brown', value: "#A52A2A" },
+    { name: t.colors?.black ?? 'Black', value: "#000000" },
+    { name: t.colors?.white ?? 'White', value: "#FFFFFF" },
+    { name: t.colors?.gray ?? 'Gray', value: "#808080" },
+    { name: t.colors?.turquoise ?? 'Turquoise', value: "#40E0D0" },
+  ], [t.colors]);
+  
   const [selectedColor, setSelectedColor] = useState(
     route.params?.selectedColor || "",
   );
@@ -109,10 +114,11 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+// Dynamic styles factory for theme support
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: THEME_COLORS.background,
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: "row",
@@ -120,19 +126,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: THEME_COLORS.border,
+    borderBottomColor: theme.border,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: "bold",
-    color: THEME_COLORS.text,
+    color: theme.text,
   },
   closeButton: {
     padding: 8,
   },
   closeButtonText: {
     fontSize: 18,
-    color: THEME_COLORS.primary,
+    color: theme.primary,
   },
   content: {
     flex: 1,
@@ -140,7 +146,7 @@ const styles = StyleSheet.create({
   },
   instruction: {
     fontSize: 16,
-    color: THEME_COLORS.text,
+    color: theme.text,
     marginBottom: 20,
     textAlign: "center",
   },
@@ -158,7 +164,7 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   selectedColorItem: {
-    borderColor: THEME_COLORS.primary,
+    borderColor: theme.primary,
     borderWidth: 3,
   },
   colorOverlay: {

@@ -3,6 +3,7 @@ import { View, ScrollView, Text, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 import { useAdmin } from "@/context/AdminContext";
 import { useRolesContext } from "@/features/roles";
 import {
@@ -22,10 +23,11 @@ import { pickImage, removeProfileImage } from "./services/imageService";
 
 const ProfileScreen: React.FC = () => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
+  const { t } = useLanguage();
   const styles = createStyles(theme);
   const navigation = useNavigation();
   const { isAdmin, adminModeEnabled, toggleAdminMode } = useAdmin();
-  const { canManageRoles } = useRolesContext();
+  const { canManageRoles, canManageAnnouncements } = useRolesContext();
 
   // Local state for modals
   const [statsModalVisible, setStatsModalVisible] = useState(false);
@@ -80,7 +82,7 @@ const ProfileScreen: React.FC = () => {
     return (
       <SafeAreaView style={[styles.container, { justifyContent: "center", alignItems: "center" }]} edges={["top"]}>
         <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={styles.loadingText}>טוען פרופיל...</Text>
+        <Text style={styles.loadingText}>{t.common.loading}</Text>
       </SafeAreaView>
     );
   }
@@ -158,15 +160,32 @@ const ProfileScreen: React.FC = () => {
         onThemeToggle={toggleTheme}
         isDarkMode={isDarkMode}
         onLogout={profileData.handleLogout}
+        onPrivacySettings={() => {
+          sidePanelData.toggleSidePanel();
+          // Navigate to UserProfile with settings tab open
+          if (profileData.userId) {
+            (navigation as any).navigate('UserProfile', { 
+              userId: profileData.userId, 
+              autoEdit: true 
+            });
+          }
+        }}
         onAdminPanel={() => { }} // Placeholder - need to implement
         onRolesManagement={() => {
           sidePanelData.toggleSidePanel();
-          navigation.navigate('RolesManagement' as never);
+          // Navigate to RolesManagement in the root stack
+          (navigation as any).getParent()?.getParent()?.navigate('RolesManagement');
+        }}
+        onAnnouncementsManagement={() => {
+          sidePanelData.toggleSidePanel();
+          // Navigate to AnnouncementsManagement in the root stack
+          (navigation as any).getParent()?.getParent()?.navigate('AnnouncementsManagement');
         }}
         isAdmin={isAdmin}
         adminModeEnabled={adminModeEnabled}
         onAdminModeToggle={toggleAdminMode}
         canManageRoles={canManageRoles}
+        canManageAnnouncements={canManageAnnouncements}
       />
     </SafeAreaView>
   );

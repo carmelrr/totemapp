@@ -1,12 +1,15 @@
 // screens/HomeScreen.tsx
 // Main Feed / Home Screen - Feed of followed users' closures and feedbacks
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Image, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 import { auth } from "@/features/data/firebase";
 import { getFollowingFeed } from "@/features/social/socialService";
+import { UserAvatar } from "@/components/ui/UserAvatar";
+import { AnnouncementsList } from "@/features/announcements/components/AnnouncementsList";
 
 interface FeedItem {
   id: string;
@@ -16,8 +19,12 @@ interface FeedItem {
   userPhotoURL: string | null;
   routeId: string;
   routeName: string;
+  routeNameHe?: string;
+  routeNameEn?: string;
   routeGrade: string;
   routeColor: string;
+  routeX?: number;
+  routeY?: number;
   feedback: {
     starRating: number;
     suggestedGrade: string;
@@ -133,8 +140,11 @@ const createStyles = (theme) =>
       fontSize: 15,
       fontWeight: "600",
       color: theme.text,
-      flex: 1,
       textAlign: "right",
+    },
+    routeNameContainer: {
+      flex: 1,
+      alignItems: "flex-end",
     },
     gradeChip: {
       paddingHorizontal: 10,
@@ -203,6 +213,7 @@ const createStyles = (theme) =>
 
 export default function HomeScreen() {
   const { theme } = useTheme();
+  const { t, language } = useLanguage();
   const styles = createStyles(theme);
   const navigation = useNavigation();
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
@@ -211,6 +222,19 @@ export default function HomeScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [lastTimestamp, setLastTimestamp] = useState<string | null>(null);
+
+  // Get route name based on language
+  const getRouteDisplayName = useCallback((item: FeedItem): string => {
+    // If we have language-specific names, use them
+    if (language === 'he' && item.routeNameHe) {
+      return item.routeNameHe;
+    }
+    if (language === 'en' && item.routeNameEn) {
+      return item.routeNameEn;
+    }
+    // Fall back to default name
+    return item.routeName;
+  }, [language]);
 
   const loadFeed = useCallback(async (refresh = false) => {
     const userId = auth.currentUser?.uid;
@@ -267,12 +291,12 @@ export default function HomeScreen() {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return "הרגע";
-    if (diffMins < 60) return `לפני ${diffMins} דקות`;
-    if (diffHours < 24) return `לפני ${diffHours} שעות`;
-    if (diffDays < 7) return `לפני ${diffDays} ימים`;
+    if (diffMins < 1) return t.time.justNow;
+    if (diffMins < 60) return t.time.minutesAgo(diffMins);
+    if (diffHours < 24) return t.time.hoursAgo(diffHours);
+    if (diffDays < 7) return t.time.daysAgo(diffDays);
     
-    return d.toLocaleDateString("he-IL");
+    return d.toLocaleDateString(language === "he" ? "he-IL" : "en-US");
   };
 
   const renderStars = (rating: number) => {
@@ -290,6 +314,27 @@ export default function HomeScreen() {
     });
   };
 
+  const navigateToRouteDetails = (item: FeedItem) => {
+    // Build route object for RouteDetailsScreen
+    const routeForDetails = {
+      id: item.routeId,
+      name: item.routeName,
+      color: item.routeColor,
+      grade: item.routeGrade,
+      difficulty: item.routeGrade,
+      coordinates: {
+        x: item.routeX || 0.5,
+        y: item.routeY || 0.5,
+      },
+      createdAt: new Date(),
+    };
+    
+    navigation.navigate("RoutesMapTab", {
+      screen: "RouteDetails",
+      params: { route: routeForDetails },
+    });
+  };
+
   const renderFeedItem = ({ item }: { item: FeedItem }) => (
     <View style={styles.feedItem}>
       {/* Feed Header - User info */}
@@ -302,7 +347,7 @@ export default function HomeScreen() {
           item.type === "closure" ? styles.closureIndicator : styles.feedbackIndicator
         ]}>
           <Text style={styles.feedTypeText}>
-            {item.type === "closure" ? "סגירה 🎯" : "פידבק 💬"}
+            {item.type === "closure" ? t.home.closed : t.home.feedbackItem}
           </Text>
         </View>
         
@@ -311,26 +356,28 @@ export default function HomeScreen() {
           <Text style={styles.timestamp}>{formatDate(item.createdAt)}</Text>
         </View>
         
-        {item.userPhotoURL ? (
-          <Image source={{ uri: item.userPhotoURL }} style={styles.userAvatar} />
-        ) : (
-          <View style={[styles.userAvatar, styles.userAvatarFallback]}>
-            <Text style={styles.userAvatarInitial}>
-              {(item.userDisplayName || 'מ').charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
+        <UserAvatar
+          photoURL={item.userPhotoURL}
+          displayName={item.userDisplayName}
+          size={44}
+          style={styles.userAvatar}
+        />
       </TouchableOpacity>
 
-      {/* Route Info */}
-      <View style={styles.routeInfo}>
+      {/* Route Info - Clickable to navigate to route details */}
+      <TouchableOpacity 
+        style={styles.routeInfo}
+        onPress={() => navigateToRouteDetails(item)}
+      >
         <View style={styles.routeHeader}>
           <View style={[styles.gradeChip, { backgroundColor: item.routeColor }]}>
             <Text style={styles.gradeText}>{item.routeGrade}</Text>
           </View>
-          <Text style={styles.routeName}>{item.routeName}</Text>
+          <View style={styles.routeNameContainer}>
+            <Text style={styles.routeName}>{getRouteDisplayName(item)}</Text>
+          </View>
         </View>
-      </View>
+      </TouchableOpacity>
 
       {/* Feedback Details */}
       <View style={styles.feedbackDetails}>
@@ -346,7 +393,7 @@ export default function HomeScreen() {
         
         {item.feedback.suggestedGrade && (
           <Text style={styles.suggestedGrade}>
-            דרגה מוצעת: {item.feedback.suggestedGrade}
+            {t.routes.suggestedGrade}: {item.feedback.suggestedGrade}
           </Text>
         )}
       </View>
@@ -356,11 +403,9 @@ export default function HomeScreen() {
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
       <Text style={styles.emptyIcon}>👥</Text>
-      <Text style={styles.emptyTitle}>עדיין אין פעילות</Text>
+      <Text style={styles.emptyTitle}>{t.home.noRecentActivity}</Text>
       <Text style={styles.emptyText}>
-        אין עדיין פעילות מהקהילה.
-        {"\n\n"}
-        כשמטפסים יסגרו מסלולים או ישאירו פידבקים, תראה אותם כאן!
+        {t.routes.noFeedbacksYet}
       </Text>
     </View>
   );
@@ -378,7 +423,7 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>פיד</Text>
+          <Text style={styles.headerTitle}>{t.home.title}</Text>
         </View>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={theme.primary} />
@@ -390,7 +435,7 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>פיד</Text>
+        <Text style={styles.headerTitle}>{t.home.title}</Text>
       </View>
       
       <FlatList
@@ -406,6 +451,7 @@ export default function HomeScreen() {
             tintColor={theme.primary}
           />
         }
+        ListHeaderComponent={<AnnouncementsList />}
         ListEmptyComponent={renderEmpty}
         ListFooterComponent={renderFooter}
         onEndReached={onEndReached}

@@ -15,6 +15,7 @@ import {
   ScrollView,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { useLanguage } from "@/features/language";
 
 interface WallFormProps {
   onSubmit: (data: {
@@ -31,6 +32,7 @@ export const WallForm: React.FC<WallFormProps> = ({
   onSubmit,
   loading = false,
 }) => {
+  const { t } = useLanguage();
   const [name, setName] = useState("");
   const [width, setWidth] = useState("");
   const [height, setHeight] = useState("");
@@ -41,7 +43,7 @@ export const WallForm: React.FC<WallFormProps> = ({
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permissionResult.granted) {
-      Alert.alert("שגיאה", "יש לאשר גישה לגלריה");
+      Alert.alert(t.common.error, t.spray.cameraPermissionRequired);
       return;
     }
 
@@ -60,19 +62,19 @@ export const WallForm: React.FC<WallFormProps> = ({
   const handleSubmit = async () => {
     // Validate inputs
     if (!name.trim()) {
-      Alert.alert("שגיאה", "יש להזין שם לקיר");
+      Alert.alert(t.common.error, t.spray.mustEnterName);
       return;
     }
     if (!width || isNaN(parseFloat(width))) {
-      Alert.alert("שגיאה", "יש להזין רוחב תקין");
+      Alert.alert(t.common.error, t.errors.saveFailed);
       return;
     }
     if (!height || isNaN(parseFloat(height))) {
-      Alert.alert("שגיאה", "יש להזין גובה תקין");
+      Alert.alert(t.common.error, t.errors.saveFailed);
       return;
     }
     if (!imageUri) {
-      Alert.alert("שגיאה", "יש לבחור תמונה לקיר");
+      Alert.alert(t.common.error, t.spray.selectWall);
       return;
     }
 
@@ -85,7 +87,7 @@ export const WallForm: React.FC<WallFormProps> = ({
         imageUri,
       });
     } catch (error: any) {
-      Alert.alert("שגיאה", error.message || "הוספת הקיר נכשלה");
+      Alert.alert(t.common.error, error.message || t.spray.failedToAddWall);
     }
   };
 
@@ -98,19 +100,19 @@ export const WallForm: React.FC<WallFormProps> = ({
         ) : (
           <View style={styles.imagePlaceholder}>
             <Text style={styles.imagePlaceholderText}>📷</Text>
-            <Text style={styles.imagePlaceholderLabel}>בחר תמונת קיר</Text>
+            <Text style={styles.imagePlaceholderLabel}>{t.wall.selectPhoto}</Text>
           </View>
         )}
       </TouchableOpacity>
 
       {/* Wall Name */}
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>שם הקיר</Text>
+        <Text style={styles.label}>{t.wall.wallName}</Text>
         <TextInput
           style={styles.input}
           value={name}
           onChangeText={setName}
-          placeholder="הזן שם לקיר"
+          placeholder={t.wall.wallNamePlaceholder}
           placeholderTextColor="#666"
         />
       </View>
@@ -118,7 +120,7 @@ export const WallForm: React.FC<WallFormProps> = ({
       {/* Dimensions */}
       <View style={styles.row}>
         <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-          <Text style={styles.label}>רוחב (מ')</Text>
+          <Text style={styles.label}>{t.wall.widthMeters}</Text>
           <TextInput
             style={styles.input}
             value={width}
@@ -129,7 +131,7 @@ export const WallForm: React.FC<WallFormProps> = ({
           />
         </View>
         <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-          <Text style={styles.label}>גובה (מ')</Text>
+          <Text style={styles.label}>{t.wall.heightMeters}</Text>
           <TextInput
             style={styles.input}
             value={height}
@@ -143,7 +145,7 @@ export const WallForm: React.FC<WallFormProps> = ({
 
       {/* Public/Private Toggle */}
       <View style={styles.switchRow}>
-        <Text style={styles.label}>קיר ציבורי</Text>
+        <Text style={styles.label}>{t.wall.publicWall}</Text>
         <Switch
           value={isPublic}
           onValueChange={setIsPublic}
@@ -164,7 +166,7 @@ export const WallForm: React.FC<WallFormProps> = ({
         {loading ? (
           <ActivityIndicator color="#fff" />
         ) : (
-          <Text style={styles.submitButtonText}>הוסף קיר</Text>
+          <Text style={styles.submitButtonText}>{t.wall.addWall}</Text>
         )}
       </TouchableOpacity>
     </ScrollView>

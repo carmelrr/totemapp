@@ -143,6 +143,16 @@ export function useMapTransforms({
     }, 100);
   }, [notifyChange]);
 
+  // Cleanup pending timeout on unmount to prevent memory leaks and touch issues
+  React.useEffect(() => {
+    return () => {
+      if (pendingNotifyRef.current) {
+        clearTimeout(pendingNotifyRef.current);
+        pendingNotifyRef.current = null;
+      }
+    };
+  }, []);
+
   // Track dimensions for detecting changes and applying initial centering
   const prevDimensionsRef = useRef({ imgW: 0, imgH: 0, screenW: 0, screenH: 0 });
 

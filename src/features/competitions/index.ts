@@ -13,7 +13,6 @@ export * from './constants';
 export { CompetitionService } from './services/CompetitionService';
 export { ResultsService } from './services/ResultsService';
 export { ParticipantService } from './services/ParticipantService';
-export { JudgeService, DEFAULT_JUDGE_PERMISSIONS, FULL_JUDGE_PERMISSIONS } from './services/JudgeService';
 export { CompetitionRoutesService } from './services/CompetitionRoutesService';
 
 // Hooks
@@ -21,18 +20,18 @@ export {
   useCompetition,
   useActiveCompetitions,
   useAllCompetitions,
+  useOpenRegistrationCompetitions,
+  useCompletedCompetitionsWithResults,
   useCompetitionLeaderboard,
   useParticipantResult,
   useParticipants,
-  useJudges,
-  useIsJudge,
   useCompetitionRoutes,
   useCompetitionTimer,
   useCompetitionData,
 } from './hooks/useCompetition';
 
 // Components
-export { ActiveCompetitionBanner, CompetitionLeaderboard } from './components';
+export { ActiveCompetitionBanner, OpenRegistrationBanner, CompletedCompetitionBanner, CompetitionLeaderboard } from './components';
 
 // Screens
 export {
@@ -40,7 +39,8 @@ export {
   CreateCompetitionScreen,
   ManageCompetitionScreen,
   ManageParticipantsScreen,
-  ManageJudgesScreen,
+  ManageCategoriesScreen,
   ManageCompetitionRoutesScreen,
   JudgeEntryScreen,
+  CompetitionRegistrationScreen,
 } from './screens';

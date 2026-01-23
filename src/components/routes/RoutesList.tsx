@@ -1,5 +1,5 @@
 // components/routes/RoutesList.tsx
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import {
     View,
     Text,
@@ -8,7 +8,7 @@ import {
     TouchableOpacity,
     RefreshControl,
 } from 'react-native';
-import { THEME_COLORS } from '@/constants/colors';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface Route {
     id: string;
@@ -35,6 +35,9 @@ const RoutesList = memo<RoutesListProps>(({
     onRoutePress,
     selectedRouteId
 }) => {
+    const { theme } = useTheme();
+    const styles = useMemo(() => createStyles(theme), [theme]);
+    
     const renderRoute = ({ item: route }: { item: Route }) => (
         <TouchableOpacity
             style={[
@@ -76,7 +79,7 @@ const RoutesList = memo<RoutesListProps>(({
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={onRefresh}
-                            colors={[THEME_COLORS.primary]}
+                            colors={[theme.primary]}
                         />
                     ) : undefined
                 }
@@ -89,10 +92,11 @@ const RoutesList = memo<RoutesListProps>(({
 
 RoutesList.displayName = 'RoutesList';
 
-const styles = StyleSheet.create({
+// Dynamic styles factory for theme support
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: THEME_COLORS.background,
+        backgroundColor: theme.background,
     },
     listContent: {
         paddingVertical: 8,
@@ -101,20 +105,20 @@ const styles = StyleSheet.create({
         height: 60,
         marginHorizontal: 12,
         marginVertical: 4,
-        backgroundColor: THEME_COLORS.surface,
+        backgroundColor: theme.surface,
         borderRadius: 8,
         padding: 12,
         justifyContent: 'center',
         elevation: 1,
-        shadowColor: '#000',
+        shadowColor: theme.shadow,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
     },
     selectedRoute: {
-        backgroundColor: THEME_COLORS.primary + '20',
+        backgroundColor: theme.primary + '20',
         borderWidth: 1,
-        borderColor: THEME_COLORS.primary,
+        borderColor: theme.primary,
     },
     routeInfo: {
         flex: 1,
@@ -122,12 +126,12 @@ const styles = StyleSheet.create({
     routeName: {
         fontSize: 16,
         fontWeight: '600',
-        color: THEME_COLORS.text,
+        color: theme.text,
         marginBottom: 4,
     },
     routeGrade: {
         fontSize: 14,
-        color: THEME_COLORS.textSecondary,
+        color: theme.textSecondary,
     },
 });
 

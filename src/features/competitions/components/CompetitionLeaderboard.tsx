@@ -1,9 +1,9 @@
 /**
  * @fileoverview Competition Leaderboard Component
- * @description Displays competition rankings with category filter
+ * @description Displays competition rankings grouped by categories (sections)
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -12,8 +12,10 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 import {
   useCompetitionLeaderboard,
   useParticipants,
@@ -22,8 +24,10 @@ import {
   Competition,
   LeaderboardEntry,
   Category,
+  Participant,
 } from '@/features/competitions/types';
 import { ParticipantService } from '@/features/competitions/services/ParticipantService';
+import { ResultsService } from '@/features/competitions/services/ResultsService';
 import { formatPoints } from '@/features/competitions/constants';
 
 // Default avatar
@@ -35,81 +39,176 @@ interface CompetitionLeaderboardProps {
   onParticipantPress?: (participantId: string) => void;
 }
 
-export function CompetitionLeaderboard({
-  competition,
+// Interface for category leaderboard data
+interface CategoryLeaderboardData {
+  category: Category;
+  entries: LeaderboardEntry[];
+  participants: Participant[];
+  loading: boolean;
+}
+
+/**
+ * Hook to subscribe to leaderboard for a specific category
+ */
+function useCategoryLeaderboard(
+  competitionId: string,
+  categoryId: string,
+  format: 'national_league' | 'totemtition' | 'custom'
+) {
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    
+    const unsubscribe = format === 'totemtition'
+      ? ResultsService.subscribeToTotemtitionLeaderboard(
+          competitionId,
+          (leaderboard) => {
+            setEntries(leaderboard);
+            setLoading(false);
+          },
+          categoryId
+        )
+      : ResultsService.subscribeToLeaderboard(
+          competitionId,
+          (leaderboard) => {
+            setEntries(leaderboard);
+            setLoading(false);
+          },
+          categoryId
+        );
+
+    return () => unsubscribe();
+  }, [competitionId, categoryId, format]);
+
+  return { entries, loading };
+}
+
+/**
+ * Hook to get participants for a specific category
+ */
+function useCategoryParticipants(competitionId: string, categoryId: string) {
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    
+    const unsubscribe = ParticipantService.subscribeToParticipants(
+      competitionId,
+      (allParticipants) => {
+        // Filter by category
+        const filtered = allParticipants.filter(p => p.category === categoryId);
+        console.log(`[useCategoryParticipants] Category ${categoryId}: ${filtered.length} participants (from ${allParticipants.length} total)`);
+        setParticipants(filtered);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [competitionId, categoryId]);
+
+  return { participants, loading };
+}
+
+/**
+ * Component to render a single category section
+ */
+function CategorySection({
+  category,
+  competitionId,
+  format,
   currentUserId,
   onParticipantPress,
-}: CompetitionLeaderboardProps) {
-  const { theme } = useTheme();
-  const [selectedCategory, setSelectedCategory] = useState<string | undefined>(undefined);
-  const [categories, setCategories] = useState<Category[]>([]);
-
-  // Fetch categories
-  React.useEffect(() => {
-    ParticipantService.getCategories(competition.id).then(setCategories);
-  }, [competition.id]);
-
-  // Get leaderboard data
-  const { entries, loading, error } = useCompetitionLeaderboard(
-    competition.id,
-    selectedCategory
+  theme,
+  t,
+  styles,
+}: {
+  category: Category;
+  competitionId: string;
+  format: 'national_league' | 'totemtition' | 'custom';
+  currentUserId?: string;
+  onParticipantPress?: (participantId: string) => void;
+  theme: any;
+  t: any;
+  styles: any;
+}) {
+  const { entries, loading: leaderboardLoading } = useCategoryLeaderboard(
+    competitionId,
+    category.id,
+    format
+  );
+  const { participants, loading: participantsLoading } = useCategoryParticipants(
+    competitionId,
+    category.id
   );
 
-  const { count: participantCount } = useParticipants(competition.id);
+  const loading = leaderboardLoading || participantsLoading;
 
-  const styles = createStyles(theme);
+  // Merge leaderboard entries with participants who don't have scores yet
+  const allEntries = useMemo(() => {
+    console.log(`[CategorySection ${category.name}] entries: ${entries.length}, participants: ${participants.length}`);
+    
+    const leaderboardMap = new Map<string, LeaderboardEntry>();
+    entries.forEach(entry => {
+      leaderboardMap.set(entry.userId || entry.participantId, entry);
+    });
 
-  // Top 3 for podium
-  const topThree = useMemo(() => entries.slice(0, 3), [entries]);
-  
-  // Rest of entries (4th place onwards)
-  const restOfEntries = useMemo(() => entries.slice(3), [entries]);
+    const merged: LeaderboardEntry[] = [...entries];
+    let addedCount = 0;
 
-  const renderCategoryTabs = () => {
-    if (!competition.settings.enableCategories || categories.length === 0) {
-      return null;
+    participants.forEach(participant => {
+      const participantKey = participant.userId || participant.id;
+      if (!leaderboardMap.has(participantKey)) {
+        addedCount++;
+        merged.push({
+          rank: 0,
+          participantId: participant.id,
+          participantName: participant.userName || participant.name || 'Unknown',
+          userName: participant.userName || participant.name || 'Unknown',
+          userId: participant.userId,
+          photoURL: participant.photoURL || null,
+          points: 0,
+          totalPoints: 0,
+          routesCompleted: 0,
+          category: participant.category,
+          categoryName: participant.categoryName,
+        });
+      }
+    });
+    
+    console.log(`[CategorySection ${category.name}] Added ${addedCount} participants without scores, total: ${merged.length}`);
+
+    // Sort by points (descending), then assign ranks
+    merged.sort((a, b) => (b.points || 0) - (a.points || 0));
+    
+    let currentRank = 1;
+    for (let i = 0; i < merged.length; i++) {
+      if (merged[i].points === 0) {
+        merged[i].rank = 0;
+      } else if (i === 0) {
+        merged[i].rank = currentRank;
+      } else if ((merged[i].points || 0) === (merged[i - 1].points || 0)) {
+        merged[i].rank = merged[i - 1].rank;
+      } else {
+        merged[i].rank = i + 1;
+        currentRank = i + 1;
+      }
     }
 
-    return (
-      <View style={styles.categoryTabs}>
-        <TouchableOpacity
-          style={[
-            styles.categoryTab,
-            !selectedCategory && styles.categoryTabActive,
-          ]}
-          onPress={() => setSelectedCategory(undefined)}
-        >
-          <Text
-            style={[
-              styles.categoryTabText,
-              !selectedCategory && styles.categoryTabTextActive,
-            ]}
-          >
-            כללי
-          </Text>
-        </TouchableOpacity>
-        {categories.map((cat) => (
-          <TouchableOpacity
-            key={cat.id}
-            style={[
-              styles.categoryTab,
-              selectedCategory === cat.id && styles.categoryTabActive,
-            ]}
-            onPress={() => setSelectedCategory(cat.id)}
-          >
-            <Text
-              style={[
-                styles.categoryTabText,
-                selectedCategory === cat.id && styles.categoryTabTextActive,
-              ]}
-            >
-              {cat.name}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-    );
-  };
+    return merged;
+  }, [entries, participants]);
+
+  // Top 3 for podium (only those with scores)
+  const topThree = useMemo(() => allEntries.filter(e => e.points > 0).slice(0, 3), [allEntries]);
+  
+  // Rest of entries (4th place onwards, including those without scores)
+  const restOfEntries = useMemo(() => {
+    const withScores = allEntries.filter(e => e.points > 0).slice(3);
+    const withoutScores = allEntries.filter(e => e.points === 0);
+    return [...withScores, ...withoutScores];
+  }, [allEntries]);
 
   const renderPodium = () => {
     if (topThree.length === 0) return null;
@@ -142,13 +241,309 @@ export function CompetitionLeaderboard({
                 <View style={stepStyle}>
                   <Text style={styles.podiumRank}>{entry.rank}</Text>
                 </View>
-                <View style={styles.podiumAvatar}>
-                  <Text style={styles.podiumAvatarText}>
-                    {entry.participantName.charAt(0)}
-                  </Text>
-                </View>
+                {entry.photoURL ? (
+                  <Image
+                    source={{ uri: entry.photoURL }}
+                    style={styles.podiumAvatarImage}
+                  />
+                ) : (
+                  <View style={styles.podiumAvatar}>
+                    <Text style={styles.podiumAvatarText}>
+                      {(entry.participantName || 'U').charAt(0)}
+                    </Text>
+                  </View>
+                )}
                 <Text style={styles.podiumName} numberOfLines={1}>
-                  {entry.participantName}
+                  {entry.participantName || entry.userName || 'Unknown'}
+                </Text>
+                <Text style={styles.podiumPoints}>
+                  {formatPoints(entry.points)}
+                </Text>
+                <Text style={styles.podiumMedal}>{medal}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  };
+
+  const renderLeaderboardItem = (item: LeaderboardEntry) => {
+    const isCurrentUser = item.userId === currentUserId;
+    const displayName = item.participantName || item.userName || 'Unknown';
+    const hasScore = (item.points || 0) > 0;
+
+    return (
+      <TouchableOpacity
+        key={item.participantId}
+        style={[
+          styles.listItem, 
+          isCurrentUser && styles.currentUserItem,
+          !hasScore && styles.noScoreItem,
+        ]}
+        onPress={() => onParticipantPress?.(item.participantId)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.rankContainer}>
+          <Text style={[styles.rankNumber, !hasScore && styles.noScoreRank]}>
+            {hasScore ? item.rank : '-'}
+          </Text>
+        </View>
+
+        {item.photoURL ? (
+          <Image
+            source={{ uri: item.photoURL }}
+            style={styles.avatarImage}
+          />
+        ) : (
+          <View style={styles.avatarContainer}>
+            <Text style={styles.avatarText}>
+              {displayName.charAt(0)}
+            </Text>
+          </View>
+        )}
+
+        <View style={styles.infoContainer}>
+          <Text
+            style={[styles.nameText, isCurrentUser && styles.currentUserName]}
+            numberOfLines={1}
+          >
+            {displayName}
+            {isCurrentUser && <Text> {t.social.you}</Text>}
+          </Text>
+          <Text style={[styles.statsText, !hasScore && styles.noScoreText]}>
+            {hasScore 
+              ? `${item.routesCompleted} ${t.competition.routesCompleted} | ${formatPoints(item.points)}`
+              : t.competition.noScoreYet || 'אין ניקוד עדיין'
+            }
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.categorySectionContainer}>
+        <View style={styles.categorySectionHeader}>
+          <Text style={styles.categorySectionTitle}>{category.name}</Text>
+          <View style={styles.categoryParticipantCount}>
+            <ActivityIndicator size="small" color={theme.primary} />
+          </View>
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.categorySectionContainer}>
+      {/* Category Header */}
+      <View style={styles.categorySectionHeader}>
+        <Text style={styles.categorySectionTitle}>{category.name}</Text>
+        <View style={styles.categoryParticipantCount}>
+          <Text style={styles.categoryParticipantCountText}>
+            {allEntries.length} {t.competition.participants}
+          </Text>
+        </View>
+      </View>
+
+      {/* Podium for this category */}
+      {renderPodium()}
+
+      {/* Rest of entries for this category */}
+      {restOfEntries.length > 0 && (
+        <View style={styles.listSection}>
+          <Text style={styles.listTitle}>{t.social.otherPlaces}</Text>
+          {restOfEntries.map(renderLeaderboardItem)}
+        </View>
+      )}
+
+      {/* Empty state for this category */}
+      {allEntries.length === 0 && (
+        <View style={styles.categoryEmptyContainer}>
+          <Text style={styles.categoryEmptyText}>
+            {t.competition.noResultsYet}
+          </Text>
+        </View>
+      )}
+    </View>
+  );
+}
+
+export function CompetitionLeaderboard({
+  competition,
+  currentUserId,
+  onParticipantPress,
+}: CompetitionLeaderboardProps) {
+  const { theme } = useTheme();
+  const { t } = useLanguage();
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+
+  // Fetch categories from subcollection
+  useEffect(() => {
+    setCategoriesLoading(true);
+    ParticipantService.getCategories(competition.id)
+      .then((fetchedCategories) => {
+        console.log('[CompetitionLeaderboard] Fetched categories:', fetchedCategories.length, fetchedCategories.map(c => c.name));
+        setCategories(fetchedCategories);
+      })
+      .catch((err) => {
+        console.log('[CompetitionLeaderboard] Error fetching categories:', err);
+        setCategories([]);
+      })
+      .finally(() => setCategoriesLoading(false));
+  }, [competition.id]);
+
+  // Determine if we should show categories
+  // Check both the setting AND if we actually have categories
+  const hasCategories = competition.settings?.enableCategories && categories.length > 0;
+  
+  console.log('[CompetitionLeaderboard] hasCategories:', hasCategories, 
+    'enableCategories:', competition.settings?.enableCategories,
+    'categories.length:', categories.length,
+    'categoriesLoading:', categoriesLoading);
+
+  const styles = createStyles(theme);
+
+  // For competitions without categories, use the original single-category view
+  const { entries, loading: leaderboardLoading, error } = useCompetitionLeaderboard(
+    hasCategories ? null : competition.id, // Only fetch if no categories
+    undefined,
+    competition.format as 'national_league' | 'totemtition' | 'custom'
+  );
+
+  const { participants, loading: participantsLoading, count: totalParticipantCount } = useParticipants(
+    competition.id,
+    undefined // Get all participants for count
+  );
+
+  const loading = categoriesLoading || (!hasCategories && (leaderboardLoading || participantsLoading));
+
+  // Sync missing categories when leaderboard loads (for per-category scoring)
+  // This runs more aggressively to catch category changes and new registrations
+  useEffect(() => {
+    if (!loading && competition.settings?.enableCategories) {
+      // Always check for missing categories in entries when categories are enabled
+      const checkAndSync = async () => {
+        try {
+          const missingCategories = await ResultsService.getResultsWithMissingCategories(competition.id);
+          if (missingCategories.length > 0) {
+            console.log(`[CompetitionLeaderboard] Found ${missingCategories.length} results with missing categories, syncing...`);
+            await ResultsService.syncResultCategories(competition.id);
+          }
+        } catch (err) {
+          console.log('Failed to check/sync categories:', err);
+        }
+      };
+      checkAndSync();
+    }
+  }, [loading, competition.id, competition.settings?.enableCategories]);
+
+  // For no-category competitions: merge entries with participants
+  const allEntriesNoCategory = useMemo(() => {
+    if (hasCategories) return [];
+
+    const leaderboardMap = new Map<string, LeaderboardEntry>();
+    entries.forEach(entry => {
+      leaderboardMap.set(entry.userId || entry.participantId, entry);
+    });
+
+    const merged: LeaderboardEntry[] = [...entries];
+
+    participants.forEach(participant => {
+      const participantKey = participant.userId || participant.id;
+      if (!leaderboardMap.has(participantKey)) {
+        merged.push({
+          rank: 0,
+          participantId: participant.id,
+          participantName: participant.userName || participant.name || 'Unknown',
+          userName: participant.userName || participant.name || 'Unknown',
+          userId: participant.userId,
+          photoURL: participant.photoURL || null,
+          points: 0,
+          totalPoints: 0,
+          routesCompleted: 0,
+          category: participant.category,
+          categoryName: participant.categoryName,
+        });
+      }
+    });
+
+    merged.sort((a, b) => (b.points || 0) - (a.points || 0));
+    
+    let currentRank = 1;
+    for (let i = 0; i < merged.length; i++) {
+      if (merged[i].points === 0) {
+        merged[i].rank = 0;
+      } else if (i === 0) {
+        merged[i].rank = currentRank;
+      } else if ((merged[i].points || 0) === (merged[i - 1].points || 0)) {
+        merged[i].rank = merged[i - 1].rank;
+      } else {
+        merged[i].rank = i + 1;
+        currentRank = i + 1;
+      }
+    }
+
+    return merged;
+  }, [entries, participants, hasCategories]);
+
+  // Top 3 for podium (only those with scores) - for no-category competitions
+  const topThree = useMemo(() => allEntriesNoCategory.filter(e => e.points > 0).slice(0, 3), [allEntriesNoCategory]);
+  
+  // Rest of entries - for no-category competitions
+  const restOfEntries = useMemo(() => {
+    const withScores = allEntriesNoCategory.filter(e => e.points > 0).slice(3);
+    const withoutScores = allEntriesNoCategory.filter(e => e.points === 0);
+    return [...withScores, ...withoutScores];
+  }, [allEntriesNoCategory]);
+
+  const renderPodium = () => {
+    if (topThree.length === 0) return null;
+
+    const podiumOrder = [1, 0, 2]; // 2nd, 1st, 3rd
+
+    return (
+      <View style={styles.podiumContainer}>
+        <View style={styles.podiumRow}>
+          {podiumOrder.map((index) => {
+            const entry = topThree[index];
+            if (!entry) return <View key={index} style={styles.podiumPlace} />;
+
+            const stepStyle =
+              index === 0
+                ? styles.podiumStep1
+                : index === 1
+                ? styles.podiumStep2
+                : styles.podiumStep3;
+
+            const medal = index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉';
+
+            return (
+              <TouchableOpacity
+                key={entry.participantId}
+                style={styles.podiumPlace}
+                onPress={() => onParticipantPress?.(entry.participantId)}
+                activeOpacity={0.7}
+              >
+                <View style={stepStyle}>
+                  <Text style={styles.podiumRank}>{entry.rank}</Text>
+                </View>
+                {entry.photoURL ? (
+                  <Image
+                    source={{ uri: entry.photoURL }}
+                    style={styles.podiumAvatarImage}
+                  />
+                ) : (
+                  <View style={styles.podiumAvatar}>
+                    <Text style={styles.podiumAvatarText}>
+                      {(entry.participantName || 'U').charAt(0)}
+                    </Text>
+                  </View>
+                )}
+                <Text style={styles.podiumName} numberOfLines={1}>
+                  {entry.participantName || entry.userName || 'Unknown'}
                 </Text>
                 <Text style={styles.podiumPoints}>
                   {formatPoints(entry.points)}
@@ -164,44 +559,63 @@ export function CompetitionLeaderboard({
 
   const renderLeaderboardItem = ({ item }: { item: LeaderboardEntry }) => {
     const isCurrentUser = item.userId === currentUserId;
+    const displayName = item.participantName || item.userName || 'Unknown';
+    const hasScore = (item.points || 0) > 0;
 
     return (
       <TouchableOpacity
-        style={[styles.listItem, isCurrentUser && styles.currentUserItem]}
+        style={[
+          styles.listItem, 
+          isCurrentUser && styles.currentUserItem,
+          !hasScore && styles.noScoreItem,
+        ]}
         onPress={() => onParticipantPress?.(item.participantId)}
         activeOpacity={0.7}
       >
         <View style={styles.rankContainer}>
-          <Text style={styles.rankNumber}>{item.rank}</Text>
-        </View>
-
-        <View style={styles.avatarContainer}>
-          <Text style={styles.avatarText}>
-            {item.participantName.charAt(0)}
+          <Text style={[styles.rankNumber, !hasScore && styles.noScoreRank]}>
+            {hasScore ? item.rank : '-'}
           </Text>
         </View>
+
+        {item.photoURL ? (
+          <Image
+            source={{ uri: item.photoURL }}
+            style={styles.avatarImage}
+          />
+        ) : (
+          <View style={styles.avatarContainer}>
+            <Text style={styles.avatarText}>
+              {displayName.charAt(0)}
+            </Text>
+          </View>
+        )}
 
         <View style={styles.infoContainer}>
           <Text
             style={[styles.nameText, isCurrentUser && styles.currentUserName]}
             numberOfLines={1}
           >
-            {item.participantName}
-            {isCurrentUser && <Text> (אתה)</Text>}
+            {displayName}
+            {isCurrentUser && <Text> {t.social.you}</Text>}
           </Text>
-          <Text style={styles.statsText}>
-            {item.routesCompleted} מסלולים | {formatPoints(item.points)}
+          <Text style={[styles.statsText, !hasScore && styles.noScoreText]}>
+            {hasScore 
+              ? `${item.routesCompleted} ${t.competition.routesCompleted} | ${formatPoints(item.points)}`
+              : t.competition.noScoreYet || 'אין ניקוד עדיין'
+            }
           </Text>
         </View>
       </TouchableOpacity>
     );
   };
 
+  // Show loading
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={styles.loadingText}>טוען לידרבורד...</Text>
+        <Text style={styles.loadingText}>{t.competition.loadingCompetition}</Text>
       </View>
     );
   }
@@ -209,58 +623,75 @@ export function CompetitionLeaderboard({
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>שגיאה בטעינת הלידרבורד</Text>
+        <Text style={styles.errorText}>{t.competition.errorLoadingLeaderboard}</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       {/* Competition Stats */}
       <View style={styles.statsHeader}>
         <View style={styles.statBox}>
-          <Text style={styles.statValue}>{participantCount}</Text>
-          <Text style={styles.statLabel}>משתתפים</Text>
+          <Text style={styles.statValue}>{totalParticipantCount}</Text>
+          <Text style={styles.statLabel}>{t.competition.participants}</Text>
         </View>
         <View style={styles.statBox}>
           <Text style={styles.statValue}>
             {competition.settings.maxRoutes}
           </Text>
-          <Text style={styles.statLabel}>מסלולים</Text>
+          <Text style={styles.statLabel}>{t.competition.routesCompleted}</Text>
         </View>
         <View style={styles.statBox}>
           <Text style={styles.statValue}>TOP{competition.settings.topRoutesForScoring}</Text>
-          <Text style={styles.statLabel}>ניקוד</Text>
+          <Text style={styles.statLabel}>{t.competition.scoring}</Text>
         </View>
       </View>
 
-      {/* Category Tabs */}
-      {renderCategoryTabs()}
-
-      {/* Podium */}
-      {renderPodium()}
-
-      {/* Rest of the list */}
-      {restOfEntries.length > 0 && (
-        <View style={styles.listSection}>
-          <Text style={styles.listTitle}>שאר המקומות</Text>
-          <FlatList
-            data={restOfEntries}
-            keyExtractor={(item) => item.participantId}
-            renderItem={renderLeaderboardItem}
-            scrollEnabled={false}
+      {/* If has categories - show each category as a section */}
+      {hasCategories ? (
+        categories.map((category) => (
+          <CategorySection
+            key={category.id}
+            category={category}
+            competitionId={competition.id}
+            format={competition.format as 'national_league' | 'totemtition' | 'custom'}
+            currentUserId={currentUserId}
+            onParticipantPress={onParticipantPress}
+            theme={theme}
+            t={t}
+            styles={styles}
           />
-        </View>
-      )}
+        ))
+      ) : (
+        /* No categories - show single leaderboard */
+        <>
+          {/* Podium */}
+          {renderPodium()}
 
-      {entries.length === 0 && (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            עדיין אין תוצאות להצגה
-          </Text>
-        </View>
+          {/* Rest of the list */}
+          {restOfEntries.length > 0 && (
+            <View style={styles.listSection}>
+              <Text style={styles.listTitle}>{t.social.otherPlaces}</Text>
+              <FlatList
+                data={restOfEntries}
+                keyExtractor={(item) => item.participantId}
+                renderItem={renderLeaderboardItem}
+                scrollEnabled={false}
+              />
+            </View>
+          )}
+
+          {entries.length === 0 && (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {t.competition.noResultsYet}
+              </Text>
+            </View>
+          )}
+        </>
       )}
-    </View>
+    </ScrollView>
   );
 }
 
@@ -395,6 +826,14 @@ const createStyles = (theme: any) =>
       borderWidth: 2,
       borderColor: '#fff',
     },
+    podiumAvatarImage: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      marginBottom: 4,
+      borderWidth: 2,
+      borderColor: '#fff',
+    },
     podiumAvatarText: {
       color: '#fff',
       fontSize: 18,
@@ -441,6 +880,10 @@ const createStyles = (theme: any) =>
       borderColor: theme.primary,
       backgroundColor: theme.isDark ? 'rgba(99, 102, 241, 0.15)' : '#f0f0ff',
     },
+    noScoreItem: {
+      opacity: 0.7,
+      backgroundColor: theme.isDark ? 'rgba(128,128,128,0.1)' : 'rgba(200,200,200,0.2)',
+    },
     rankContainer: {
       width: 36,
       alignItems: 'center',
@@ -450,6 +893,9 @@ const createStyles = (theme: any) =>
       fontWeight: 'bold',
       color: theme.text,
     },
+    noScoreRank: {
+      color: theme.textSecondary,
+    },
     avatarContainer: {
       width: 40,
       height: 40,
@@ -457,6 +903,12 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.primary,
       justifyContent: 'center',
       alignItems: 'center',
+      marginHorizontal: 12,
+    },
+    avatarImage: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
       marginHorizontal: 12,
     },
     avatarText: {
@@ -482,12 +934,54 @@ const createStyles = (theme: any) =>
       color: theme.textSecondary,
       textAlign: 'right',
     },
+    noScoreText: {
+      fontStyle: 'italic',
+    },
     emptyContainer: {
       padding: 40,
       alignItems: 'center',
     },
     emptyText: {
       fontSize: 16,
+      color: theme.textSecondary,
+      textAlign: 'center',
+    },
+    // Category Section Styles
+    categorySectionContainer: {
+      marginBottom: 20,
+      backgroundColor: theme.surface,
+      borderRadius: 12,
+      marginHorizontal: 0,
+      overflow: 'hidden',
+    },
+    categorySectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      backgroundColor: theme.primary,
+    },
+    categorySectionTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: '#fff',
+    },
+    categoryParticipantCount: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    categoryParticipantCountText: {
+      fontSize: 14,
+      color: 'rgba(255,255,255,0.9)',
+      fontWeight: '500',
+    },
+    categoryEmptyContainer: {
+      padding: 30,
+      alignItems: 'center',
+    },
+    categoryEmptyText: {
+      fontSize: 14,
       color: theme.textSecondary,
       textAlign: 'center',
     },

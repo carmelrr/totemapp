@@ -9,11 +9,12 @@ import {
   Alert,
   ScrollView,
   RefreshControl,
-  Dimensions,
+  useWindowDimensions,
   Modal,
   Switch,
   FlatList,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { auth, db } from "@/features/data/firebase";
 import {
   doc,
@@ -24,6 +25,7 @@ import {
   where,
   getDocs,
   deleteDoc,
+  onSnapshot,
 } from "firebase/firestore";
 import {
   followUser,
@@ -34,15 +36,17 @@ import {
   promoteToAdmin,
   removeAdminPrivileges,
   deleteFeedback,
+  subscribeToUserProfile,
+  subscribeToUserSocial,
 } from "@/features/social/socialService";
 import defaultAvatar from "@/assets/splash.png";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 import { useAdmin } from "@/context/AdminContext";
 import { UnifiedStatsDashboard as StatsDashboard, UnifiedGradeStatsModal as GradeStatsModal, UserProfileHeader } from "../../components/profile";
 import { fetchUserStats as fetchUserStatsService, fetchOtherUserStats } from "./services/statsService";
 import { ProfileSettingsTab } from "./components/ProfileSettingsTab";
-
-const { width: screenWidth } = Dimensions.get("window");
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 // Tab types for profile view
 type ProfileTab = "statistics" | "settings";
@@ -51,10 +55,14 @@ export default function UserProfileScreen({ route, navigation }) {
   const { userId, autoEdit = false } = route.params;
   const currentUserId = auth.currentUser?.uid;
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const { isAdmin, adminModeEnabled } = useAdmin();
+  const layout = useResponsiveLayout();
+  const { width: screenWidth, isLandscape, scaleFactor } = layout;
+  const insets = useSafeAreaInsets();
   
-  // Create dynamic styles based on theme
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  // Create dynamic styles based on theme and layout
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
 
   const [userProfile, setUserProfile] = useState(null);
   const [userStats, setUserStats] = useState({
@@ -97,13 +105,54 @@ export default function UserProfileScreen({ route, navigation }) {
   const [activeTab, setActiveTab] = useState<ProfileTab>("statistics");
   const isOwner = currentUserId === userId;
 
+  // Real-time subscription to user profile and social data
   useEffect(() => {
-    loadUserProfile();
+    if (!userId) return;
+    
+    setLoading(true);
+    
+    // Subscribe to profile changes
+    const unsubscribeProfile = subscribeToUserProfile(
+      userId,
+      (profile) => {
+        if (profile) {
+          setUserProfile(profile);
+          setTargetUserIsAdmin(profile.isAdmin === true);
+          if (profile.privacySettings) {
+            setPrivacySettings(profile.privacySettings);
+          }
+        }
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Error in profile subscription:", error);
+        setLoading(false);
+      }
+    );
+    
+    // Subscribe to followers/following changes
+    const unsubscribeSocial = subscribeToUserSocial(
+      userId,
+      (followersData) => setFollowers(followersData),
+      (followingData) => setFollowing(followingData),
+      (error) => console.error("Error in social subscription:", error)
+    );
+    
+    // Check follow status and load stats (one-time)
+    checkFollowStatus();
+    fetchUserStats();
+    calculateGradeStats();
+    
+    return () => {
+      unsubscribeProfile();
+      unsubscribeSocial();
+    };
   }, [userId]);
 
   useEffect(() => {
-    // Auto-enable edit mode if requested and user is owner
+    // Auto-open settings tab if requested and user is owner
     if (autoEdit && currentUserId === userId) {
+      setActiveTab("settings");
       setIsEditingPrivacy(true);
     }
   }, [autoEdit, currentUserId, userId]);
@@ -113,6 +162,7 @@ export default function UserProfileScreen({ route, navigation }) {
     const unsubscribe = navigation.addListener("focus", () => {
       const { autoEdit: newAutoEdit } = route.params;
       if (newAutoEdit && currentUserId === userId) {
+        setActiveTab("settings");
         setIsEditingPrivacy(true);
       }
     });
@@ -131,7 +181,7 @@ export default function UserProfileScreen({ route, navigation }) {
       ]);
     } catch (error) {
       console.error("Error loading user profile:", error);
-      Alert.alert("שגיאה", "לא ניתן לטעון פרופיל משתמש");
+      Alert.alert(t.common.error, t.profile.cannotLoadProfile);
     } finally {
       setLoading(false);
     }
@@ -142,7 +192,7 @@ export default function UserProfileScreen({ route, navigation }) {
     try {
       await loadUserProfile();
     } catch (error) {
-      Alert.alert("שגיאה", "נכשל ברענון הנתונים");
+      Alert.alert(t.common.error, t.profile.failedToRefresh);
     } finally {
       setRefreshing(false);
     }
@@ -365,19 +415,19 @@ export default function UserProfileScreen({ route, navigation }) {
     if (!isAdmin || !adminModeEnabled) return;
     
     Alert.alert(
-      "קידום לאדמין",
-      `האם אתה בטוח שברצונך לקדם את ${userProfile?.displayName || "משתמש"} לאדמין?`,
+      t.admin.promoteToAdmin,
+      t.admin.promoteToAdminConfirm(userProfile?.displayName || t.profile.user),
       [
-        { text: "ביטול", style: "cancel" },
+        { text: t.common.cancel, style: "cancel" },
         {
-          text: "אישור",
+          text: t.common.confirm,
           onPress: async () => {
             try {
               await promoteToAdmin(userId);
               setTargetUserIsAdmin(true);
-              Alert.alert("הצלחה", "המשתמש קודם לאדמין");
+              Alert.alert(t.common.success, t.admin.userPromoted);
             } catch (error) {
-              Alert.alert("שגיאה", "לא ניתן לקדם משתמש לאדמין");
+              Alert.alert(t.common.error, t.admin.cannotPromoteUser);
             }
           },
         },
@@ -389,20 +439,20 @@ export default function UserProfileScreen({ route, navigation }) {
     if (!isAdmin || !adminModeEnabled) return;
     
     Alert.alert(
-      "הסרת הרשאות אדמין",
-      `האם אתה בטוח שברצונך להסיר הרשאות אדמין מ${userProfile?.displayName || "משתמש"}?`,
+      t.admin.removeAdmin,
+      t.admin.removeAdminConfirm(userProfile?.displayName || t.profile.user),
       [
-        { text: "ביטול", style: "cancel" },
+        { text: t.common.cancel, style: "cancel" },
         {
-          text: "אישור",
+          text: t.common.confirm,
           style: "destructive",
           onPress: async () => {
             try {
               await removeAdminPrivileges(userId);
               setTargetUserIsAdmin(false);
-              Alert.alert("הצלחה", "הרשאות אדמין הוסרו");
+              Alert.alert(t.common.success, t.admin.adminRemoved);
             } catch (error) {
-              Alert.alert("שגיאה", "לא ניתן להסיר הרשאות אדמין");
+              Alert.alert(t.common.error, t.admin.cannotRemoveAdmin);
             }
           },
         },
@@ -414,21 +464,21 @@ export default function UserProfileScreen({ route, navigation }) {
     if (!isAdmin || !adminModeEnabled) return;
     
     Alert.alert(
-      "מחיקת פידבק",
-      "האם אתה בטוח שברצונך למחוק פידבק זה?",
+      t.admin.deleteFeedback,
+      t.admin.deleteFeedbackConfirm,
       [
-        { text: "ביטול", style: "cancel" },
+        { text: t.common.cancel, style: "cancel" },
         {
-          text: "מחק",
+          text: t.common.delete,
           style: "destructive",
           onPress: async () => {
             try {
               await deleteFeedback(routeId, feedbackId);
               // Refresh history
               loadHistory(true);
-              Alert.alert("הצלחה", "הפידבק נמחק");
+              Alert.alert(t.common.success, t.admin.feedbackDeleted);
             } catch (error) {
-              Alert.alert("שגיאה", "לא ניתן למחוק פידבק");
+              Alert.alert(t.common.error, t.admin.cannotDeleteFeedback);
             }
           },
         },
@@ -450,7 +500,7 @@ export default function UserProfileScreen({ route, navigation }) {
       setPrivacySettings(newSettings);
     } catch (error) {
       console.error("Error saving privacy settings:", error);
-      Alert.alert("שגיאה", "לא ניתן לשמור הגדרות פרטיות");
+      Alert.alert(t.common.error, t.admin.cannotSavePrivacy);
     }
   };
 
@@ -471,7 +521,7 @@ export default function UserProfileScreen({ route, navigation }) {
       setFollowers(followersData);
     } catch (error) {
       console.error("Error toggling follow:", error);
-      Alert.alert("שגיאה", "לא ניתן לבצע פעולה");
+      Alert.alert(t.common.error, t.admin.cannotPerformAction);
     }
   };
 
@@ -479,7 +529,7 @@ export default function UserProfileScreen({ route, navigation }) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#8e44ad" />
-        <Text style={styles.loadingText}>טוען פרופיל...</Text>
+        <Text style={styles.loadingText}>{t.common.loading}</Text>
       </View>
     );
   }
@@ -487,12 +537,12 @@ export default function UserProfileScreen({ route, navigation }) {
   if (!userProfile) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>לא ניתן למצוא משתמש</Text>
+        <Text style={styles.errorText}>{t.userProfile.cannotFindUser}</Text>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Text style={styles.backButtonText}>חזור</Text>
+          <Text style={styles.backButtonText}>{t.userProfile.back}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -511,10 +561,10 @@ export default function UserProfileScreen({ route, navigation }) {
     const diffHours = Math.floor(diffMs / 3600000);
     const diffDays = Math.floor(diffMs / 86400000);
 
-    if (diffMins < 1) return "הרגע";
-    if (diffMins < 60) return `לפני ${diffMins} דקות`;
-    if (diffHours < 24) return `לפני ${diffHours} שעות`;
-    if (diffDays < 7) return `לפני ${diffDays} ימים`;
+    if (diffMins < 1) return t.common.justNow;
+    if (diffMins < 60) return t.common.minutesAgo(diffMins);
+    if (diffHours < 24) return t.common.hoursAgo(diffHours);
+    if (diffDays < 7) return t.common.daysAgo(diffDays);
     
     return d.toLocaleDateString("he-IL");
   };
@@ -528,7 +578,7 @@ export default function UserProfileScreen({ route, navigation }) {
           item.type === "closure" ? styles.closureIndicator : styles.feedbackIndicator
         ]}>
           <Text style={styles.historyTypeText}>
-            {item.type === "closure" ? "סגירה 🎯" : "פידבק 💬"}
+            {item.type === "closure" ? `${t.profile.closure} 🎯` : `${t.profile.feedbackGiven} 💬`}
           </Text>
         </View>
         <Text style={styles.historyDate}>{formatDate(item.createdAt)}</Text>
@@ -561,7 +611,7 @@ export default function UserProfileScreen({ route, navigation }) {
           style={styles.adminDeleteButton}
           onPress={() => handleDeleteFeedback(item.routeId, item.feedbackId)}
         >
-          <Text style={styles.adminDeleteButtonText}>🗑️ מחק פידבק</Text>
+          <Text style={styles.adminDeleteButtonText}>{t.userProfile.deleteFeedback}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -595,21 +645,21 @@ export default function UserProfileScreen({ route, navigation }) {
         {/* Admin Controls - Only visible in admin edit mode */}
         {isAdmin && adminModeEnabled && currentUserId !== userId && (
           <View style={styles.adminControlsSection}>
-            <Text style={styles.adminSectionTitle}>🔧 פעולות אדמין</Text>
+            <Text style={styles.adminSectionTitle}>{t.userProfile.adminActions}</Text>
             <View style={styles.adminButtonsRow}>
               {!targetUserIsAdmin ? (
                 <TouchableOpacity
                   style={styles.adminPromoteButton}
                   onPress={handlePromoteToAdmin}
                 >
-                  <Text style={styles.adminButtonText}>⬆️ קדם לאדמין</Text>
+                  <Text style={styles.adminButtonText}>{t.userProfile.promoteToAdmin}</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
                   style={styles.adminRemoveButton}
                   onPress={handleRemoveAdmin}
                 >
-                  <Text style={styles.adminButtonText}>⬇️ הסר הרשאות אדמין</Text>
+                  <Text style={styles.adminButtonText}>{t.userProfile.removeAdminRights}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -632,7 +682,7 @@ export default function UserProfileScreen({ route, navigation }) {
                 activeTab === "statistics" && styles.tabButtonTextActive,
                 { color: activeTab === "statistics" ? theme.primary : theme.textSecondary }
               ]}>
-                📊 סטטיסטיקה
+                {t.userProfile.statisticsTab}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -648,7 +698,7 @@ export default function UserProfileScreen({ route, navigation }) {
                 activeTab === "settings" && styles.tabButtonTextActive,
                 { color: activeTab === "settings" ? theme.primary : theme.textSecondary }
               ]}>
-                ⚙️ הגדרות פרופיל
+                {t.userProfile.settingsTab}
               </Text>
             </TouchableOpacity>
           </View>
@@ -675,21 +725,23 @@ export default function UserProfileScreen({ route, navigation }) {
               {/* User History Section - for own profile */}
               {privacySettings.showHistory && (
                 <View style={styles.historySection}>
-                  <Text style={styles.historySectionTitle}>היסטוריית פעילות</Text>
+                  <Text style={styles.historySectionTitle}>{t.userProfile.activityHistory}</Text>
                   
                   {loadingHistory && history.length === 0 ? (
                     <View style={styles.historyLoading}>
                       <ActivityIndicator size="small" color={theme.primary} />
-                      <Text style={styles.historyLoadingText}>טוען היסטוריה...</Text>
+                      <Text style={styles.historyLoadingText}>{t.userProfile.loadingHistory}</Text>
                     </View>
                   ) : history.length === 0 ? (
                     <View style={styles.historyEmpty}>
                       <Text style={styles.historyEmptyIcon}>📝</Text>
-                      <Text style={styles.historyEmptyText}>אין פעילות עדיין</Text>
+                      <Text style={styles.historyEmptyText}>{t.userProfile.noActivityYet}</Text>
                     </View>
                   ) : (
                     <>
-                      {history.map(renderHistoryItem)}
+                      <View style={styles.historyItemsContainer}>
+                        {history.map(renderHistoryItem)}
+                      </View>
                       
                       {historyHasMore && (
                         <TouchableOpacity
@@ -700,7 +752,7 @@ export default function UserProfileScreen({ route, navigation }) {
                           {loadingHistory ? (
                             <ActivityIndicator size="small" color={theme.primary} />
                           ) : (
-                            <Text style={styles.loadMoreText}>טען עוד</Text>
+                            <Text style={styles.loadMoreText}>{t.userProfile.loadMore}</Text>
                           )}
                         </TouchableOpacity>
                       )}
@@ -719,6 +771,7 @@ export default function UserProfileScreen({ route, navigation }) {
               }}
               isOwner={isOwner}
               userDisplayName={userProfile?.displayName}
+              userStats={userStats}
             />
           )
         ) : (
@@ -740,24 +793,26 @@ export default function UserProfileScreen({ route, navigation }) {
             {/* User History Section - for other user, only active routes */}
             {privacySettings.showHistory && (
               <View style={styles.historySection}>
-                <Text style={styles.historySectionTitle}>היסטוריית פעילות (מסלולים פעילים)</Text>
+                <Text style={styles.historySectionTitle}>{t.userProfile.activityHistoryActive}</Text>
                 <Text style={[styles.historySubtitle, { color: theme.textSecondary }]}>
-                  פידבקים ודירוגים למסלולים שעל הקיר כרגע
+                  {t.userProfile.activeRoutesSubtitle}
                 </Text>
                 
                 {loadingHistory && history.length === 0 ? (
                   <View style={styles.historyLoading}>
                     <ActivityIndicator size="small" color={theme.primary} />
-                    <Text style={styles.historyLoadingText}>טוען היסטוריה...</Text>
+                    <Text style={styles.historyLoadingText}>{t.userProfile.loadingHistory}</Text>
                   </View>
                 ) : history.length === 0 ? (
                   <View style={styles.historyEmpty}>
                     <Text style={styles.historyEmptyIcon}>📝</Text>
-                    <Text style={styles.historyEmptyText}>אין פעילות על מסלולים פעילים</Text>
+                    <Text style={styles.historyEmptyText}>{t.userProfile.noActiveRoutesActivity}</Text>
                   </View>
                 ) : (
                   <>
-                    {history.map(renderHistoryItem)}
+                    <View style={styles.historyItemsContainer}>
+                      {history.map(renderHistoryItem)}
+                    </View>
                     
                     {historyHasMore && (
                       <TouchableOpacity
@@ -768,7 +823,7 @@ export default function UserProfileScreen({ route, navigation }) {
                         {loadingHistory ? (
                           <ActivityIndicator size="small" color={theme.primary} />
                         ) : (
-                          <Text style={styles.loadMoreText}>טען עוד</Text>
+                          <Text style={styles.loadMoreText}>{t.userProfile.loadMore}</Text>
                         )}
                       </TouchableOpacity>
                     )}
@@ -790,24 +845,63 @@ export default function UserProfileScreen({ route, navigation }) {
         gradeStats={gradeStats}
         allRoutes={allRoutes}
         privacySettings={privacySettings}
+        isOwner={isOwner}
       />
     </ScrollView>
   );
 }
 
-// Dynamic styles based on theme
-const createStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
-  },
-  innerContainer: {
-    flex: 1,
-    padding: 20,
-  },
+// Dynamic styles based on theme and responsive layout
+const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout>, insets?: { left: number; right: number; top: number; bottom: number }) => {
+  const scaleFactor = layout?.scaleFactor ?? 1;
+  const isLandscape = layout?.isLandscape ?? false;
+  const screenWidth = layout?.width ?? 375; // Default to common phone width
+  const screenHeight = layout?.height ?? 667;
+  const isTablet = layout?.isTablet ?? false;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  
+  // Safe area insets for phone landscape
+  const safeLeft = insets?.left ?? 0;
+  const safeRight = insets?.right ?? 0;
+  
+  // In landscape, calculate column widths for side-by-side layout
+  // Account for safe areas in phone landscape
+  const horizontalPadding = isPhoneLandscape ? 16 : (isLandscape ? 24 : 20);
+  const totalHorizontalPadding = horizontalPadding * 2 + safeLeft + safeRight;
+  const landscapeColumnWidth = isLandscape ? (screenWidth - totalHorizontalPadding - 24) / 2 : screenWidth - 40;
+  const landscapeFullWidth = isLandscape ? screenWidth - totalHorizontalPadding : screenWidth - 40;
+  
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      paddingLeft: isLandscape ? safeLeft : 0,
+      paddingRight: isLandscape ? safeRight : 0,
+    },
+    innerContainer: {
+      flex: 1,
+      padding: horizontalPadding,
+      flexDirection: isLandscape ? 'row' : 'column',
+      flexWrap: isLandscape ? 'wrap' : 'nowrap',
+      alignItems: isLandscape ? 'flex-start' : 'stretch',
+      justifyContent: isLandscape ? 'space-between' : 'flex-start',
+      gap: isLandscape ? 16 : 0,
+    },
+    // Landscape layout columns
+    landscapeLeftColumn: {
+      width: isLandscape ? landscapeColumnWidth : '100%',
+      flexShrink: 0,
+    },
+    landscapeRightColumn: {
+      width: isLandscape ? landscapeColumnWidth : '100%',
+      flexShrink: 0,
+    },
+    landscapeFullWidth: {
+      width: isLandscape ? landscapeFullWidth : '100%',
+    },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -844,24 +938,25 @@ const createStyles = (theme: any) => StyleSheet.create({
   profileHeader: {
     backgroundColor: theme.surface,
     borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
+    padding: isLandscape ? 16 : 20,
+    marginBottom: isLandscape ? 0 : 20,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 10,
     elevation: 5,
+    width: isLandscape ? landscapeColumnWidth : '100%',
   },
   avatarContainer: {
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: isLandscape ? 12 : 20,
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: isLandscape ? 80 : 100,
+    height: isLandscape ? 80 : 100,
+    borderRadius: isLandscape ? 40 : 50,
     backgroundColor: theme.border,
-    borderWidth: 4,
+    borderWidth: isLandscape ? 3 : 4,
     borderColor: theme.secondary,
   },
   profileInfo: {
@@ -904,10 +999,11 @@ const createStyles = (theme: any) => StyleSheet.create({
   statsContainer: {
     backgroundColor: theme.surface,
     borderRadius: 20,
-    padding: 20,
-    marginBottom: 20,
+    padding: isLandscape ? 16 : 20,
+    marginBottom: isLandscape ? 0 : 20,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 4 },
+    width: isLandscape ? landscapeColumnWidth : '100%',
     shadowOpacity: 0.12,
     shadowRadius: 10,
     elevation: 5,
@@ -964,11 +1060,11 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   statCard: {
     backgroundColor: theme.card,
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    width: (screenWidth - 60) / 2,
-    borderLeftWidth: 4,
+    borderRadius: isLandscape ? 12 : 16,
+    padding: isLandscape ? 12 : 16,
+    marginBottom: isLandscape ? 8 : 12,
+    width: isLandscape ? '48%' : (screenWidth - 60) / 2,
+    borderLeftWidth: isLandscape ? 3 : 4,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -1144,13 +1240,14 @@ const createStyles = (theme: any) => StyleSheet.create({
   historySection: {
     backgroundColor: theme.surface,
     borderRadius: 20,
-    padding: 20,
-    marginTop: 20,
+    padding: isLandscape ? 16 : 20,
+    marginTop: isLandscape ? 16 : 20,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 10,
     elevation: 5,
+    width: isLandscape ? landscapeFullWidth : '100%',
   },
   historySectionTitle: {
     fontSize: 20,
@@ -1167,7 +1264,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   // Tabs styles
   tabsContainer: {
     flexDirection: "row",
-    marginBottom: 20,
+    marginBottom: isLandscape ? 16 : 20,
     backgroundColor: theme.surface,
     borderRadius: 16,
     padding: 8,
@@ -1176,6 +1273,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     elevation: 3,
+    width: isLandscape ? landscapeFullWidth : '100%',
   },
   tabButton: {
     flex: 1,
@@ -1199,10 +1297,17 @@ const createStyles = (theme: any) => StyleSheet.create({
   historyItem: {
     backgroundColor: theme.card,
     borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    borderLeftWidth: 4,
+    padding: isLandscape ? 12 : 14,
+    marginBottom: isLandscape ? 8 : 12,
+    borderLeftWidth: isLandscape ? 3 : 4,
     borderLeftColor: theme.primary,
+    width: isLandscape ? '48%' : '100%',
+  },
+  historyItemsContainer: {
+    flexDirection: isLandscape ? 'row' : 'column',
+    flexWrap: isLandscape ? 'wrap' : 'nowrap',
+    justifyContent: isLandscape ? 'space-between' : 'flex-start',
+    gap: isLandscape ? 8 : 0,
   },
   historyHeader: {
     flexDirection: "row",
@@ -1309,10 +1414,11 @@ const createStyles = (theme: any) => StyleSheet.create({
   adminControlsSection: {
     backgroundColor: "#fff3cd",
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
+    padding: isLandscape ? 12 : 16,
+    marginBottom: isLandscape ? 0 : 20,
     borderWidth: 2,
     borderColor: "#ffc107",
+    width: isLandscape ? landscapeFullWidth : '100%',
   },
   adminSectionTitle: {
     fontSize: 16,
@@ -1361,4 +1467,5 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-});
+  });
+};

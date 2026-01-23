@@ -1,8 +1,8 @@
 // components/routes/PlusFAB.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
-import { THEME_COLORS } from '@/constants/colors';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface PlusFABProps {
     onPress: () => void;
@@ -13,6 +13,8 @@ interface PlusFABProps {
  */
 export default function PlusFAB({ onPress }: PlusFABProps) {
     const { isAdmin } = useAuth();
+    const { theme } = useTheme();
+    const styles = useMemo(() => createStyles(theme), [theme]);
 
     if (!isAdmin) return null;
 
@@ -22,7 +24,7 @@ export default function PlusFAB({ onPress }: PlusFABProps) {
                 style={styles.fab}
                 onPress={onPress}
                 accessibilityLabel="הוסף מסלול"
-                android_ripple={{ color: THEME_COLORS.primary + '30' }}
+                android_ripple={{ color: theme.primary + '30' }}
             >
                 <View style={styles.plus}>
                     <View style={[styles.line, styles.horizontal]} />
@@ -33,7 +35,8 @@ export default function PlusFAB({ onPress }: PlusFABProps) {
     );
 }
 
-const styles = StyleSheet.create({
+// Dynamic styles factory for theme support
+const createStyles = (theme: any) => StyleSheet.create({
     wrap: {
         position: 'absolute',
         right: 16,
@@ -43,11 +46,11 @@ const styles = StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: THEME_COLORS.primary,
+        backgroundColor: theme.primary,
         alignItems: 'center',
         justifyContent: 'center',
         elevation: 6,
-        shadowColor: '#000',
+        shadowColor: theme.shadow,
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.3,
         shadowRadius: 4,

@@ -20,10 +20,12 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 import { WallImageWithHolds } from '@/components/spray/WallImageWithHolds';
 import { HoldTypePicker } from '@/components/spray/HoldTypePicker';
 import { GradePicker } from '@/components/spray/GradePicker';
 import { useCreateCommunityRoute, Hold, HoldType, HOLD_TYPES } from '@/features/community-routes';
+import { getNewRandomRouteName } from '@/utils/randomRouteNames';
 
 // Generate unique ID
 const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -33,6 +35,7 @@ type Step = 'image' | 'holds' | 'details';
 export const AddCommunityRouteScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const { create, saving } = useCreateCommunityRoute();
 
   // Current step
@@ -60,7 +63,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
   const pickImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.8,
       });
@@ -73,7 +76,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
         setStep('holds');
       }
     } catch (error) {
-      Alert.alert('שגיאה', 'לא הצלחנו לפתוח את הגלריה');
+      Alert.alert(t.common.error, t.community.failedToOpenGallery);
     }
   };
 
@@ -82,7 +85,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('שגיאה', 'נדרשת הרשאה למצלמה');
+        Alert.alert(t.common.error, t.community.cameraPermissionRequired);
         return;
       }
 
@@ -99,7 +102,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
         setStep('holds');
       }
     } catch (error) {
-      Alert.alert('שגיאה', 'לא הצלחנו לפתוח את המצלמה');
+      Alert.alert(t.common.error, t.community.failedToOpenCamera);
     }
   };
 
@@ -143,10 +146,10 @@ export const AddCommunityRouteScreen: React.FC = () => {
 
   // Clear all holds
   const handleClearHolds = useCallback(() => {
-    Alert.alert('מחיקת כל האחיזות', 'האם למחוק את כל האחיזות?', [
-      { text: 'ביטול', style: 'cancel' },
+    Alert.alert(t.community.deleteAllHolds, t.community.deleteAllHoldsConfirm, [
+      { text: t.common.cancel, style: 'cancel' },
       {
-        text: 'מחק',
+        text: t.common.delete,
         style: 'destructive',
         onPress: () => {
           setLockedHolds([]);
@@ -154,12 +157,12 @@ export const AddCommunityRouteScreen: React.FC = () => {
         },
       },
     ]);
-  }, []);
+  }, [t]);
 
   // Go to details step
   const handleContinueToDetails = () => {
     if (lockedHolds.length === 0) {
-      Alert.alert('שגיאה', 'יש לסמן לפחות אחיזה אחת');
+      Alert.alert(t.common.error, t.community.atLeastOneHold);
       return;
     }
     setStep('details');
@@ -168,12 +171,12 @@ export const AddCommunityRouteScreen: React.FC = () => {
   // Save route
   const handleSave = async () => {
     if (!routeName.trim()) {
-      Alert.alert('שגיאה', 'יש להזין שם למסלול');
+      Alert.alert(t.common.error, t.community.pleaseEnterName);
       return;
     }
 
     if (!imageUri) {
-      Alert.alert('שגיאה', 'יש לבחור תמונה');
+      Alert.alert(t.common.error, t.community.pleaseSelectImage);
       return;
     }
 
@@ -191,14 +194,14 @@ export const AddCommunityRouteScreen: React.FC = () => {
         }
       );
 
-      Alert.alert('הצלחה!', 'המסלול נוצר בהצלחה ויהיה זמין ל-30 ימים', [
+      Alert.alert(t.community.successCreated, t.community.routeCreatedMessage, [
         {
-          text: 'אישור',
+          text: t.community.ok,
           onPress: () => navigation.goBack(),
         },
       ]);
     } catch (error: any) {
-      Alert.alert('שגיאה', error.message || 'לא הצלחנו לשמור את המסלול');
+      Alert.alert(t.common.error, error.message || t.community.failedToSaveRoute);
     }
   };
 
@@ -206,9 +209,9 @@ export const AddCommunityRouteScreen: React.FC = () => {
   const renderImageStep = () => (
     <View style={styles.stepContainer}>
       <View style={styles.stepHeader}>
-        <Text style={[styles.stepTitle, { color: theme.text }]}>בחר תמונה</Text>
+        <Text style={[styles.stepTitle, { color: theme.text }]}>{t.community.selectImage}</Text>
         <Text style={[styles.stepSubtitle, { color: theme.textSecondary }]}>
-          צלם או בחר תמונה של הקיר שעליו תרצה ליצור מסלול
+          {t.community.selectPhoto}
         </Text>
       </View>
 
@@ -218,7 +221,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
           onPress={takePhoto}
         >
           <Ionicons name="camera" size={48} color="#fff" />
-          <Text style={styles.imageOptionText}>צלם תמונה</Text>
+          <Text style={styles.imageOptionText}>{t.community.takePhoto}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -227,7 +230,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
         >
           <Ionicons name="images" size={48} color={theme.primary} />
           <Text style={[styles.imageOptionText, { color: theme.text }]}>
-            בחר מהגלריה
+            {t.community.chooseFromGallery}
           </Text>
         </TouchableOpacity>
       </View>
@@ -283,11 +286,11 @@ export const AddCommunityRouteScreen: React.FC = () => {
       <View style={[styles.bottomActions, { backgroundColor: theme.surface }]}>
         <View style={styles.holdsCount}>
           <Text style={[styles.holdsCountText, { color: theme.text }]}>
-            {lockedHolds.length} אחיזות
+            {lockedHolds.length} {t.community.holds}
           </Text>
           {lockedHolds.length > 0 && (
             <TouchableOpacity onPress={handleClearHolds}>
-              <Text style={styles.clearText}>נקה הכל</Text>
+              <Text style={styles.clearText}>{t.community.clearAll}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -300,7 +303,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
           onPress={handleContinueToDetails}
           disabled={lockedHolds.length === 0}
         >
-          <Text style={styles.continueButtonText}>המשך</Text>
+          <Text style={styles.continueButtonText}>{t.community.continue}</Text>
           <Ionicons name="arrow-back" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -308,6 +311,11 @@ export const AddCommunityRouteScreen: React.FC = () => {
   );
 
   // Render step 3: Route details
+  const handleRandomName = () => {
+    const newName = getNewRandomRouteName(routeName);
+    setRouteName(newName);
+  };
+
   const renderDetailsStep = () => (
     <KeyboardAvoidingView
       style={styles.detailsContainer}
@@ -320,7 +328,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
             <Image source={{ uri: imageUri }} style={styles.previewImage} />
             <View style={styles.previewBadge}>
               <Text style={styles.previewBadgeText}>
-                {lockedHolds.length} אחיזות
+                {lockedHolds.length} {t.community.holds}
               </Text>
             </View>
           </View>
@@ -328,9 +336,14 @@ export const AddCommunityRouteScreen: React.FC = () => {
 
         {/* Route name */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.inputLabel, { color: theme.text }]}>
-            שם המסלול *
-          </Text>
+          <View style={styles.labelRow}>
+            <Text style={[styles.inputLabel, { color: theme.text }]}>
+              {t.community.routeName}
+            </Text>
+            <TouchableOpacity onPress={handleRandomName} style={[styles.randomButton, { backgroundColor: theme.primary }]}>
+              <Text style={styles.randomButtonText}>{t.community.randomName}</Text>
+            </TouchableOpacity>
+          </View>
           <TextInput
             style={[
               styles.textInput,
@@ -338,7 +351,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
             ]}
             value={routeName}
             onChangeText={setRouteName}
-            placeholder="לדוגמה: הקרימפ הקטלני"
+            placeholder={t.community.routeNamePlaceholder}
             placeholderTextColor={theme.textSecondary}
             textAlign="right"
           />
@@ -346,7 +359,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
 
         {/* Grade */}
         <View style={styles.inputGroup}>
-          <Text style={[styles.inputLabel, { color: theme.text }]}>דירוג</Text>
+          <Text style={[styles.inputLabel, { color: theme.text }]}>{t.community.grade}</Text>
           <GradePicker
             selectedGrade={routeGrade}
             onSelectGrade={setRouteGrade}
@@ -356,7 +369,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
         {/* Gym name */}
         <View style={styles.inputGroup}>
           <Text style={[styles.inputLabel, { color: theme.text }]}>
-            שם המכון (אופציונלי)
+            {t.community.gymNameOptional}
           </Text>
           <TextInput
             style={[
@@ -365,7 +378,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
             ]}
             value={gymName}
             onChangeText={setGymName}
-            placeholder="לדוגמה: קליימביט"
+            placeholder={t.community.gymNamePlaceholder}
             placeholderTextColor={theme.textSecondary}
             textAlign="right"
           />
@@ -374,7 +387,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
         {/* Description */}
         <View style={styles.inputGroup}>
           <Text style={[styles.inputLabel, { color: theme.text }]}>
-            תיאור (אופציונלי)
+            {t.community.descriptionOptional}
           </Text>
           <TextInput
             style={[
@@ -383,7 +396,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
             ]}
             value={description}
             onChangeText={setDescription}
-            placeholder="טיפים, תיאור המסלול..."
+            placeholder={t.community.descriptionPlaceholder}
             placeholderTextColor={theme.textSecondary}
             textAlign="right"
             multiline
@@ -395,7 +408,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
         <View style={[styles.expirationNotice, { backgroundColor: theme.surface }]}>
           <Ionicons name="time-outline" size={20} color={theme.textSecondary} />
           <Text style={[styles.expirationNoticeText, { color: theme.textSecondary }]}>
-            המסלול יהיה זמין ל-30 ימים ולאחר מכן יימחק אוטומטית
+            {t.community.expirationNotice}
           </Text>
         </View>
       </ScrollView>
@@ -412,7 +425,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
           ) : (
             <>
               <Ionicons name="checkmark-circle" size={24} color="#fff" />
-              <Text style={styles.saveButtonText}>צור מסלול</Text>
+              <Text style={styles.saveButtonText}>{t.community.createRoute}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -440,9 +453,9 @@ export const AddCommunityRouteScreen: React.FC = () => {
         <Ionicons name="arrow-forward" size={24} color="#fff" />
       </TouchableOpacity>
       <Text style={styles.headerTitle}>
-        {step === 'image' && 'בחר תמונה'}
-        {step === 'holds' && 'סמן אחיזות'}
-        {step === 'details' && 'פרטי המסלול'}
+        {step === 'image' && t.community.selectImage}
+        {step === 'holds' && t.community.markHolds}
+        {step === 'details' && t.community.routeDetails}
       </Text>
       <View style={styles.headerButton} />
     </View>
@@ -632,8 +645,23 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 8,
     textAlign: 'right',
+  },
+  labelRow: {
+    flexDirection: 'row-reverse',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  randomButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  randomButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   textInput: {
     borderRadius: 12,

@@ -75,13 +75,6 @@ export default function WallMap({
     onTransformChange,
   });
 
-  console.log('[WallMap] Render state:', {
-    containerDimensions,
-    imageDimensions,
-    effectiveGesturesEnabled,
-    hasTransforms: !!transforms,
-  });
-
   // חישוב מידות התמונה בהתאם לאספקט רטיו של הקיר
   const wallAspectRatio = wallHeight / wallWidth;
   
@@ -224,11 +217,22 @@ export default function WallMap({
   );
 
   // Compose gestures - if onMapTap exists, use tap gesture with higher priority
+  // Note: We only use pan/pinch/zoom gestures here
+  // RouteCircle gestures are handled by their own GestureDetector with hitSlop
   const composedGesture = useMemo(() => {
     // If in move mode (onMapTap exists), disable pan/pinch and only allow tap
     if (onMapTap) {
       return Gesture.Exclusive(
         mapTapGesture,
+        Gesture.Simultaneous(transforms.panGesture, transforms.pinchGesture)
+      );
+    }
+    
+    // Don't include longPressGesture in Race if it's disabled (no onLongPress callback)
+    // This allows RouteCircle's long press to work
+    if (!onLongPress) {
+      return Gesture.Race(
+        transforms.doubleTapGesture,
         Gesture.Simultaneous(transforms.panGesture, transforms.pinchGesture)
       );
     }
@@ -240,7 +244,7 @@ export default function WallMap({
         Gesture.Simultaneous(transforms.panGesture, transforms.pinchGesture)
       )
     );
-  }, [onMapTap, mapTapGesture, longPressGesture, transforms.doubleTapGesture, transforms.panGesture, transforms.pinchGesture]);
+  }, [onMapTap, onLongPress, mapTapGesture, longPressGesture, transforms.doubleTapGesture, transforms.panGesture, transforms.pinchGesture]);
 
   const isReady = containerDimensions.width > 0 && imageDimensions.imgW > 0;
 
@@ -264,7 +268,7 @@ export default function WallMap({
               preserveAspectRatio="xMidYMid meet"
             />
             
-            {/* שכבת המסלולים - pointerEvents="auto" to capture touch events */}
+            {/* שכבת המסלולים */}
             <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents={onMapTap ? 'none' : 'box-none'}>
               {routes.map((route) => (
                 <RouteCircle

@@ -16,8 +16,9 @@ import {
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '@/features/data/firebase';
+import { db, auth } from '@/features/data/firebase';
 import { Judge, JudgePermissions } from '../types';
+import { getUserRoles } from '@/features/roles/rolesService';
 
 /**
  * Default judge permissions
@@ -42,6 +43,20 @@ const FULL_JUDGE_PERMISSIONS: JudgePermissions = {
 };
 
 /**
+ * Check if user has permission to manage judges
+ * Only Admin and Head Judge can manage judges
+ */
+async function checkManageJudgesPermission(userId: string): Promise<void> {
+  const userRoles = await getUserRoles(userId);
+  const hasPermission = userRoles.includes('admin') || 
+                       userRoles.includes('head_judge');
+  
+  if (!hasPermission) {
+    throw new Error('Not authorized to manage judges. Only admins and head judges can manage judges.');
+  }
+}
+
+/**
  * Service for managing competition judges
  */
 export class JudgeService {
@@ -64,6 +79,13 @@ export class JudgeService {
     permissions?: Partial<JudgePermissions>
   ): Promise<void> {
     try {
+      // Check authorization
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      await checkManageJudgesPermission(currentUser.uid);
+
       const judgeRef = doc(
         db,
         'competitions',
@@ -101,6 +123,13 @@ export class JudgeService {
     userId: string
   ): Promise<void> {
     try {
+      // Check authorization
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      await checkManageJudgesPermission(currentUser.uid);
+
       const judgeRef = doc(
         db,
         'competitions',
@@ -126,6 +155,12 @@ export class JudgeService {
     permissions: Partial<JudgePermissions>
   ): Promise<void> {
     try {
+      // Check authorization
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      await checkManageJudgesPermission(currentUser.uid);
       const judgeRef = doc(
         db,
         'competitions',

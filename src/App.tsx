@@ -13,11 +13,21 @@ import MainTabNavigator from "@/navigation/MainTabNavigator";
 import CompetitionNavigator from "@/navigation/CompetitionNavigator";
 import { UserProvider } from "@/features/auth/UserContext";
 import { ThemeProvider, useTheme } from "@/features/theme/ThemeContext";
+import { LanguageProvider } from "@/features/language";
 import { AuthProvider } from "@/context/AuthContext";
 import { AdminProvider } from "@/context/AdminContext";
+import { DefaultAvatarProvider } from "@/context/DefaultAvatarContext";
 import { RolesProvider } from "@/features/roles";
 import { RolesManagementScreen } from "@/features/roles";
+import { 
+  AnnouncementsManagementScreen, 
+  AnnouncementEditorScreen 
+} from "@/features/announcements";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
+
+if (__DEV__) {
+  console.log("🚀 App.tsx starting to load...");
+}
 
 // Enable React Native Screens for better performance and native feel
 enableScreens();
@@ -40,10 +50,6 @@ if (__DEV__) {
       }
     }
   });
-
-  // Debug לחיצות - הוספת לוג לכל לחיצה
-  const originalTouchableOpacity = require("react-native").TouchableOpacity;
-  console.log("🔧 Touch debugging enabled");
 }
 
 const Stack = createNativeStackNavigator();
@@ -76,6 +82,22 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
               animation: 'slide_from_right',
             }}
           />
+          <RootStack.Screen 
+            name="AnnouncementsManagement" 
+            component={AnnouncementsManagementScreen}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <RootStack.Screen 
+            name="AnnouncementEditor" 
+            component={AnnouncementEditorScreen}
+            options={{
+              headerShown: false,
+              presentation: 'modal',
+            }}
+          />
         </RootStack.Group>
       </RootStack.Navigator>
     </NavigationContainer>
@@ -83,12 +105,15 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
 }
 
 export default function App() {
+  if (__DEV__) console.log("🔧 App function starting...");
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (__DEV__) console.log("🔧 Setting up auth state change listener...");
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (__DEV__) console.log("🔧 Auth state changed:", firebaseUser ? "User logged in" : "No user");
       setUser(firebaseUser);
 
       if (firebaseUser) {
@@ -96,6 +121,7 @@ export default function App() {
           const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
           if (userDoc.exists()) {
             const data = userDoc.data();
+            if (__DEV__) console.log("🔧 User document found, isAdmin:", data.isAdmin);
             setIsAdmin(data.isAdmin === true);
             (globalThis as any).__isAdmin = data.isAdmin === true;
           }
@@ -112,45 +138,55 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  if (loading) return null;
+  if (loading) {
+    return null;
+  }
 
   // If user is not logged in, show login screen
   if (!user) {
+    if (__DEV__) console.log("🔧 No user, showing login screen");
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <ThemeProvider>
-            <AuthProvider>
-              <NavigationContainer>
-                <Stack.Navigator id={undefined}>
-                  <Stack.Screen
-                    name="Login"
-                    component={LoginScreen}
-                    options={{ headerShown: false }}
-                  />
-                </Stack.Navigator>
-              </NavigationContainer>
-            </AuthProvider>
+            <LanguageProvider>
+              <AuthProvider>
+                <NavigationContainer>
+                  <Stack.Navigator id={undefined}>
+                    <Stack.Screen
+                      name="Login"
+                      component={LoginScreen}
+                      options={{ headerShown: false }}
+                    />
+                  </Stack.Navigator>
+                </NavigationContainer>
+              </AuthProvider>
+            </LanguageProvider>
           </ThemeProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>
     );
   }
 
+  if (__DEV__) console.log("🔧 User logged in, rendering main app");
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
         <SafeAreaProvider>
           <ThemeProvider>
-            <AuthProvider>
-              <AdminProvider>
-                <RolesProvider>
-                  <UserProvider isAdmin={isAdmin}>
-                    <ThemedNavigator isAdmin={isAdmin} />
-                  </UserProvider>
-                </RolesProvider>
-              </AdminProvider>
-            </AuthProvider>
+            <LanguageProvider>
+              <AuthProvider>
+                <AdminProvider>
+                  <DefaultAvatarProvider>
+                    <RolesProvider>
+                      <UserProvider isAdmin={isAdmin}>
+                        <ThemedNavigator isAdmin={isAdmin} />
+                      </UserProvider>
+                    </RolesProvider>
+                  </DefaultAvatarProvider>
+                </AdminProvider>
+              </AuthProvider>
+            </LanguageProvider>
           </ThemeProvider>
         </SafeAreaProvider>
       </GestureHandlerRootView>

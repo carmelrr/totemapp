@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { StarRatingInput } from './StarRatingInput';
 import { GradeSelector } from './GradeSelector';
+import { VideoLinkInput } from './VideoLinkInput';
 import { useUserTagging } from '@/hooks/useUserTagging';
 import { getTextAlign } from '@/utils/textUtils';
 
@@ -18,15 +19,18 @@ interface FeedbackFormProps {
     starRating: number;
     suggestedGrade: string;
     comment: string;
+    videoUrl?: string;
     onStarRatingChange: (rating: number) => void;
     onGradeChange: (grade: string) => void;
     onCommentChange: (comment: string) => void;
+    onVideoUrlChange?: (url: string) => void;
     onSubmit: () => void;
     isSubmitting: boolean;
     disabled?: boolean;
     errors?: {
         starRating?: string;
         comment?: string;
+        videoUrl?: string;
     };
 }
 
@@ -40,15 +44,18 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
     starRating,
     suggestedGrade,
     comment,
+    videoUrl = '',
     onStarRatingChange,
     onGradeChange,
     onCommentChange,
+    onVideoUrlChange,
     onSubmit,
     isSubmitting,
     disabled = false,
     errors = {},
 }) => {
     const [textInputHeight, setTextInputHeight] = useState(80);
+    const [isVideoLinkValid, setIsVideoLinkValid] = useState(true);
 
     const {
         showUserSuggestions,
@@ -77,6 +84,10 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
         }
         if (!comment.trim()) {
             Alert.alert('שגיאה', 'אנא הוסף תגובה');
+            return;
+        }
+        if (!isVideoLinkValid) {
+            Alert.alert('שגיאה', 'הלינק לסרטון לא תקין');
             return;
         }
         onSubmit();
@@ -137,6 +148,16 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
                     </Text>
                 </View>
             </View>
+
+            {/* Video Link Input */}
+            {onVideoUrlChange && (
+                <VideoLinkInput
+                    value={videoUrl}
+                    onChange={onVideoUrlChange}
+                    onValidationChange={setIsVideoLinkValid}
+                    disabled={disabled}
+                />
+            )}
 
             {/* User Suggestions Modal */}
             <Modal

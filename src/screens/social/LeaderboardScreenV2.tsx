@@ -27,12 +27,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { auth, db } from "@/features/data/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import defaultAvatar from "@/assets/splash.png";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 import { useAdmin } from "@/context/AdminContext";
-import { useActiveCompetitions, Competition } from "@/features/competitions";
+import { useActiveCompetitions, useOpenRegistrationCompetitions, useCompletedCompetitionsWithResults, Competition } from "@/features/competitions";
 import { ActiveCompetitionBanner } from "@/features/competitions/components/ActiveCompetitionBanner";
+import { OpenRegistrationBanner } from "@/features/competitions/components/OpenRegistrationBanner";
+import { CompletedCompetitionBanner } from "@/features/competitions/components/CompletedCompetitionBanner";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -106,6 +109,7 @@ interface LeaderboardUser {
 
 export default function LeaderboardScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const { isAdmin } = useAdmin();
   
@@ -119,6 +123,12 @@ export default function LeaderboardScreen() {
 
   // Active competitions
   const { competitions: activeCompetitions, hasActiveCompetition } = useActiveCompetitions();
+  
+  // Competitions with open registration
+  const { competitions: openRegistrationCompetitions, hasOpenRegistration } = useOpenRegistrationCompetitions();
+
+  // Completed competitions with visible results
+  const { competitions: completedCompetitions, hasCompletedWithResults } = useCompletedCompetitionsWithResults();
 
   // Load users data with filtering
   const loadUsersData = useCallback(async () => {
@@ -139,7 +149,7 @@ export default function LeaderboardScreen() {
 
         users.push({
           id: userDoc.id,
-          displayName: userData.displayName || "משתמש",
+          displayName: userData.displayName || t.social.user,
           photoURL: userData.photoURL || null,
           points,
           routeCount,
@@ -157,8 +167,18 @@ export default function LeaderboardScreen() {
     }
   }, [timeFilter]);
 
+  // Real-time subscription to users collection for leaderboard updates
   useEffect(() => {
-    loadUsersData();
+    const usersRef = collection(db, "users");
+    
+    const unsubscribe = onSnapshot(usersRef, () => {
+      // When users collection changes, reload the leaderboard
+      loadUsersData();
+    }, (error) => {
+      console.error("Error in leaderboard subscription:", error);
+    });
+
+    return () => unsubscribe();
   }, [loadUsersData]);
 
   const calculateUserPoints = async (
@@ -306,9 +326,25 @@ export default function LeaderboardScreen() {
   };
 
   const handleCompetitionPress = (competition: Competition) => {
-    // Navigate to competition management/judge screen
+    // Navigate to competition leaderboard tab
     navigation.navigate('Competitions', {
       screen: 'ManageCompetition',
+      params: { competitionId: competition.id, initialTab: 'leaderboard' }
+    });
+  };
+
+  const handleEnterResultsPress = (competition: Competition) => {
+    // Navigate to judge entry screen for entering results
+    navigation.navigate('Competitions', {
+      screen: 'JudgeEntry',
+      params: { competitionId: competition.id }
+    });
+  };
+
+  const handleRegistrationPress = (competition: Competition) => {
+    // Navigate to competition registration screen
+    navigation.navigate('Competitions', {
+      screen: 'CompetitionRegistration',
       params: { competitionId: competition.id }
     });
   };
@@ -334,7 +370,7 @@ export default function LeaderboardScreen() {
               timeFilter === filter && styles.filterTabTextActive,
             ]}
           >
-            {filter === 'onWall' ? 'על הקיר' : 'כל הזמנים'}
+            {filter === 'onWall' ? t.social.onTheWall : t.social.allTime}
           </Text>
         </TouchableOpacity>
       ))}
@@ -364,7 +400,7 @@ export default function LeaderboardScreen() {
               <Text style={styles.podiumName} numberOfLines={1}>
                 {topThree[1].displayName}
               </Text>
-              <Text style={styles.podiumPoints}>{topThree[1].points} נק'</Text>
+              <Text style={styles.podiumPoints}>{topThree[1].points} {t.social.pts}</Text>
               <Text style={styles.podiumMedal}>🥈</Text>
             </View>
           )}
@@ -386,7 +422,7 @@ export default function LeaderboardScreen() {
               <Text style={styles.podiumName} numberOfLines={1}>
                 {topThree[0].displayName}
               </Text>
-              <Text style={styles.podiumPoints}>{topThree[0].points} נק'</Text>
+              <Text style={styles.podiumPoints}>{topThree[0].points} {t.social.pts}</Text>
               <Text style={styles.podiumMedal}>🥇</Text>
             </View>
           )}
@@ -408,7 +444,7 @@ export default function LeaderboardScreen() {
               <Text style={styles.podiumName} numberOfLines={1}>
                 {topThree[2].displayName}
               </Text>
-              <Text style={styles.podiumPoints}>{topThree[2].points} נק'</Text>
+              <Text style={styles.podiumPoints}>{topThree[2].points} {t.social.pts}</Text>
               <Text style={styles.podiumMedal}>🥉</Text>
             </View>
           )}
@@ -439,11 +475,11 @@ export default function LeaderboardScreen() {
           <Text
             style={[styles.userName, isCurrentUser && styles.currentUserName]}
           >
-            {item.displayName || "משתמש"}
-            {isCurrentUser && <Text> (אתה)</Text>}
+            {item.displayName || t.social.user}
+            {isCurrentUser && <Text> {t.social.you}</Text>}
           </Text>
           <Text style={styles.userStat}>
-            {item.points} נקודות {item.routeCount ? `| ${item.routeCount} מסלולים` : ''}
+            {item.points} {t.social.points} {item.routeCount ? `| ${item.routeCount} ${t.social.routes}` : ''}
           </Text>
         </View>
       </View>
@@ -458,7 +494,7 @@ export default function LeaderboardScreen() {
       {/* Header */}
       <View style={styles.headerContainer}>
         <Text style={styles.headerTitle}>
-          {hasActiveCompetition ? '🏆 תחרויות' : '🏆 לוח שיאים'}
+          {hasActiveCompetition ? `🏆 ${t.social.competitions}` : `🏆 ${t.social.leaderboard}`}
         </Text>
         {isAdmin && (
           <TouchableOpacity
@@ -476,13 +512,36 @@ export default function LeaderboardScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Active Competition Banner */}
-        {hasActiveCompetition && activeCompetitions[0] && (
+        {/* Active Competition Banners */}
+        {hasActiveCompetition && activeCompetitions.map((competition) => (
           <ActiveCompetitionBanner
-            competition={activeCompetitions[0]}
-            onPress={() => handleCompetitionPress(activeCompetitions[0])}
+            key={competition.id}
+            competition={competition}
+            onPress={() => handleCompetitionPress(competition)}
+            onEnterResults={() => handleEnterResultsPress(competition)}
           />
-        )}
+        ))}
+
+        {/* Open Registration Banners - Only show competitions that are NOT active yet */}
+        {/* (competitions that are active should show via ActiveCompetitionBanner above) */}
+        {hasOpenRegistration && openRegistrationCompetitions
+          .filter((competition) => competition.status !== 'active')
+          .map((competition) => (
+            <OpenRegistrationBanner
+              key={competition.id}
+              competition={competition}
+              onRegisterPress={() => handleRegistrationPress(competition)}
+            />
+          ))}
+
+        {/* Completed Competition Banners - Show when results are visible */}
+        {hasCompletedWithResults && completedCompetitions.map((competition) => (
+          <CompletedCompetitionBanner
+            key={competition.id}
+            competition={competition}
+            onPress={() => handleCompetitionPress(competition)}
+          />
+        ))}
 
         {/* Time Filter Tabs */}
         {renderTimeFilterTabs()}
@@ -491,7 +550,7 @@ export default function LeaderboardScreen() {
         {loading && (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={theme.primary} />
-            <Text style={styles.loadingText}>טוען לוח שיאים...</Text>
+            <Text style={styles.loadingText}>{t.social.loadingLeaderboard}</Text>
           </View>
         )}
 
@@ -501,7 +560,7 @@ export default function LeaderboardScreen() {
         {/* Rest of the leaderboard */}
         {!loading && (
           <View style={styles.listSection}>
-            <Text style={styles.listTitle}>שאר המקומות</Text>
+            <Text style={styles.listTitle}>{t.social.otherPlaces}</Text>
             {getRestOfUsers().map((user, index) => {
               const displayIndex = user.actualRank
                 ? user.actualRank - 1
@@ -513,7 +572,7 @@ export default function LeaderboardScreen() {
               );
             })}
             {getRestOfUsers().length === 0 && usersWithPoints.length <= 3 && (
-              <Text style={styles.emptyText}>אין עוד משתמשים להצגה</Text>
+              <Text style={styles.emptyText}>{t.social.noMoreUsers}</Text>
             )}
           </View>
         )}
@@ -521,7 +580,7 @@ export default function LeaderboardScreen() {
         {/* Current User Position (if not in top 13) */}
         {!loading && getCurrentUserRank() && getCurrentUserRank()! > 13 && (
           <View style={styles.currentUserSection}>
-            <Text style={styles.currentUserSectionTitle}>המיקום שלך</Text>
+            <Text style={styles.currentUserSectionTitle}>{t.social.yourPosition}</Text>
             {renderLeaderboardItem({
               item: { ...getCurrentUserStats()!, actualRank: getCurrentUserRank()! },
               index: getCurrentUserRank()! - 1,

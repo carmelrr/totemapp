@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -8,9 +8,14 @@ import {
   TextInput,
   Image,
   Switch,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage, Language } from "@/features/language";
+import { useDefaultAvatar } from "@/context/DefaultAvatarContext";
 import { createStyles } from "../styles";
+import { RouteStatsService } from "@/features/routes-map/services/RouteStatsService";
 import type { PrivacySettings } from "../types";
 
 const defaultAvatar = require("@/assets/splash.png");
@@ -34,12 +39,15 @@ interface SidePanelProps {
   onThemeToggle: () => void;
   isDarkMode: boolean;
   onLogout: () => void;
+  onPrivacySettings?: () => void;
   onAdminPanel?: () => void;
   onRolesManagement?: () => void;
+  onAnnouncementsManagement?: () => void;
   isAdmin?: boolean;
   adminModeEnabled?: boolean;
   onAdminModeToggle?: () => void;
   canManageRoles?: boolean;
+  canManageAnnouncements?: boolean;
 }
 
 export const SidePanel: React.FC<SidePanelProps> = ({
@@ -61,25 +69,65 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onThemeToggle,
   isDarkMode,
   onLogout,
+  onPrivacySettings,
   onAdminPanel,
   onRolesManagement,
+  onAnnouncementsManagement,
   isAdmin,
   adminModeEnabled,
   onAdminModeToggle,
   canManageRoles,
+  canManageAnnouncements,
 }) => {
   const { theme } = useTheme();
+  const { language, setLanguage, t } = useLanguage();
+  const { defaultAvatarUrl, uploadDefaultAvatar, removeDefaultAvatar } = useDefaultAvatar();
   const styles = createStyles(theme);
+  const [isRecalculating, setIsRecalculating] = useState(false);
+
+  // Function to recalculate all route statistics and names
+  const handleRecalculateRoutes = async () => {
+    Alert.alert(
+      "רענון חישובי מסלולים",
+      "האם אתה בטוח? פעולה זו תחשב מחדש את ממוצעי הקהל ותעדכן שמות מסלולים בשתי השפות.",
+      [
+        { text: "ביטול", style: "cancel" },
+        {
+          text: "אישור",
+          onPress: async () => {
+            setIsRecalculating(true);
+            try {
+              // Run both operations - forceUpdate=true to update all routes including existing ones
+              const [statsResult, namesResult] = await Promise.all([
+                RouteStatsService.recalculateAllRoutes(),
+                RouteStatsService.recalculateAllRouteNames(true), // Force update all routes
+              ]);
+              
+              Alert.alert(
+                "הושלם!",
+                `ממוצעי קהל: עודכנו ${statsResult.success} מסלולים${statsResult.failed > 0 ? `, ${statsResult.failed} נכשלו` : ""}\n\nשמות מסלולים: עודכנו ${namesResult.success}${namesResult.failed > 0 ? `, ${namesResult.failed} נכשלו` : ""}${namesResult.skipped > 0 ? `, ${namesResult.skipped} דלגו (חסר צבע/דירוג)` : ""}`
+              );
+            } catch (error) {
+              console.error("Error recalculating:", error);
+              Alert.alert("שגיאה", "אירעה שגיאה ברענון חישובים");
+            } finally {
+              setIsRecalculating(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   if (!visible) return null;
 
   const circleSizes = [
-    { size: 6, label: "קטן", color: "#3498db" },
-    { size: 12, label: "בינוני", color: "#2ecc71" },
-    { size: 20, label: "גדול", color: "#e74c3c" },
+    { size: 6, labelKey: "small" as const, color: "#3498db" },
+    { size: 12, labelKey: "medium" as const, color: "#2ecc71" },
+    { size: 20, labelKey: "large" as const, color: "#e74c3c" },
   ];
 
-  const renderCircleSize = (sizeData: any) => (
+  const renderCircleSize = (sizeData: { size: number; labelKey: "small" | "medium" | "large"; color: string }) => (
     <TouchableOpacity
       key={sizeData.size}
       style={[
@@ -97,7 +145,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             circleSize === sizeData.size && styles.circleSizeRowLabelSelected,
           ]}
         >
-          {sizeData.label}
+          {t.profile[sizeData.labelKey]}
         </Text>
         <View style={styles.circleSizeRowPreview}>
           <View
@@ -126,7 +174,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
       >
         <View style={styles.sidePanelContent}>
           <View style={styles.sidePanelHeader}>
-            <Text style={styles.sidePanelTitle}>הגדרות פרופיל</Text>
+            <Text style={styles.sidePanelTitle}>{t.profile.settings}</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Text style={styles.closeButtonText}>✕</Text>
             </TouchableOpacity>
@@ -149,7 +197,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                   activeOpacity={0.7}
                   delayPressIn={0}
                 >
-                  <Text style={styles.editPhoto}>ערוך תמונה</Text>
+                  <Text style={styles.editPhoto}>{t.profile.editPhoto}</Text>
                 </TouchableOpacity>
                 {user?.photoURL && (
                   <TouchableOpacity 
@@ -157,7 +205,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                     activeOpacity={0.7}
                     delayPressIn={0}
                   >
-                    <Text style={styles.removePhoto}>הסר תמונה</Text>
+                    <Text style={styles.removePhoto}>{t.profile.removePhoto}</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -165,23 +213,23 @@ export const SidePanel: React.FC<SidePanelProps> = ({
 
             {/* Profile Edit Section */}
             <View style={styles.profileEditSection}>
-              <Text style={styles.sectionTitle}>פרטים אישיים</Text>
+              <Text style={styles.sectionTitle}>{t.profile.personalDetails}</Text>
 
-              <Text style={styles.fieldLabel}>שם תצוגה</Text>
+              <Text style={styles.fieldLabel}>{t.profile.displayName}</Text>
               {isEditing ? (
                 <TextInput
                   style={styles.sideInput}
                   value={editedUser?.displayName || ""}
                   onChangeText={(text) => onUserChange("displayName", text)}
-                  placeholder="הכנס שם תצוגה"
+                  placeholder={t.profile.enterDisplayName}
                 />
               ) : (
                 <Text style={styles.fieldValue}>
-                  {user?.displayName || "לא הוגדר"}
+                  {user?.displayName || t.profile.notSet}
                 </Text>
               )}
 
-              <Text style={styles.fieldLabel}>אימייל</Text>
+              <Text style={styles.fieldLabel}>{t.profile.email}</Text>
               <Text style={styles.fieldValue}>{user?.email || ""}</Text>
 
               <TouchableOpacity
@@ -197,15 +245,15 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                     isEditing && styles.editButtonTextActive,
                   ]}
                 >
-                  {isEditing ? "שמור שינויים" : "ערוך פרטים"}
+                  {isEditing ? t.profile.saveChanges : t.profile.editDetails}
                 </Text>
               </TouchableOpacity>
             </View>
 
             {/* Preferences Section */}
             <View style={styles.preferencesSection}>
-              <Text style={styles.sectionTitle}>העדפות</Text>
-              <Text style={styles.preferencesSubtitle}>גודל עיגולי הקווים במפה</Text>
+              <Text style={styles.sectionTitle}>{t.profile.preferences}</Text>
+              <Text style={styles.preferencesSubtitle}>{t.profile.circleSizeOnMap}</Text>
               <View style={styles.circleSizeColumn}>
                 {circleSizes.map(renderCircleSize)}
               </View>
@@ -220,7 +268,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                     !isDarkMode && styles.themeOptionLabelSelected,
                   ]}
                 >
-                  בהיר
+                  {t.profile.themeLight}
                 </Text>
               </View>
               
@@ -246,31 +294,117 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                     isDarkMode && styles.themeOptionLabelSelected,
                   ]}
                 >
-                  כהה
+                  {t.profile.themeDark}
                 </Text>
+              </View>
+            </View>
+
+            {/* Privacy Settings Button */}
+            {onPrivacySettings && (
+              <TouchableOpacity
+                style={[styles.privacySettingsButton, { backgroundColor: theme.primary + "15", borderColor: theme.primary }]}
+                onPress={onPrivacySettings}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.privacySettingsIcon}>🔒</Text>
+                <View style={styles.privacySettingsTextContainer}>
+                  <Text style={[styles.privacySettingsTitle, { color: theme.text }]}>
+                    {t.privacy.title}
+                  </Text>
+                  <Text style={[styles.privacySettingsDesc, { color: theme.textSecondary }]}>
+                    {t.privacy.description}
+                  </Text>
+                </View>
+                <Text style={[styles.privacySettingsArrow, { color: theme.primary }]}>→</Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Language Selector */}
+            <View style={styles.languageSection}>
+              <View style={styles.languageRow}>
+                <Text style={styles.languageLabel}>{t.profile.language}</Text>
+                <View style={styles.languageButtons}>
+                  <TouchableOpacity
+                    style={[
+                      styles.languageButton,
+                      language === "he" && styles.languageButtonActive,
+                    ]}
+                    onPress={() => setLanguage("he")}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.languageButtonText,
+                        language === "he" && styles.languageButtonTextActive,
+                      ]}
+                    >
+                      {t.profile.hebrew}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.languageButton,
+                      language === "en" && styles.languageButtonActive,
+                    ]}
+                    onPress={() => setLanguage("en")}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.languageButtonText,
+                        language === "en" && styles.languageButtonTextActive,
+                      ]}
+                    >
+                      {t.profile.english}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
 
             {/* Admin Panel */}
             {isAdmin && (
               <View style={styles.adminSection}>
-                <Text style={styles.adminTitle}>ניהול מערכת</Text>
-                
-                {/* Admin Mode Toggle */}
-                <View style={styles.adminModeRow}>
-                  <Text style={styles.adminModeLabel}>מצב עריכה</Text>
-                  <Switch
-                    value={adminModeEnabled}
-                    onValueChange={onAdminModeToggle}
-                    trackColor={{ false: '#ccc', true: '#4CAF50' }}
-                    thumbColor={adminModeEnabled ? '#fff' : '#f4f3f4'}
-                  />
+                <Text style={styles.adminTitle}>{t.admin.title}</Text>
+
+                {/* Default Avatar Section */}
+                <View style={styles.defaultAvatarSection}>
+                  <Text style={styles.defaultAvatarTitle}>{t.admin.defaultAvatar || 'תמונת פרופיל ברירת מחדל'}</Text>
+                  <View style={styles.defaultAvatarPreview}>
+                    {defaultAvatarUrl ? (
+                      <Image
+                        source={{ uri: defaultAvatarUrl }}
+                        style={styles.defaultAvatarImage}
+                      />
+                    ) : (
+                      <View style={styles.defaultAvatarPlaceholder}>
+                        <Text style={styles.defaultAvatarPlaceholderText}>?</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.defaultAvatarButtons}>
+                    <TouchableOpacity
+                      style={styles.defaultAvatarButton}
+                      onPress={uploadDefaultAvatar}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={styles.defaultAvatarButtonText}>
+                        {defaultAvatarUrl ? (t.admin.changeDefaultAvatar || 'שנה תמונה') : (t.admin.setDefaultAvatar || 'הגדר תמונה')}
+                      </Text>
+                    </TouchableOpacity>
+                    {defaultAvatarUrl && (
+                      <TouchableOpacity
+                        style={[styles.defaultAvatarButton, styles.defaultAvatarRemoveButton]}
+                        onPress={removeDefaultAvatar}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={styles.defaultAvatarRemoveButtonText}>
+                          {t.admin.removeDefaultAvatar || 'הסר תמונה'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-                {adminModeEnabled && (
-                  <Text style={styles.adminModeHint}>
-                    מצב עריכה פעיל - ניתן לערוך מסלולים במפה
-                  </Text>
-                )}
                 
                 {onAdminPanel && (
                   <View style={styles.adminButtons}>
@@ -278,7 +412,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                       style={styles.adminButton}
                       onPress={onAdminPanel}
                     >
-                      <Text style={styles.adminButtonText}>פאנל ניהול</Text>
+                      <Text style={styles.adminButtonText}>{t.admin.adminPanel}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -289,16 +423,58 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                       style={[styles.adminButton, { backgroundColor: '#9C27B0' }]}
                       onPress={onRolesManagement}
                     >
-                      <Text style={styles.adminButtonText}>ניהול תפקידים</Text>
+                      <Text style={styles.adminButtonText}>{t.admin.rolesManagement}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
+
+                {/* Recalculate Routes Button */}
+                <View style={styles.adminButtons}>
+                  <TouchableOpacity
+                    style={[styles.adminButton, { backgroundColor: '#2196F3' }]}
+                    onPress={handleRecalculateRoutes}
+                    disabled={isRecalculating}
+                  >
+                    {isRecalculating ? (
+                      <ActivityIndicator color="#fff" size="small" />
+                    ) : (
+                      <Text style={styles.adminButtonText}>רענון חישובי מסלולים</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Social Manager Section - Announcements Management */}
+            {canManageAnnouncements && onAnnouncementsManagement && !isAdmin && (
+              <View style={styles.adminSection}>
+                <Text style={styles.adminTitle}>ניהול סושיאל</Text>
+                <View style={styles.adminButtons}>
+                  <TouchableOpacity
+                    style={[styles.adminButton, { backgroundColor: '#F59E0B' }]}
+                    onPress={onAnnouncementsManagement}
+                  >
+                    <Text style={styles.adminButtonText}>ניהול הודעות</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* Announcements inside Admin section (for admins) */}
+            {canManageAnnouncements && onAnnouncementsManagement && isAdmin && (
+              <View style={styles.adminButtons}>
+                <TouchableOpacity
+                  style={[styles.adminButton, { backgroundColor: '#F59E0B' }]}
+                  onPress={onAnnouncementsManagement}
+                >
+                  <Text style={styles.adminButtonText}>ניהול הודעות</Text>
+                </TouchableOpacity>
               </View>
             )}
 
             {/* Logout Button */}
             <TouchableOpacity style={styles.logoutButton} onPress={onLogout}>
-              <Text style={styles.logoutButtonText}>התנתק</Text>
+              <Text style={styles.logoutButtonText}>{t.auth.logout}</Text>
             </TouchableOpacity>
           </ScrollView>
         </View>

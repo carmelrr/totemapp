@@ -8,9 +8,10 @@
  * - route_setter: Can edit routes (add/edit/delete) on the wall map
  * - judge: Can enter results in competitions
  * - head_judge: Can edit/correct competition results + all judge permissions
+ * - social_manager: Can create/edit/delete announcements in the feed
  * - admin: Full system access including role management
  */
-export type UserRole = 'route_setter' | 'judge' | 'head_judge' | 'admin';
+export type UserRole = 'route_setter' | 'judge' | 'head_judge' | 'social_manager' | 'admin';
 
 /**
  * Role display information
@@ -51,6 +52,12 @@ export type Permission =
   | 'competitions.enter_results'
   | 'competitions.edit_results'
   | 'competitions.manage_participants'
+  // Announcements permissions
+  | 'announcements.view'
+  | 'announcements.create'
+  | 'announcements.edit'
+  | 'announcements.delete'
+  | 'announcements.schedule'
   // Admin permissions
   | 'admin.manage_roles'
   | 'admin.manage_users'

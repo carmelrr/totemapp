@@ -14,6 +14,7 @@ import {
   query,
   where,
   Timestamp,
+  onSnapshot,
 } from 'firebase/firestore';
 import { UserRole, UserRoles, UserWithRoles } from './types';
 import { canManageRoles } from './constants';
@@ -25,13 +26,17 @@ const USERS_COLLECTION = 'users';
  */
 export async function getUserRoles(userId: string): Promise<UserRole[]> {
   try {
+    console.log('[DEBUG] getUserRoles - fetching roles for userId:', userId);
     const userDoc = await getDoc(doc(db, USERS_COLLECTION, userId));
     
     if (!userDoc.exists()) {
+      console.log('[DEBUG] getUserRoles - user document does not exist');
       return [];
     }
     
     const userData = userDoc.data();
+    console.log('[DEBUG] getUserRoles - userData.roles:', userData?.roles);
+    console.log('[DEBUG] getUserRoles - userData.isAdmin:', userData?.isAdmin);
     
     // Check if user is admin (legacy field)
     if (userData?.isAdmin === true) {
@@ -241,4 +246,84 @@ export async function searchUsers(searchQuery: string): Promise<UserWithRoles[]>
     console.error('Error searching users:', error);
     throw error;
   }
+}
+
+/**
+ * Subscribe to real-time updates for a user's roles
+ * @param userId The user ID to subscribe to
+ * @param onRolesChange Callback when roles change
+ * @param onError Optional error callback
+ * @returns Unsubscribe function
+ */
+export function subscribeToUserRoles(
+  userId: string,
+  onRolesChange: (roles: UserRole[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const userRef = doc(db, USERS_COLLECTION, userId);
+  
+  return onSnapshot(
+    userRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        let roles: UserRole[] = userData?.roles || [];
+        
+        // Check if user is admin (legacy field)
+        if (userData?.isAdmin === true && !roles.includes('admin')) {
+          roles = [...roles, 'admin'];
+        }
+        
+        onRolesChange(roles);
+      } else {
+        onRolesChange([]);
+      }
+    },
+    (error) => {
+      console.error('Error subscribing to user roles:', error);
+      onError?.(error);
+    }
+  );
+}
+
+/**
+ * Subscribe to real-time updates for all users with roles (for admin panel)
+ * @param onUsersChange Callback when users list changes
+ * @param onError Optional error callback
+ * @returns Unsubscribe function
+ */
+export function subscribeToAllUsersWithRoles(
+  onUsersChange: (users: UserWithRoles[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const usersRef = collection(db, USERS_COLLECTION);
+  
+  return onSnapshot(
+    usersRef,
+    (snapshot) => {
+      const users: UserWithRoles[] = [];
+      
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        users.push({
+          id: docSnap.id,
+          displayName: data.displayName || 'משתמש',
+          email: data.email || '',
+          photoURL: data.photoURL || null,
+          roles: data.roles || [],
+          isAdmin: data.isAdmin === true,
+          createdAt: data.createdAt?.toDate?.() || undefined,
+        });
+      });
+      
+      // Sort by display name
+      users.sort((a, b) => a.displayName.localeCompare(b.displayName, 'he'));
+      
+      onUsersChange(users);
+    },
+    (error) => {
+      console.error('Error subscribing to all users with roles:', error);
+      onError?.(error);
+    }
+  );
 }

@@ -19,9 +19,11 @@ interface MapViewportProps {
    */
   onTransformsReady?: (transforms: any) => void;
   /**
-   * Callback for single tap on the map. Receives screen coordinates.
+   * Callback for single tap on the map. Receives IMAGE coordinates (xImg, yImg),
+   * already converted from screen coordinates using current transforms.
+   * This matches WallMap's onMapTap behavior for consistency.
    */
-  onTap?: (x: number, y: number) => void;
+  onTap?: (coordinates: { xImg: number; yImg: number }) => void;
   debug?: boolean;
 }
 
@@ -56,19 +58,72 @@ export default function MapViewport({
     onTransformChange,
   });
 
-  // Single tap gesture for placing markers
+  // Callback to pass calculated image coordinates to parent
+  // Receives already-calculated image coordinates from worklet
+  const handleTapCallback = React.useCallback((xImg: number, yImg: number) => {
+    if (!onTap) return;
+    
+    // Validate calculated coordinates
+    if (typeof xImg !== 'number' || typeof yImg !== 'number' || 
+        isNaN(xImg) || isNaN(yImg)) {
+      console.error('[MapViewport] Invalid calculated coordinates:', { xImg, yImg });
+      return;
+    }
+    
+    onTap({ xImg, yImg });
+  }, [onTap]);
+
+  // Single tap gesture for placing markers - configured for responsive tap detection
+  // Coordinates are calculated directly in the worklet for accuracy
   const singleTapGesture = useMemo(() => 
     Gesture.Tap()
       .numberOfTaps(1)
-      .maxDuration(300)
-      .maxDistance(10)
+      .maxDuration(350) // Slightly longer for more forgiving tap detection
+      .maxDistance(15) // Allow more finger movement during tap for natural touch
       .onEnd((event) => {
         'worklet';
         if (onTap) {
-          runOnJS(onTap)(event.x, event.y);
+          // Calculate image coordinates directly in worklet for accuracy
+          // event.x and event.y are relative to the GestureDetector container
+          const screenX = event.x;
+          const screenY = event.y;
+          
+          // Read transforms directly from shared values in worklet
+          const s = transforms.scale.value;
+          const tx = transforms.translateX.value;
+          const ty = transforms.translateY.value;
+          
+          // The map container uses a complex transform with scale compensation:
+          // transform: [
+          //   { scale: s },
+          //   { translateX: (tx - scaleCompX) / s },
+          //   { translateY: (ty - scaleCompY) / s },
+          // ]
+          // where scaleCompX = imgW * (1-s) / 2 and scaleCompY = imgH * (1-s) / 2
+          //
+          // This means a point at image coords (xImg, yImg) appears at screen coords:
+          // screenX = xImg * s + tx  (after simplification)
+          // screenY = yImg * s + ty
+          //
+          // So to invert:
+          // xImg = (screenX - tx) / s
+          // yImg = (screenY - ty) / s
+          const xImg = (screenX - tx) / s;
+          const yImg = (screenY - ty) / s;
+          
+          // Log all values for debugging
+          console.log('=== TAP DEBUG ===' );
+          console.log('Screen tap:', { screenX, screenY });
+          console.log('Transforms:', { scale: s, translateX: tx, translateY: ty });
+          console.log('Image dimensions:', { imgW: imageDimensions.imgW, imgH: imageDimensions.imgH });
+          console.log('Calculated image coords:', { xImg, yImg });
+          console.log('================');
+          
+          // Call JS callback with calculated coordinates
+          runOnJS(handleTapCallback)(xImg, yImg);
         }
       }),
-    [onTap]
+    [onTap, handleTapCallback, transforms.scale, transforms.translateX, transforms.translateY, imageDimensions]
   );
 
   // Combine gestures - structure matches WallMap for consistency

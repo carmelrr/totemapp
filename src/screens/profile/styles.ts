@@ -1,9 +1,7 @@
-import { StyleSheet, Dimensions } from "react-native";
+import { StyleSheet } from "react-native";
 import { lightTheme } from "@/features/theme/ThemeContext";
 
 type Theme = typeof lightTheme;
-
-const { width: screenWidth } = Dimensions.get("window");
 
 export const createStyles = (theme: Theme) =>
   StyleSheet.create({
@@ -146,6 +144,16 @@ export const createStyles = (theme: Theme) =>
       borderWidth: 2,
       borderColor: theme.primary,
     },
+    avatarFallback: {
+      backgroundColor: theme.primary,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    avatarInitial: {
+      color: "#fff",
+      fontSize: 18,
+      fontWeight: "bold",
+    },
     userName: {
       fontSize: 16,
       color: theme.text,
@@ -185,7 +193,8 @@ export const createStyles = (theme: Theme) =>
       position: "absolute",
       top: 0,
       bottom: 0,
-      width: screenWidth * 0.8,
+      width: '80%', // Use percentage instead of fixed width for responsive sizing
+      maxWidth: 400, // Maximum width for larger screens
       backgroundColor: theme.surface,
       zIndex: 999,
       shadowColor: theme.shadow,
@@ -485,6 +494,71 @@ export const createStyles = (theme: Theme) =>
       marginBottom: 15,
       fontStyle: "italic",
     },
+    // Default Avatar Section (Admin)
+    defaultAvatarSection: {
+      marginTop: 15,
+      marginBottom: 15,
+      padding: 15,
+      backgroundColor: theme.card,
+      borderRadius: 12,
+    },
+    defaultAvatarTitle: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.text,
+      textAlign: "right",
+      marginBottom: 12,
+    },
+    defaultAvatarPreview: {
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    defaultAvatarImage: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      borderWidth: 3,
+      borderColor: theme.primary,
+    },
+    defaultAvatarPlaceholder: {
+      width: 80,
+      height: 80,
+      borderRadius: 40,
+      backgroundColor: theme.border,
+      justifyContent: "center",
+      alignItems: "center",
+      borderWidth: 2,
+      borderColor: theme.textSecondary,
+      borderStyle: "dashed",
+    },
+    defaultAvatarPlaceholderText: {
+      fontSize: 32,
+      color: theme.textSecondary,
+    },
+    defaultAvatarButtons: {
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: 10,
+    },
+    defaultAvatarButton: {
+      backgroundColor: theme.primary,
+      paddingVertical: 10,
+      paddingHorizontal: 16,
+      borderRadius: 10,
+    },
+    defaultAvatarButtonText: {
+      color: "#fff",
+      fontSize: 13,
+      fontWeight: "600",
+    },
+    defaultAvatarRemoveButton: {
+      backgroundColor: theme.error,
+    },
+    defaultAvatarRemoveButtonText: {
+      color: "#fff",
+      fontSize: 13,
+      fontWeight: "600",
+    },
     privacyButton: {
       backgroundColor: theme.warning,
     },
@@ -776,6 +850,76 @@ export const createStyles = (theme: Theme) =>
     logoutButtonText: {
       color: "#fff",
       fontSize: 16,
+      fontWeight: "bold",
+    },
+    // Privacy settings button
+    privacySettingsButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 16,
+      marginBottom: 20,
+      borderRadius: 16,
+      borderWidth: 1,
+    },
+    privacySettingsIcon: {
+      fontSize: 24,
+      marginRight: 12,
+    },
+    privacySettingsTextContainer: {
+      flex: 1,
+    },
+    privacySettingsTitle: {
+      fontSize: 16,
+      fontWeight: "600",
+      marginBottom: 2,
+    },
+    privacySettingsDesc: {
+      fontSize: 12,
+    },
+    privacySettingsArrow: {
+      fontSize: 20,
+      fontWeight: "bold",
+    },
+    // Language selector styles
+    languageSection: {
+      marginBottom: 20,
+      backgroundColor: theme.card,
+      borderRadius: 16,
+      padding: 16,
+    },
+    languageRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    languageLabel: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: theme.text,
+    },
+    languageButtons: {
+      flexDirection: "row",
+      gap: 8,
+    },
+    languageButton: {
+      paddingVertical: 8,
+      paddingHorizontal: 16,
+      borderRadius: 8,
+      backgroundColor: theme.inputBackground,
+      borderWidth: 2,
+      borderColor: "transparent",
+    },
+    languageButtonActive: {
+      backgroundColor: theme.isDark ? "rgba(102, 126, 234, 0.2)" : "#e8f4fd",
+      borderColor: theme.primary,
+    },
+    languageButtonText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      fontWeight: "500",
+    },
+    languageButtonTextActive: {
+      color: theme.primary,
       fontWeight: "bold",
     },
   });

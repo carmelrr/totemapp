@@ -3,6 +3,7 @@
 
 import React from "react";
 import { View, TouchableOpacity, StyleSheet, Text, ScrollView } from "react-native";
+import { useLanguage } from "@/features/language";
 
 const V_GRADES = ["VB", "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10+"];
 
@@ -15,9 +16,11 @@ export const GradePicker: React.FC<GradePickerProps> = ({
   selectedGrade,
   onSelectGrade,
 }) => {
+  const { t } = useLanguage();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>דרגת קושי:</Text>
+      <Text style={styles.label}>{t.sprayWall.difficultyGrade}</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}

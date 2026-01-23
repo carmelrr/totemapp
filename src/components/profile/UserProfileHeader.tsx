@@ -1,5 +1,8 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { View, Text, TouchableOpacity, Image, StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTheme } from "@/features/theme/ThemeContext";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 interface UserProfileHeaderProps {
     userProfile: {
@@ -23,113 +26,143 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
     isFollowed,
     handleFollowToggle,
 }) => {
+    const { theme } = useTheme();
+    const layout = useResponsiveLayout();
+    const { isLandscape, width: screenWidth } = layout;
+    const insets = useSafeAreaInsets();
+    
+    const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
+    
     const avatarSource = userProfile.photoURL
         ? { uri: userProfile.photoURL }
         : require("../../assets/splash.png");
 
     return (
         <View style={styles.profileHeader}>
-            <View style={styles.avatarContainer}>
-                <Image source={avatarSource} style={styles.avatar} />
-            </View>
-
-            <View style={styles.profileInfo}>
-                <Text style={styles.name}>
-                    {userProfile.displayName || "משתמש"}
-                </Text>
-
-                <View style={styles.followStats}>
-                    <Text style={styles.followStat}>{followers.length} עוקבים</Text>
-                    <Text style={styles.followStat}> • </Text>
-                    <Text style={styles.followStat}>{following.length} עוקב</Text>
+            <View style={styles.headerContent}>
+                <View style={styles.avatarContainer}>
+                    <Image source={avatarSource} style={styles.avatar} />
                 </View>
 
-                {currentUserId !== userId && (
-                    <TouchableOpacity
-                        style={[
-                            styles.followButton,
-                            isFollowed && styles.unfollowButton,
-                        ]}
-                        onPress={handleFollowToggle}
-                    >
-                        <Text
+                <View style={styles.profileInfo}>
+                    <Text style={styles.name}>
+                        {userProfile.displayName || "משתמש"}
+                    </Text>
+
+                    <View style={styles.followStats}>
+                        <Text style={styles.followStat}>{followers.length} עוקבים</Text>
+                        <Text style={styles.followStat}> • </Text>
+                        <Text style={styles.followStat}>{following.length} עוקב</Text>
+                    </View>
+
+                    {currentUserId !== userId && (
+                        <TouchableOpacity
                             style={[
-                                styles.followButtonText,
-                                isFollowed && styles.unfollowButtonText,
+                                styles.followButton,
+                                isFollowed && styles.unfollowButton,
                             ]}
+                            onPress={handleFollowToggle}
                         >
-                            {isFollowed ? "ביטול מעקב" : "מעקב"}
-                        </Text>
-                    </TouchableOpacity>
-                )}
+                            <Text
+                                style={[
+                                    styles.followButtonText,
+                                    isFollowed && styles.unfollowButtonText,
+                                ]}
+                            >
+                                {isFollowed ? "ביטול מעקב" : "מעקב"}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
         </View>
     );
 };
 
-const styles = StyleSheet.create({
-    profileHeader: {
-        backgroundColor: "#fff",
-        borderRadius: 16,
-        padding: 20,
-        marginBottom: 20,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 3,
-    },
-    avatarContainer: {
-        alignItems: "center",
-        marginBottom: 20,
-    },
-    avatar: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: "#eee",
-        borderWidth: 4,
-        borderColor: "#8e44ad",
-    },
-    profileInfo: {
-        alignItems: "center",
-    },
-    name: {
-        fontSize: 24,
-        fontWeight: "bold",
-        color: "#2c3e50",
-        marginBottom: 8,
-        textAlign: "center",
-    },
-    followStats: {
-        flexDirection: "row",
-        alignItems: "center",
-        marginBottom: 15,
-    },
-    followStat: {
-        fontSize: 16,
-        color: "#6c757d",
-        fontWeight: "500",
-    },
-    followButton: {
-        backgroundColor: "#8e44ad",
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 25,
-        minWidth: 120,
-    },
-    unfollowButton: {
-        backgroundColor: "#e9ecef",
-        borderWidth: 1,
-        borderColor: "#8e44ad",
-    },
-    followButtonText: {
-        color: "#fff",
-        fontWeight: "600",
-        fontSize: 16,
-        textAlign: "center",
-    },
-    unfollowButtonText: {
-        color: "#8e44ad",
-    },
-});
+const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout>, insets?: { left: number; right: number; top: number; bottom: number }) => {
+    const isLandscape = layout?.isLandscape ?? false;
+    const screenWidth = layout?.width ?? 375;
+    const isTablet = layout?.isTablet ?? false;
+    const isPhoneLandscape = !isTablet && isLandscape;
+    
+    // Account for safe areas in phone landscape
+    const safeLeft = insets?.left ?? 0;
+    const safeRight = insets?.right ?? 0;
+    const horizontalPadding = isPhoneLandscape ? 16 : (isLandscape ? 24 : 20);
+    const totalHorizontalPadding = horizontalPadding * 2 + safeLeft + safeRight;
+    const landscapeColumnWidth = isLandscape ? (screenWidth - totalHorizontalPadding - 24) / 2 : screenWidth - 40;
+
+    return StyleSheet.create({
+        profileHeader: {
+            backgroundColor: theme.surface,
+            borderRadius: isLandscape ? 16 : 20,
+            padding: isPhoneLandscape ? 12 : (isLandscape ? 16 : 20),
+            marginBottom: isLandscape ? 0 : 20,
+            shadowColor: theme.shadow,
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 3,
+            width: isLandscape ? landscapeColumnWidth : '100%',
+        },
+        headerContent: {
+            flexDirection: isLandscape ? 'row' : 'column',
+            alignItems: 'center',
+        },
+        avatarContainer: {
+            alignItems: "center",
+            marginBottom: isLandscape ? 0 : 16,
+            marginRight: isLandscape ? 16 : 0,
+        },
+        avatar: {
+            width: isLandscape ? 70 : 100,
+            height: isLandscape ? 70 : 100,
+            borderRadius: isLandscape ? 35 : 50,
+            backgroundColor: theme.border,
+            borderWidth: isLandscape ? 3 : 4,
+            borderColor: theme.secondary,
+        },
+        profileInfo: {
+            alignItems: "center",
+            flex: isLandscape ? 1 : undefined,
+        },
+        name: {
+            fontSize: isLandscape ? 18 : 24,
+            fontWeight: "bold",
+            color: theme.text,
+            marginBottom: 6,
+            textAlign: "center",
+        },
+        followStats: {
+            flexDirection: "row",
+            alignItems: "center",
+            marginBottom: isLandscape ? 10 : 15,
+        },
+        followStat: {
+            fontSize: isLandscape ? 14 : 16,
+            color: theme.textSecondary,
+            fontWeight: "500",
+        },
+        followButton: {
+            backgroundColor: theme.secondary,
+            paddingHorizontal: isLandscape ? 16 : 20,
+            paddingVertical: isLandscape ? 8 : 10,
+            borderRadius: 25,
+            minWidth: isLandscape ? 100 : 120,
+        },
+        unfollowButton: {
+            backgroundColor: theme.card,
+            borderWidth: 1,
+            borderColor: theme.secondary,
+        },
+        followButtonText: {
+            color: "#fff",
+            fontWeight: "600",
+            fontSize: isLandscape ? 14 : 16,
+            textAlign: "center",
+        },
+        unfollowButtonText: {
+            color: theme.secondary,
+        },
+    });
+};

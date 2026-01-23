@@ -6,11 +6,13 @@ import { View, StyleSheet, Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { WallForm } from "@/components/spray/WallForm";
 import { useAdmin } from "@/context/AdminContext";
+import { useLanguage } from "@/features/language";
 import { addWall } from "@/features/walls/wallsService";
 
 export const AddWallScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { isAdmin } = useAdmin();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (data: {
@@ -21,21 +23,21 @@ export const AddWallScreen: React.FC = () => {
     imageUri: string;
   }) => {
     if (!isAdmin) {
-      Alert.alert("שגיאה", "אין לך הרשאה להוסיף קיר");
+      Alert.alert(t.common.error, t.spray.noPermissionToAddWall);
       return;
     }
 
     setLoading(true);
     try {
       await addWall(data);
-      Alert.alert("הצלחה", "הקיר נוסף בהצלחה!", [
+      Alert.alert(t.common.success, t.spray.wallAddedSuccess, [
         {
-          text: "אישור",
+          text: t.common.ok,
           onPress: () => navigation.goBack(),
         },
       ]);
     } catch (error: any) {
-      Alert.alert("שגיאה", error.message || "הוספת הקיר נכשלה");
+      Alert.alert(t.common.error, error.message || t.spray.failedToAddWall);
     } finally {
       setLoading(false);
     }

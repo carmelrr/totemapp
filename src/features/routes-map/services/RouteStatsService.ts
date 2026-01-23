@@ -16,6 +16,10 @@ import {
 
 import { db } from '@/features/data/firebase';
 import { calculateRouteStats, calculateDifficultyConsensus, type FeedbackData } from '@/utils/businessLogic/routeCalculations';
+import { getColorTranslationKey } from '../utils/colors';
+import { getColorSettingSync, initializeColorSettings } from './ColorSettingsService';
+import { he as heTranslations } from '@/features/language/translations/he';
+import { en as enTranslations } from '@/features/language/translations/en';
 
 /**
  * שירות ניהול סטטיסטיקות מסלולים וחישובים
@@ -174,6 +178,114 @@ export class RouteStatsService {
             };
         } catch (error) {
             console.error("Error getting route difficulty analysis:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Recalculate statistics for ALL routes
+     * Useful when the calculation logic changes
+     */
+    static async recalculateAllRoutes(): Promise<{ success: number; failed: number }> {
+        try {
+            const routesSnapshot = await getDocs(this.routesRef);
+            let success = 0;
+            let failed = 0;
+
+            for (const routeDoc of routesSnapshot.docs) {
+                try {
+                    await this.updateRouteStatistics(routeDoc.id);
+                    success++;
+                    console.log(`Recalculated stats for route ${routeDoc.id}`);
+                } catch (error) {
+                    failed++;
+                    console.error(`Failed to recalculate route ${routeDoc.id}:`, error);
+                }
+            }
+
+            console.log(`Recalculation complete: ${success} success, ${failed} failed`);
+            return { success, failed };
+        } catch (error) {
+            console.error("Error recalculating all routes:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Recalculate route names for ALL routes
+     * Adds nameHe and nameEn based on color and grade
+     * @param forceUpdate - if true, updates all routes even if they already have names
+     */
+    static async recalculateAllRouteNames(forceUpdate: boolean = false): Promise<{ success: number; failed: number; skipped: number }> {
+        try {
+            // Initialize color settings first
+            await initializeColorSettings();
+            
+            const routesSnapshot = await getDocs(this.routesRef);
+            let success = 0;
+            let failed = 0;
+            let skipped = 0;
+
+            for (const routeDoc of routesSnapshot.docs) {
+                try {
+                    const routeData = routeDoc.data();
+                    
+                    // Skip if already has both names (unless forceUpdate is true)
+                    if (!forceUpdate && routeData.nameHe && routeData.nameEn) {
+                        skipped++;
+                        continue;
+                    }
+                    
+                    const color = routeData.color;
+                    const grade = routeData.grade;
+                    
+                    if (!color || !grade) {
+                        skipped++;
+                        continue;
+                    }
+                    
+                    // Get color names
+                    const colorKey = getColorTranslationKey(color);
+                    let colorNameHe: string;
+                    let colorNameEn: string;
+                    
+                    // Check for custom color setting
+                    const customSetting = getColorSettingSync(color);
+                    if (customSetting) {
+                        colorNameHe = customSetting.nameHe;
+                        colorNameEn = customSetting.nameEn;
+                    } else if (routeData.colorNameHe && routeData.colorNameEn) {
+                        // Use existing custom color names on the route
+                        colorNameHe = routeData.colorNameHe;
+                        colorNameEn = routeData.colorNameEn;
+                    } else {
+                        // Get from translations
+                        colorNameHe = heTranslations.colors[colorKey as keyof typeof heTranslations.colors] || colorKey;
+                        colorNameEn = enTranslations.colors[colorKey as keyof typeof enTranslations.colors] || colorKey;
+                    }
+                    
+                    const nameHe = `${colorNameHe} ${grade}`;
+                    const nameEn = `${colorNameEn} ${grade}`;
+                    
+                    // Update the route
+                    await updateDoc(doc(this.routesRef, routeDoc.id), {
+                        nameHe,
+                        nameEn,
+                        updatedAt: serverTimestamp(),
+                    });
+                    
+                    success++;
+                    console.log(`Updated names for route ${routeDoc.id}: ${nameHe} / ${nameEn}`);
+                } catch (error) {
+                    failed++;
+                    console.error(`Failed to update names for route ${routeDoc.id}:`, error);
+                }
+            }
+
+            console.log(`Route names recalculation complete: ${success} success, ${failed} failed, ${skipped} skipped`);
+            return { success, failed, skipped };
+        } catch (error) {
+            console.error("Error recalculating all route names:", error);
             throw error;
         }
     }

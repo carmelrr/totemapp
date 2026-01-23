@@ -1,41 +1,41 @@
 // Predefined route colors
 export const ROUTE_COLORS = [
-  '#D2691E', // עץ (חום-כתום עץ)
-  '#E8E8E8', // שקוף (אפור בהיר מאוד)
-  '#000000', // שחור
-  '#C0C0C0', // אפור בהיר
-  '#87CEEB', // כחול בהיר
-  '#00008B', // כחול כהה
-  '#00CED1', // תכלת
-  '#00FF00', // ירוק
-  '#006400', // ירוק כהה
-  '#FF0000', // אדום
-  '#8B4513', // חום
-  '#FFA500', // כתום
-  '#FFFF00', // צהוב
-  '#800080', // סגול
-  '#FFC0CB', // ורוד
-  '#FFFFFF', // לבן
+  '#D2691E', // wood
+  '#E8E8E8', // transparent
+  '#000000', // black
+  '#C0C0C0', // light gray
+  '#87CEEB', // light blue
+  '#00008B', // dark blue
+  '#00CED1', // cyan
+  '#00FF00', // green
+  '#006400', // dark green
+  '#FF0000', // red
+  '#8B4513', // brown
+  '#FFA500', // orange
+  '#FFFF00', // yellow
+  '#800080', // purple
+  '#FFC0CB', // pink
+  '#FFFFFF', // white
 ] as const;
 
-// Color names in Hebrew for display
-export const COLOR_NAMES: Record<string, string> = {
-  '#D2691E': 'עץ',
-  '#E8E8E8': 'שקוף',
-  '#000000': 'שחור',
-  '#C0C0C0': 'אפור בהיר',
-  '#87CEEB': 'כחול בהיר',
-  '#00008B': 'כחול כהה',
-  '#00CED1': 'תכלת',
-  '#00FF00': 'ירוק',
-  '#006400': 'ירוק כהה',
-  '#FF0000': 'אדום',
-  '#8B4513': 'חום',
-  '#FFA500': 'כתום',
-  '#FFFF00': 'צהוב',
-  '#800080': 'סגול',
-  '#FFC0CB': 'ורוד',
-  '#FFFFFF': 'לבן',
+// Color key to translation key mapping
+export const COLOR_TRANSLATION_KEYS: Record<string, string> = {
+  '#D2691E': 'wood',
+  '#E8E8E8': 'transparent',
+  '#000000': 'black',
+  '#C0C0C0': 'lightGray',
+  '#87CEEB': 'lightBlue',
+  '#00008B': 'darkBlue',
+  '#00CED1': 'cyan',
+  '#00FF00': 'green',
+  '#006400': 'darkGreen',
+  '#FF0000': 'red',
+  '#8B4513': 'brown',
+  '#FFA500': 'orange',
+  '#FFFF00': 'yellow',
+  '#800080': 'purple',
+  '#FFC0CB': 'pink',
+  '#FFFFFF': 'white',
 };
 
 export type RouteColor = typeof ROUTE_COLORS[number];
@@ -48,8 +48,11 @@ export function isValidRouteColor(color: string): color is RouteColor {
   return ROUTE_COLORS.includes(color as RouteColor);
 }
 
-export function getColorName(color: string): string {
-  return COLOR_NAMES[color.toLowerCase()] || COLOR_NAMES[color] || 'מותאם אישית';
+// Get color translation key for use with t.colors[key]
+export function getColorTranslationKey(color: string): string {
+  const upperColor = color.toUpperCase();
+  // Check both uppercase and original case
+  return COLOR_TRANSLATION_KEYS[upperColor] || COLOR_TRANSLATION_KEYS[color] || 'custom';
 }
 
 export function getContrastTextColor(backgroundColor: string): string {

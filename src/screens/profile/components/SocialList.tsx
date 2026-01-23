@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, TextInput, TouchableOpacity, Image, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, ScrollView, ActivityIndicator } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 import { auth } from "@/features/data/firebase";
 import { createStyles } from "../styles";
 import { searchUsers, getAllUsers, getUserFollowing } from "@/features/social/socialService";
+import { UserAvatar } from "@/components/ui/UserAvatar";
 import type { SocialUser } from "../types";
 
 interface SocialListProps {
@@ -25,6 +27,7 @@ export const SocialList: React.FC<SocialListProps> = ({
   loading,
 }) => {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const styles = createStyles(theme);
   const navigation = useNavigation();
   const currentUserId = auth.currentUser?.uid;
@@ -112,7 +115,11 @@ export const SocialList: React.FC<SocialListProps> = ({
   };
 
   const navigateToUserProfile = (userId: string) => {
-    navigation.navigate("UserProfile" as never, { userId } as never);
+    // Use nested navigation to navigate to UserProfile inside ProfileStack
+    (navigation as any).navigate("ProfileTab", {
+      screen: "UserProfile",
+      params: { userId },
+    });
   };
 
   // Check if user is being followed
@@ -143,7 +150,7 @@ export const SocialList: React.FC<SocialListProps> = ({
     return (
       <TextInput
         style={styles.searchInput}
-        placeholder="חפש משתמשים..."
+        placeholder={t.profile.searchPlaceholder}
         placeholderTextColor={theme.textSecondary}
         value={searchQuery}
         onChangeText={onSearchChange}
@@ -157,20 +164,20 @@ export const SocialList: React.FC<SocialListProps> = ({
       return (
         <View style={{ paddingVertical: 30, alignItems: "center" }}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={[styles.loadingText, { marginTop: 10 }]}>טוען משתמשים...</Text>
+          <Text style={[styles.loadingText, { marginTop: 10 }]}>{t.profile.loadingUsers}</Text>
         </View>
       );
     }
 
     const emptyMessages: Record<string, string> = {
-      followers: "אין עוקבים עדיין",
-      following: "אתה לא עוקב אחרי אף אחד",
-      search: searchQuery ? "לא נמצאו תוצאות" : "אין משתמשים",
+      followers: t.profile.noFollowersYet,
+      following: t.profile.notFollowingAnyone,
+      search: searchQuery ? t.profile.noSearchResults : t.profile.noUsers,
     };
 
     return (
       <Text style={styles.emptyText}>
-        {emptyMessages[activeTab] || "אין תוצאות"}
+        {emptyMessages[activeTab] || t.profile.noResults}
       </Text>
     );
   };
@@ -209,14 +216,12 @@ export const SocialList: React.FC<SocialListProps> = ({
       >
         <View style={styles.userInfo}>
           <Text style={styles.userName}>{item.displayName || item.email}</Text>
-          {item.avatar || item.photoURL ? (
-            <Image 
-              source={{ uri: item.avatar || item.photoURL }} 
-              style={styles.socialAvatar as any} 
-            />
-          ) : (
-            <View style={[styles.socialAvatar, { backgroundColor: "#ddd" }]} />
-          )}
+          <UserAvatar
+            photoURL={item.avatar || item.photoURL}
+            displayName={item.displayName || item.email}
+            size={40}
+            style={styles.socialAvatar}
+          />
         </View>
         <TouchableOpacity
           style={[
@@ -234,7 +239,7 @@ export const SocialList: React.FC<SocialListProps> = ({
               isFollowing && styles.unfollowButtonText,
             ]}
           >
-            {isFollowing ? "הפסק מעקב" : "עקוב"}
+            {isFollowing ? t.profile.unfollow : t.profile.follow}
           </Text>
         </TouchableOpacity>
       </TouchableOpacity>

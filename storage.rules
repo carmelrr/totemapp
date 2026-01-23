@@ -1,18 +1,99 @@
+// Storage Security Rules - Production Ready
+// חוקי אבטחה לאחסון קבצים
+
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // TEMPORARY: Allow all access for debugging
-    match /{allPaths=**} {
-      allow read, write: if true;
+    
+    // ==================== Helper Functions ====================
+    
+    // בדיקה שהמשתמש מחובר
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // בדיקה שזה המשתמש עצמו
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // בדיקה שהקובץ הוא תמונה
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    // בדיקה שהתמונה מסוג מותר
+    function isAllowedImageType() {
+      return request.resource.contentType in ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    }
+    
+    // בדיקת גודל קובץ מקסימלי (בבייטים)
+    function isUnderMaxSize(maxSizeBytes) {
+      return request.resource.size < maxSizeBytes;
+    }
+    
+    // ==================== User Profile Images ====================
+    // תמונות פרופיל - רק המשתמש יכול לעדכן את שלו
+    match /users/{userId}/profile/{fileName} {
+      // כולם יכולים לקרוא תמונות פרופיל
+      allow read: if true;
+      
+      // רק המשתמש עצמו יכול להעלות/למחוק תמונת פרופיל שלו
+      allow write: if isOwner(userId) && 
+        isImage() && 
+        isAllowedImageType() && 
+        isUnderMaxSize(5 * 1024 * 1024); // 5MB max
     }
     
     // ==================== Community Routes Images ====================
-    // תמונות מסלולי קהילה - נמחקות אוטומטית אחרי 30 יום
+    // תמונות מסלולי קהילה
     match /community-routes/{userId}/{fileName} {
-      // כל אחד יכול לקרוא תמונות
+      // כולם יכולים לקרוא
       allow read: if true;
+      
       // רק המשתמש עצמו יכול להעלות לתיקייה שלו
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if isOwner(userId) && 
+        isImage() && 
+        isAllowedImageType() && 
+        isUnderMaxSize(10 * 1024 * 1024); // 10MB max
+    }
+    
+    // ==================== Route Images ====================
+    // תמונות מסלולים כלליות
+    match /routes/{routeId}/{fileName} {
+      // כולם יכולים לקרוא
+      allow read: if true;
+      
+      // רק משתמשים מחוברים יכולים להעלות
+      allow write: if isAuthenticated() && 
+        isImage() && 
+        isAllowedImageType() && 
+        isUnderMaxSize(10 * 1024 * 1024); // 10MB max
+    }
+    
+    // ==================== Competition Images ====================
+    // תמונות תחרויות (רק מנהלים)
+    match /competitions/{competitionId}/{fileName} {
+      allow read: if true;
+      // העלאה רק דרך Admin SDK (מנהלים) - לא דרך הקליינט
+      allow write: if false;
+    }
+    
+    // ==================== Spray Wall Images ====================
+    // תמונות קירות ספריי - מנהלים יכולים להעלות, כולם יכולים לקרוא
+    match /sprayWalls/{wallPath=**} {
+      allow read: if true;
+      // רק משתמשים מחוברים יכולים להעלות (הגבלה נוספת מצד הקוד)
+      allow write: if isAuthenticated() && 
+        isImage() && 
+        isAllowedImageType() && 
+        isUnderMaxSize(15 * 1024 * 1024); // 15MB max for wall images
+    }
+
+    // ==================== Default Deny ====================
+    // כל מה שלא מוגדר במפורש - אסור!
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

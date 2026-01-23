@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 import { createStyles } from "../styles";
 
 interface SocialTabsProps {
@@ -10,12 +11,13 @@ interface SocialTabsProps {
 
 export const SocialTabs: React.FC<SocialTabsProps> = ({ activeTab, onTabPress }) => {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const styles = createStyles(theme);
 
   const tabs = [
-    { id: "followers", label: "עוקבים" },
-    { id: "following", label: "נעקבים" },
-    { id: "search", label: "חיפוש" },
+    { id: "followers", label: t.profile.followers },
+    { id: "following", label: t.profile.following },
+    { id: "search", label: t.common.search },
   ];
 
   return (

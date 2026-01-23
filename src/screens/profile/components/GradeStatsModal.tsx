@@ -31,6 +31,17 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
   const { theme } = useTheme();
   const styles = createStyles(theme);
 
+  // Sort grades from easy to hard (V0, V1, V2, ... V17)
+  const gradeOrder: Record<string, number> = {
+    V0: 0, V1: 1, V2: 2, V3: 3, V4: 4, V5: 5,
+    V6: 6, V7: 7, V8: 8, V9: 9, V10: 10,
+    V11: 11, V12: 12, V13: 13, V14: 14, V15: 15, V16: 16, V17: 17,
+  };
+  
+  const sortedGradeEntries = Object.entries(gradeStats).sort(([a], [b]) => {
+    return (gradeOrder[a] ?? 999) - (gradeOrder[b] ?? 999);
+  });
+
   const renderGradeStat = (grade: string, data: any) => {
     const percentage = data.percentage || 0;
     const completed = data.completed || 0;
@@ -127,7 +138,7 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
             <View style={styles.sectionTitle}>
               <Text style={styles.modalTitle}>סטטיסטיקות לפי גרייד</Text>
             </View>
-            {Object.entries(gradeStats).map(([grade, data]) =>
+            {sortedGradeEntries.map(([grade, data]) =>
               renderGradeStat(grade, data)
             )}
 

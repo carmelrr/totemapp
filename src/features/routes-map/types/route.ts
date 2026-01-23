@@ -1,12 +1,15 @@
 export type RouteDoc = {
   id: string;
   name: string;
+  nameHe?: string;     // Hebrew name (e.g., "כחול V3")
+  nameEn?: string;     // English name (e.g., "Blue V3")
   grade: string;       // V-scale string - original grade set by route setter
   color: string;       // hex
   xNorm: number;       // 0..1
   yNorm: number;       // 0..1
   createdAt: any;      // Firestore Timestamp
   status: "active" | "archived" | "draft";
+  archivedAt?: any;    // Firestore Timestamp - when route was moved to trash
   rating: number;
   tops: number;
   comments: number;

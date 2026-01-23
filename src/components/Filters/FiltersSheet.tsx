@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import { useFiltersStore } from '@/store/useFiltersStore';
 import { getColorHex } from '@/constants/colors';
+import { useLanguage } from '@/features/language';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface FiltersSheetProps {
   availableColors?: string[];
@@ -34,11 +36,25 @@ const formatDateForDisplay = (dateStr: string): string => {
  */
 export default function FiltersSheet({
   availableColors = [],
-  availableGrades = ALL_GRADES,
+  availableGrades = [],
   availableDates = [],
 }: FiltersSheetProps) {
+  const { t, language } = useLanguage();
+  const { theme } = useTheme();
+  const dynamicStyles = useMemo(() => createStyles(theme), [theme]);
+  
+  // Sort available grades in proper order
+  const sortedGrades = useMemo(() => {
+    return [...availableGrades].sort((a, b) => {
+      const indexA = ALL_GRADES.indexOf(a);
+      const indexB = ALL_GRADES.indexOf(b);
+      return indexA - indexB;
+    });
+  }, [availableGrades]);
+  
   console.log('[FiltersSheet] availableColors:', availableColors);
   console.log('[FiltersSheet] availableDates:', availableDates);
+  console.log('[FiltersSheet] sortedGrades:', sortedGrades);
   
   const {
     filters,
@@ -105,6 +121,7 @@ export default function FiltersSheet({
     const { min, max } = filters.gradeRange;
     if (!min && !max) return false;
     
+    // Use ALL_GRADES for consistent ordering across all grades
     const gradeIndex = ALL_GRADES.indexOf(grade);
     const minIndex = min ? ALL_GRADES.indexOf(min) : 0;
     const maxIndex = max ? ALL_GRADES.indexOf(max) : ALL_GRADES.length - 1;
@@ -134,7 +151,7 @@ export default function FiltersSheet({
   // Get selected grades text for display
   const getSelectedGradesText = () => {
     const { min, max } = filters.gradeRange;
-    if (!min && !max) return 'הכל';
+    if (!min && !max) return t.common.all;
     if (min === max) return min;
     return `${min} - ${max}`;
   };
@@ -146,32 +163,32 @@ export default function FiltersSheet({
       presentationStyle="pageSheet"
       onRequestClose={() => setFilterSheetOpen(false)}
     >
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={dynamicStyles.container}>
         {/* Header */}
-        <View style={styles.header}>
+        <View style={dynamicStyles.header}>
           <TouchableOpacity
-            style={styles.headerButton}
+            style={dynamicStyles.headerButton}
             onPress={() => setFilterSheetOpen(false)}
           >
-            <Text style={styles.cancelText}>ביטול</Text>
+            <Text style={dynamicStyles.cancelText}>{t.common.cancel}</Text>
           </TouchableOpacity>
           
-          <Text style={styles.title}>סינון מסלולים</Text>
+          <Text style={dynamicStyles.title}>{t.filters.title}</Text>
           
           <TouchableOpacity
-            style={styles.headerButton}
+            style={dynamicStyles.headerButton}
             onPress={handleApply}
           >
-            <Text style={styles.applyText}>הפעל</Text>
+            <Text style={dynamicStyles.applyText}>{t.filters.apply}</Text>
           </TouchableOpacity>
         </View>
 
-        <ScrollView style={styles.content}>
+        <ScrollView style={dynamicStyles.content}>
           {/* Colors Section */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>צבעים</Text>
+          <View style={dynamicStyles.section}>
+            <Text style={dynamicStyles.sectionTitle}>{t.filters.colors}</Text>
             {availableColors.length > 0 ? (
-              <View style={styles.colorsGrid}>
+              <View style={dynamicStyles.colorsGrid}>
                 {availableColors.map((color) => {
                   const displayColor = getDisplayColor(color);
                   const isSelected = filters.colors.includes(color);
@@ -179,79 +196,85 @@ export default function FiltersSheet({
                     <TouchableOpacity
                       key={color}
                       style={[
-                        styles.colorChip,
+                        dynamicStyles.colorChip,
                         { borderColor: displayColor },
-                        isSelected && styles.colorChipSelected,
+                        isSelected && dynamicStyles.colorChipSelected,
                       ]}
                       onPress={() => handleColorToggle(color)}
                     >
                       <View
-                        style={[styles.colorIndicator, { backgroundColor: displayColor }]}
+                        style={[dynamicStyles.colorIndicator, { backgroundColor: displayColor }]}
                       />
                       {isSelected && (
-                        <Text style={styles.colorCheckmark}>✓</Text>
+                        <Text style={dynamicStyles.colorCheckmark}>✓</Text>
                       )}
                     </TouchableOpacity>
                   );
                 })}
               </View>
             ) : (
-              <Text style={styles.emptyText}>אין צבעים זמינים</Text>
+              <Text style={dynamicStyles.emptyText}>{t.filters.noColorsAvailable}</Text>
             )}
           </View>
 
           {/* Grades Section */}
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>דרגת קושי</Text>
-              <Text style={styles.selectedText}>{getSelectedGradesText()}</Text>
+          <View style={dynamicStyles.section}>
+            <View style={dynamicStyles.sectionHeader}>
+              <Text style={dynamicStyles.sectionTitle}>{t.filters.difficultyGrade}</Text>
+              <Text style={dynamicStyles.selectedText}>{getSelectedGradesText()}</Text>
             </View>
-            <Text style={styles.sectionHint}>לחץ על דרגה לבחירה, או על שתיים לטווח</Text>
-            <View style={styles.gradesGrid}>
-              {ALL_GRADES.map((grade) => {
-                const isSelected = isGradeSelected(grade);
-                return (
-                  <TouchableOpacity
-                    key={grade}
-                    style={[
-                      styles.gradeChip,
-                      isSelected && styles.gradeChipSelected,
-                    ]}
-                    onPress={() => handleGradeToggle(grade)}
-                  >
-                    <Text style={[
-                      styles.gradeText,
-                      isSelected && styles.gradeTextSelected,
-                    ]}>
-                      {grade}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+            {sortedGrades.length > 0 ? (
+              <>
+                <Text style={dynamicStyles.sectionHint}>{t.filters.tapToSelectHint}</Text>
+                <View style={dynamicStyles.gradesGrid}>
+                  {sortedGrades.map((grade) => {
+                    const isSelected = isGradeSelected(grade);
+                    return (
+                      <TouchableOpacity
+                        key={grade}
+                        style={[
+                          dynamicStyles.gradeChip,
+                          isSelected && dynamicStyles.gradeChipSelected,
+                        ]}
+                        onPress={() => handleGradeToggle(grade)}
+                      >
+                        <Text style={[
+                          dynamicStyles.gradeText,
+                          isSelected && dynamicStyles.gradeTextSelected,
+                        ]}>
+                          {grade}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            ) : (
+              <Text style={dynamicStyles.emptyText}>{t.filters.noGradesAvailable || 'No grades available'}</Text>
+            )}
           </View>
 
           {/* Date Filter Section - Specific dates from routes */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>תאריך הוספה</Text>
+          <View style={dynamicStyles.section}>
+            <Text style={dynamicStyles.sectionTitle}>{t.filters.addedDate}</Text>
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.dateChipsRow}
+              contentContainerStyle={dynamicStyles.dateChipsRow}
             >
               {/* כפתור 'הכל' תמיד ראשון */}
               <TouchableOpacity
                 style={[
-                  styles.dateChip,
-                  filters.dateRange === 'all' && styles.dateChipSelected,
+                  dynamicStyles.dateChip,
+                  filters.dateRange === 'all' && dynamicStyles.dateChipSelected,
                 ]}
                 onPress={() => setFilter('dateRange', 'all')}
               >
                 <Text style={[
-                  styles.dateChipText,
-                  filters.dateRange === 'all' && styles.dateChipTextSelected,
+                  dynamicStyles.dateChipText,
+                  filters.dateRange === 'all' && dynamicStyles.dateChipTextSelected,
                 ]}>
-                  הכל
+                  {t.common.all}
                 </Text>
               </TouchableOpacity>
               
@@ -262,14 +285,14 @@ export default function FiltersSheet({
                   <TouchableOpacity
                     key={dateStr}
                     style={[
-                      styles.dateChip,
-                      isSelected && styles.dateChipSelected,
+                      dynamicStyles.dateChip,
+                      isSelected && dynamicStyles.dateChipSelected,
                     ]}
                     onPress={() => setFilter('dateRange', dateStr)}
                   >
                     <Text style={[
-                      styles.dateChipText,
-                      isSelected && styles.dateChipTextSelected,
+                      dynamicStyles.dateChipText,
+                      isSelected && dynamicStyles.dateChipTextSelected,
                     ]}>
                       {formatDateForDisplay(dateStr)}
                     </Text>
@@ -281,15 +304,15 @@ export default function FiltersSheet({
         </ScrollView>
 
         {/* Footer */}
-        <View style={styles.footer}>
+        <View style={dynamicStyles.footer}>
           {activeFiltersCount > 0 && (
             <TouchableOpacity
-              style={styles.resetButton}
+              style={dynamicStyles.resetButton}
               onPress={() => {
                 resetFilters();
               }}
             >
-              <Text style={styles.resetButtonText}>נקה סינון ({activeFiltersCount})</Text>
+              <Text style={dynamicStyles.resetButtonText}>נקה סינון ({activeFiltersCount})</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -298,10 +321,10 @@ export default function FiltersSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: 'row',
@@ -310,24 +333,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: theme.border,
   },
   headerButton: {
     minWidth: 60,
   },
   cancelText: {
     fontSize: 16,
-    color: '#6b7280',
+    color: theme.textSecondary,
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
   },
   applyText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3b82f6',
+    color: theme.primary,
     textAlign: 'right',
   },
   content: {
@@ -337,7 +360,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: theme.border,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -348,21 +371,21 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 17,
     fontWeight: '600',
-    color: '#111827',
+    color: theme.text,
   },
   selectedText: {
     fontSize: 14,
-    color: '#3b82f6',
+    color: theme.primary,
     fontWeight: '600',
   },
   sectionHint: {
     fontSize: 13,
-    color: '#9ca3af',
+    color: theme.textSecondary,
     marginBottom: 12,
   },
   emptyText: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.textSecondary,
     textAlign: 'center',
     paddingVertical: 20,
   },
@@ -378,7 +401,7 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   colorChipSelected: {
     borderWidth: 4,
@@ -408,19 +431,19 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderColor: theme.border,
+    backgroundColor: theme.isDark ? '#2a2a2a' : '#f9fafb',
     minWidth: 55,
     alignItems: 'center',
   },
   gradeChipSelected: {
-    backgroundColor: '#10b981',
-    borderColor: '#10b981',
+    backgroundColor: theme.success,
+    borderColor: theme.success,
   },
   gradeText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#4b5563',
+    color: theme.textSecondary,
   },
   gradeTextSelected: {
     color: '#ffffff',
@@ -435,17 +458,17 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1.5,
-    borderColor: '#e5e7eb',
-    backgroundColor: '#f9fafb',
+    borderColor: theme.border,
+    backgroundColor: theme.isDark ? '#2a2a2a' : '#f9fafb',
   },
   dateChipSelected: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   dateChipText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4b5563',
+    color: theme.textSecondary,
   },
   dateChipTextSelected: {
     color: '#ffffff',
@@ -454,10 +477,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: theme.border,
   },
   resetButton: {
-    backgroundColor: '#ef4444',
+    backgroundColor: theme.error,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: 'center',

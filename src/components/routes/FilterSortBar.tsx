@@ -1,7 +1,8 @@
 // components/routes/FilterSortBar.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Pressable, Text, StyleSheet } from 'react-native';
-import { THEME_COLORS } from '@/constants/colors';
+import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 
 interface FilterSortBarProps {
     onFilterPress: () => void;
@@ -12,34 +13,39 @@ interface FilterSortBarProps {
  * Toolbar קטן בין המפה לרשימה עם כפתורי סינון ומיון
  */
 export default function FilterSortBar({ onFilterPress, onSortPress }: FilterSortBarProps) {
+    const { t } = useLanguage();
+    const { theme } = useTheme();
+    const styles = useMemo(() => createStyles(theme), [theme]);
+    
     return (
         <View style={styles.row}>
             <Pressable style={styles.btn} onPress={onFilterPress}>
-                <Text style={styles.btnText}>סינון</Text>
+                <Text style={styles.btnText}>{t.common.filter}</Text>
             </Pressable>
             <Pressable style={styles.btn} onPress={onSortPress}>
-                <Text style={styles.btnText}>מיון</Text>
+                <Text style={styles.btnText}>{t.common.sort}</Text>
             </Pressable>
         </View>
     );
 }
 
-const styles = StyleSheet.create({
+// Dynamic styles factory for theme support
+const createStyles = (theme: any) => StyleSheet.create({
     row: {
         flexDirection: 'row',
         gap: 8,
         paddingHorizontal: 12,
         paddingVertical: 8,
         alignItems: 'center',
-        backgroundColor: THEME_COLORS.background,
+        backgroundColor: theme.background,
     },
     btn: {
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 16,
-        backgroundColor: THEME_COLORS.surface,
+        backgroundColor: theme.surface,
         elevation: 1,
-        shadowColor: '#000',
+        shadowColor: theme.shadow,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,
@@ -47,7 +53,7 @@ const styles = StyleSheet.create({
     btnText: {
         fontSize: 14,
         fontWeight: '500',
-        color: THEME_COLORS.text,
+        color: theme.text,
         textAlign: 'center',
     },
 });

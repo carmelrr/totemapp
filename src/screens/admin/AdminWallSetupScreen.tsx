@@ -19,12 +19,14 @@ import Animated, {
   runOnJS,
 } from "react-native-reanimated";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 export default function AdminWallSetupScreen() {
   const navigation = useNavigation();
   const { theme } = useTheme();
+  const { t } = useLanguage();
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [holds, setHolds] = useState([]);
@@ -127,7 +129,7 @@ export default function AdminWallSetupScreen() {
 
   const saveWallSetup = async () => {
     if (holds.length < 10) {
-      Alert.alert("שגיאה", "יש לסמן לפחות 10 אחיזות על הקיר");
+      Alert.alert(t.common.error, t.admin.markAtLeastHolds);
       return;
     }
 
@@ -148,13 +150,13 @@ export default function AdminWallSetupScreen() {
       // TODO: Save to Firestore - wall functionality for regular routes
 
       Alert.alert(
-        "הצלחה!",
-        `הקיר נשמר בהצלחה עם ${holds.length} אחיזות מוכנות`,
+        t.common.success,
+        `Wall saved successfully with ${holds.length} holds`,
         [{ text: "OK", onPress: () => navigation.goBack() }],
       );
     } catch (error) {
       console.error("Error saving wall:", error);
-      Alert.alert("שגיאה", "לא ניתן לשמור את הקיר");
+      Alert.alert(t.common.error, t.admin.cannotSaveWall);
     } finally {
       setIsUploading(false);
     }
@@ -217,7 +219,7 @@ export default function AdminWallSetupScreen() {
           disabled={!selectedImage || holds.length < 10 || isUploading}
         >
           <Text style={styles.saveButtonText}>
-            {isUploading ? "שומר..." : "שמור"}
+            {isUploading ? t.admin.saving : t.common.save}
           </Text>
         </TouchableOpacity>
       </View>

@@ -6,7 +6,9 @@ import WallMapSVG from "@/assets/WallMapSVG";
 import FilterSortBar from "@/components/routes/FilterSortBar";
 import RoutesList from "@/components/routes/RoutesList";
 import PlusFAB from "@/components/routes/PlusFAB";
-import { THEME_COLORS } from "@/constants/colors";
+import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 interface Route {
   id: string;
@@ -81,20 +83,43 @@ const OUTER_RADIUS = 20;
 
 /**
  * מסך הראשי: קומפוזיציה של המפה + Toolbar + רשימה
+ * תומך ב-Portrait ו-Landscape עם layout אדפטיבי
  */
 const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
+  const { t } = useLanguage();
+  const { theme } = useTheme();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string | undefined>();
   const [refreshing, setRefreshing] = useState(false);
   
-  // Get screen dimensions and safe area insets
-  const { width: screenWidth } = useWindowDimensions();
+  // Responsive layout - automatically updates on rotation
+  const layout = useResponsiveLayout();
+  const { width: screenWidth, height: screenHeight, isLandscape, isTablet, mapLayoutMode, scaleFactor } = layout;
   const insets = useSafeAreaInsets();
 
-  // חישוב מידות המסגרת בהתאם לאספקט רטיו של הקיר
+  // חישוב מידות המסגרת בהתאם לאספקט רטיו של הקיר ולאוריינטציה
   const wallAspectRatio = WALL_HEIGHT / WALL_WIDTH;
-  const frameWidth = screenWidth - 32; // השארת 16px מכל צד למרווח
-  const frameHeight = frameWidth * wallAspectRatio;
+  
+  // בlandscape, נשתמש בגובה המסך פחות שוליים; בportrait, נשתמש ברוחב
+  const availableWidth = isLandscape 
+    ? (screenWidth * 0.6) - 32 // 60% of width for map in landscape
+    : screenWidth - 32;
+  const availableHeight = isLandscape 
+    ? screenHeight - insets.top - insets.bottom - 80 // Leave space for safe area
+    : undefined;
+  
+  // חישוב מידות המסגרת
+  let frameWidth = availableWidth;
+  let frameHeight = frameWidth * wallAspectRatio;
+  
+  // בlandscape, אם הגובה חורג מהמקום הזמין, נתאים לפי גובה
+  if (isLandscape && availableHeight && frameHeight > availableHeight) {
+    frameHeight = availableHeight;
+    frameWidth = frameHeight / wallAspectRatio;
+  }
+
+  // Create responsive styles with theme support
+  const styles = useMemo(() => createStyles(layout, frameHeight, insets, theme), [layout, frameHeight, insets, theme]);
 
   // מידות המסגרת (יתעדכנו מ-InteractiveImage)
   const [mapFrameDimensions, setMapFrameDimensions] = useState({
@@ -136,7 +161,7 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
       setRoutes(mockRoutes);
     } catch (error) {
       console.error('Error loading routes:', error);
-      Alert.alert('שגיאה', 'נכשל בטעינת המסלולים');
+      Alert.alert(t.common.error, t.map.failedToLoadRoutes);
     } finally {
       setRefreshing(false);
     }
@@ -217,7 +242,7 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
         x: selectedRoute.x,
         y: selectedRoute.y,
       },
-      createdAt: new Date(),
+      createdAt: new Date().toISOString(),
       createdBy: 'system',
       wallId: route.params?.wallId || 'default-wall',
     };
@@ -229,117 +254,144 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
   // טיפול בכפתור הפלוס (רק לאדמין)
   const handleAddRoute = useCallback(() => {
     // TODO: נווט למסך הוספת מסלול
-    navigation.navigate('AddRouteScreen', { wallId: route.params?.wallId });
+    navigation.navigate('AddRoute', { wallId: route.params?.wallId });
   }, [navigation, route.params?.wallId]);
 
   // טיפול בסינון
   const handleFilterPress = useCallback(() => {
     // TODO: פתח דיאלוג סינון
-    Alert.alert('סינון', 'כאן יהיה דיאלוג סינון');
-  }, []);
+    Alert.alert(t.common.filter, t.map.filterDialogPlaceholder);
+  }, [t]);
 
   // טיפול במיון
   const handleSortPress = useCallback(() => {
     // TODO: פתח דיאלוג מיון
-    Alert.alert('מיון', 'כאן יהיה דיאלוג מיון');
-  }, []);
+    Alert.alert(t.common.sort, t.map.sortDialogPlaceholder);
+  }, [t]);
 
-  return (
-    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      {/* Map Frame with Fixed Dimensions - מסגרת קבועה ובולטת */}
-      <View style={styles.mapFrame}>
-        {/* שכבת קליפ שמבטיחה קליפינג אמיתי וגם משאירה את הגבול נראה */}
-        <View
-          style={styles.mapClip}
-          onLayout={e => {
-            const { width, height } = e.nativeEvent.layout;
-            handleMapFrameLayout(width, height); // ממשיך להשתמש במידות האמיתיות למיקומי העיגולים
-            console.log("[WallMap] mapClip layout", { width, height });
-          }}
+  // Render the map section
+  const renderMapSection = () => (
+    <View style={styles.mapFrame}>
+      {/* שכבת קליפ שמבטיחה קליפינג אמיתי וגם משאירה את הגבול נראה */}
+      <View
+        style={styles.mapClip}
+        onLayout={e => {
+          const { width, height } = e.nativeEvent.layout;
+          handleMapFrameLayout(width, height);
+          console.log("[WallMap] mapClip layout", { width, height, isLandscape });
+        }}
+      >
+        <InteractiveImage
+          imageNaturalSize={{ width: WALL_WIDTH, height: WALL_HEIGHT }}
+          minScale={1}
+          maxScale={4}
+          debug={true}
+          onTransformChange={handleTransformChange}
         >
-          <InteractiveImage
-            imageNaturalSize={{ width: WALL_WIDTH, height: WALL_HEIGHT }}
-            minScale={1}
-            maxScale={4}
-            debug={true}
-            onTransformChange={handleTransformChange}
-          >
-            {/* Visual debug border */}
-            <View style={{
-              position: 'absolute',
-              left: 0,
-              top: 0,
-              right: 0,
-              bottom: 0,
-              borderWidth: 2,
-              borderColor: 'red',
-              backgroundColor: 'transparent',
-            }} />
-            
-            {/* רקע המפה */}
-            <WallMapSVG
-              width="100%"
-              height="100%"
-              preserveAspectRatio="xMidYMid meet"
-            />
-            
-            {/* שכבת המסלולים */}
-            {routes.map((route) => {
-              const { x, y } = getRoutePixels(route);
-              // המרה לקואורדינטות יחסיות (0-1) עבור המסגרת
-              const relativeX = x / WALL_WIDTH;
-              const relativeY = y / WALL_HEIGHT;
-              
-              return (
-                <TouchableOpacity
-                  key={route.id}
-                  style={{
-                    position: 'absolute',
-                    left: relativeX * mapFrameDimensions.width - 15, // מרכז העיגול
-                    top: relativeY * mapFrameDimensions.height - 15,
-                    width: 30,
-                    height: 30,
-                    borderRadius: 15,
-                    backgroundColor: route.color || '#ff6b6b',
-                    borderWidth: selectedRouteId === route.id ? 3 : 2,
-                    borderColor: selectedRouteId === route.id ? '#ffffff' : 'rgba(255,255,255,0.9)',
-                    // Avoid Android elevation here so parent overflow clipping works
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 3 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 4,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                  }}
-                  onPress={() => handleRoutePress(route)}
-                  activeOpacity={0.7}
-                />
-              );
-            })}
-          </InteractiveImage>
-        </View>
-        
-        {/* Filters Bar positioned at bottom of map frame */}
-        <View style={styles.filtersContainer}>
-          <FilterSortBar
-            onFilterPress={handleFilterPress}
-            onSortPress={handleSortPress}
+          {/* Visual debug border */}
+          <View style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            borderWidth: 2,
+            borderColor: 'red',
+            backgroundColor: 'transparent',
+          }} />
+          
+          {/* רקע המפה */}
+          <WallMapSVG
+            width="100%"
+            height="100%"
+            preserveAspectRatio="xMidYMid meet"
           />
-        </View>
+          
+          {/* שכבת המסלולים */}
+          {routes.map((routeItem) => {
+            const { x, y } = getRoutePixels(routeItem);
+            const relativeX = x / WALL_WIDTH;
+            const relativeY = y / WALL_HEIGHT;
+            
+            return (
+              <TouchableOpacity
+                key={routeItem.id}
+                style={{
+                  position: 'absolute',
+                  left: relativeX * mapFrameDimensions.width - 15,
+                  top: relativeY * mapFrameDimensions.height - 15,
+                  width: 30,
+                  height: 30,
+                  borderRadius: 15,
+                  backgroundColor: routeItem.color || '#ff6b6b',
+                  borderWidth: selectedRouteId === routeItem.id ? 3 : 2,
+                  borderColor: selectedRouteId === routeItem.id ? '#ffffff' : 'rgba(255,255,255,0.9)',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 3 },
+                  shadowOpacity: 0.25,
+                  shadowRadius: 4,
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                }}
+                onPress={() => handleRoutePress(routeItem)}
+                activeOpacity={0.7}
+              />
+            );
+          })}
+        </InteractiveImage>
       </View>
-
-      {/* Routes List */}
-      <View style={styles.listContainer}>
-        <RoutesList
-          routes={routes} // כל המסלולים
-          refreshing={refreshing}
-          onRefresh={loadRoutes}
-          onRoutePress={handleRoutePress}
-          selectedRouteId={selectedRouteId}
+      
+      {/* Filters Bar positioned at bottom of map frame */}
+      <View style={styles.filtersContainer}>
+        <FilterSortBar
+          onFilterPress={handleFilterPress}
+          onSortPress={handleSortPress}
         />
       </View>
+    </View>
+  );
 
-      {/* FAB positioned with safe area padding */}
+  // Render the list section
+  const renderListSection = () => (
+    <View style={styles.listContainer}>
+      <RoutesList
+        routes={routes}
+        refreshing={refreshing}
+        onRefresh={loadRoutes}
+        onRoutePress={handleRoutePress}
+        selectedRouteId={selectedRouteId}
+      />
+    </View>
+  );
+
+  // Portrait layout: vertical stack
+  if (!isLandscape) {
+    return (
+      <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+        {renderMapSection()}
+        {renderListSection()}
+        <View style={[styles.fab, { bottom: insets.bottom + 16 }]}>
+          <PlusFAB onPress={handleAddRoute} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Landscape layout: side by side
+  return (
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <View style={styles.landscapeContainer}>
+        {/* Map Section - Left side */}
+        <View style={styles.landscapeMapSection}>
+          {renderMapSection()}
+        </View>
+        
+        {/* List Section - Right side */}
+        <View style={styles.landscapeListSection}>
+          {renderListSection()}
+        </View>
+      </View>
+      
       <View style={[styles.fab, { bottom: insets.bottom + 16 }]}>
         <PlusFAB onPress={handleAddRoute} />
       </View>
@@ -347,99 +399,113 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f0f0f0', // רקע אפור בהיר כדי לראות את המסגרת
-  },
-  mapFrame: {
-    height: 300,                 // גובה קבוע
-    marginHorizontal: 16,
-    marginTop: 16,
-    marginBottom: 16,
-    position: 'relative',
-
-    // מסגרת נראית - שכבה חיצונית
-    borderWidth: BORDER,
-    borderColor: '#2196F3',
-    borderRadius: OUTER_RADIUS,
-
-    // לא עושים כאן overflow:hidden כדי שהגבול יישאר נראה בוודאות
-    backgroundColor: '#fff',
-
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 8,
-  },
-  mapClip: {
-    ...StyleSheet.absoluteFillObject,
-    // נזיז פנימה בדיוק בעובי המסגרת כדי שהגבול לא יכוסה
-    top: BORDER,
-    left: BORDER,
-    right: BORDER,
-    bottom: BORDER,
-
-    borderRadius: OUTER_RADIUS - BORDER, // קליפינג עם רדיוס תואם
-    overflow: 'hidden',                  // הקליפינג האמיתי
-    backgroundColor: '#000',             // יוצר שכבת ציור ברורה לאנדרואיד
-  },
-  mapContainer: {
-    flex: 2,
-    minHeight: 200,
-    position: 'relative',
-    // מסגרת קבועה למפה - כל תוכן המפה יהיה מוגבל בתוך המסגרת הזו
-    overflow: 'hidden', // מגביל את תוכן המפה לתוך המסגרת
-    backgroundColor: '#f8f8f8',
-    borderWidth: 2,
-    borderColor: '#d0d0d0',
-    borderRadius: 12,
-    margin: 8,
-    // הוספת צל כדי להדגיש את המסגרת
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  filtersContainer: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
-    bottom: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.96)',
-    borderRadius: 12,
-    borderWidth: 0.5,
-    borderColor: 'rgba(0, 0, 0, 0.08)',
-    paddingVertical: 2,
-    shadowColor: '#000',
-    shadowOffset: { 
-      width: 0, 
-      height: 2 
+// Dynamic styles factory function with theme support
+const createStyles = (
+  layout: ReturnType<typeof useResponsiveLayout>,
+  frameHeight: number,
+  insets: { top: number; bottom: number; left: number; right: number },
+  theme: any
+) => {
+  const { isLandscape, isTablet, scaleFactor, width, height } = layout;
+  
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
     },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  listContainer: {
-    flex: 1,
-    minHeight: 150,
-  },
-  fab: {
-    position: 'absolute',
-    right: 20,
-    zIndex: 10,
-    // הוספת צל עדין ל-FAB
-    shadowColor: '#000',
-    shadowOffset: { 
-      width: 0, 
-      height: 4 
+    // Landscape layout container
+    landscapeContainer: {
+      flex: 1,
+      flexDirection: 'row',
     },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-});
+    landscapeMapSection: {
+      flex: 3,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 12,
+    },
+    landscapeListSection: {
+      flex: 2,
+      borderLeftWidth: 1,
+      borderLeftColor: theme.border,
+    },
+    mapFrame: {
+      // Use aspect ratio instead of fixed height for responsive sizing
+      aspectRatio: WALL_WIDTH / WALL_HEIGHT,
+      width: isLandscape ? '100%' : undefined,
+      height: isLandscape ? undefined : frameHeight,
+      maxHeight: isLandscape ? height - insets.top - insets.bottom - 32 : undefined,
+      marginHorizontal: isLandscape ? 0 : 16,
+      marginTop: isLandscape ? 0 : 16,
+      marginBottom: isLandscape ? 0 : 16,
+      position: 'relative',
+      borderWidth: BORDER,
+      borderColor: theme.primary,
+      borderRadius: Math.round(OUTER_RADIUS * scaleFactor),
+      backgroundColor: theme.surface,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.3,
+      shadowRadius: 15,
+      elevation: 8,
+    },
+    mapClip: {
+      ...StyleSheet.absoluteFillObject,
+      top: BORDER,
+      left: BORDER,
+      right: BORDER,
+      bottom: BORDER,
+      borderRadius: Math.round((OUTER_RADIUS - BORDER) * scaleFactor),
+      overflow: 'hidden',
+      backgroundColor: theme.isDark ? '#000' : '#000',
+    },
+    mapContainer: {
+      flex: 2,
+      minHeight: 200,
+      position: 'relative',
+      overflow: 'hidden',
+      backgroundColor: theme.surface,
+      borderWidth: 2,
+      borderColor: theme.border,
+      borderRadius: 12,
+      margin: 8,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    filtersContainer: {
+      position: 'absolute',
+      left: 16,
+      right: 16,
+      bottom: 16,
+      backgroundColor: theme.isDark ? 'rgba(30, 30, 30, 0.96)' : 'rgba(255, 255, 255, 0.96)',
+      borderRadius: Math.round(12 * scaleFactor),
+      borderWidth: 0.5,
+      borderColor: theme.isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+      paddingVertical: 2,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.06,
+      shadowRadius: 8,
+      elevation: 3,
+    },
+    listContainer: {
+      flex: 1,
+      minHeight: isLandscape ? undefined : 150,
+    },
+    fab: {
+      position: 'absolute',
+      right: 20,
+      zIndex: 10,
+      shadowColor: theme.shadow,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+  });
+};
 
 export default WallMapScreen;

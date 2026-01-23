@@ -18,9 +18,25 @@ import {
   serverTimestamp,
   writeBatch,
 } from 'firebase/firestore';
-import { db } from '@/features/data/firebase';
+import { db, auth } from '@/features/data/firebase';
 import { CompetitionRoute, TotemtitionRoute } from '../types';
 import { getGradeBasePoints } from '../constants';
+import { getUserRoles } from '@/features/roles/rolesService';
+
+/**
+ * Check if user has permission to manage competition routes
+ * Judges, Head Judges, and Admins can manage routes
+ */
+async function checkManageRoutesPermission(userId: string): Promise<void> {
+  const userRoles = await getUserRoles(userId);
+  const hasPermission = userRoles.includes('admin') || 
+                       userRoles.includes('judge') || 
+                       userRoles.includes('head_judge');
+  
+  if (!hasPermission) {
+    throw new Error('Not authorized to manage competition routes. Only judges, head judges, and admins can manage routes.');
+  }
+}
 
 /**
  * Service for managing competition routes
@@ -42,6 +58,13 @@ export class CompetitionRoutesService {
     createdBy: string
   ): Promise<string> {
     try {
+      // Check authorization
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      await checkManageRoutesPermission(currentUser.uid);
+
       const routesRef = collection(
         db,
         'competitions',
@@ -87,6 +110,13 @@ export class CompetitionRoutesService {
     }>
   ): Promise<void> {
     try {
+      // Check authorization
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      await checkManageRoutesPermission(currentUser.uid);
+
       const routeRef = doc(
         db,
         'competitions',
@@ -118,6 +148,13 @@ export class CompetitionRoutesService {
     routeId: string
   ): Promise<void> {
     try {
+      // Check authorization
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      await checkManageRoutesPermission(currentUser.uid);
+
       const routeRef = doc(
         db,
         'competitions',
@@ -301,6 +338,13 @@ export class CompetitionRoutesService {
    */
   static async deleteAllRoutes(competitionId: string): Promise<void> {
     try {
+      // Check authorization
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      await checkManageRoutesPermission(currentUser.uid);
+
       const routes = await this.getRoutes(competitionId);
       const batch = writeBatch(db);
 

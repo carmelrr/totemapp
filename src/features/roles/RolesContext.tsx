@@ -3,11 +3,11 @@
  * @description Global context for managing user roles state
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode, useRef } from 'react';
 import { auth } from '@/features/data/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { UserRole, Permission } from './types';
-import { getUserRoles } from './rolesService';
+import { getUserRoles, subscribeToUserRoles } from './rolesService';
 import {
   getPermissionsForRoles,
   hasPermission as checkPermission,
@@ -15,9 +15,15 @@ import {
   canEnterResults as checkCanEnterResults,
   canEditResults as checkCanEditResults,
   canManageRoles as checkCanManageRoles,
+  canManageJudges as checkCanManageJudges,
+  canManageParticipants as checkCanManageParticipants,
+  canManageCompetitionRoutes as checkCanManageCompetitionRoutes,
+  isJudgeRole as checkIsJudgeRole,
+  canManageAnnouncements as checkCanManageAnnouncements,
 } from './constants';
 
 interface RolesContextType {
+  userId: string | null;
   roles: UserRole[];
   permissions: Permission[];
   loading: boolean;
@@ -26,11 +32,19 @@ interface RolesContextType {
   isRouteSetter: boolean;
   isJudge: boolean;
   isHeadJudge: boolean;
+  isSocialManager: boolean;
   // Permission checks
   canEditRoutes: boolean;
   canEnterResults: boolean;
   canEditResults: boolean;
   canManageRoles: boolean;
+  // Competition-specific permissions
+  canManageJudges: boolean;
+  canManageParticipants: boolean;
+  canManageCompetitionRoutes: boolean;
+  isJudgeRole: boolean;
+  // Announcements permissions
+  canManageAnnouncements: boolean;
   // Methods
   hasRole: (role: UserRole) => boolean;
   hasAnyRole: (roles: UserRole[]) => boolean;
@@ -45,45 +59,75 @@ interface RolesProviderProps {
 }
 
 export function RolesProvider({ children }: RolesProviderProps) {
+  const [userId, setUserId] = useState<string | null>(null);
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
+  const rolesUnsubscribeRef = useRef<(() => void) | null>(null);
 
-  const loadRoles = useCallback(async (userId: string) => {
-    try {
-      const userRoles = await getUserRoles(userId);
-      setRoles(userRoles);
-    } catch (error) {
-      console.error('Error loading user roles:', error);
-      setRoles([]);
-    } finally {
-      setLoading(false);
+  // Cleanup roles subscription
+  const cleanupRolesSubscription = useCallback(() => {
+    if (rolesUnsubscribeRef.current) {
+      rolesUnsubscribeRef.current();
+      rolesUnsubscribeRef.current = null;
     }
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      // Cleanup previous roles subscription
+      cleanupRolesSubscription();
+      
       if (user) {
-        await loadRoles(user.uid);
+        setUserId(user.uid);
+        setLoading(true);
+        
+        // Subscribe to real-time roles updates
+        rolesUnsubscribeRef.current = subscribeToUserRoles(
+          user.uid,
+          (userRoles) => {
+            setRoles(userRoles);
+            setLoading(false);
+          },
+          (error) => {
+            console.error('Error in roles subscription:', error);
+            setRoles([]);
+            setLoading(false);
+          }
+        );
       } else {
+        setUserId(null);
         setRoles([]);
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
-  }, [loadRoles]);
+    return () => {
+      unsubscribe();
+      cleanupRolesSubscription();
+    };
+  }, [cleanupRolesSubscription]);
 
   const refreshRoles = useCallback(async () => {
     const user = auth.currentUser;
     if (user) {
+      // For manual refresh, we still use the one-time fetch
+      // The subscription will automatically update after this
       setLoading(true);
-      await loadRoles(user.uid);
+      try {
+        const userRoles = await getUserRoles(user.uid);
+        setRoles(userRoles);
+      } catch (error) {
+        console.error('Error refreshing roles:', error);
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [loadRoles]);
+  }, []);
 
   const permissions = getPermissionsForRoles(roles);
 
   const value: RolesContextType = {
+    userId,
     roles,
     permissions,
     loading,
@@ -92,11 +136,19 @@ export function RolesProvider({ children }: RolesProviderProps) {
     isRouteSetter: roles.includes('route_setter'),
     isJudge: roles.includes('judge'),
     isHeadJudge: roles.includes('head_judge'),
+    isSocialManager: roles.includes('social_manager'),
     // Permission checks
     canEditRoutes: checkCanEditRoutes(roles),
     canEnterResults: checkCanEnterResults(roles),
     canEditResults: checkCanEditResults(roles),
     canManageRoles: checkCanManageRoles(roles),
+    // Competition-specific permissions
+    canManageJudges: checkCanManageJudges(roles),
+    canManageParticipants: checkCanManageParticipants(roles),
+    canManageCompetitionRoutes: checkCanManageCompetitionRoutes(roles),
+    isJudgeRole: checkIsJudgeRole(roles),
+    // Announcements permissions
+    canManageAnnouncements: checkCanManageAnnouncements(roles),
     // Methods
     hasRole: (role: UserRole) => roles.includes(role),
     hasAnyRole: (requiredRoles: UserRole[]) => requiredRoles.some(r => roles.includes(r)),

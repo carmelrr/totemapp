@@ -10,7 +10,7 @@
  * are re-graded later.
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -19,28 +19,50 @@ import {
   TouchableOpacity,
   Image,
   RefreshControl,
-  Dimensions,
+  useWindowDimensions,
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { auth, db } from "@/features/data/firebase";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
 import defaultAvatar from "@/assets/splash.png";
 import { useTheme } from "@/features/theme/ThemeContext";
-
-const { width: screenWidth } = Dimensions.get("window");
+import { useLanguage } from "@/features/language";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 export default function LeaderboardScreen() {
   const { theme } = useTheme();
-  const [allUsers, setAllUsers] = useState([]); // כל המשתמשים
+  const { t } = useLanguage();
+  const layout = useResponsiveLayout();
+  const { width: screenWidth, isLandscape, scaleFactor } = layout;
+  const [allUsers, setAllUsers] = useState([]); // All users
   const [refreshing, setRefreshing] = useState(false);
   const currentUserId = auth.currentUser?.uid;
 
-  useEffect(() => {
-    loadUsersData();
-  }, []);
+  // Points table helper function (must be before calculateUserPoints)
+  const getPointsForGrade = (grade) => {
+    // Points table for V-grades
+    const gradePoints = {
+      V0: 1,
+      V1: 2,
+      V2: 3,
+      V3: 4,
+      V4: 5,
+      V5: 6,
+      V6: 7,
+      V7: 8,
+      V8: 9,
+      V9: 10,
+      V10: 11,
+      V11: 12,
+      V12: 13,
+    };
 
-  const calculateUserPoints = async (userId) => {
+    return gradePoints[grade] || 0;
+  };
+
+  // Calculate points for a single user
+  const calculateUserPoints = useCallback(async (userId) => {
     try {
       // Query feedbacks from the main routeFeedbacks collection
       // (not from subcollection routes/{routeId}/feedbacks)
@@ -80,33 +102,11 @@ export default function LeaderboardScreen() {
       console.error("Error calculating user points:", error);
       return 0;
     }
-  };
+  }, []);
 
-  const getPointsForGrade = (grade) => {
-    // Points table for V-grades
-    const gradePoints = {
-      V0: 1,
-      V1: 2,
-      V2: 3,
-      V3: 4,
-      V4: 5,
-      V5: 6,
-      V6: 7,
-      V7: 8,
-      V8: 9,
-      V9: 10,
-      V10: 11,
-      V11: 12,
-      V12: 13,
-    };
-
-    return gradePoints[grade] || 0;
-  };
-
-  const loadUsersData = async () => {
+  // Load and process users data
+  const loadUsersData = useCallback(async (usersSnapshot) => {
     try {
-      // Get all users
-      const usersSnapshot = await getDocs(collection(db, "users"));
       const users = [];
 
       // Calculate points for each user
@@ -117,7 +117,7 @@ export default function LeaderboardScreen() {
         // Include all users, even with 0 points
         users.push({
           id: userDoc.id,
-          displayName: userData.displayName || "משתמש",
+          displayName: userData.displayName || t.social.user,
           photoURL: userData.photoURL,
           points: points,
         });
@@ -130,11 +130,30 @@ export default function LeaderboardScreen() {
     } catch (error) {
       console.error("Error loading users data:", error);
     }
-  };
+  }, [calculateUserPoints, t]);
+
+  // Real-time subscription to users collection
+  useEffect(() => {
+    const usersRef = collection(db, "users");
+    
+    const unsubscribe = onSnapshot(usersRef, async (snapshot) => {
+      await loadUsersData(snapshot);
+    }, (error) => {
+      console.error("Error in leaderboard subscription:", error);
+    });
+
+    return () => unsubscribe();
+  }, [loadUsersData]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadUsersData();
+    try {
+      // Get fresh data manually for pull-to-refresh
+      const usersSnapshot = await getDocs(collection(db, "users"));
+      await loadUsersData(usersSnapshot);
+    } catch (error) {
+      console.error("Error refreshing leaderboard:", error);
+    }
     setRefreshing(false);
   };
 
@@ -202,7 +221,7 @@ export default function LeaderboardScreen() {
                 style={styles.podiumAvatar}
               />
               <Text style={styles.podiumName}>{topThree[1].displayName}</Text>
-              <Text style={styles.podiumPoints}>{topThree[1].points} נק'</Text>
+              <Text style={styles.podiumPoints}>{topThree[1].points} {t.social.pts}</Text>
               <Text style={styles.podiumMedal}>🥈</Text>
             </View>
           )}
@@ -222,7 +241,7 @@ export default function LeaderboardScreen() {
                 style={styles.podiumAvatar}
               />
               <Text style={styles.podiumName}>{topThree[0].displayName}</Text>
-              <Text style={styles.podiumPoints}>{topThree[0].points} נק'</Text>
+              <Text style={styles.podiumPoints}>{topThree[0].points} {t.social.pts}</Text>
               <Text style={styles.podiumMedal}>🥇</Text>
             </View>
           )}
@@ -242,7 +261,7 @@ export default function LeaderboardScreen() {
                 style={styles.podiumAvatar}
               />
               <Text style={styles.podiumName}>{topThree[2].displayName}</Text>
-              <Text style={styles.podiumPoints}>{topThree[2].points} נק'</Text>
+              <Text style={styles.podiumPoints}>{topThree[2].points} {t.social.pts}</Text>
               <Text style={styles.podiumMedal}>🥉</Text>
             </View>
           )}
@@ -274,10 +293,10 @@ export default function LeaderboardScreen() {
           <Text
             style={[styles.userName, isCurrentUser && styles.currentUserName]}
           >
-            {item.displayName || "משתמש"}
-            {isCurrentUser && <Text> (אתה)</Text>}
+            {item.displayName || t.social.user}
+            {isCurrentUser && <Text> {t.social.you}</Text>}
           </Text>
-          <Text style={styles.userStat}>{item.points} נקודות</Text>
+          <Text style={styles.userStat}>{item.points} {t.social.points}</Text>
         </View>
       </View>
     );
@@ -290,7 +309,7 @@ export default function LeaderboardScreen() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.headerContainer}>
-        <Text style={styles.headerTitle}>🏆 לוח שיאים</Text>
+        <Text style={styles.headerTitle}>🏆 {t.social.leaderboard}</Text>
       </View>
 
       <ScrollView
@@ -304,7 +323,7 @@ export default function LeaderboardScreen() {
 
         {/* Rest of the leaderboard */}
         <View style={styles.listSection}>
-          <Text style={styles.listTitle}>שאר המקומות</Text>
+          <Text style={styles.listTitle}>{t.social.otherPlaces}</Text>
           {getRestOfUsers().map((user, index) => {
             const displayIndex = user.actualRank
               ? user.actualRank - 1
@@ -316,7 +335,7 @@ export default function LeaderboardScreen() {
             );
           })}
           {getRestOfUsers().length === 0 && (
-            <Text style={styles.emptyText}>אין עוד משתמשים להצגה</Text>
+            <Text style={styles.emptyText}>{t.social.noMoreUsers}</Text>
           )}
         </View>
       </ScrollView>

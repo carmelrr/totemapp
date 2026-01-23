@@ -4,6 +4,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { HoldType, HOLD_TYPES } from '@/features/spraywall/types';
+import { useLanguage } from '@/features/language';
 
 interface HoldTypePickerProps {
   selectedType: HoldType;
@@ -14,11 +15,12 @@ export const HoldTypePicker: React.FC<HoldTypePickerProps> = ({
   selectedType,
   onSelectType,
 }) => {
+  const { t } = useLanguage();
   const types: HoldType[] = ['start', 'middle', 'feet'];
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>סוג אחיזה</Text>
+      <Text style={styles.label}>{t.sprayWall.holdType}</Text>
       <View style={styles.buttonRow}>
         {types.map((type) => {
           const { label, color } = HOLD_TYPES[type];

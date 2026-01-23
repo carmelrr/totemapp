@@ -274,6 +274,27 @@ export function listenToCommunityRoutes(
 }
 
 /**
+ * Listen to a single community route in real-time
+ * @param routeId The route ID to listen to
+ * @param callback Callback when route changes
+ * @returns Unsubscribe function
+ */
+export function listenToCommunityRoute(
+  routeId: string,
+  callback: (route: CommunityRoute | null) => void
+) {
+  const docRef = doc(db, COLLECTION_NAME, routeId);
+  
+  return onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      callback({ id: docSnap.id, ...docSnap.data() } as CommunityRoute);
+    } else {
+      callback(null);
+    }
+  });
+}
+
+/**
  * Update a community route
  */
 export async function updateCommunityRoute(
@@ -458,4 +479,47 @@ export function getDaysUntilExpiration(expiresAt: any): number {
  */
 export function isExpiringSoon(expiresAt: any): boolean {
   return getDaysUntilExpiration(expiresAt) <= 7;
+}
+
+// ==================== Sent (Completed) ====================
+const SENDS_COLLECTION = 'communityRouteSends';
+
+/**
+ * Toggle sent status on a route
+ */
+export async function toggleSent(
+  routeId: string,
+  userId: string
+): Promise<boolean> {
+  const sendId = `${routeId}_${userId}`;
+  const sendRef = doc(db, SENDS_COLLECTION, sendId);
+  const routeRef = doc(db, COLLECTION_NAME, routeId);
+  
+  const sendDoc = await getDoc(sendRef);
+  
+  if (sendDoc.exists()) {
+    // Remove sent
+    await deleteDoc(sendRef);
+    await updateDoc(routeRef, { sentCount: increment(-1) });
+    return false;
+  } else {
+    // Mark as sent
+    await setDoc(sendRef, {
+      routeId,
+      userId,
+      createdAt: serverTimestamp(),
+    });
+    await updateDoc(routeRef, { sentCount: increment(1) });
+    return true;
+  }
+}
+
+/**
+ * Check if user has sent a route
+ */
+export async function hasUserSent(routeId: string, userId: string): Promise<boolean> {
+  const sendId = `${routeId}_${userId}`;
+  const sendRef = doc(db, SENDS_COLLECTION, sendId);
+  const sendDoc = await getDoc(sendRef);
+  return sendDoc.exists();
 }

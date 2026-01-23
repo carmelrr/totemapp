@@ -1,20 +1,26 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, FlatList, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { RouteDoc } from '@/features/routes-map/types/route';
 import { useFiltersStore } from '@/store/useFiltersStore';
 import { getColorHex, getContrastTextColor } from '@/constants/colors';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language/LanguageContext';
+import { getColorTranslationKey } from '@/features/routes-map/utils/colors';
 
 interface RoutesListProps {
   routes: RouteDoc[];
   visibleRouteIds?: string[];
   onRoutePress?: (route: RouteDoc) => void;
+  onRouteLongPress?: (route: RouteDoc) => void;
+  compact?: boolean; // For landscape mode - reduced padding
 }
 
 interface RouteItemProps {
   route: RouteDoc;
   onPress?: (route: RouteDoc) => void;
+  onLongPress?: (route: RouteDoc) => void;
   theme: any;
+  t: any;
 }
 
 // Helper function to get the actual color - handles both hex and color names
@@ -26,17 +32,25 @@ const getRouteColor = (color?: string): string => {
   return getColorHex(color) || '#808080';
 };
 
-const RouteItem = React.memo(({ route, onPress, theme }: RouteItemProps) => {
+const RouteItem = React.memo(({ route, onPress, onLongPress, theme, t }: RouteItemProps) => {
   const styles = createStyles(theme);
   
-  // Get display name - always use the original name as the builder set it
+  // Get translated display name using color hex and grade
   const getDisplayName = (route: RouteDoc) => {
-    return route.name || `מסלול ${route.id.slice(-6)}`;
+    // Use color hex to get translated color name
+    if (route.color && route.grade) {
+      const colorKey = getColorTranslationKey(route.color);
+      const colorName = t.colors?.[colorKey] || t.colors?.custom || 'Custom';
+      return `${colorName} ${route.grade}`;
+    }
+    // Fallback to original name or generic fallback
+    return route.name || `${t.routes?.route || 'Route'} ${route.id.slice(-6)}`;
   };
   
   // Get community grade display for the right side of the list
+  // Always show if calculatedGrade exists (even if same as original)
   const getCommunityGradeDisplay = (route: RouteDoc) => {
-    if (route.calculatedGrade && route.calculatedGrade !== route.grade) {
+    if (route.calculatedGrade) {
       return route.calculatedGrade;
     }
     return null;
@@ -58,6 +72,10 @@ const RouteItem = React.memo(({ route, onPress, theme }: RouteItemProps) => {
     onPress?.(route);
   };
 
+  const handleLongPress = () => {
+    onLongPress?.(route);
+  };
+
   const routeColor = getRouteColor(route.color);
   const textColor = getContrastTextColor(routeColor);
 
@@ -65,6 +83,8 @@ const RouteItem = React.memo(({ route, onPress, theme }: RouteItemProps) => {
     <TouchableOpacity 
       style={[styles.routeItem, { borderLeftColor: routeColor }]} 
       onPress={handlePress}
+      onLongPress={handleLongPress}
+      delayLongPress={500}
       activeOpacity={0.7}
     >
       <View style={styles.routeContent}>
@@ -120,7 +140,7 @@ const RouteItem = React.memo(({ route, onPress, theme }: RouteItemProps) => {
           <View style={styles.routeMetadata}>
             {route.setter && (
               <View style={styles.metadataItem}>
-                <Text style={styles.metadataLabel}>מקים:</Text>
+                <Text style={styles.metadataLabel}>{t.routes.setter}:</Text>
                 <Text style={styles.metadataValue}>{route.setter}</Text>
               </View>
             )}
@@ -146,13 +166,16 @@ const RouteItem = React.memo(({ route, onPress, theme }: RouteItemProps) => {
  * רשימה וירטואלית של מסלולים עם סינון ומיון אוטומטי
  * מציגה רק מסלולים שעוברים את הפילטרים הנוכחיים
  */
-export default function RoutesList({
+const RoutesList = React.memo(function RoutesList({
   routes,
   visibleRouteIds,
   onRoutePress,
+  onRouteLongPress,
+  compact = false,
 }: RoutesListProps) {
   const { theme } = useTheme();
-  const styles = createStyles(theme);
+  const { t } = useLanguage();
+  const styles = createStyles(theme, compact);
   const { getFilteredRoutes } = useFiltersStore();
 
   // אם יש לנו visibleRouteIds, זה אומר שהמסלולים כבר עברו סינון viewport ב-RoutesMapScreen
@@ -162,20 +185,11 @@ export default function RoutesList({
     routes : 
     getFilteredRoutes(routes, undefined);
 
-  console.log('[RoutesList] Filtering:', {
-    inputRoutes: routes.length,
-    outputRoutes: filteredRoutes.length,
-    visibleRouteIds: visibleRouteIds?.length || 0,
-    routeIds: routes.map(r => r.id.slice(-6)),
-    filteredIds: filteredRoutes.map(r => r.id.slice(-6)),
-    skipFiltering: !!(visibleRouteIds && visibleRouteIds.length > 0)
-  });
+  const renderItem = useCallback(({ item }: { item: RouteDoc }) => (
+    <RouteItem route={item} onPress={onRoutePress} onLongPress={onRouteLongPress} theme={theme} t={t} />
+  ), [onRoutePress, onRouteLongPress, theme, t]);
 
-  const renderItem = ({ item }: { item: RouteDoc }) => (
-    <RouteItem route={item} onPress={onRoutePress} theme={theme} />
-  );
-
-  const keyExtractor = (item: RouteDoc) => item.id;
+  const keyExtractor = useCallback((item: RouteDoc) => item.id, []);
 
   const getItemLayout = (data: RouteDoc[] | null | undefined, index: number) => ({
     length: 80, // גובה משוער לכל פריט
@@ -186,7 +200,7 @@ export default function RoutesList({
   if (filteredRoutes.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>לא נמצאו מסלולים התואמים לפילטרים</Text>
+        <Text style={styles.emptyText}>{t.common.noRoutesInView}</Text>
       </View>
     );
   }
@@ -204,23 +218,25 @@ export default function RoutesList({
       contentContainerStyle={styles.listContent}
     />
   );
-}
+});
 
-const createStyles = (theme: any) => StyleSheet.create({
+export default RoutesList;
+
+const createStyles = (theme: any, compact: boolean = false) => StyleSheet.create({
   list: {
     flex: 1,
     backgroundColor: theme.background,
   },
   listContent: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    gap: 8,
+    paddingVertical: compact ? 4 : 8,
+    paddingHorizontal: compact ? 4 : 12,
+    gap: compact ? 4 : 8,
   },
   routeItem: {
     backgroundColor: theme.surface,
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    borderRadius: compact ? 10 : 14,
+    paddingVertical: compact ? 8 : 14,
+    paddingHorizontal: compact ? 8 : 16,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,

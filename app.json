@@ -4,9 +4,9 @@
     "slug": "climbing-gym-app",
     "scheme": "climbing-gym-app",
     "version": "1.0.0",
-    "orientation": "portrait",
+    "orientation": "default",
     "icon": "./src/assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "jsEngine": "hermes",
     "splash": {
       "image": "./src/assets/splash.png",
@@ -18,9 +18,11 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourdomain.climbinggymapp",
+      "bundleIdentifier": "totemapp.com",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "אפליקציה זו זקוקה לגישה לגלריה כדי להעלות תמונות של קירות טיפוס"
+        "NSPhotoLibraryUsageDescription": "This app needs access to your photo library to upload climbing wall images",
+        "NSCameraUsageDescription": "This app needs camera access to take photos of climbing routes"
       }
     },
     "android": {
@@ -28,10 +30,26 @@
         "foregroundImage": "./src/assets/adaptive-icon.png",
         "backgroundColor": "#FFFFFF"
       },
-      "package": "com.yourdomain.climbinggymapp",
+      "package": "com.totemapp.climbing",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE"
+      ],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "climbing-gym-app",
+              "host": "auth"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "web": {
@@ -41,18 +59,29 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "אפליקציה זו זקוקה לגישה לגלריה כדי להעלות תמונות של קירות טיפוס"
+          "photosPermission": "This app needs access to your photo library to upload climbing wall images",
+          "cameraPermission": "This app needs camera access to take photos of climbing routes"
         }
       ],
       "expo-font",
       "expo-asset",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./src/assets/icon.png",
+          "color": "#FF6B35",
+          "sounds": []
+        }
+      ],
+      "expo-web-browser",
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
       "eas": {
         "projectId": "314d40f3-b56b-4919-9dfe-817d3f8a0540"
       },
-      "expoClientId": "720872675049-lpr4j4qvprtk8g19l36tr5qla8ebs33l.apps.googleusercontent.com",
+      "webClientId": "720872675049-60m0tk2krk77qi5tdf699o9kmlpsfdsd.apps.googleusercontent.com",
       "androidClientId": "720872675049-ubhok243tvh36cut4ptchnubsckulj04.apps.googleusercontent.com",
       "iosClientId": "720872675049-e0du1dtbe53puak85sr4da6c8i0gjhak.apps.googleusercontent.com"
     },

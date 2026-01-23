@@ -12,4 +12,19 @@ config.resolver.assetExts = config.resolver.assetExts.filter(
 );
 config.resolver.sourceExts.push("svg");
 
+// ✅ תמיכה בקבצי database (אם נדרש)
+config.resolver.assetExts.push("db");
+
+// ✅ אופטימיזציה ל-production builds
+if (process.env.NODE_ENV === 'production') {
+  config.transformer.minifierConfig = {
+    keep_classnames: true,
+    keep_fnames: true,
+    mangle: {
+      keep_classnames: true,
+      keep_fnames: true,
+    },
+  };
+}
+
 module.exports = config;

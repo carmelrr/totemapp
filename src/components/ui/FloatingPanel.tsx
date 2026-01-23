@@ -1,7 +1,7 @@
 // components/ui/FloatingPanel.tsx
-import React from "react";
+import React, { useMemo } from "react";
 import { View, StyleSheet, ViewStyle } from "react-native";
-import { THEME_COLORS } from "@/constants/colors";
+import { useTheme } from "@/features/theme/ThemeContext";
 
 interface FloatingPanelProps {
   children: React.ReactNode;
@@ -19,6 +19,8 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   style,
   position = "top-right",
 }) => {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   const positionStyle = getPositionStyle(position);
 
   return (
@@ -49,18 +51,19 @@ function getPositionStyle(position: string): ViewStyle {
   }
 }
 
-const styles = StyleSheet.create({
+// Dynamic styles factory for theme support
+const createStyles = (theme: any) => StyleSheet.create({
   panel: {
     position: "absolute",
-    backgroundColor: THEME_COLORS.surface,
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
-    shadowColor: THEME_COLORS.shadow,
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 4,
     borderWidth: 1,
-    borderColor: THEME_COLORS.border,
+    borderColor: theme.border,
   },
 });

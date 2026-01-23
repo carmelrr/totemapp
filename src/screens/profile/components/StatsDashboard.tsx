@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, TouchableOpacity } from "react-native";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 import { createStyles } from "../styles";
 import type { UserStats } from "../types";
 
@@ -16,12 +17,13 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
   loading,
 }) => {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const styles = createStyles(theme);
 
   if (loading) {
     return (
       <View style={styles.statsContainer}>
-        <Text style={styles.loadingText}>טוען סטטיסטיקות...</Text>
+        <Text style={styles.loadingText}>{t.profile.loadingStats}</Text>
       </View>
     );
   }
@@ -29,7 +31,7 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
   if (!stats) {
     return (
       <View style={styles.statsContainer}>
-        <Text style={styles.emptyText}>אין סטטיסטיקות זמינות</Text>
+        <Text style={styles.emptyText}>{t.profile.noStatsAvailable}</Text>
       </View>
     );
   }
@@ -38,29 +40,29 @@ export const StatsDashboard: React.FC<StatsDashboardProps> = ({
     {
       icon: "🎯",
       value: stats.totalRoutesSent,
-      title: "קווים סה״כ",
+      title: t.profile.totalRoutes,
     },
     {
       icon: "🏆",
       value: stats.highestGrade,
-      title: "גרייד הכי גבוה",
+      title: t.profile.highestGrade,
     },
     {
       icon: "💬",
       value: stats.totalFeedbacks,
-      title: "פידבקים",
+      title: t.profile.feedbacks,
     },
     {
       icon: "⭐",
       value: stats.averageStarRating.toFixed(1),
-      title: "דירוג ממוצע",
+      title: t.profile.avgRating,
     },
   ];
 
   return (
     <TouchableOpacity style={styles.statsContainer} onPress={onStatsPress}>
       <View style={styles.statsHeader}>
-        <Text style={styles.statsTitle}>הסטטיסטיקות שלי</Text>
+        <Text style={styles.statsTitle}>{t.profile.myStats}</Text>
         <Text style={styles.statArrow}>◀</Text>
       </View>
       

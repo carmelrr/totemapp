@@ -21,6 +21,7 @@ import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from 
 import { auth, db } from "@/features/data/firebase";
 import GoogleLoginButton from "@/features/auth/GoogleAuth";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 
 const createStyles = (theme) =>
   StyleSheet.create({
@@ -105,6 +106,7 @@ const createStyles = (theme) =>
 
 export default function LoginScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const styles = createStyles(theme);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -165,12 +167,12 @@ export default function LoginScreen() {
 
   const handleAuth = async () => {
     if (!email || !password) {
-      Alert.alert("שגיאה", "יש למלא את כל השדות");
+      Alert.alert(t.common.error, t.errors.general);
       return;
     }
 
     if (isSignUp && !displayName.trim()) {
-      Alert.alert("שגיאה", "יש להזין שם משתמש");
+      Alert.alert(t.common.error, t.auth.displayName);
       return;
     }
 
@@ -210,7 +212,7 @@ export default function LoginScreen() {
           },
         });
         
-        Alert.alert("הצלחה", "החשבון נוצר בהצלחה!");
+        Alert.alert(t.common.success, t.common.success);
       } else {
         // Try to sign in
         try {
@@ -232,12 +234,12 @@ export default function LoginScreen() {
             if (!emailExists) {
               // Email doesn't exist - Priority 1
               Alert.alert(
-                "משתמש לא קיים",
-                "כתובת המייל לא נמצאה במערכת.\n\nהאם תרצה ליצור חשבון חדש?",
+                t.auth.userNotFound,
+                t.auth.userNotFoundMessage,
                 [
-                  { text: "לא", style: "cancel" },
+                  { text: t.common.no, style: "cancel" },
                   { 
-                    text: "כן, צור חשבון", 
+                    text: t.auth.createAccount, 
                     onPress: () => setIsSignUp(true) 
                   },
                 ]
@@ -245,12 +247,12 @@ export default function LoginScreen() {
             } else {
               // Email exists but password is wrong - Priority 2
               Alert.alert(
-                "סיסמה שגויה",
-                "המייל קיים במערכת אך הסיסמה שהזנת אינה נכונה.\n\nהאם תרצה לאפס את הסיסמה?",
+                t.auth.wrongPassword,
+                t.auth.wrongPasswordMessage,
                 [
-                  { text: "נסה שוב", style: "cancel" },
+                  { text: t.common.cancel, style: "cancel" },
                   { 
-                    text: "אפס סיסמה", 
+                    text: t.auth.forgotPassword, 
                     onPress: () => handleForgotPassword() 
                   },
                 ]
@@ -264,18 +266,18 @@ export default function LoginScreen() {
         }
       }
     } catch (error: any) {
-      // Handle specific Firebase auth errors with helpful Hebrew messages
+      // Handle specific Firebase auth errors with helpful messages
       const errorCode = error.code;
       
       switch (errorCode) {
         case "auth/user-not-found":
           Alert.alert(
-            "משתמש לא קיים",
-            "כתובת המייל לא נמצאה במערכת.\n\nהאם תרצה ליצור חשבון חדש?",
+            t.auth.userNotFound,
+            t.auth.userNotFoundMessage,
             [
-              { text: "לא", style: "cancel" },
+              { text: t.common.no, style: "cancel" },
               { 
-                text: "כן, צור חשבון", 
+                text: t.auth.createAccount, 
                 onPress: () => setIsSignUp(true) 
               },
             ]
@@ -283,51 +285,48 @@ export default function LoginScreen() {
           break;
         case "auth/wrong-password":
           Alert.alert(
-            "סיסמה שגויה",
-            "הסיסמה שהזנת אינה נכונה.\n\nהאם תרצה לאפס את הסיסמה?",
+            t.auth.wrongPassword,
+            t.auth.wrongPasswordMessage,
             [
-              { text: "נסה שוב", style: "cancel" },
+              { text: t.common.cancel, style: "cancel" },
               { 
-                text: "אפס סיסמה", 
+                text: t.auth.forgotPassword, 
                 onPress: () => handleForgotPassword() 
               },
             ]
           );
           break;
         case "auth/invalid-email":
-          Alert.alert("שגיאה", "כתובת המייל אינה תקינה");
+          Alert.alert(t.common.error, t.auth.invalidEmailMessage);
           break;
         case "auth/email-already-in-use":
-          Alert.alert("שגיאה", "כתובת המייל כבר קיימת במערכת. נסה להתחבר במקום זאת.");
+          Alert.alert(t.common.error, t.auth.emailInUseMessage);
           break;
         case "auth/weak-password":
-          Alert.alert("שגיאה", "הסיסמה חלשה מדי. יש להזין לפחות 6 תווים.");
+          Alert.alert(t.common.error, t.auth.weakPasswordMessage);
           break;
         case "auth/invalid-credential":
           // This shouldn't happen now as we handle it above, but keep as fallback
           Alert.alert(
-            "פרטי התחברות שגויים",
-            "המייל או הסיסמה שהזנת אינם נכונים.\n\nבדוק את הפרטים ונסה שוב, או אפס את הסיסמה.",
+            t.auth.loginError,
+            t.auth.wrongPasswordMessage,
             [
-              { text: "נסה שוב", style: "cancel" },
+              { text: t.common.cancel, style: "cancel" },
               { 
-                text: "אפס סיסמה", 
+                text: t.auth.forgotPassword, 
                 onPress: () => handleForgotPassword() 
               },
             ]
           );
           break;
         case "auth/too-many-requests":
-          Alert.alert(
-            "יותר מדי נסיונות",
-            "חשבון זה נחסם זמנית עקב ניסיונות התחברות רבים מדי.\n\nנסה שוב מאוחר יותר או אפס את הסיסמה."
-          );
+          Alert.alert(t.common.error, t.errors.network);
           break;
         case "auth/network-request-failed":
-          Alert.alert("שגיאת רשת", "בדוק את חיבור האינטרנט ונסה שוב.");
+          Alert.alert(t.common.error, t.errors.network);
           break;
         default:
-          Alert.alert("שגיאה", error.message);
+          Alert.alert(t.common.error, error.message);
       }
     } finally {
       setLoading(false);
@@ -336,14 +335,14 @@ export default function LoginScreen() {
 
   const handleForgotPassword = async () => {
     if (!email) {
-      Alert.alert("הזן מייל", "יש להזין כתובת מייל כדי לאפס את הסיסמה");
+      Alert.alert(t.common.error, t.auth.email);
       return;
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      Alert.alert("שגיאה", "כתובת המייל אינה תקינה");
+      Alert.alert(t.common.error, t.auth.invalidEmailMessage);
       return;
     }
 
@@ -351,8 +350,8 @@ export default function LoginScreen() {
     try {
       await sendPasswordResetEmail(auth, email);
       Alert.alert(
-        "נשלח מייל איפוס",
-        `מייל לאיפוס סיסמה נשלח לכתובת:\n${email}\n\nבדוק את תיבת הדואר שלך (כולל תיקיית הספאם).`
+        t.auth.resetEmailSent,
+        t.auth.resetEmailSentMessage
       );
     } catch (error: any) {
       const errorCode = error.code;
@@ -360,28 +359,25 @@ export default function LoginScreen() {
       switch (errorCode) {
         case "auth/user-not-found":
           Alert.alert(
-            "משתמש לא קיים",
-            "כתובת המייל לא נמצאה במערכת.\n\nהאם תרצה ליצור חשבון חדש?",
+            t.auth.userNotFound,
+            t.auth.userNotFoundMessage,
             [
-              { text: "לא", style: "cancel" },
+              { text: t.common.no, style: "cancel" },
               { 
-                text: "כן, צור חשבון", 
+                text: t.auth.createAccount, 
                 onPress: () => setIsSignUp(true) 
               },
             ]
           );
           break;
         case "auth/invalid-email":
-          Alert.alert("שגיאה", "כתובת המייל אינה תקינה");
+          Alert.alert(t.common.error, t.auth.invalidEmailMessage);
           break;
         case "auth/too-many-requests":
-          Alert.alert(
-            "יותר מדי נסיונות",
-            "נשלחו יותר מדי בקשות לאיפוס סיסמה.\n\nנסה שוב מאוחר יותר."
-          );
+          Alert.alert(t.common.error, t.errors.network);
           break;
         default:
-          Alert.alert("שגיאה", "אירעה שגיאה בשליחת מייל איפוס. נסה שוב.");
+          Alert.alert(t.common.error, t.errors.general);
       }
     } finally {
       setLoading(false);
@@ -407,13 +403,14 @@ export default function LoginScreen() {
         <View style={styles.formContainer}>
           <Text style={styles.title}>🧗‍♂️ Climbing Gym</Text>
           <Text style={styles.subtitle}>
-            {isSignUp ? "Create Account" : "Welcome Back"}
+            {isSignUp ? t.auth.signUp : t.home.welcomeBack}
           </Text>
 
           {isSignUp && (
             <TextInput
               style={styles.input}
-              placeholder="שם משתמש"
+              placeholder={t.auth.displayName}
+              placeholderTextColor={theme.textSecondary}
               value={displayName}
               onChangeText={setDisplayName}
               autoCapitalize="words"
@@ -423,7 +420,8 @@ export default function LoginScreen() {
 
           <TextInput
             style={styles.input}
-            placeholder="מייל"
+            placeholder={t.auth.email}
+            placeholderTextColor={theme.textSecondary}
             value={email}
             onChangeText={setEmail}
             keyboardType="email-address"
@@ -433,7 +431,8 @@ export default function LoginScreen() {
 
           <TextInput
             style={styles.input}
-            placeholder="סיסמה"
+            placeholder={t.auth.password}
+            placeholderTextColor={theme.textSecondary}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
@@ -446,7 +445,7 @@ export default function LoginScreen() {
             disabled={loading}
           >
             <Text style={styles.buttonText}>
-              {loading ? "Loading..." : isSignUp ? "Sign Up" : "Login"}
+              {loading ? t.common.loading : isSignUp ? t.auth.signUp : t.auth.login}
             </Text>
           </TouchableOpacity>
 
@@ -458,8 +457,8 @@ export default function LoginScreen() {
           >
             <Text style={styles.switchText}>
               {isSignUp
-                ? "Already have an account? Login"
-                : "Don't have an account? Sign Up"}
+                ? t.auth.alreadyHaveAccount
+                : t.auth.dontHaveAccount}
             </Text>
           </TouchableOpacity>
 
@@ -469,7 +468,7 @@ export default function LoginScreen() {
               onPress={handleForgotPassword}
             >
               <Text style={styles.forgotPasswordText}>
-                שכחת סיסמה? לחץ לאיפוס
+                {t.auth.forgotPassword}
               </Text>
             </TouchableOpacity>
           )}

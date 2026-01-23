@@ -13,13 +13,9 @@ export function useFirebaseRoutes() {
 
     const unsubscribe = RoutesService.subscribeRoutes(
       (newRoutes) => {
-        console.log(`🔥 Firebase routes updated: ${newRoutes.length} routes received`);
-        
-        // Log summary of routes
-        newRoutes.forEach((route, index) => {
-          console.log(`  ${index + 1}. ${route.name || route.id}: (${route.xNorm.toFixed(3)}, ${route.yNorm.toFixed(3)}) ${route.grade}`);
-        });
-        
+        if (__DEV__) {
+          console.log(`🔥 Firebase routes updated: ${newRoutes.length} routes`);
+        }
         setRoutes(newRoutes);
         setIsLoading(false);
       },

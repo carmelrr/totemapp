@@ -147,6 +147,7 @@ export async function addFeedbackToRoute(
     starRating: number;
     suggestedGrade: string;
     comment: string;
+    videoUrl?: string;
   }
 ): Promise<string> {
   const feedbacksRef = collection(db, "sprayRoutes", routeId, "feedbacks");

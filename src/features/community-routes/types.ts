@@ -40,6 +40,7 @@ export interface CommunityRoute {
   viewCount?: number;         // How many times viewed
   likeCount?: number;         // Number of likes
   commentCount?: number;      // Number of comments
+  sentCount?: number;         // Number of users who sent this route
   
   // Tags for filtering
   tags?: string[];            // e.g., ["overhang", "crimpy", "slab"]

@@ -18,13 +18,16 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { GradePicker } from "@/components/spray/GradePicker";
 import { useAddRoute } from "@/features/spraywall/hooks";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/features/language";
 import { Hold } from "@/features/spraywall/types";
+import { getNewRandomRouteName } from "@/utils/randomRouteNames";
 
 export const RouteDetailsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { addRoute, loading: addingRoute } = useAddRoute();
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   // Get data from previous screen
   const { wallId, holds } = route.params as { wallId: string; holds: Hold[] };
@@ -32,9 +35,15 @@ export const RouteDetailsScreen: React.FC = () => {
   const [routeName, setRouteName] = useState("");
   const [routeGrade, setRouteGrade] = useState("V0");
 
+  // Handler for random name button
+  const handleRandomName = () => {
+    const newName = getNewRandomRouteName(routeName);
+    setRouteName(newName);
+  };
+
   const handleSave = async () => {
     if (!routeName.trim()) {
-      Alert.alert("שגיאה", "יש להזין שם למסלול");
+      Alert.alert(t.common.error, t.spray.mustEnterName);
       return;
     }
 
@@ -48,9 +57,9 @@ export const RouteDetailsScreen: React.FC = () => {
         creatorName: user?.displayName || user?.email || undefined,
       });
 
-      Alert.alert("הצלחה", "המסלול נוסף בהצלחה!", [
+      Alert.alert(t.common.success, t.spray.routeAddedSuccess, [
         {
-          text: "אישור",
+          text: t.common.ok,
           onPress: () => {
             // Reset navigation stack to SprayHome to prevent back button issues
             navigation.reset({
@@ -61,7 +70,7 @@ export const RouteDetailsScreen: React.FC = () => {
         },
       ]);
     } catch (error: any) {
-      Alert.alert("שגיאה", error.message || "הוספת המסלול נכשלה");
+      Alert.alert(t.common.error, error.message || t.spray.failedToAddRoute);
     }
   };
 
@@ -82,38 +91,46 @@ export const RouteDetailsScreen: React.FC = () => {
       <ScrollView style={styles.scrollView}>
         {/* Summary of marked holds */}
         <View style={styles.summarySection}>
-          <Text style={styles.summaryTitle}>סיכום אחיזות</Text>
+          <Text style={styles.summaryTitle}>{t.spray.holdsSummary}</Text>
           <View style={styles.summaryRow}>
             <View style={styles.summaryItem}>
               <View style={[styles.holdDot, { backgroundColor: "#FF4444" }]} />
               <Text style={styles.summaryText}>
-                התחלה/טופ: {holdCounts.start || 0}
+                {t.spray.startTop}: {holdCounts.start || 0}
               </Text>
             </View>
             <View style={styles.summaryItem}>
               <View style={[styles.holdDot, { backgroundColor: "#4488FF" }]} />
               <Text style={styles.summaryText}>
-                ביניים: {holdCounts.middle || 0}
+                {t.spray.middle}: {holdCounts.middle || 0}
               </Text>
             </View>
             <View style={styles.summaryItem}>
               <View style={[styles.holdDot, { backgroundColor: "#FFCC00" }]} />
               <Text style={styles.summaryText}>
-                רגליים: {holdCounts.feet || 0}
+                {t.spray.feet}: {holdCounts.feet || 0}
               </Text>
             </View>
           </View>
-          <Text style={styles.totalText}>סה"כ: {holds.length} אחיזות</Text>
+          <Text style={styles.totalText}>{t.spray.totalHolds} {holds.length} {t.spray.holds}</Text>
         </View>
 
         {/* Route Name Input */}
         <View style={styles.inputSection}>
-          <Text style={styles.label}>שם המסלול</Text>
+          <View style={styles.labelRow}>
+            <Text style={styles.label}>{t.spray.routeName}</Text>
+            <TouchableOpacity 
+              style={styles.randomButton} 
+              onPress={handleRandomName}
+            >
+              <Text style={styles.randomButtonText}>{t.spray.randomName}</Text>
+            </TouchableOpacity>
+          </View>
           <TextInput
             style={styles.input}
             value={routeName}
             onChangeText={setRouteName}
-            placeholder="הזן שם למסלול"
+            placeholder={t.spray.enterRouteName}
             placeholderTextColor="#666"
             autoFocus
           />
@@ -134,7 +151,7 @@ export const RouteDetailsScreen: React.FC = () => {
           {addingRoute ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.saveButtonText}>שמור מסלול</Text>
+            <Text style={styles.saveButtonText}>{t.spray.saveRoute}</Text>
           )}
         </TouchableOpacity>
 
@@ -203,12 +220,27 @@ const styles = StyleSheet.create({
     backgroundColor: "#2a2a2a",
     marginTop: 8,
   },
+  labelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   label: {
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
-    marginBottom: 8,
-    textAlign: "right",
+  },
+  randomButton: {
+    backgroundColor: "#8E4EC6",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  randomButtonText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
   },
   input: {
     backgroundColor: "#3a3a3a",

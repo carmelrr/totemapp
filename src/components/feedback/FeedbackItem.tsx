@@ -1,7 +1,9 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { StarRatingInput } from './StarRatingInput';
+import { VideoLinkButton } from './VideoLinkButton';
 import { getTextAlign, formatDisplayName } from '@/utils/textUtils';
+import { useLanguage } from '@/features/language';
 
 interface FeedbackItemProps {
     feedback: {
@@ -10,6 +12,7 @@ interface FeedbackItemProps {
         starRating: number;
         suggestedGrade?: string;
         comment?: string;
+        videoUrl?: string;
         createdAt?: any;
         userId: string;
     };
@@ -26,17 +29,18 @@ export const FeedbackItem: React.FC<FeedbackItemProps> = ({
     onEdit,
     onDelete,
 }) => {
+    const { t, language } = useLanguage();
     const canEdit = feedback.userId === currentUserId;
     const canDelete = canEdit || isAdmin;
 
     const handleDelete = () => {
         Alert.alert(
-            'מחיקת משוב',
-            'האם אתה בטוח שברצונך למחוק את המשוב?',
+            t.routes.deleteFeedback,
+            t.routes.deleteFeedbackConfirm,
             [
-                { text: 'ביטול', style: 'cancel' },
+                { text: t.common.cancel, style: 'cancel' },
                 {
-                    text: 'מחק',
+                    text: t.common.delete,
                     style: 'destructive',
                     onPress: () => onDelete?.(feedback.id),
                 },
@@ -54,7 +58,7 @@ export const FeedbackItem: React.FC<FeedbackItemProps> = ({
             date = new Date(timestamp);
         }
 
-        return date.toLocaleDateString('he-IL', {
+        return date.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
@@ -83,14 +87,14 @@ export const FeedbackItem: React.FC<FeedbackItemProps> = ({
                                 style={styles.editButton}
                                 onPress={() => onEdit(feedback)}
                             >
-                                <Text style={styles.editButtonText}>ערוך</Text>
+                                <Text style={styles.editButtonText}>{t.feedbackList.edit}</Text>
                             </TouchableOpacity>
                         )}
                         <TouchableOpacity
                             style={styles.deleteButton}
                             onPress={handleDelete}
                         >
-                            <Text style={styles.deleteButtonText}>מחק</Text>
+                            <Text style={styles.deleteButtonText}>{t.common.delete}</Text>
                         </TouchableOpacity>
                     </View>
                 )}
@@ -113,7 +117,7 @@ export const FeedbackItem: React.FC<FeedbackItemProps> = ({
             {/* Suggested Grade */}
             {feedback.suggestedGrade && (
                 <View style={styles.gradeContainer}>
-                    <Text style={styles.gradeLabel}>דרגה מוצעת:</Text>
+                    <Text style={styles.gradeLabel}>{t.feedbackList.suggestedGrade}</Text>
                     <View style={styles.gradeBadge}>
                         <Text style={styles.gradeText}>{feedback.suggestedGrade}</Text>
                     </View>
@@ -128,6 +132,11 @@ export const FeedbackItem: React.FC<FeedbackItemProps> = ({
                 ]}>
                     {feedback.comment}
                 </Text>
+            )}
+
+            {/* Video Link Button */}
+            {feedback.videoUrl && (
+                <VideoLinkButton url={feedback.videoUrl} />
             )}
         </View>
     );

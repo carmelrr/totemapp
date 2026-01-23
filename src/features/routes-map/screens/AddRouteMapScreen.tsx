@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useLayoutEffect, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,25 +7,31 @@ import {
   TextInput,
   ScrollView,
   Alert,
-  Dimensions,
   Modal,
+  ViewStyle,
+  Pressable,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useSharedValue, useAnimatedStyle, runOnJS } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import MapViewport from '../components/MapViewport';
-import RouteMarker from '../components/RouteMarker';
 
-import { CoordinateUtils } from '@/utils/coordinateUtils';
 import { GRADES } from '../utils/grades';
-import { ROUTE_COLORS, getRandomRouteColor, getColorName, isValidHexColor, getContrastTextColor } from '../utils/colors';
+import { ROUTE_COLORS, getRandomRouteColor, getColorTranslationKey, isValidHexColor, getContrastTextColor } from '../utils/colors';
 import { RoutesService } from '../services/RoutesService';
+import { 
+  initializeColorSettings, 
+  getColorSettingSync, 
+  saveColorSetting,
+  CustomColorSetting 
+} from '../services/ColorSettingsService';
 import { MapTransforms, RouteDoc } from '../types/route';
+import { useLanguage } from '@/features/language';
+import { useResponsiveLayout, ResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { useFirebaseRoutes } from '../hooks/useFirebaseRoutes';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 type RootStackParamList = {
   RoutesMap: undefined;
@@ -41,11 +47,26 @@ interface PreviewRoute {
   yNorm: number;
 }
 
+// SVG wall dimensions for coordinate calculations
+const WALL_WIDTH = 2560;
+const WALL_HEIGHT = 1600;
+
 export default function AddRouteMapScreen() {
   const navigation = useNavigation<NavigationProp>();
-
-  // Load existing routes
+  const { t, language, isLoading: languageLoading } = useLanguage();
+  
+  // Responsive layout - automatically updates on rotation
+  const layout = useResponsiveLayout();
+  const { width: screenWidth, height: screenHeight, isLandscape, mapLayoutMode } = layout;
+  
+  // Safe area insets for handling Android navigation bar
+  const insets = useSafeAreaInsets();
+  
+  // Load existing routes to show on map
   const { routes: existingRoutes } = useFirebaseRoutes();
+  
+  // Store scale shared value for marker size compensation
+  const [scaleSharedValue, setScaleSharedValue] = useState<SharedValue<number> | null>(null);
 
   // Form state
   const [grade, setGrade] = useState('V0');
@@ -57,15 +78,57 @@ export default function AddRouteMapScreen() {
   // Custom color picker state
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customColor, setCustomColor] = useState('#');
+  const [customColorNameHe, setCustomColorNameHe] = useState('');
+  const [customColorNameEn, setCustomColorNameEn] = useState('');
+
+  // Edit color modal state
+  const [showEditColorModal, setShowEditColorModal] = useState(false);
+  const [editingColor, setEditingColor] = useState<string | null>(null);
+  const [editColorHex, setEditColorHex] = useState('');
+  const [editColorNameHe, setEditColorNameHe] = useState('');
+  const [editColorNameEn, setEditColorNameEn] = useState('');
+  const [isSavingColor, setIsSavingColor] = useState(false);
+  const [colorSettingsVersion, setColorSettingsVersion] = useState(0);
+  
+  // RGB slider state
+  const [editColorR, setEditColorR] = useState(128);
+  const [editColorG, setEditColorG] = useState(128);
+  const [editColorB, setEditColorB] = useState(128);
+
+  // Helper: Convert hex to RGB
+  const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : { r: 128, g: 128, b: 128 };
+  };
+
+  // Helper: Convert RGB to hex
+  const rgbToHex = (r: number, g: number, b: number): string => {
+    return '#' + [r, g, b].map(x => {
+      const hex = Math.round(x).toString(16);
+      return hex.length === 1 ? '0' + hex : hex;
+    }).join('').toUpperCase();
+  };
+
+  // Update hex when RGB changes
+  const updateHexFromRgb = (r: number, g: number, b: number) => {
+    setEditColorHex(rgbToHex(r, g, b));
+  };
+
+  // Initialize color settings on mount
+  useEffect(() => {
+    initializeColorSettings().then(() => {
+      setColorSettingsVersion(v => v + 1);
+    });
+  }, []);
 
   // Check if color is a predefined color
   const isPredefinedColor = ROUTE_COLORS.includes(color as any);
 
   // Map state
-  const [screenDimensions, setScreenDimensions] = useState({
-    width: SCREEN_WIDTH,
-    height: SCREEN_HEIGHT * 0.5,
-  });
   const [imageDimensions, setImageDimensions] = useState({
     imgW: 0,
     imgH: 0,
@@ -76,82 +139,41 @@ export default function AddRouteMapScreen() {
     scale: 1,
   });
   const [preview, setPreview] = useState<PreviewRoute | null>(null);
-  
-  // Marker state - whether the marker is locked in place or can be moved
-  const [isMarkerLocked, setIsMarkerLocked] = useState(false);
-  
-  // Store transforms ref for gesture callbacks
-  const transformsRef = useRef<any>(null);
-
-  // Draggable marker state
-  const markerTranslateX = useSharedValue(0);
-  const markerTranslateY = useSharedValue(0);
-  const isDragging = useSharedValue(false);
 
   // Validation
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Create styles based on layout
+  const styles = useMemo(() => createStyles(layout, insets), [layout, insets]);
 
   const handleMapMeasured = useCallback((dimensions: { imgW: number; imgH: number }) => {
     setImageDimensions(dimensions);
   }, []);
-
-  // Handle transforms ready from MapViewport
+  
+  // Handle transforms ready from MapViewport - store scale for marker compensation
   const handleTransformsReady = useCallback((transforms: any) => {
-    transformsRef.current = transforms;
+    if (transforms?.scale) {
+      setScaleSharedValue(transforms.scale);
+    }
   }, []);
 
-  // Update preview position (called from drag gesture)
-  const updatePreviewPosition = useCallback((xImg: number, yImg: number) => {
-    if (imageDimensions.imgW === 0 || imageDimensions.imgH === 0) return;
-    
-    // Clamp to image bounds
-    const clampedXImg = Math.max(0, Math.min(imageDimensions.imgW, xImg));
-    const clampedYImg = Math.max(0, Math.min(imageDimensions.imgH, yImg));
-
-    // Convert to normalized coordinates
-    const { xNorm, yNorm } = CoordinateUtils.toNorm(
-      { xImg: clampedXImg, yImg: clampedYImg },
-      imageDimensions
-    );
-
-    setPreview({
-      xImg: clampedXImg,
-      yImg: clampedYImg,
-      xNorm,
-      yNorm,
-    });
-  }, [imageDimensions]);
-
-  // Handle tap on map to place marker
-  const handleMapTap = useCallback((xS: number, yS: number) => {
-    if (imageDimensions.imgW === 0 || imageDimensions.imgH === 0) return;
-
-    // Get current transform values from shared values (most up-to-date)
-    let transforms = currentTransforms;
-    if (transformsRef.current) {
-      transforms = {
-        scale: transformsRef.current.scale.value,
-        translateX: transformsRef.current.translateX.value,
-        translateY: transformsRef.current.translateY.value,
-      };
+  // Handle tap on map to place marker - receives IMAGE coordinates directly from MapViewport
+  const handleMapTap = useCallback((coordinates: { xImg: number; yImg: number }) => {
+    if (imageDimensions.imgW === 0 || imageDimensions.imgH === 0) {
+      console.log('Image dimensions not ready, skipping');
+      return;
     }
 
-    // Convert screen coordinates to image coordinates
-    const { xImg, yImg } = CoordinateUtils.toImg(
-      { xS, yS },
-      transforms
-    );
+    const { xImg, yImg } = coordinates;
 
     // Clamp to image bounds
     const clampedXImg = Math.max(0, Math.min(imageDimensions.imgW, xImg));
     const clampedYImg = Math.max(0, Math.min(imageDimensions.imgH, yImg));
 
-    // Convert to normalized coordinates
-    const { xNorm, yNorm } = CoordinateUtils.toNorm(
-      { xImg: clampedXImg, yImg: clampedYImg },
-      imageDimensions
-    );
+    // Convert to normalized coordinates (0-1 range)
+    const xNorm = clampedXImg / imageDimensions.imgW;
+    const yNorm = clampedYImg / imageDimensions.imgH;
 
     setPreview({
       xImg: clampedXImg,
@@ -159,100 +181,69 @@ export default function AddRouteMapScreen() {
       xNorm,
       yNorm,
     });
-    
-    // New marker is not locked - can be dragged
-    setIsMarkerLocked(false);
-    
-    // Reset marker drag offset
-    markerTranslateX.value = 0;
-    markerTranslateY.value = 0;
 
     // Clear position error if it exists
     if (errors.position) {
       setErrors(prev => ({ ...prev, position: '' }));
     }
-  }, [imageDimensions, errors.position, markerTranslateX, markerTranslateY, currentTransforms]);
-
-  // Confirm marker position (lock it)
-  const handleConfirmMarker = useCallback(() => {
-    setIsMarkerLocked(true);
-  }, []);
-
-  // Unlock marker to allow repositioning
-  const handleUnlockMarker = useCallback(() => {
-    setIsMarkerLocked(false);
-  }, []);
-
-  // Cancel/remove marker
-  const handleCancelMarker = useCallback(() => {
-    setPreview(null);
-    setIsMarkerLocked(false);
-    markerTranslateX.value = 0;
-    markerTranslateY.value = 0;
-  }, [markerTranslateX, markerTranslateY]);
-
-  // Drag gesture for the preview marker - only enabled when not locked
-  const markerDragGesture = useMemo(() => 
-    Gesture.Pan()
-      .enabled(!isMarkerLocked)
-      .onStart(() => {
-        isDragging.value = true;
-      })
-      .onUpdate((event) => {
-        markerTranslateX.value = event.translationX;
-        markerTranslateY.value = event.translationY;
-      })
-      .onEnd((event) => {
-        isDragging.value = false;
-        // Calculate new position based on current preview position + drag offset
-        if (preview) {
-          // Get current scale from shared values for accuracy
-          const currentScale = transformsRef.current?.scale.value ?? currentTransforms.scale;
-          const newXImg = preview.xImg + event.translationX / currentScale;
-          const newYImg = preview.yImg + event.translationY / currentScale;
-          runOnJS(updatePreviewPosition)(newXImg, newYImg);
-        }
-        // Reset translation
-        markerTranslateX.value = 0;
-        markerTranslateY.value = 0;
-      }),
-    [isMarkerLocked, preview, currentTransforms.scale, updatePreviewPosition, isDragging, markerTranslateX, markerTranslateY]
-  );
-
-  // Animated style for draggable marker
-  const markerAnimatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { translateX: markerTranslateX.value },
-      { translateY: markerTranslateY.value },
-    ],
-  }));
+  }, [imageDimensions, errors.position]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!grade) {
-      newErrors.grade = 'יש לבחור דרגת קושי';
+      newErrors.grade = t.routes.selectGradeError;
     }
 
     if (!color) {
-      newErrors.color = 'יש לבחור צבע';
+      newErrors.color = t.routes.selectColorError;
     }
 
     if (!preview) {
-      newErrors.position = 'יש ללחוץ על המפה כדי לבחור מיקום למסלול';
+      newErrors.position = t.routes.selectPositionError;
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // Generate automatic name from grade and color
-  const getRouteName = (): string => {
-    const colorName = getColorName(color);
-    return `${grade} ${colorName}`;
-  };
+  // Generate automatic name from grade and color - returns both languages
+  const getRouteNames = useCallback((): { nameHe: string; nameEn: string } => {
+    const colorKey = getColorTranslationKey(color);
+    let colorNameHe: string;
+    let colorNameEn: string;
+    
+    // First check if there's a custom color setting saved
+    const customSetting = getColorSettingSync(color);
+    if (customSetting) {
+      colorNameHe = customSetting.nameHe;
+      colorNameEn = customSetting.nameEn;
+    }
+    // If it's a custom color (not predefined), use the custom name inputs
+    else if (colorKey === 'custom' && (customColorNameHe || customColorNameEn)) {
+      colorNameHe = customColorNameHe || customColorNameEn;
+      colorNameEn = customColorNameEn || customColorNameHe;
+    } else {
+      // Get from translations (named exports, not default)
+      const { he: heTranslations } = require('@/features/language/translations/he');
+      const { en: enTranslations } = require('@/features/language/translations/en');
+      colorNameHe = heTranslations?.colors?.[colorKey] || colorKey;
+      colorNameEn = enTranslations?.colors?.[colorKey] || colorKey;
+    }
+    
+    return {
+      nameHe: `${colorNameHe} ${grade}`,
+      nameEn: `${colorNameEn} ${grade}`,
+    };
+  }, [color, grade, customColorNameHe, customColorNameEn, colorSettingsVersion]);
 
-  const handleSave = async () => {
+  // For display, get name in current language
+  const getRouteName = useCallback((): string => {
+    const names = getRouteNames();
+    return language === 'he' ? names.nameHe : names.nameEn;
+  }, [getRouteNames, language]);
+
+  const handleSave = useCallback(async () => {
     console.log('🔥 SAVE_PRESS - כפתור Save נלחץ!');
 
     if (!validateForm() || !preview) return;
@@ -260,14 +251,24 @@ export default function AddRouteMapScreen() {
     setIsSubmitting(true);
 
     try {
+      const names = getRouteNames();
       const routeData: any = {
-        name: getRouteName(),
+        name: names.nameHe, // Default name (Hebrew)
+        nameHe: names.nameHe,
+        nameEn: names.nameEn,
         grade,
         color,
         xNorm: preview.xNorm,
         yNorm: preview.yNorm,
         status,
       };
+
+      // Add custom color names if it's a custom color
+      const colorKey = getColorTranslationKey(color);
+      if (colorKey === 'custom' && (customColorNameHe || customColorNameEn)) {
+        routeData.colorNameHe = customColorNameHe.trim();
+        routeData.colorNameEn = customColorNameEn.trim();
+      }
 
       // הוסף setter רק אם יש ערך
       if (setter.trim()) {
@@ -276,196 +277,271 @@ export default function AddRouteMapScreen() {
 
       // הוסף tags רק אם יש ערכים
       if (tags.trim()) {
-        routeData.tags = tags.split(',').map(t => t.trim()).filter(Boolean);
+        routeData.tags = tags.split(',').map(tg => tg.trim()).filter(Boolean);
       }
 
       await RoutesService.addRoute(routeData);
 
       Alert.alert(
-        'Success',
-        'Route added successfully!',
+        t.common.success,
+        t.routes.routeAddedSuccess,
         [
           {
-            text: 'OK',
+            text: t.common.ok,
             onPress: () => navigation.goBack(),
           },
         ]
       );
     } catch (error) {
       console.error('Error adding route:', error);
-      Alert.alert('Error', 'Failed to add route. Please try again.');
+      Alert.alert(t.common.error, t.common.errorGeneric);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [preview, getRouteName, grade, color, status, setter, tags, navigation, t]);
 
-  const handleCancel = () => {
-    navigation.goBack();
-  };
+  // Handle long press on color to edit it
+  const handleColorLongPress = useCallback((colorHex: string) => {
+    const colorKey = getColorTranslationKey(colorHex);
+    const existingSetting = getColorSettingSync(colorHex);
+    
+    setEditingColor(colorHex);
+    const hexToUse = existingSetting?.hex || colorHex;
+    setEditColorHex(hexToUse);
+    
+    // Set RGB values from hex
+    const rgb = hexToRgb(hexToUse);
+    setEditColorR(rgb.r);
+    setEditColorG(rgb.g);
+    setEditColorB(rgb.b);
+    
+    // Get current names - from custom settings or from translations
+    if (existingSetting) {
+      setEditColorNameHe(existingSetting.nameHe);
+      setEditColorNameEn(existingSetting.nameEn);
+    } else {
+      // Use translation keys as default
+      const translatedName = t.colors?.[colorKey as keyof typeof t.colors] || colorKey;
+      setEditColorNameHe(translatedName);
+      setEditColorNameEn(translatedName);
+    }
+    
+    setShowEditColorModal(true);
+  }, [t.colors]);
 
-  const previewRoute = preview ? {
-    id: 'preview',
-    name: getRouteName(),
-    grade,
-    color,
-    xNorm: preview.xNorm,
-    yNorm: preview.yNorm,
-    createdAt: new Date(),
-    status,
-    rating: 0,
-    tops: 0,
-    comments: 0,
-  } : null;
+  // Save edited color settings
+  const handleSaveEditColor = useCallback(async () => {
+    if (!editingColor) return;
+    
+    if (!editColorNameHe.trim() || !editColorNameEn.trim()) {
+      Alert.alert(t.common?.error || 'Error', t.colors?.colorNameRequired || 'Color name required');
+      return;
+    }
+    
+    if (!isValidHexColor(editColorHex)) {
+      Alert.alert(t.common?.error || 'Error', t.colors?.invalidColorCode || 'Invalid color code');
+      return;
+    }
+    
+    setIsSavingColor(true);
+    
+    try {
+      await saveColorSetting(editingColor, {
+        hex: editColorHex.toUpperCase(),
+        nameHe: editColorNameHe.trim(),
+        nameEn: editColorNameEn.trim(),
+        originalHex: editingColor,
+      });
+      
+      // Update version to trigger re-render
+      setColorSettingsVersion(v => v + 1);
+      
+      Alert.alert(t.common?.success || 'Success', t.colors?.colorSaved || 'Color saved');
+      setShowEditColorModal(false);
+    } catch (error) {
+      console.error('Error saving color setting:', error);
+      Alert.alert(t.common?.error || 'Error', t.colors?.colorSaveError || 'Error saving color');
+    } finally {
+      setIsSavingColor(false);
+    }
+  }, [editingColor, editColorHex, editColorNameHe, editColorNameEn, t]);
+
+  // Get display color (might be customized)
+  const getDisplayColor = useCallback((originalHex: string): string => {
+    const setting = getColorSettingSync(originalHex);
+    return setting?.hex || originalHex;
+  }, [colorSettingsVersion]);
+
+  // Configure header with save button
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity 
+          onPress={handleSave} 
+          disabled={isSubmitting}
+          style={{ paddingHorizontal: 16 }}
+        >
+          <Text style={{ 
+            color: isSubmitting ? '#9ca3af' : '#ffffff', 
+            fontSize: 16, 
+            fontWeight: '600' 
+          }}>
+            {isSubmitting ? 'שומר...' : 'שמור'}
+          </Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, isSubmitting, handleSave]);
+
+  // Animated style for existing route markers - compensate for zoom
+  const ExistingRouteMarker = useMemo(() => {
+    return React.memo(({ route }: { route: RouteDoc }) => {
+      // Calculate position in image coordinates
+      const xImg = route.xNorm * imageDimensions.imgW;
+      const yImg = route.yNorm * imageDimensions.imgH;
+      
+      // Base size for markers
+      const baseSize = 28;
+      
+      // Compensated size style - markers stay same size on screen regardless of zoom
+      const markerStyle = useAnimatedStyle(() => {
+        const currentScale = scaleSharedValue?.value ?? 1;
+        const safeScale = Number.isFinite(currentScale) && currentScale > 0 
+          ? Math.min(Math.max(currentScale, 0.1), 10) 
+          : 1;
+        
+        const compensatedSize = baseSize / safeScale;
+        const offset = compensatedSize / 2;
+        
+        return {
+          position: 'absolute',
+          left: xImg - offset,
+          top: yImg - offset,
+          width: compensatedSize,
+          height: compensatedSize,
+          borderRadius: compensatedSize / 2,
+          backgroundColor: route.color || '#888888',
+          opacity: 0.4, // Semi-transparent for existing routes
+          borderWidth: 1 / safeScale,
+          borderColor: 'rgba(255,255,255,0.5)',
+        };
+      });
+      
+      return <Animated.View style={markerStyle} />;
+    });
+  }, [imageDimensions, scaleSharedValue]);
+  
+  // Animated style for preview marker - compensate for zoom
+  const PreviewMarkerWithCompensation = useMemo(() => {
+    if (!preview || imageDimensions.imgW === 0) return null;
+    
+    const baseSize = 36; // Slightly larger for new route
+    // Compute contrast color outside worklet
+    const textColor = getContrastTextColor(color);
+    
+    const PreviewMarker = () => {
+      const markerStyle = useAnimatedStyle(() => {
+        const currentScale = scaleSharedValue?.value ?? 1;
+        const safeScale = Number.isFinite(currentScale) && currentScale > 0 
+          ? Math.min(Math.max(currentScale, 0.1), 10) 
+          : 1;
+        
+        const compensatedSize = baseSize / safeScale;
+        const offset = compensatedSize / 2;
+        
+        return {
+          position: 'absolute',
+          left: preview.xImg - offset,
+          top: preview.yImg - offset,
+          width: compensatedSize,
+          height: compensatedSize,
+          borderRadius: compensatedSize / 2,
+          backgroundColor: color,
+          borderWidth: 3 / safeScale,
+          borderColor: '#ffffff',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 4,
+          elevation: 5,
+          justifyContent: 'center',
+          alignItems: 'center',
+        };
+      });
+      
+      const textStyleAnimated = useAnimatedStyle(() => {
+        const currentScale = scaleSharedValue?.value ?? 1;
+        const safeScale = Number.isFinite(currentScale) && currentScale > 0 
+          ? Math.min(Math.max(currentScale, 0.1), 10) 
+          : 1;
+        
+        return {
+          fontSize: 10 / safeScale,
+        };
+      });
+      
+      return (
+        <Animated.View style={markerStyle}>
+          <Animated.Text style={[textStyleAnimated, { fontWeight: 'bold', color: textColor }]}>{grade}</Animated.Text>
+        </Animated.View>
+      );
+    };
+    
+    return <PreviewMarker />;
+  }, [preview, imageDimensions, color, grade, scaleSharedValue]);
+
+  // Main layout - responsive to orientation
+  const isHorizontalLayout = mapLayoutMode === 'horizontal' || mapLayoutMode === 'phone-landscape';
+
+  // Show nothing while language is loading to prevent undefined translation errors
+  if (languageLoading) {
+    return null;
+  }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={handleCancel}>
-          <Text style={styles.cancelButton}>Cancel</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>Add Route</Text>
-        <TouchableOpacity onPress={handleSave} disabled={isSubmitting || !isMarkerLocked}>
-          <Text style={[styles.saveButton, (isSubmitting || !isMarkerLocked) && styles.disabledButton]}>
-            {isSubmitting ? 'Saving...' : 'Save'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Map Section */}
-      <View style={styles.mapSection}>
-        {/* Marker action bar - shown when marker exists */}
-        {preview && !isMarkerLocked && (
-          <View style={styles.markerActionBar}>
-            <TouchableOpacity
-              style={styles.markerCancelButton}
-              onPress={handleCancelMarker}
-            >
-              <Text style={styles.markerActionText}>✕</Text>
-            </TouchableOpacity>
-            <Text style={styles.markerActionHint}>גרור להזיז • לחץ ✔ לאישור</Text>
-            <TouchableOpacity
-              style={styles.markerConfirmButton}
-              onPress={handleConfirmMarker}
-            >
-              <Text style={styles.markerActionText}>✔</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-        
-        {/* Locked marker indicator */}
-        {preview && isMarkerLocked && (
-          <View style={styles.markerLockedBar}>
-            <Text style={styles.markerLockedText}>✓ המיקום נקבע</Text>
-            <TouchableOpacity
-              style={styles.markerEditButton}
-              onPress={handleUnlockMarker}
-            >
-              <Text style={styles.markerEditText}>שנה מיקום</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Instruction banner - only when no marker */}
-        {!preview && (
-          <View style={styles.instructionBanner}>
-            <Text style={styles.instructionText}>
-              Tap on the wall to place your route marker
-            </Text>
-          </View>
-        )}
-
-        <View style={styles.mapTouchable}>
+      {/* Main Content - Horizontal in landscape, Vertical in portrait */}
+      <View style={[styles.mainContent, isHorizontalLayout && styles.mainContentHorizontal]}>
+        {/* Map Section */}
+        <View style={[styles.mapSection, isHorizontalLayout && styles.mapSectionHorizontal]}>
           <MapViewport
             onMeasured={handleMapMeasured}
             onTransformChange={setCurrentTransforms}
             onTransformsReady={handleTransformsReady}
-            onTap={isMarkerLocked ? undefined : handleMapTap}
+            onTap={handleMapTap}
           >
-            {/* Show existing routes (dimmed) */}
-            {existingRoutes.map((route) => {
-              const { xImg, yImg } = CoordinateUtils.fromNorm(
-                { xNorm: route.xNorm, yNorm: route.yNorm },
-                imageDimensions
-              );
-              return (
-                <View
-                  key={route.id}
-                  style={[
-                    styles.existingMarkerContainer,
-                    {
-                      left: xImg - 14,
-                      top: yImg - 14,
-                    },
-                  ]}
-                  pointerEvents="none"
-                >
-                  <View style={[styles.existingMarker, { backgroundColor: route.color }]}>
-                    <Text style={styles.existingMarkerText}>{route.grade}</Text>
-                  </View>
-                </View>
-              );
-            })}
+            {/* Existing routes - shown semi-transparent */}
+            {imageDimensions.imgW > 0 && existingRoutes.map((route) => (
+              <ExistingRouteMarker key={route.id} route={route} />
+            ))}
             
-            {/* Preview marker (draggable when not locked) */}
-            {previewRoute && imageDimensions.imgW > 0 && (
-              <GestureDetector gesture={markerDragGesture}>
-                <Animated.View
-                  style={[
-                    styles.previewMarkerContainer,
-                    {
-                      left: preview!.xImg - 18,
-                      top: preview!.yImg - 18,
-                    },
-                    !isMarkerLocked && markerAnimatedStyle,
-                  ]}
-                >
-                  <RouteMarker
-                    route={previewRoute}
-                    scale={null as any}
-                    selected={!isMarkerLocked}
-                  />
-                  {/* Show drag hint only when marker is not locked */}
-                  {!isMarkerLocked && (
-                    <View style={styles.dragHint}>
-                      <Text style={styles.dragHintText}>⤧</Text>
-                    </View>
-                  )}
-                  {/* Show lock indicator when marker is locked */}
-                  {isMarkerLocked && (
-                    <View style={styles.lockIndicator}>
-                      <Text style={styles.lockIndicatorText}>✓</Text>
-                    </View>
-                  )}
-                </Animated.View>
-              </GestureDetector>
-            )}
+            {/* Preview marker for new route */}
+            {PreviewMarkerWithCompensation}
           </MapViewport>
+
+          {errors.position && (
+            <Text style={styles.errorText}>{errors.position}</Text>
+          )}
         </View>
 
-        {errors.position && (
-          <Text style={styles.errorText}>{errors.position}</Text>
-        )}
-      </View>
-
-      {/* Form Section */}
-      <ScrollView style={styles.formSection}>
-        {/* Auto-generated Route Name Preview */}
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>שם מסלול (אוטומטי)</Text>
-          <View style={styles.namePreview}>
-            <View style={[styles.nameColorDot, { backgroundColor: color }]} />
-            <Text style={styles.namePreviewText}>{getRouteName()}</Text>
+        {/* Form Section */}
+        <ScrollView style={[styles.formSection, isHorizontalLayout && styles.formSectionHorizontal]}>
+          {/* Auto-generated Route Name Preview */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>{t.routes.routeNameAuto}</Text>
+            <View style={styles.namePreview}>
+              <View style={[styles.nameColorDot, { backgroundColor: color }]} />
+              <Text style={styles.namePreviewText}>{getRouteName()}</Text>
+            </View>
           </View>
-        </View>
 
-        {/* Grade Selection */}
-        <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>דרגת קושי *</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={styles.gradeContainer}>
-              {GRADES.map((gradeOption) => (
-                <TouchableOpacity
+          {/* Grade Selection */}
+          <View style={styles.fieldGroup}>
+            <Text style={styles.fieldLabel}>{t.routes.grade} *</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={styles.gradeContainer}>
+                {GRADES.map((gradeOption) => (
+                  <TouchableOpacity
                   key={gradeOption}
                   style={[
                     styles.gradeChip,
@@ -490,23 +566,28 @@ export default function AddRouteMapScreen() {
 
         {/* Color Selection */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>צבע *</Text>
+          <Text style={styles.fieldLabel}>{t.routes.colorRequired} *</Text>
           <View style={styles.colorGrid}>
-            {ROUTE_COLORS.map((colorOption) => (
-              <TouchableOpacity
-                key={colorOption}
-                style={[
-                  styles.colorChip,
-                  { backgroundColor: colorOption },
-                  color === colorOption && styles.selectedColorChip,
-                ]}
-                onPress={() => setColor(colorOption)}
-              >
-                {color === colorOption && (
-                  <Text style={[styles.colorCheckmark, { color: getContrastTextColor(colorOption) }]}>✓</Text>
-                )}
-              </TouchableOpacity>
-            ))}
+            {ROUTE_COLORS.map((colorOption) => {
+              const displayColor = getDisplayColor(colorOption);
+              return (
+                <TouchableOpacity
+                  key={colorOption}
+                  style={[
+                    styles.colorChip,
+                    { backgroundColor: displayColor },
+                    color === colorOption && styles.selectedColorChip,
+                  ]}
+                  onPress={() => setColor(colorOption)}
+                  onLongPress={() => handleColorLongPress(colorOption)}
+                  delayLongPress={500}
+                >
+                  {color === colorOption && (
+                    <Text style={[styles.colorCheckmark, { color: getContrastTextColor(displayColor) }]}>✓</Text>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
             {/* Custom Color Button */}
             <TouchableOpacity
               style={[
@@ -528,32 +609,33 @@ export default function AddRouteMapScreen() {
 
         {/* Optional Fields */}
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>מגדיר (אופציונלי)</Text>
+          <Text style={styles.fieldLabel}>{t.routes.setterOptional}</Text>
           <TextInput
             style={styles.textInput}
             value={setter}
             onChangeText={setSetter}
-            placeholder="מי בנה את המסלול?"
+            placeholder={t.routes.setterPlaceholder}
             maxLength={30}
           />
         </View>
 
         <View style={styles.fieldGroup}>
-          <Text style={styles.fieldLabel}>תגיות (אופציונלי)</Text>
+          <Text style={styles.fieldLabel}>{t.routes.tagsOptional}</Text>
           <TextInput
             style={styles.textInput}
             value={tags}
             onChangeText={setTags}
-            placeholder="הפרד תגיות בפסיקים"
+            placeholder={t.routes.tagsPlaceholder}
             maxLength={100}
           />
           <Text style={styles.helpText}>
-            לדוגמה: אוברהנג, קרימפים, סלופרים
+            {t.routes.tagsExample}
           </Text>
         </View>
 
         <View style={styles.bottomPadding} />
       </ScrollView>
+      </View>
 
       {/* Custom Color Picker Modal */}
       <Modal
@@ -565,24 +647,28 @@ export default function AddRouteMapScreen() {
         <View style={styles.colorPickerModal}>
           <View style={styles.colorPickerHeader}>
             <TouchableOpacity onPress={() => setShowColorPicker(false)}>
-              <Text style={styles.colorPickerCancel}>ביטול</Text>
+              <Text style={styles.colorPickerCancel}>{t.common?.cancel || 'Cancel'}</Text>
             </TouchableOpacity>
-            <Text style={styles.colorPickerTitle}>צבע מותאם אישית</Text>
+            <Text style={styles.colorPickerTitle}>{t.colors?.customColorTitle || 'Custom Color'}</Text>
             <TouchableOpacity 
               onPress={() => {
-                if (isValidHexColor(customColor)) {
-                  setColor(customColor);
-                  setShowColorPicker(false);
-                } else {
-                  Alert.alert('שגיאה', 'נא להזין קוד צבע תקין (לדוגמה: #FF5500)');
+                if (!isValidHexColor(customColor)) {
+                  Alert.alert(t.common?.error || 'Error', t.colors?.invalidColorCode || 'Invalid color code');
+                  return;
                 }
+                if (!customColorNameHe.trim() || !customColorNameEn.trim()) {
+                  Alert.alert(t.common?.error || 'Error', t.colors?.colorNameRequired || 'Color name required');
+                  return;
+                }
+                setColor(customColor);
+                setShowColorPicker(false);
               }}
             >
-              <Text style={styles.colorPickerSave}>שמור</Text>
+              <Text style={styles.colorPickerSave}>{t.common?.save || 'Save'}</Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.colorPickerContent}>
+          <ScrollView style={styles.colorPickerContent}>
             {/* Color Preview */}
             <View style={styles.colorPreviewSection}>
               <View 
@@ -591,12 +677,36 @@ export default function AddRouteMapScreen() {
                   { backgroundColor: isValidHexColor(customColor) ? customColor : '#cccccc' }
                 ]} 
               />
-              <Text style={styles.colorPreviewLabel}>תצוגה מקדימה</Text>
+              <Text style={styles.colorPreviewLabel}>{t.colors?.preview || 'Preview'}</Text>
+            </View>
+
+            {/* Color Name in Hebrew */}
+            <View style={styles.hexInputSection}>
+              <Text style={styles.hexInputLabel}>{t.colors?.colorNameHe || 'Color Name (Hebrew)'}</Text>
+              <TextInput
+                style={styles.hexInput}
+                value={customColorNameHe}
+                onChangeText={setCustomColorNameHe}
+                placeholder={t.colors?.colorNamePlaceholderHe || ''}
+                maxLength={30}
+              />
+            </View>
+
+            {/* Color Name in English */}
+            <View style={styles.hexInputSection}>
+              <Text style={styles.hexInputLabel}>{t.colors?.colorNameEn || 'Color Name (English)'}</Text>
+              <TextInput
+                style={styles.hexInput}
+                value={customColorNameEn}
+                onChangeText={setCustomColorNameEn}
+                placeholder={t.colors?.colorNamePlaceholderEn || ''}
+                maxLength={30}
+              />
             </View>
 
             {/* Hex Input */}
             <View style={styles.hexInputSection}>
-              <Text style={styles.hexInputLabel}>קוד צבע (HEX)</Text>
+              <Text style={styles.hexInputLabel}>{t.colors?.colorCode || 'Color Code (HEX)'}</Text>
               <TextInput
                 style={styles.hexInput}
                 value={customColor}
@@ -608,16 +718,16 @@ export default function AddRouteMapScreen() {
                   // Limit to 7 characters (#RRGGBB)
                   setCustomColor(text.slice(0, 7).toUpperCase());
                 }}
-                placeholder="#FF5500"
+                placeholder={t.colors?.colorCodePlaceholder || '#FF5500'}
                 maxLength={7}
                 autoCapitalize="characters"
               />
-              <Text style={styles.hexInputHint}>לדוגמה: #FF0000 = אדום, #00FF00 = ירוק</Text>
+              <Text style={styles.hexInputHint}>{t.colors?.colorCodeHint || 'Example: #FF0000 = Red'}</Text>
             </View>
 
             {/* Quick Color Grid */}
             <View style={styles.quickColorsSection}>
-              <Text style={styles.quickColorsLabel}>צבעים נוספים</Text>
+              <Text style={styles.quickColorsLabel}>{t.colors?.moreColors || 'More Colors'}</Text>
               <View style={styles.quickColorsGrid}>
                 {[
                   '#FF5733', '#C70039', '#900C3F', '#581845',
@@ -633,425 +743,471 @@ export default function AddRouteMapScreen() {
                 ))}
               </View>
             </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Edit Color Modal */}
+      <Modal
+        visible={showEditColorModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowEditColorModal(false)}
+      >
+        <View style={styles.colorPickerModal}>
+          <View style={styles.colorPickerHeader}>
+            <TouchableOpacity onPress={() => setShowEditColorModal(false)}>
+              <Text style={styles.colorPickerCancel}>{t.common?.cancel || 'Cancel'}</Text>
+            </TouchableOpacity>
+            <Text style={styles.colorPickerTitle}>{t.colors?.editColorTitle || 'Edit Color'}</Text>
+            <TouchableOpacity 
+              onPress={handleSaveEditColor}
+              disabled={isSavingColor}
+            >
+              <Text style={[styles.colorPickerSave, isSavingColor && { opacity: 0.5 }]}>
+                {t.common?.save || 'Save'}
+              </Text>
+            </TouchableOpacity>
           </View>
+
+          <ScrollView style={styles.colorPickerContent}>
+            {/* Description */}
+            <Text style={styles.editColorDescription}>{t.colors?.editColorDescription || 'Change the name and shade of this color.'}</Text>
+
+            {/* Color Preview */}
+            <View style={styles.colorPreviewSection}>
+              <View 
+                style={[
+                  styles.colorPreviewBox, 
+                  { backgroundColor: isValidHexColor(editColorHex) ? editColorHex : '#cccccc' }
+                ]} 
+              />
+              <Text style={styles.colorPreviewLabel}>{t.colors?.preview || 'Preview'}</Text>
+            </View>
+
+            {/* Color Name in Hebrew */}
+            <View style={styles.hexInputSection}>
+              <Text style={styles.hexInputLabel}>{t.colors?.colorNameHe || 'Color Name (Hebrew)'}</Text>
+              <TextInput
+                style={styles.hexInput}
+                value={editColorNameHe}
+                onChangeText={setEditColorNameHe}
+                placeholder={t.colors?.colorNamePlaceholderHe || ''}
+                maxLength={30}
+              />
+            </View>
+
+            {/* Color Name in English */}
+            <View style={styles.hexInputSection}>
+              <Text style={styles.hexInputLabel}>{t.colors?.colorNameEn || 'Color Name (English)'}</Text>
+              <TextInput
+                style={styles.hexInput}
+                value={editColorNameEn}
+                onChangeText={setEditColorNameEn}
+                placeholder={t.colors?.colorNamePlaceholderEn || ''}
+                maxLength={30}
+              />
+            </View>
+
+            {/* RGB Sliders */}
+            <View style={styles.rgbSlidersSection}>
+              <Text style={styles.hexInputLabel}>{t.colors?.adjustColor || 'Adjust Color'}</Text>
+              
+              {/* Red Slider */}
+              <View style={styles.sliderRow}>
+                <Text style={[styles.sliderLabel, { color: '#FF0000' }]}>R</Text>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={0}
+                  maximumValue={255}
+                  step={1}
+                  value={editColorR}
+                  onValueChange={(value) => {
+                    setEditColorR(value);
+                    updateHexFromRgb(value, editColorG, editColorB);
+                  }}
+                  minimumTrackTintColor="#FF0000"
+                  maximumTrackTintColor="#FFcccc"
+                  thumbTintColor="#FF0000"
+                />
+                <Text style={styles.sliderValue}>{Math.round(editColorR)}</Text>
+              </View>
+              
+              {/* Green Slider */}
+              <View style={styles.sliderRow}>
+                <Text style={[styles.sliderLabel, { color: '#00AA00' }]}>G</Text>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={0}
+                  maximumValue={255}
+                  step={1}
+                  value={editColorG}
+                  onValueChange={(value) => {
+                    setEditColorG(value);
+                    updateHexFromRgb(editColorR, value, editColorB);
+                  }}
+                  minimumTrackTintColor="#00AA00"
+                  maximumTrackTintColor="#ccffcc"
+                  thumbTintColor="#00AA00"
+                />
+                <Text style={styles.sliderValue}>{Math.round(editColorG)}</Text>
+              </View>
+              
+              {/* Blue Slider */}
+              <View style={styles.sliderRow}>
+                <Text style={[styles.sliderLabel, { color: '#0000FF' }]}>B</Text>
+                <Slider
+                  style={styles.slider}
+                  minimumValue={0}
+                  maximumValue={255}
+                  step={1}
+                  value={editColorB}
+                  onValueChange={(value) => {
+                    setEditColorB(value);
+                    updateHexFromRgb(editColorR, editColorG, value);
+                  }}
+                  minimumTrackTintColor="#0000FF"
+                  maximumTrackTintColor="#ccccFF"
+                  thumbTintColor="#0000FF"
+                />
+                <Text style={styles.sliderValue}>{Math.round(editColorB)}</Text>
+              </View>
+              
+              <Text style={styles.hexCodeDisplay}>{editColorHex}</Text>
+            </View>
+
+            {/* Quick Color Grid */}
+            <View style={styles.quickColorsSection}>
+              <Text style={styles.quickColorsLabel}>{t.colors?.moreColors || 'More Colors'}</Text>
+              <View style={styles.quickColorsGrid}>
+                {[
+                  '#FF5733', '#C70039', '#900C3F', '#581845',
+                  '#1ABC9C', '#16A085', '#2ECC71', '#27AE60',
+                  '#3498DB', '#2980B9', '#9B59B6', '#8E44AD',
+                  '#34495E', '#2C3E50', '#F39C12', '#D35400',
+                ].map((quickColor) => (
+                  <TouchableOpacity
+                    key={quickColor}
+                    style={[styles.quickColorChip, { backgroundColor: quickColor }]}
+                    onPress={() => {
+                      setEditColorHex(quickColor);
+                      const rgb = hexToRgb(quickColor);
+                      setEditColorR(rgb.r);
+                      setEditColorG(rgb.g);
+                      setEditColorB(rgb.b);
+                    }}
+                  />
+                ))}
+              </View>
+            </View>
+          </ScrollView>
         </View>
       </Modal>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    paddingTop: 48,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  cancelButton: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  saveButton: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3b82f6',
-  },
-  disabledButton: {
-    color: '#9ca3af',
-  },
-  mapSection: {
-    height: 300,
-    position: 'relative',
-  },
-  instructionBanner: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    right: 12,
-    backgroundColor: 'rgba(59, 130, 246, 0.9)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    zIndex: 10,
-  },
-  instructionText: {
-    fontSize: 14,
-    color: '#ffffff',
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  // Marker action bar styles (like SprayWall)
-  markerActionBar: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    right: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(51, 51, 51, 0.95)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 12,
-    zIndex: 10,
-  },
-  markerCancelButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#ef4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  markerConfirmButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#22c55e',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  markerActionText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  markerActionHint: {
-    fontSize: 13,
-    color: '#aaa',
-    textAlign: 'center',
-    flex: 1,
-    marginHorizontal: 8,
-  },
-  markerLockedBar: {
-    position: 'absolute',
-    top: 12,
-    left: 12,
-    right: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(34, 197, 94, 0.95)',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-    zIndex: 10,
-  },
-  markerLockedText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  markerEditButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 8,
-  },
-  markerEditText: {
-    fontSize: 13,
-    color: '#fff',
-    fontWeight: '500',
-  },
-  mapTouchable: {
-    flex: 1,
-  },
-  previewMarkerContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  existingMarkerContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-    opacity: 0.5,
-  },
-  existingMarker: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.8)',
-  },
-  existingMarkerText: {
-    fontSize: 10,
-    fontWeight: 'bold',
-    color: '#fff',
-    textShadowColor: 'rgba(0,0,0,0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  dragHint: {
-    position: 'absolute',
-    bottom: -8,
-    right: -8,
-    backgroundColor: '#3b82f6',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  dragHintText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  lockIndicator: {
-    position: 'absolute',
-    bottom: -8,
-    right: -8,
-    backgroundColor: '#22c55e',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  lockIndicatorText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: 'bold',
-  },
-  formSection: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  fieldGroup: {
-    marginVertical: 12,
-  },
-  fieldLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  textInput: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#1f2937',
-  },
-  errorInput: {
-    borderColor: '#ef4444',
-  },
-  errorText: {
-    fontSize: 12,
-    color: '#ef4444',
-    marginTop: 4,
-  },
-  gradeContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 4,
-  },
-  gradeChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 16,
-    backgroundColor: '#f3f4f6',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-  },
-  selectedGradeChip: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
-  },
-  gradeChipText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#4b5563',
-  },
-  selectedGradeChipText: {
-    color: '#ffffff',
-  },
-  colorGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  colorChip: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 3,
-    borderColor: 'transparent',
-  },
-  selectedColorChip: {
-    borderColor: '#1f2937',
-  },
-  colorCheckmark: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  customColorChip: {
-    backgroundColor: '#f3f4f6',
-    borderColor: '#d1d5db',
-    borderStyle: 'dashed',
-  },
-  customColorPreview: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-  },
-  customColorPlus: {
-    fontSize: 24,
-    color: '#9ca3af',
-    fontWeight: '300',
-  },
-  helpText: {
-    fontSize: 12,
-    color: '#6b7280',
-    marginTop: 4,
-  },
-  bottomPadding: {
-    height: 40,
-  },
-  // Name preview styles
-  namePreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#e5e7eb',
-  },
-  nameColorDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
-  },
-  namePreviewText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  // Color Picker Modal styles
-  colorPickerModal: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-  },
-  colorPickerHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    paddingTop: 48,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  colorPickerCancel: {
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  colorPickerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1f2937',
-  },
-  colorPickerSave: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#3b82f6',
-  },
-  colorPickerContent: {
-    flex: 1,
-    padding: 20,
-  },
-  colorPreviewSection: {
-    alignItems: 'center',
-    marginBottom: 30,
-  },
-  colorPreviewBox: {
-    width: 100,
-    height: 100,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
-  },
-  colorPreviewLabel: {
-    marginTop: 8,
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  hexInputSection: {
-    marginBottom: 30,
-  },
-  hexInputLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  hexInput: {
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1f2937',
-    textAlign: 'center',
-    backgroundColor: '#f9fafb',
-  },
-  hexInputHint: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#9ca3af',
-    textAlign: 'center',
-  },
-  quickColorsSection: {
-    marginBottom: 20,
-  },
-  quickColorsLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1f2937',
-    marginBottom: 12,
-  },
-  quickColorsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  quickColorChip: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-    borderColor: 'rgba(0,0,0,0.1)',
-  },
-});
+// Dynamic styles based on layout and safe area insets
+const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: number; left: number; right: number }) => {
+  const { isLandscape, mapLayoutMode, height, width } = layout;
+  const isHorizontalLayout = mapLayoutMode === 'horizontal' || mapLayoutMode === 'phone-landscape';
+  
+  // Calculate map height based on orientation
+  const mapHeight = isHorizontalLayout 
+    ? height - insets.top - insets.bottom // Full height in landscape
+    : Math.min(height * 0.45, 350); // Portrait: 45% of screen or max 350
+  
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: '#ffffff',
+    },
+    // Main content container - horizontal in landscape, vertical in portrait
+    mainContent: {
+      flex: 1,
+      flexDirection: 'column',
+    },
+    mainContentHorizontal: {
+      flexDirection: 'row',
+      paddingLeft: insets.left, // Safe area for landscape camera/notch
+      paddingRight: insets.right, // Safe area for landscape buttons
+    },
+    // Map section
+    mapSection: {
+      height: mapHeight,
+      position: 'relative',
+    },
+    mapSectionHorizontal: {
+      height: '100%' as any,
+      width: isLandscape ? '55%' : undefined,
+      flex: isLandscape ? undefined : 1,
+    },
+    formSection: {
+      flex: 1,
+      paddingHorizontal: 16,
+    },
+    formSectionHorizontal: {
+      width: isLandscape ? '45%' : undefined,
+      flex: isLandscape ? undefined : 1,
+      paddingBottom: insets.bottom,
+      paddingRight: insets.right, // Extra padding for landscape safe area
+    },
+    fieldGroup: {
+      marginVertical: 12,
+    },
+    fieldLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#1f2937',
+      marginBottom: 8,
+    },
+    textInput: {
+      borderWidth: 1,
+      borderColor: '#d1d5db',
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 16,
+      color: '#1f2937',
+    },
+    errorInput: {
+      borderColor: '#ef4444',
+    },
+    errorText: {
+      fontSize: 12,
+      color: '#ef4444',
+      marginTop: 4,
+    },
+    gradeContainer: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 4,
+    },
+    gradeChip: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 16,
+      backgroundColor: '#f3f4f6',
+      borderWidth: 1,
+      borderColor: '#d1d5db',
+    },
+    selectedGradeChip: {
+      backgroundColor: '#3b82f6',
+      borderColor: '#3b82f6',
+    },
+    gradeChipText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#4b5563',
+    },
+    selectedGradeChipText: {
+      color: '#ffffff',
+    },
+    colorGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+    },
+    colorChip: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 3,
+      borderColor: 'transparent',
+    },
+    selectedColorChip: {
+      borderColor: '#1f2937',
+    },
+    colorCheckmark: {
+      fontSize: 18,
+      fontWeight: '600',
+    },
+    customColorChip: {
+      backgroundColor: '#f3f4f6',
+      borderColor: '#d1d5db',
+      borderStyle: 'dashed',
+    } as ViewStyle,
+    customColorPreview: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+    },
+    customColorPlus: {
+      fontSize: 24,
+      color: '#9ca3af',
+      fontWeight: '300',
+    },
+    helpText: {
+      fontSize: 12,
+      color: '#6b7280',
+      marginTop: 4,
+    },
+    bottomPadding: {
+      height: 40 + insets.bottom,
+    },
+    // Name preview styles
+    namePreview: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: '#f9fafb',
+      borderRadius: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      borderWidth: 1,
+      borderColor: '#e5e7eb',
+    },
+    nameColorDot: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      marginRight: 10,
+      borderWidth: 1,
+      borderColor: 'rgba(0,0,0,0.1)',
+    },
+    namePreviewText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#1f2937',
+    },
+    // Color Picker Modal styles
+    colorPickerModal: {
+      flex: 1,
+      backgroundColor: '#ffffff',
+    },
+    colorPickerHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      paddingTop: insets.top + 14,
+      borderBottomWidth: 1,
+      borderBottomColor: '#e5e7eb',
+    },
+    colorPickerCancel: {
+      fontSize: 16,
+      color: '#6b7280',
+    },
+    colorPickerTitle: {
+      fontSize: 18,
+      fontWeight: '600',
+      color: '#1f2937',
+    },
+    colorPickerSave: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#3b82f6',
+    },
+    colorPickerContent: {
+      flex: 1,
+      padding: 20,
+    },
+    editColorDescription: {
+      fontSize: 14,
+      color: '#6b7280',
+      textAlign: 'center',
+      marginBottom: 20,
+      paddingHorizontal: 10,
+    },
+    colorPreviewSection: {
+      alignItems: 'center',
+      marginBottom: 30,
+    },
+    colorPreviewBox: {
+      width: 100,
+      height: 100,
+      borderRadius: 16,
+      borderWidth: 2,
+      borderColor: '#e5e7eb',
+    },
+    colorPreviewLabel: {
+      marginTop: 8,
+      fontSize: 14,
+      color: '#6b7280',
+    },
+    hexInputSection: {
+      marginBottom: 30,
+    },
+    hexInputLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#1f2937',
+      marginBottom: 8,
+    },
+    hexInput: {
+      borderWidth: 1,
+      borderColor: '#d1d5db',
+      borderRadius: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      fontSize: 20,
+      fontWeight: '600',
+      color: '#1f2937',
+      textAlign: 'center',
+      backgroundColor: '#f9fafb',
+    },
+    hexInputHint: {
+      marginTop: 8,
+      fontSize: 12,
+      color: '#9ca3af',
+      textAlign: 'center',
+    },
+    quickColorsSection: {
+      marginBottom: 20,
+    },
+    quickColorsLabel: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#1f2937',
+      marginBottom: 12,
+    },
+    quickColorsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 12,
+    },
+    quickColorChip: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      borderWidth: 2,
+      borderColor: 'rgba(0,0,0,0.1)',
+    },
+    // RGB Slider styles
+    rgbSlidersSection: {
+      marginBottom: 20,
+    },
+    sliderRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    sliderLabel: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      width: 30,
+      textAlign: 'center',
+    },
+    slider: {
+      flex: 1,
+      height: 40,
+      marginHorizontal: 8,
+    },
+    sliderValue: {
+      fontSize: 14,
+      color: '#6b7280',
+      width: 40,
+      textAlign: 'right',
+    },
+    hexCodeDisplay: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: '#1f2937',
+      textAlign: 'center',
+      marginTop: 8,
+      fontFamily: 'monospace',
+    },
+  });
+};

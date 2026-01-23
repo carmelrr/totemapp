@@ -1,9 +1,9 @@
 // components/ui/BottomToolbar.tsx
-import React from "react";
+import React, { useMemo } from "react";
 import { View, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ToolButton } from "./ToolButton";
-import { THEME_COLORS } from "@/constants/colors";
+import { useTheme } from "@/features/theme/ThemeContext";
 
 interface BottomToolbarProps {
   selectedTool: string;
@@ -21,6 +21,9 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
   onToolSelect,
   tools,
 }) => {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  
   return (
     <SafeAreaView style={styles.container} edges={["bottom"]}>
       <View style={styles.toolbar}>
@@ -40,11 +43,12 @@ export const BottomToolbar: React.FC<BottomToolbarProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+// Dynamic styles factory for theme support
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
-    backgroundColor: THEME_COLORS.surface,
+    backgroundColor: theme.surface,
     borderTopWidth: 1,
-    borderTopColor: THEME_COLORS.border,
+    borderTopColor: theme.border,
   },
   toolbar: {
     flexDirection: "row",

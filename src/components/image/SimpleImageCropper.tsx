@@ -15,7 +15,6 @@ import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import {
   Gesture,
   GestureDetector,
-  GestureHandlerRootView,
 } from "react-native-gesture-handler";
 import Animated, {
   useSharedValue,
@@ -252,7 +251,7 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
   // מסך טעינה ראשוני (לפני שנמדד משהו בכלל)
   if (imageLoading && !displayW && !isReady) {
     return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
         <SafeAreaView style={styles.container}>
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#fff" />
@@ -271,12 +270,12 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
             />
           )}
         </SafeAreaView>
-      </GestureHandlerRootView>
+      </View>
     );
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
       <SafeAreaView style={styles.container}>
         <Text style={styles.instructions}>
           גרור עם אצבע כדי להזיז, צבוט (פינץ') כדי לבצע זום. שמור לחיתוך 4:3.
@@ -349,7 +348,7 @@ export default function SimpleImageCropper({ imageUri, onSave, onCancel }) {
           <Text style={{ color: "tomato", marginTop: 8 }}>{error}</Text>
         )}
       </SafeAreaView>
-    </GestureHandlerRootView>
+    </View>
   );
 }
 

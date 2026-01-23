@@ -9,6 +9,7 @@ import {
     StyleSheet
 } from "react-native";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 import { GradeStatsMap, PrivacySettings, UserStats } from "../../screens/profile/types";
 
 interface GradeStatsModalProps {
@@ -29,6 +30,9 @@ interface GradeStatsModalProps {
 
     // Display mode
     mode?: 'simple' | 'detailed';
+    
+    // Owner check - owner can always see their own stats
+    isOwner?: boolean;
 }
 
 export const UnifiedGradeStatsModal: React.FC<GradeStatsModalProps> = ({
@@ -41,9 +45,11 @@ export const UnifiedGradeStatsModal: React.FC<GradeStatsModalProps> = ({
     showStatsModal,
     setShowStatsModal,
     allRoutes = [],
-    mode = 'simple'
+    mode = 'simple',
+    isOwner = true, // Default to true for simple mode (ProfileScreen is always owner's profile)
 }) => {
     const { theme } = useTheme();
+    const { t } = useLanguage();
 
     // Use the appropriate visibility prop based on mode
     const isVisible = mode === 'simple' ? visible : showStatsModal;
@@ -51,10 +57,11 @@ export const UnifiedGradeStatsModal: React.FC<GradeStatsModalProps> = ({
 
     const sortedGrades = Object.keys(gradeStats).sort((a, b) => {
         const gradeOrder: Record<string, number> = {
-            V1: 1, V2: 2, V3: 3, V4: 4, V5: 5,
+            V0: 0, V1: 1, V2: 2, V3: 3, V4: 4, V5: 5,
             V6: 6, V7: 7, V8: 8, V9: 9, V10: 10,
+            V11: 11, V12: 12, V13: 13, V14: 14, V15: 15, V16: 16, V17: 17,
         };
-        return (gradeOrder[a] || 999) - (gradeOrder[b] || 999);
+        return (gradeOrder[a] ?? 999) - (gradeOrder[b] ?? 999);
     });
 
     const totalRoutes = mode === 'detailed' ? allRoutes.length :
@@ -70,13 +77,9 @@ export const UnifiedGradeStatsModal: React.FC<GradeStatsModalProps> = ({
             ? ((totalCompleted / totalRoutes) * 100).toFixed(1)
             : "0.0";
 
-    // For simple mode, check if grade stats should be shown
-    if (mode === 'simple' && privacySettings && !privacySettings.showGradeStats) {
-        return null;
-    }
-
-    // For detailed mode, check the specific privacy setting
-    if (mode === 'detailed' && !privacySettings?.showGradeStats) {
+    // Owner can always see their own grade stats, regardless of privacy settings
+    // Only hide for non-owners when privacy setting is off
+    if (!isOwner && privacySettings && !privacySettings.showGradeStats) {
         return null;
     }
 
@@ -90,7 +93,7 @@ export const UnifiedGradeStatsModal: React.FC<GradeStatsModalProps> = ({
             <View style={[styles.modalContainer, { backgroundColor: theme.background }]}>
                 <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
                     <Text style={[styles.modalTitle, { color: theme.text }]}>
-                        📈 אחוזי סגירה לפי דירוג
+                        {t.gradeStats.title}
                     </Text>
                     <TouchableOpacity
                         style={[styles.modalCloseButton, { backgroundColor: theme.surface }]}
@@ -102,7 +105,7 @@ export const UnifiedGradeStatsModal: React.FC<GradeStatsModalProps> = ({
 
                 <View style={[styles.overallStatsContainer, { backgroundColor: theme.surface }]}>
                     <Text style={[styles.overallStatsText, { color: theme.text }]}>
-                        סיכום כללי: {totalCompleted} מתוך {totalRoutes} מסלולים ({overallPercentage}%)
+                        {t.gradeStats.overallSummary(totalCompleted, totalRoutes, overallPercentage)}
                     </Text>
                 </View>
 
@@ -142,7 +145,7 @@ export const UnifiedGradeStatsModal: React.FC<GradeStatsModalProps> = ({
                                 </View>
 
                                 <Text style={[styles.gradeStatDetails, { color: theme.textSecondary }]}>
-                                    {stat.completed} מתוך {stat.total} מסלולים
+                                    {t.gradeStats.routesOfTotal(stat.completed, stat.total)}
                                 </Text>
                             </View>
                         );
@@ -152,10 +155,10 @@ export const UnifiedGradeStatsModal: React.FC<GradeStatsModalProps> = ({
                 {/* Privacy Settings for Simple Mode */}
                 {mode === 'simple' && privacySettings && onPrivacyChange && (
                     <View style={[styles.privacySection, { borderTopColor: theme.border }]}>
-                        <Text style={[styles.privacySectionTitle, { color: theme.text }]}>הגדרות פרטיות</Text>
+                        <Text style={[styles.privacySectionTitle, { color: theme.text }]}>{t.gradeStats.privacySettings}</Text>
                         <View style={styles.privacyOption}>
                             <Text style={[styles.privacyLabel, { color: theme.textSecondary }]}>
-                                הצג סטטיסטיקות דירוגים לאחרים
+                                {t.gradeStats.showGradeStatsToOthers}
                             </Text>
                             <Switch
                                 value={privacySettings.showGradeStats}

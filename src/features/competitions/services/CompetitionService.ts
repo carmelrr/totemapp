@@ -284,7 +284,13 @@ export class CompetitionService {
       docRef,
       (snapshot) => {
         if (snapshot.exists()) {
-          callback(this.mapDocToCompetition(snapshot));
+          const competition = this.mapDocToCompetition(snapshot);
+          console.log('[CompetitionService] subscribeToCompetition update:', {
+            id: competition.id,
+            status: competition.status,
+            resultsVisible: competition.resultsVisible,
+          });
+          callback(competition);
         } else {
           callback(null);
         }
@@ -342,6 +348,34 @@ export class CompetitionService {
     );
   }
 
+  /**
+   * Subscribe to completed competitions with visible results
+   */
+  static subscribeToCompletedCompetitionsWithResults(
+    callback: (competitions: Competition[]) => void
+  ): () => void {
+    // Query for completed competitions with resultsVisible = true
+    const q = query(
+      competitionsRef,
+      where('status', '==', 'completed'),
+      where('resultsVisible', '==', true),
+      orderBy('endDate', 'desc')
+    );
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const competitions = snapshot.docs.map(doc => this.mapDocToCompetition(doc));
+        console.log('[CompetitionService] Completed competitions with visible results:', competitions.length);
+        callback(competitions);
+      },
+      (error) => {
+        console.error('Error subscribing to completed competitions with results:', error);
+        callback([]);
+      }
+    );
+  }
+
   // =============== Helper Methods ===============
 
   /**
@@ -364,6 +398,12 @@ export class CompetitionService {
       createdBy: data.createdBy,
       createdAt: data.createdAt?.toDate() || new Date(),
       updatedAt: data.updatedAt?.toDate() || new Date(),
+      // Registration fields (for Totemtition)
+      registrationStatus: data.registrationStatus || 'closed',
+      registrationStartDate: data.registrationStartDate?.toDate(),
+      registrationEndDate: data.registrationEndDate?.toDate(),
+      // Results visibility control
+      resultsVisible: data.resultsVisible ?? false,
     };
   }
 
@@ -401,5 +441,155 @@ export class CompetitionService {
     const seconds = Math.floor((diff % (1000 * 60)) / 1000);
 
     return { hours, minutes, seconds, isExpired: false };
+  }
+
+  // =============== Registration Management (for Totemtition) ===============
+
+  /**
+   * Open registration for a competition
+   */
+  static async openRegistration(competitionId: string): Promise<void> {
+    try {
+      const docRef = doc(competitionsRef, competitionId);
+      await updateDoc(docRef, {
+        registrationStatus: 'open',
+        registrationStartDate: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      console.log('Registration opened for competition:', competitionId);
+    } catch (error) {
+      console.error('Error opening registration:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Close registration for a competition
+   */
+  static async closeRegistration(competitionId: string): Promise<void> {
+    try {
+      const docRef = doc(competitionsRef, competitionId);
+      await updateDoc(docRef, {
+        registrationStatus: 'closed',
+        registrationEndDate: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      console.log('Registration closed for competition:', competitionId);
+    } catch (error) {
+      console.error('Error closing registration:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if registration is open for a competition
+   */
+  static async isRegistrationOpen(competitionId: string): Promise<boolean> {
+    try {
+      const competition = await this.getCompetition(competitionId);
+      return competition?.registrationStatus === 'open';
+    } catch (error) {
+      console.error('Error checking registration status:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get competitions with open registration
+   */
+  static async getOpenRegistrationCompetitions(): Promise<Competition[]> {
+    try {
+      const q = query(
+        competitionsRef,
+        where('registrationStatus', '==', 'open'),
+        orderBy('startDate', 'asc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => this.mapDocToCompetition(doc));
+    } catch (error) {
+      console.error('Error getting open registration competitions:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Subscribe to competitions with open registration
+   */
+  static subscribeToOpenRegistrationCompetitions(
+    callback: (competitions: Competition[]) => void
+  ): () => void {
+    const q = query(
+      competitionsRef,
+      where('registrationStatus', '==', 'open'),
+      orderBy('startDate', 'asc')
+    );
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const competitions = snapshot.docs.map(doc => this.mapDocToCompetition(doc));
+        callback(competitions);
+      },
+      (error) => {
+        console.error('Error subscribing to open registration competitions:', error);
+        callback([]);
+      }
+    );
+  }
+
+  // =============== Results Visibility Management ===============
+
+  /**
+   * Show results to all users
+   */
+  static async showResults(competitionId: string): Promise<void> {
+    try {
+      console.log('[CompetitionService] showResults called for:', competitionId);
+      const docRef = doc(competitionsRef, competitionId);
+      await updateDoc(docRef, {
+        resultsVisible: true,
+        updatedAt: serverTimestamp(),
+      });
+      console.log('[CompetitionService] Results visibility enabled for competition:', competitionId);
+    } catch (error) {
+      console.error('[CompetitionService] Error enabling results visibility:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Hide results from non-admin users
+   */
+  static async hideResults(competitionId: string): Promise<void> {
+    try {
+      console.log('[CompetitionService] hideResults called for:', competitionId);
+      const docRef = doc(competitionsRef, competitionId);
+      await updateDoc(docRef, {
+        resultsVisible: false,
+        updatedAt: serverTimestamp(),
+      });
+      console.log('[CompetitionService] Results visibility disabled for competition:', competitionId);
+    } catch (error) {
+      console.error('[CompetitionService] Error disabling results visibility:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if results are visible for a competition
+   */
+  static async areResultsVisible(competitionId: string): Promise<boolean> {
+    try {
+      const competition = await this.getCompetition(competitionId);
+      // By default, results are visible when competition is active
+      // After completion, admin can toggle visibility
+      if (competition?.status === 'active') {
+        return true;
+      }
+      return competition?.resultsVisible ?? false;
+    } catch (error) {
+      console.error('Error checking results visibility:', error);
+      return false;
+    }
   }
 }

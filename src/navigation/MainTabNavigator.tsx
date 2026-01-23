@@ -7,9 +7,11 @@ import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
 import { Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 
 // Theme
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 
 // Screens
 import HomeScreen from "@/screens/HomeScreen";
@@ -17,6 +19,7 @@ import ProfileScreen from "@/screens/profile/ProfileScreen";
 import UserProfileScreen from "@/screens/profile/UserProfileScreen";
 import LeaderboardScreen from "@/screens/social/LeaderboardScreenV2";
 import RoutesMapScreen from "@/features/routes-map/screens/RoutesMapScreen";
+import RoutesArchiveScreen from "@/features/routes-map/screens/RoutesArchiveScreen";
 import AddRouteMapScreen from "@/features/routes-map/screens/AddRouteMapScreen";
 import RouteDetailsScreen from "@/screens/routes/RouteDetailsScreen";
 import ColorPickerScreen from "@/screens/routes/ColorPickerScreen";
@@ -91,15 +94,22 @@ function RoutesMapStackNavigator() {
         name="RouteDetails"
         component={RouteDetailsScreen}
         options={{
-          headerShown: true,
+          headerShown: false,
           presentation: "card",
-          title: "פרטי מסלול",
         }}
       />
       <RoutesMapStack.Screen
         name="ColorPickerScreen"
         component={ColorPickerScreen}
         options={{ title: "בחירת צבע" }}
+      />
+      <RoutesMapStack.Screen
+        name="RoutesArchive"
+        component={RoutesArchiveScreen}
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
       />
     </RoutesMapStack.Navigator>
   );
@@ -153,6 +163,7 @@ interface TabBarIconProps {
 
 export function MainTabNavigator() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
 
   return (
@@ -208,43 +219,97 @@ export function MainTabNavigator() {
         name="HomeTab"
         component={HomeScreen}
         options={{
-          tabBarLabel: "בית",
+          tabBarLabel: t.nav.home,
         }}
       />
       <Tab.Screen
         name="RoutesMapTab"
         component={RoutesMapStackNavigator}
         options={{
-          tabBarLabel: "מפת מסלולים",
+          tabBarLabel: t.nav.routesMap,
         }}
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            // Reset the stack to the first screen when tab is pressed
+            const routeName = getFocusedRouteNameFromRoute(route);
+            if (routeName && routeName !== 'RoutesMap') {
+              e.preventDefault();
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'RoutesMapTab' }],
+              });
+            }
+          },
+        })}
       />
       <Tab.Screen
         name="CommunityTab"
         component={CommunityNavigator}
         options={{
-          tabBarLabel: "קהילה",
+          tabBarLabel: t.nav.community,
         }}
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            const routeName = getFocusedRouteNameFromRoute(route);
+            if (routeName && routeName !== 'CommunityHome') {
+              e.preventDefault();
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'CommunityTab' }],
+              });
+            }
+          },
+        })}
       />
       <Tab.Screen
         name="LeaderboardTab"
         component={LeaderboardScreen}
         options={{
-          tabBarLabel: "לוח שיאים",
+          tabBarLabel: t.nav.leaderboard,
         }}
       />
       <Tab.Screen
         name="SprayWallTab"
         component={SprayNavigator}
         options={{
-          tabBarLabel: "Spray Wall",
+          tabBarLabel: t.nav.sprayWall,
         }}
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            const routeName = getFocusedRouteNameFromRoute(route);
+            if (routeName && routeName !== 'SprayHome') {
+              // Prevent default behavior
+              e.preventDefault();
+              // Reset the stack to initial state
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'SprayWallTab' }],
+              });
+            }
+          },
+        })}
       />
       <Tab.Screen
         name="ProfileTab"
         component={ProfileStackNavigator}
         options={{
-          tabBarLabel: "פרופיל",
+          tabBarLabel: t.nav.profile,
         }}
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            // Always reset to Profile (user's own profile) when tab is pressed
+            const routeName = getFocusedRouteNameFromRoute(route);
+            if (routeName && routeName !== 'Profile') {
+              // Prevent default behavior
+              e.preventDefault();
+              // Reset the stack to initial state - this clears the history
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'ProfileTab' }],
+              });
+            }
+          },
+        })}
       />
     </Tab.Navigator>
   );

@@ -68,6 +68,7 @@ export class FeedbackService {
             starRating: number;
             suggestedGrade?: string;
             comment?: string;
+            videoUrl?: string;
             isCompleted: boolean;
         }
     ): Promise<void> {
@@ -112,6 +113,7 @@ export class FeedbackService {
             starRating: number;
             suggestedGrade: string;
             comment: string;
+            videoUrl: string;
             isCompleted: boolean;
         }>
     ): Promise<void> {
@@ -277,26 +279,43 @@ export class FeedbackService {
 
     /**
      * Calculate smart average grade from feedbacks
-     * IMPORTANT: Only count grades from users who completed the route
+     * IMPORTANT: Includes the original route grade in the average calculation
+     * Uses 0.2 rounding threshold: 5.8 -> 6, 5.2 -> 5
      */
     static calculateSmartAverageGrade(route: any, feedbacks: any[]): string | null {
-        if (!feedbacks || feedbacks.length === 0) return null;
-
-        // Filter only completed feedbacks
-        const completedFeedbacks = feedbacks.filter(f => f.isCompleted);
+        const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18'];
+        const originalGrade = route?.grade;
         
-        if (completedFeedbacks.length === 0) return null;
+        // Filter only completed feedbacks
+        const completedFeedbacks = (feedbacks || []).filter(f => f.isCompleted);
 
-        const gradeValues = completedFeedbacks
-            .map(f => f.suggestedGrade)
-            .filter(grade => grade && typeof grade === 'string')
-            .map(grade => this.gradeToNumericValue(grade))
-            .filter(value => value !== null);
-
-        if (gradeValues.length === 0) return null;
-
-        const average = gradeValues.reduce((sum, val) => sum + val!, 0) / gradeValues.length;
-        return this.numericValueToGrade(Math.round(average));
+        // Collect all grade indices - including original grade
+        const allGradeIndices: number[] = [];
+        
+        // Add original grade to the calculation (counts as 1 vote)
+        if (originalGrade && V_GRADES.includes(originalGrade)) {
+            allGradeIndices.push(V_GRADES.indexOf(originalGrade));
+        }
+        
+        // Add all community feedback grades
+        completedFeedbacks.forEach(f => {
+            if (f.suggestedGrade && V_GRADES.includes(f.suggestedGrade)) {
+                allGradeIndices.push(V_GRADES.indexOf(f.suggestedGrade));
+            }
+        });
+        
+        if (allGradeIndices.length === 0) return originalGrade || null;
+        
+        // Calculate average index
+        const averageIndex = allGradeIndices.reduce((sum, idx) => sum + idx, 0) / allGradeIndices.length;
+        
+        // Round with 0.8 threshold: only round UP if fraction >= 0.8
+        const fraction = averageIndex - Math.floor(averageIndex);
+        const roundedIndex = fraction >= 0.8 ? Math.ceil(averageIndex) : Math.floor(averageIndex);
+        
+        // Clamp to valid range
+        const clampedIndex = Math.max(0, Math.min(roundedIndex, V_GRADES.length - 1));
+        return V_GRADES[clampedIndex];
     }
 
     /**

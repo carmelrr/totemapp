@@ -12,7 +12,6 @@ import {
   LayoutChangeEvent,
 } from "react-native";
 import { 
-  GestureHandlerRootView,
   Gesture,
   GestureDetector,
 } from "react-native-gesture-handler";
@@ -361,7 +360,7 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
   }
 
   return (
-    <GestureHandlerRootView style={styles.container}>
+    <View style={styles.container}>
       <GestureDetector gesture={composedGesture}>
         <Animated.View style={styles.container} onLayout={handleLayout}>
           <Animated.View style={[styles.imageWrapper, animatedImageStyle]}>
@@ -405,7 +404,7 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
           גרור להזזה • צבוט לשינוי גודל
         </Text>
       )}
-    </GestureHandlerRootView>
+    </View>
   );
 };
 

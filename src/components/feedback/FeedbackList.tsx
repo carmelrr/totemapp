@@ -8,6 +8,7 @@ import {
     RefreshControl,
 } from 'react-native';
 import { FeedbackItem } from './FeedbackItem';
+import { useLanguage } from '@/features/language';
 
 interface Feedback {
     id: string;
@@ -40,6 +41,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
     onRefresh,
     showStatistics = true,
 }) => {
+    const { t } = useLanguage();
     const [refreshing, setRefreshing] = useState(false);
 
     const handleRefresh = async () => {
@@ -103,20 +105,20 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
 
     const renderHeader = () => (
         <View style={styles.header}>
-            <Text style={styles.title}>משובי משתמשים</Text>
+            <Text style={styles.title}>{t.feedbackList.userFeedbacks}</Text>
 
             {showStatistics && feedbacks.length > 0 && (
                 <View style={styles.statsContainer}>
                     <View style={styles.statItem}>
-                        <Text style={styles.statLabel}>דירוג ממוצע:</Text>
+                        <Text style={styles.statLabel}>{t.feedbackList.avgRating}</Text>
                         <Text style={styles.statValue}>
-                            {stats.averageRating} ⭐ ({stats.totalCount} משובים)
+                            {stats.averageRating} ⭐ ({stats.totalCount} {t.profile.feedbacks})
                         </Text>
                     </View>
 
                     {Object.keys(stats.gradeDistribution).length > 0 && (
                         <View style={styles.gradeStats}>
-                            <Text style={styles.statLabel}>דרגות מוצעות:</Text>
+                            <Text style={styles.statLabel}>{t.feedbackList.suggestedGrades}</Text>
                             <View style={styles.gradeList}>
                                 {Object.entries(stats.gradeDistribution)
                                     .sort(([a], [b]) => a.localeCompare(b))
@@ -135,8 +137,8 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
 
     const renderEmpty = () => (
         <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>אין משובים עדיין</Text>
-            <Text style={styles.emptySubText}>היה הראשון לשתף את החוויה שלך!</Text>
+            <Text style={styles.emptyText}>{t.feedbackList.noFeedbacksYet}</Text>
+            <Text style={styles.emptySubText}>{t.feedbackList.beFirstToShare}</Text>
         </View>
     );
 

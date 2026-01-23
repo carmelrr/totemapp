@@ -16,8 +16,11 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/features/language";
 import { SprayRoute, SprayRouteFeedback } from "@/features/spraywall/types";
 import { WallImageWithHolds } from "@/components/spray/WallImageWithHolds";
+import { VideoLinkInput, VideoLinkButton } from "@/components/feedback";
+import { validateVideoLink } from "@/utils/linkValidation";
 import {
   addFeedbackToRoute,
   getUserFeedbackForRoute,
@@ -37,6 +40,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
   const { sprayRoute, wallId } = route.params;
   const { user } = useAuth();
   const { walls } = useWalls();
+  const { t } = useLanguage();
 
   // Find wall for the image
   const wall = walls.find((w) => w.id === wallId);
@@ -51,6 +55,8 @@ export const SprayRouteDetailScreen: React.FC = () => {
   const [starRating, setStarRating] = useState(0);
   const [suggestedGrade, setSuggestedGrade] = useState("");
   const [comment, setComment] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [isVideoLinkValid, setIsVideoLinkValid] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Current route data (may update with feedbacks)
@@ -82,6 +88,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
           setStarRating(myFeedback.starRating);
           setSuggestedGrade(myFeedback.suggestedGrade);
           setComment(myFeedback.comment || "");
+          setVideoUrl(myFeedback.videoUrl || "");
         }
       }
     });
@@ -91,17 +98,22 @@ export const SprayRouteDetailScreen: React.FC = () => {
 
   const handleSubmitFeedback = async () => {
     if (!user) {
-      Alert.alert("שגיאה", "יש להתחבר כדי לשלוח דירוג");
+      Alert.alert(t.common.error, t.spray.loginToRate);
       return;
     }
 
     if (starRating === 0) {
-      Alert.alert("שגיאה", "יש לבחור דירוג כוכבים");
+      Alert.alert(t.common.error, t.spray.mustSelectRating);
       return;
     }
 
     if (!suggestedGrade) {
-      Alert.alert("שגיאה", "יש לבחור דירוג קושי");
+      Alert.alert(t.common.error, t.spray.mustSelectDifficulty);
+      return;
+    }
+
+    if (!isVideoLinkValid) {
+      Alert.alert(t.common.error, t.videoLink.errors.notAllowed);
       return;
     }
 
@@ -114,13 +126,14 @@ export const SprayRouteDetailScreen: React.FC = () => {
         starRating,
         suggestedGrade,
         comment: comment.trim(),
+        videoUrl: videoUrl.trim() || undefined,
       });
 
-      Alert.alert("כל הכבוד! 🏆", "הדירוג שלך נשמר בהצלחה!");
+      Alert.alert(t.spray.congratulations, t.spray.ratingSubmitted);
       setShowFeedbackForm(false);
     } catch (error) {
       console.error("Error submitting feedback:", error);
-      Alert.alert("שגיאה", "לא הצלחנו לשמור את הדירוג");
+      Alert.alert(t.common.error, t.spray.failedToSaveRating);
     } finally {
       setIsSubmitting(false);
     }
@@ -129,7 +142,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
   // Handle route update (name and grade only - doesn't affect statistics)
   const handleUpdateRoute = async () => {
     if (!editName.trim()) {
-      Alert.alert("שגיאה", "יש להזין שם למסלול");
+      Alert.alert(t.common.error, t.spray.mustEnterName);
       return;
     }
 
@@ -148,10 +161,10 @@ export const SprayRouteDetailScreen: React.FC = () => {
       }));
       
       setShowEditModal(false);
-      Alert.alert("הצלחה", "המסלול עודכן בהצלחה");
+      Alert.alert(t.common.success, t.spray.routeUpdatedSuccess);
     } catch (error) {
       console.error("Error updating route:", error);
-      Alert.alert("שגיאה", "לא הצלחנו לעדכן את המסלול");
+      Alert.alert(t.common.error, t.spray.failedToUpdateRoute);
     } finally {
       setIsUpdating(false);
     }
@@ -160,20 +173,20 @@ export const SprayRouteDetailScreen: React.FC = () => {
   // Handle route deletion
   const handleDeleteRoute = () => {
     Alert.alert(
-      "מחיקת מסלול",
-      `האם אתה בטוח שברצונך למחוק את המסלול "${sprayRoute.name}"?\n\nפעולה זו אינה ניתנת לביטול.`,
+      t.spray.deleteRoute,
+      t.spray.deleteRouteConfirm,
       [
-        { text: "ביטול", style: "cancel" },
+        { text: t.common.cancel, style: "cancel" },
         {
-          text: "מחק",
+          text: t.common.delete,
           style: "destructive",
           onPress: async () => {
             setIsDeleting(true);
             try {
               await deleteRoute(sprayRoute.id);
-              Alert.alert("הצלחה", "המסלול נמחק בהצלחה", [
+              Alert.alert(t.common.success, t.spray.routeDeletedSuccess, [
                 {
-                  text: "אישור",
+                  text: t.common.ok,
                   onPress: () => {
                     // Reset navigation stack to SprayHome after deletion
                     navigation.reset({
@@ -185,7 +198,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
               ]);
             } catch (error) {
               console.error("Error deleting route:", error);
-              Alert.alert("שגיאה", "לא הצלחנו למחוק את המסלול");
+              Alert.alert(t.common.error, t.spray.failedToDeleteRoute);
               setIsDeleting(false);
             }
           },
@@ -241,7 +254,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
           <Text style={styles.routeName}>{currentRoute.name}</Text>
           <View style={styles.gradeContainer}>
             <Text style={styles.routeGrade}>{displayGrade}</Text>
-            {currentRoute.calculatedGrade && currentRoute.calculatedGrade !== currentRoute.grade && (
+            {currentRoute.calculatedGrade && (
               <Text style={styles.communityBadge}>👥 קהילה</Text>
             )}
           </View>
@@ -252,45 +265,40 @@ export const SprayRouteDetailScreen: React.FC = () => {
           <View style={styles.statCard}>
             <Text style={styles.statEmoji}>⭐</Text>
             <Text style={styles.statValue}>{averageRating.toFixed(1)}</Text>
-            <Text style={styles.statLabel}>דירוג</Text>
+            <Text style={styles.statLabel}>{t.spray.rating}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statEmoji}>🏆</Text>
             <Text style={styles.statValue}>{feedbackCount}</Text>
-            <Text style={styles.statLabel}>טופסים</Text>
+            <Text style={styles.statLabel}>{t.spray.forms}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statEmoji}>💬</Text>
             <Text style={styles.statValue}>{feedbacks.length}</Text>
-            <Text style={styles.statLabel}>תגובות</Text>
+            <Text style={styles.statLabel}>{t.spray.comments}</Text>
           </View>
         </View>
 
         {/* Route Details */}
         <View style={styles.detailsSection}>
-          <Text style={styles.sectionTitle}>פרטים</Text>
+          <Text style={styles.sectionTitle}>{t.spray.details}</Text>
           <View style={styles.detailsCard}>
             {sprayRoute.creatorName && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>👤</Text>
-                <Text style={styles.detailLabel}>יוצר</Text>
+                <Text style={styles.detailLabel}>{t.spray.creator}</Text>
                 <Text style={styles.detailValue}>{sprayRoute.creatorName}</Text>
               </View>
             )}
             <View style={styles.detailRow}>
               <Text style={styles.detailIcon}>📊</Text>
-              <Text style={styles.detailLabel}>דירוג מקורי</Text>
+              <Text style={styles.detailLabel}>{t.spray.originalGrade}</Text>
               <Text style={styles.detailValue}>{sprayRoute.grade}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailIcon}>🧗</Text>
-              <Text style={styles.detailLabel}>אחיזות</Text>
-              <Text style={styles.detailValue}>{sprayRoute.holds?.length || 0}</Text>
             </View>
             {sprayRoute.createdAt && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>📅</Text>
-                <Text style={styles.detailLabel}>נוצר</Text>
+                <Text style={styles.detailLabel}>{t.spray.created}</Text>
                 <Text style={styles.detailValue}>{formatDate(sprayRoute.createdAt)}</Text>
               </View>
             )}
@@ -300,14 +308,14 @@ export const SprayRouteDetailScreen: React.FC = () => {
         {/* Owner Actions - Edit/Delete (only for route creator) */}
         {isRouteCreator && (
           <View style={styles.ownerActionsSection}>
-            <Text style={styles.sectionTitle}>ניהול המסלול</Text>
+            <Text style={styles.sectionTitle}>{t.spray.manageRoute}</Text>
             <View style={styles.ownerActionsRow}>
               <TouchableOpacity
                 style={styles.editRouteButton}
                 onPress={() => setShowEditModal(true)}
               >
                 <Text style={styles.editRouteIcon}>✏️</Text>
-                <Text style={styles.editRouteText}>ערוך מסלול</Text>
+                <Text style={styles.editRouteText}>{t.spray.editRoute}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.deleteRouteButton}
@@ -319,7 +327,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
                 ) : (
                   <>
                     <Text style={styles.deleteRouteIcon}>🗑️</Text>
-                    <Text style={styles.deleteRouteText}>מחק</Text>
+                    <Text style={styles.deleteRouteText}>{t.common.delete}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -330,7 +338,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
         {/* Feedback Section */}
         <View style={styles.feedbackSection}>
           <Text style={styles.sectionTitle}>
-            {userFeedback ? "הדירוג שלך" : "סגרת את המסלול? 🏆"}
+            {userFeedback ? t.spray.yourRating : t.spray.completedRoute}
           </Text>
 
           {!showFeedbackForm && !userFeedback && (
@@ -348,7 +356,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
           {!showFeedbackForm && userFeedback && (
             <View style={styles.existingFeedbackCard}>
               <View style={styles.feedbackRow}>
-                <Text style={styles.feedbackLabel}>דירוג:</Text>
+                <Text style={styles.feedbackLabel}>{t.spray.ratingLabel}</Text>
                 <View style={styles.feedbackStars}>
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Text
@@ -364,20 +372,23 @@ export const SprayRouteDetailScreen: React.FC = () => {
                 </View>
               </View>
               <View style={styles.feedbackRow}>
-                <Text style={styles.feedbackLabel}>דרגת קושי:</Text>
+                <Text style={styles.feedbackLabel}>{t.spray.difficultyGradeLabel}</Text>
                 <Text style={styles.feedbackValue}>{userFeedback.suggestedGrade}</Text>
               </View>
               {userFeedback.comment && (
                 <View style={styles.feedbackCommentRow}>
-                  <Text style={styles.feedbackLabel}>הערה:</Text>
+                  <Text style={styles.feedbackLabel}>{t.spray.commentLabel}</Text>
                   <Text style={styles.feedbackComment}>{userFeedback.comment}</Text>
                 </View>
+              )}
+              {userFeedback.videoUrl && (
+                <VideoLinkButton url={userFeedback.videoUrl} />
               )}
               <TouchableOpacity
                 style={styles.editFeedbackButton}
                 onPress={() => setShowFeedbackForm(true)}
               >
-                <Text style={styles.editFeedbackText}>✏️ ערוך דירוג</Text>
+                <Text style={styles.editFeedbackText}>{t.spray.editRating}</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -386,7 +397,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
             <View style={styles.feedbackFormCard}>
               {/* Star Rating */}
               <View style={styles.formSection}>
-                <Text style={styles.formLabel}>כמה נהנית מהמסלול? ⭐</Text>
+                <Text style={styles.formLabel}>{t.spray.howMuchEnjoy}</Text>
                 <View style={styles.starsRow}>
                   {[1, 2, 3, 4, 5].map((star) => (
                     <TouchableOpacity
@@ -407,7 +418,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
 
               {/* Grade Selector */}
               <View style={styles.formSection}>
-                <Text style={styles.formLabel}>מה הדירוג לדעתך? 📊</Text>
+                <Text style={styles.formLabel}>{t.spray.whatGrade}</Text>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -437,10 +448,10 @@ export const SprayRouteDetailScreen: React.FC = () => {
 
               {/* Comment */}
               <View style={styles.formSection}>
-                <Text style={styles.formLabel}>רוצה להוסיף הערה? 💬</Text>
+                <Text style={styles.formLabel}>{t.spray.wantToAddComment}</Text>
                 <TextInput
                   style={styles.commentInput}
-                  placeholder="בטא, טיפים, חוויה..."
+                  placeholder={t.spray.betaTipsExperience}
                   placeholderTextColor="#888"
                   value={comment}
                   onChangeText={setComment}
@@ -449,6 +460,14 @@ export const SprayRouteDetailScreen: React.FC = () => {
                   textAlignVertical="top"
                 />
               </View>
+
+              {/* Video Link */}
+              <VideoLinkInput
+                value={videoUrl}
+                onChange={setVideoUrl}
+                onValidationChange={setIsVideoLinkValid}
+                disabled={isSubmitting}
+              />
 
               {/* Submit Buttons */}
               <View style={styles.formButtons}>
@@ -460,14 +479,16 @@ export const SprayRouteDetailScreen: React.FC = () => {
                       setStarRating(userFeedback.starRating || 0);
                       setSuggestedGrade(userFeedback.suggestedGrade || "");
                       setComment(userFeedback.comment || "");
+                      setVideoUrl(userFeedback.videoUrl || "");
                     } else {
                       setStarRating(0);
                       setSuggestedGrade("");
                       setComment("");
+                      setVideoUrl("");
                     }
                   }}
                 >
-                  <Text style={styles.cancelButtonText}>ביטול</Text>
+                  <Text style={styles.cancelButtonText}>{t.common.cancel}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={[styles.submitButton, isSubmitting && styles.buttonDisabled]}
@@ -477,7 +498,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
                   {isSubmitting ? (
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
-                    <Text style={styles.submitButtonText}>שמור דירוג</Text>
+                    <Text style={styles.submitButtonText}>{t.spray.saveRating}</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -488,7 +509,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
         {/* Community Feedbacks */}
         {feedbacks.length > 0 && (
           <View style={styles.communitySection}>
-            <Text style={styles.sectionTitle}>תגובות הקהילה ({feedbacks.length})</Text>
+            <Text style={styles.sectionTitle}>{t.spray.communityFeedbacks} ({feedbacks.length})</Text>
             {feedbacks.map((fb) => (
               <View key={fb.id} style={styles.feedbackItem}>
                 <View style={styles.feedbackHeader}>
@@ -505,12 +526,13 @@ export const SprayRouteDetailScreen: React.FC = () => {
                   </View>
                 </View>
                 <View style={styles.feedbackMeta}>
-                  <Text style={styles.feedbackGrade}>דירג: {fb.suggestedGrade}</Text>
+                  <Text style={styles.feedbackGrade}>{t.spray.rated} {fb.suggestedGrade}</Text>
                   {fb.createdAt && (
                     <Text style={styles.feedbackDate}>{formatDate(fb.createdAt)}</Text>
                   )}
                 </View>
                 {fb.comment && <Text style={styles.feedbackText}>{fb.comment}</Text>}
+                {fb.videoUrl && <VideoLinkButton url={fb.videoUrl} />}
               </View>
             ))}
           </View>
@@ -528,23 +550,23 @@ export const SprayRouteDetailScreen: React.FC = () => {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>ערוך מסלול</Text>
+            <Text style={styles.modalTitle}>{t.spray.editModal}</Text>
             
             {/* Route Name */}
             <View style={styles.modalFormSection}>
-              <Text style={styles.modalLabel}>שם המסלול</Text>
+              <Text style={styles.modalLabel}>{t.spray.routeNameLabel}</Text>
               <TextInput
                 style={styles.modalInput}
                 value={editName}
                 onChangeText={setEditName}
-                placeholder="שם המסלול"
+                placeholder={t.spray.routeNamePlaceholder}
                 placeholderTextColor="#888"
               />
             </View>
 
             {/* Route Grade */}
             <View style={styles.modalFormSection}>
-              <Text style={styles.modalLabel}>דירוג קושי</Text>
+              <Text style={styles.modalLabel}>{t.spray.difficultyGradeTitle}</Text>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -578,12 +600,12 @@ export const SprayRouteDetailScreen: React.FC = () => {
               onPress={handleEditHolds}
             >
               <Text style={styles.editHoldsIcon}>🎯</Text>
-              <Text style={styles.editHoldsText}>ערוך אחיזות על הקיר</Text>
+              <Text style={styles.editHoldsText}>{t.spray.editHoldsOnWall}</Text>
             </TouchableOpacity>
 
             {/* Note about statistics */}
             <Text style={styles.modalNote}>
-              💡 עריכה אינה משפיעה על הסטטיסטיקות והדירוגים מהקהילה
+              {t.spray.editNote}
             </Text>
 
             {/* Modal Buttons */}
@@ -596,7 +618,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
                   setEditGrade(currentRoute.grade);
                 }}
               >
-                <Text style={styles.modalCancelText}>ביטול</Text>
+                <Text style={styles.modalCancelText}>{t.common.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalSaveButton, isUpdating && styles.buttonDisabled]}
@@ -606,7 +628,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
                 {isUpdating ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.modalSaveText}>שמור</Text>
+                  <Text style={styles.modalSaveText}>{t.spray.save}</Text>
                 )}
               </TouchableOpacity>
             </View>

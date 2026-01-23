@@ -1,6 +1,8 @@
 export interface Route {
   id: string;
   name: string;
+  nameHe?: string;  // Hebrew name (e.g., "כחול V3")
+  nameEn?: string;  // English name (e.g., "Blue V3")
   number: number;
   color: string;
   difficulty: string;

@@ -7,18 +7,21 @@ import {
   TouchableOpacity,
   Alert,
 } from "react-native";
+import { useLanguage } from "@/features/language";
 
 export default function EditRouteModal({ visible, onClose, route, onDelete }) {
+  const { t } = useLanguage();
+  
   if (!route) return null;
 
   const handleDelete = () => {
     Alert.alert(
-      "מחיקת מסלול",
-      `האם אתה בטוח שברצונך למחוק את המסלול ${route.grade}?`,
+      t.routes.deleteRoute,
+      t.routes.deleteRouteConfirm,
       [
-        { text: "ביטול", style: "cancel" },
+        { text: t.common.cancel, style: "cancel" },
         {
-          text: "מחק",
+          text: t.common.delete,
           style: "destructive",
           onPress: onDelete,
         },
@@ -30,15 +33,15 @@ export default function EditRouteModal({ visible, onClose, route, onDelete }) {
     <Modal visible={visible} transparent animationType="slide">
       <View style={styles.overlay}>
         <View style={styles.container}>
-          <Text style={styles.title}>עריכת מסלול</Text>
+          <Text style={styles.title}>{t.editRouteModal.title}</Text>
 
           <View style={styles.routeInfo}>
-            <Text style={styles.label}>דירוג:</Text>
+            <Text style={styles.label}>{t.editRouteModal.grade}</Text>
             <Text style={styles.value}>{route.grade}</Text>
           </View>
 
           <View style={styles.routeInfo}>
-            <Text style={styles.label}>צבע:</Text>
+            <Text style={styles.label}>{t.editRouteModal.color}</Text>
             <View style={[styles.colorBox, { backgroundColor: route.color }]} />
           </View>
 
@@ -47,11 +50,11 @@ export default function EditRouteModal({ visible, onClose, route, onDelete }) {
               style={styles.deleteButton}
               onPress={handleDelete}
             >
-              <Text style={styles.deleteButtonText}>מחק מסלול</Text>
+              <Text style={styles.deleteButtonText}>{t.editRouteModal.deleteRoute}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.cancelButtonText}>ביטול</Text>
+              <Text style={styles.cancelButtonText}>{t.editRouteModal.cancel}</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -1,5 +1,5 @@
 // components/ui/ToolButton.tsx
-import React from "react";
+import React, { useMemo } from "react";
 import {
   TouchableOpacity,
   Text,
@@ -7,7 +7,7 @@ import {
   ViewStyle,
   TextStyle,
 } from "react-native";
-import { THEME_COLORS } from "@/constants/colors";
+import { useTheme } from "@/features/theme/ThemeContext";
 
 interface ToolButtonProps {
   title: string;
@@ -28,6 +28,9 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
   textStyle,
   disabled = false,
 }) => {
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  
   return (
     <TouchableOpacity
       style={[
@@ -55,22 +58,23 @@ export const ToolButton: React.FC<ToolButtonProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+// Dynamic styles factory for theme support
+const createStyles = (theme: any) => StyleSheet.create({
   button: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: THEME_COLORS.surface,
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: THEME_COLORS.border,
+    borderColor: theme.border,
     alignItems: "center",
     justifyContent: "center",
     flexDirection: "row",
     gap: 8,
   },
   selectedButton: {
-    backgroundColor: THEME_COLORS.primary,
-    borderColor: THEME_COLORS.primary,
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   disabledButton: {
     opacity: 0.5,
@@ -78,13 +82,13 @@ const styles = StyleSheet.create({
   text: {
     fontSize: 14,
     fontWeight: "600",
-    color: THEME_COLORS.text,
+    color: theme.text,
   },
   selectedText: {
     color: "#FFFFFF",
   },
   disabledText: {
-    color: THEME_COLORS.textSecondary,
+    color: theme.textSecondary,
   },
   icon: {
     fontSize: 16,

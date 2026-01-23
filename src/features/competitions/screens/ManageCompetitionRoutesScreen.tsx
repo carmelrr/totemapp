@@ -20,13 +20,14 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
+import { useRolesContext } from '@/features/roles/RolesContext';
 import {
   useCompetition,
   useCompetitionRoutes,
 } from '@/features/competitions/hooks/useCompetition';
 import { CompetitionRoutesService } from '@/features/competitions/services/CompetitionRoutesService';
 import { CompetitionRoute } from '@/features/competitions/types';
-import { NATIONAL_LEAGUE_GRADE_POINTS } from '@/features/competitions/constants';
+import { NATIONAL_LEAGUE_GRADE_POINTS, TOTEMTITION_SETTINGS } from '@/features/competitions/constants';
 
 const AVAILABLE_GRADES = [
   'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10',
@@ -40,16 +41,51 @@ export default function ManageCompetitionRoutesScreen() {
   const route = useRoute<any>();
   const { competitionId } = route.params;
   const { user } = useAuth();
+  const rolesContext = useRolesContext();
 
   const { competition, loading: compLoading } = useCompetition(competitionId);
   const { routes, loading: routesLoading, refresh } = useCompetitionRoutes(competitionId);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newRouteNumber, setNewRouteNumber] = useState('');
+
+  // Check if this is Totemtition format (no grades needed)
+  const isTotemtition = competition?.format === 'totemtition';
   const [selectedGrade, setSelectedGrade] = useState('V3');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const styles = createStyles(theme);
+
+  // Check if user has permission to manage routes
+  if (!rolesContext.canManageCompetitionRoutes) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Ionicons name="arrow-forward" size={24} color={theme.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>מסלולי תחרות</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Ionicons name="lock-closed" size={64} color={theme.error || '#e74c3c'} />
+          <Text style={styles.errorText}>אין הרשאה לגישה</Text>
+          <Text style={styles.errorSubtext}>
+            רק שופטים, שופטים ראשיים, ומנהלים יכולים לנהל מסלולים
+          </Text>
+          <TouchableOpacity
+            style={styles.backBtn}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backBtnText}>חזור</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const loading = compLoading || routesLoading;
 
@@ -73,11 +109,14 @@ export default function ManageCompetitionRoutesScreen() {
 
     setIsSubmitting(true);
     try {
+      // For Totemtition, use 'TOTEM' as grade placeholder (points are calculated dynamically)
+      const gradeToUse = isTotemtition ? 'TOTEM' : selectedGrade;
+      
       await CompetitionRoutesService.addRoute(
         competitionId, 
         {
           number: routeNum,
-          grade: selectedGrade,
+          grade: gradeToUse,
           xNorm: 0,
           yNorm: 0,
         },
@@ -96,10 +135,13 @@ export default function ManageCompetitionRoutesScreen() {
 
   const handleAddMultipleRoutes = async () => {
     if (!competition || !user) return;
+    
+    const routeCount = competition.settings.maxRoutes;
+    const formatLabel = isTotemtition ? '1000 נקודות לכל מסלול' : 'V0-V8';
 
     Alert.alert(
       'הוספת מסלולים',
-      `להוסיף ${competition.settings.maxRoutes} מסלולים (V0-V8)?`,
+      `להוסיף ${routeCount} מסלולים (${formatLabel})?`,
       [
         { text: 'ביטול', style: 'cancel' },
         {
@@ -110,9 +152,15 @@ export default function ManageCompetitionRoutesScreen() {
               const grades = ['V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8'];
               
               for (let i = 1; i <= competition.settings.maxRoutes; i++) {
-                // Assign grades in a balanced way
-                const gradeIndex = Math.min(Math.floor((i - 1) / (competition.settings.maxRoutes / grades.length)), grades.length - 1);
-                const grade = grades[gradeIndex];
+                // For Totemtition - use 'TOTEM' grade, for others - distribute grades
+                let grade: string;
+                if (isTotemtition) {
+                  grade = 'TOTEM';
+                } else {
+                  // Assign grades in a balanced way
+                  const gradeIndex = Math.min(Math.floor((i - 1) / (competition.settings.maxRoutes / grades.length)), grades.length - 1);
+                  grade = grades[gradeIndex];
+                }
                 
                 if (!routes.some(r => r.routeNumber === i)) {
                   await CompetitionRoutesService.addRoute(
@@ -191,7 +239,11 @@ export default function ManageCompetitionRoutesScreen() {
   };
 
   const renderRouteItem = ({ item }: { item: CompetitionRoute }) => {
-    const points = NATIONAL_LEAGUE_GRADE_POINTS[item.grade] || 100;
+    // For Totemtition - show 1000 pts (dynamic division), for others - use grade-based points
+    const isTotemRoute = item.grade === 'TOTEM';
+    const points = isTotemRoute ? 1000 : (NATIONAL_LEAGUE_GRADE_POINTS[item.grade] || 100);
+    const displayGrade = isTotemRoute ? '🎯' : item.grade;
+    const pointsLabel = isTotemRoute ? '1000÷N נק\'' : `${points} נקודות`;
     
     return (
       <View style={styles.routeItem}>
@@ -199,8 +251,8 @@ export default function ManageCompetitionRoutesScreen() {
           <Text style={styles.routeNumberText}>{item.routeNumber}</Text>
         </View>
         <View style={styles.routeInfo}>
-          <Text style={styles.routeGrade}>{item.grade}</Text>
-          <Text style={styles.routePoints}>{points} נקודות</Text>
+          <Text style={styles.routeGrade}>{displayGrade}</Text>
+          <Text style={styles.routePoints}>{pointsLabel}</Text>
         </View>
         <TouchableOpacity
           style={styles.deleteBtn}
@@ -333,31 +385,43 @@ export default function ManageCompetitionRoutesScreen() {
               />
             </View>
 
-            <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>דרגת קושי</Text>
-              <View style={styles.gradesGrid}>
-                {['V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8'].map((grade) => (
-                  <TouchableOpacity
-                    key={grade}
-                    style={[
-                      styles.gradeOption,
-                      selectedGrade === grade && styles.gradeOptionSelected,
-                    ]}
-                    onPress={() => setSelectedGrade(grade)}
-                  >
-                    <Text style={[
-                      styles.gradeOptionText,
-                      selectedGrade === grade && styles.gradeOptionTextSelected,
-                    ]}>
-                      {grade}
-                    </Text>
-                    <Text style={styles.gradePoints}>
-                      {NATIONAL_LEAGUE_GRADE_POINTS[grade]}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+            {/* Hide grade selection for Totemtition - routes are scored by 1000/N */}
+            {!isTotemtition && (
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>דרגת קושי</Text>
+                <View style={styles.gradesGrid}>
+                  {['V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8'].map((grade) => (
+                    <TouchableOpacity
+                      key={grade}
+                      style={[
+                        styles.gradeOption,
+                        selectedGrade === grade && styles.gradeOptionSelected,
+                      ]}
+                      onPress={() => setSelectedGrade(grade)}
+                    >
+                      <Text style={[
+                        styles.gradeOptionText,
+                        selectedGrade === grade && styles.gradeOptionTextSelected,
+                      ]}>
+                        {grade}
+                      </Text>
+                      <Text style={styles.gradePoints}>
+                        {NATIONAL_LEAGUE_GRADE_POINTS[grade]}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
-            </View>
+            )}
+
+            {/* Show Totemtition scoring info */}
+            {isTotemtition && (
+              <View style={styles.totemtitionInfo}>
+                <Text style={styles.totemtitionInfoText}>
+                  🎯 מסלולי תחרוטוטם: 1000 נקודות מחולקות בין כל המשלימים
+                </Text>
+              </View>
+            )}
 
             <TouchableOpacity
               style={styles.submitBtn}
@@ -627,5 +691,53 @@ const createStyles = (theme: any) =>
       color: '#fff',
       fontSize: 16,
       fontWeight: 'bold',
+    },
+    // Error container styles
+    errorContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 24,
+    },
+    errorText: {
+      fontSize: 20,
+      fontWeight: 'bold',
+      color: theme.text,
+      marginTop: 16,
+      textAlign: 'center',
+    },
+    errorSubtext: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      marginTop: 8,
+      textAlign: 'center',
+      paddingHorizontal: 24,
+    },
+    backBtn: {
+      marginTop: 24,
+      paddingVertical: 12,
+      paddingHorizontal: 24,
+      backgroundColor: theme.primary,
+      borderRadius: 8,
+    },
+    backBtnText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    // Totemtition info box
+    totemtitionInfo: {
+      backgroundColor: theme.card,
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: theme.primary + '40',
+    },
+    totemtitionInfoText: {
+      fontSize: 14,
+      color: theme.text,
+      textAlign: 'center',
+      lineHeight: 22,
     },
   });

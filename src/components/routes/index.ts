@@ -7,7 +7,7 @@ export { default as RouteList } from "./RouteList";
 export { default as RoutesList } from "./RoutesList";
 export { default as FilterSortBar } from "./FilterSortBar";
 export { default as PlusFAB } from "./PlusFAB";
-export { default as RouteFeedbackView } from "./RouteFeedbackView";
+// RouteFeedbackView moved to @/components/feedback
 export { default as RouteEditPanel } from "./RouteEditPanel";
 export { default as HoldMarker } from "./HoldMarker";
 export { default as RouteHoldRing } from "@/components/shared/StaticHoldRing";

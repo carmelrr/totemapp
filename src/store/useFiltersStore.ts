@@ -101,7 +101,9 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
   searchQuery: '',
 
   setFilter: (key, value) => {
-    console.log('[FiltersStore] setFilter:', key, value);
+    if (__DEV__) {
+      console.log('[FiltersStore] setFilter:', key, value);
+    }
     set((state) => ({
       filters: {
         ...state.filters,
@@ -137,20 +139,14 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
   getFilteredRoutes: (routes, visibleRouteIds) => {
     const { filters, sorting, searchQuery } = get();
     
-    console.log('[FiltersStore] getFilteredRoutes called:', {
-      inputRoutes: routes.length,
-      visibleRouteIds: visibleRouteIds?.length,
-      showOnlyVisibleOnMap: filters.showOnlyVisibleOnMap,
-      status: filters.status,
-      colors: filters.colors,
-      searchQuery: searchQuery.trim()
-    });
+    if (__DEV__) {
+      console.log('[FiltersStore] getFilteredRoutes:', routes.length, 'routes');
+    }
     
     let filteredRoutes = routes;
 
     // סינון לפי מסלולים נראים במפה
     if (filters.showOnlyVisibleOnMap && visibleRouteIds) {
-      console.log('[FiltersStore] Filtering by visible routes');
       filteredRoutes = filteredRoutes.filter(route => visibleRouteIds.includes(route.id));
     }
 
@@ -166,45 +162,27 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
 
     // סינון לפי סטטוס
     if (filters.status.length > 0) {
-      console.log('[FiltersStore] Filtering by status:', {
-        filterStatus: filters.status,
-        sampleRouteStatus: routes[0]?.status,
-        routeStatuses: routes.map(r => r.status || 'undefined').slice(0, 3)
-      });
       filteredRoutes = filteredRoutes.filter(route => 
         filters.status.includes(route.status || 'active')
       );
-      console.log('[FiltersStore] After status filter:', filteredRoutes.length);
     }
 
     // סינון לפי צבעים
     if (filters.colors.length > 0) {
-      console.log('[FiltersStore] Filtering by colors:', {
-        filterColors: filters.colors,
-        routeColors: routes.slice(0, 5).map(r => r.color),
-      });
-      const beforeCount = filteredRoutes.length;
       filteredRoutes = filteredRoutes.filter(route => 
         filters.colors.includes(route.color)
       );
-      console.log('[FiltersStore] After colors filter:', filteredRoutes.length, '(was', beforeCount, ')');
     }
 
     // סינון לפי דרגות
     if (filters.gradeRange.min || filters.gradeRange.max) {
-      console.log('[FiltersStore] Filtering by grades:', {
-        gradeRange: filters.gradeRange,
-        routeGrades: routes.slice(0, 5).map(r => r.grade),
-      });
-      const beforeCount = filteredRoutes.length;
+      const minIndex = filters.gradeRange.min ? GRADE_ORDER.indexOf(filters.gradeRange.min) : 0;
+      const maxIndex = filters.gradeRange.max ? GRADE_ORDER.indexOf(filters.gradeRange.max) : GRADE_ORDER.length - 1;
+      
       filteredRoutes = filteredRoutes.filter(route => {
         const routeGradeIndex = GRADE_ORDER.indexOf(route.grade);
-        const minIndex = filters.gradeRange.min ? GRADE_ORDER.indexOf(filters.gradeRange.min) : 0;
-        const maxIndex = filters.gradeRange.max ? GRADE_ORDER.indexOf(filters.gradeRange.max) : GRADE_ORDER.length - 1;
-        
         return routeGradeIndex >= minIndex && routeGradeIndex <= maxIndex;
       });
-      console.log('[FiltersStore] After grades filter:', filteredRoutes.length, '(was', beforeCount, ')');
     }
 
     // סינון לפי תאריך הוספה (תאריך ספציפי בפורמט YYYY-MM-DD)
@@ -255,11 +233,6 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
       }
       
       return sorting.sortOrder === 'desc' ? -comparison : comparison;
-    });
-
-    console.log('[FiltersStore] Final filtered routes:', {
-      finalCount: filteredRoutes.length,
-      finalIds: filteredRoutes.map(r => r.id.slice(-6))
     });
 
     return filteredRoutes;

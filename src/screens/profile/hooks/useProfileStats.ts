@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Alert } from "react-native";
 import { auth } from "@/features/data/firebase";
-import { fetchUserStats, calculateGradeStats } from "../services/statsService";
+import { fetchUserStats, calculateGradeStats, subscribeToUserStats, subscribeToGradeStats } from "../services/statsService";
 import { statsRefreshEvent } from "@/utils/events/statsRefreshEvent";
 import type { UserStats, GradeStatsMap } from "../types";
 
@@ -47,10 +47,35 @@ export function useProfileStats() {
     }
   };
 
-  // Initial load
+  // Real-time subscription to stats updates
   useEffect(() => {
+    if (!user) return;
+    
+    // Initial load
     loadStats();
-  }, [loadStats]);
+    
+    // Subscribe to stats updates
+    const unsubscribeStats = subscribeToUserStats(
+      user.uid,
+      (stats) => setUserStats(stats),
+      (error) => console.error("Error in stats subscription:", error)
+    );
+    
+    // Subscribe to grade stats updates
+    const unsubscribeGradeStats = subscribeToGradeStats(
+      user.uid,
+      (data) => {
+        setGradeStats(data.gradeStats);
+        setAllRoutes(data.routes);
+      },
+      (error) => console.error("Error in grade stats subscription:", error)
+    );
+
+    return () => {
+      unsubscribeStats();
+      unsubscribeGradeStats();
+    };
+  }, [user]);
 
   // Subscribe to stats refresh events (e.g., when feedback is submitted elsewhere)
   useEffect(() => {

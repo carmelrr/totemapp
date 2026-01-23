@@ -15,6 +15,7 @@ import {
   canEnterResults,
   canEditResults,
   canManageRoles,
+  canManageAnnouncements,
 } from './constants';
 
 interface UseRolesReturn {
@@ -26,11 +27,13 @@ interface UseRolesReturn {
   isRouteSetter: boolean;
   isJudge: boolean;
   isHeadJudge: boolean;
+  isSocialManager: boolean;
   // Permission checks
   canEditRoutes: boolean;
   canEnterResults: boolean;
   canEditResults: boolean;
   canManageRoles: boolean;
+  canManageAnnouncements: boolean;
   // Methods
   hasRole: (role: UserRole) => boolean;
   hasAnyRole: (roles: UserRole[]) => boolean;
@@ -89,11 +92,13 @@ export function useRoles(): UseRolesReturn {
     isRouteSetter: roles.includes('route_setter'),
     isJudge: roles.includes('judge'),
     isHeadJudge: roles.includes('head_judge'),
+    isSocialManager: roles.includes('social_manager'),
     // Permission checks
     canEditRoutes: canEditRoutes(roles),
     canEnterResults: canEnterResults(roles),
     canEditResults: canEditResults(roles),
     canManageRoles: canManageRoles(roles),
+    canManageAnnouncements: canManageAnnouncements(roles),
     // Methods
     hasRole: (role: UserRole) => roles.includes(role),
     hasAnyRole: (requiredRoles: UserRole[]) => requiredRoles.some(r => roles.includes(r)),

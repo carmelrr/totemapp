@@ -36,6 +36,7 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       yNorm: route.yNorm,
       createdAt: route.createdAt || Timestamp.now(),
       status: route.status || 'active',
+      archivedAt: route.archivedAt || null,
       rating: route.rating || 0,
       tops: route.tops || 0,
       comments: route.comments || 0,
@@ -51,24 +52,11 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
   fromFirestore(snapshot: QueryDocumentSnapshot, options): RouteDoc {
     const data = snapshot.data(options);
 
-    // ✅ מידות viewBox של WallMapSVG - עדכן לפי הקובץ שלך
+    // מידות viewBox של WallMapSVG
     const VIEWBOX_W = 2560;
     const VIEWBOX_H = 1600;
 
-    console.log(`🔍 Processing route ${snapshot.id}:`, {
-      name: data.name,
-      originalX: data.x,
-      originalY: data.y,
-      originalXNorm: data.xNorm,
-      originalYNorm: data.yNorm,
-      originalColor: data.color,
-      hasXNorm: typeof data.xNorm === 'number',
-      hasYNorm: typeof data.yNorm === 'number',
-      xIsNormalized: typeof data.x === 'number' && data.x >= 0 && data.x <= 1,
-      yIsNormalized: typeof data.y === 'number' && data.y >= 0 && data.y <= 1
-    });
-
-    // ✅ המרה אוטומטית מ-x/y ל-xNorm/yNorm אם חסרים
+    // המרה אוטומטית מ-x/y ל-xNorm/yNorm אם חסרים
     let xNorm = data.xNorm;
     let yNorm = data.yNorm;
 
@@ -86,15 +74,11 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       if (isNormalized(data.x, data.y)) {
         xNorm = data.x;
         yNorm = data.y;
-        console.log(`✅ Route ${snapshot.id}: using already normalized x=${data.x}, y=${data.y}`);
       } else {
         // Convert from absolute pixels to normalized
         xNorm = Math.min(Math.max(data.x / VIEWBOX_W, 0), 1);
         yNorm = Math.min(Math.max(data.y / VIEWBOX_H, 0), 1);
-        console.log(`🔄 Route ${snapshot.id}: converted x=${data.x}, y=${data.y} to xNorm=${xNorm.toFixed(4)}, yNorm=${yNorm.toFixed(4)}`);
       }
-    } else if (typeof xNorm === 'number' && typeof yNorm === 'number') {
-      console.log(`✅ Route ${snapshot.id}: using existing xNorm=${xNorm.toFixed(4)}, yNorm=${yNorm.toFixed(4)}`);
     }
 
     // ✅ Adapter סלחני לצבע שמחפש בכמה מפתחות נפוצים
@@ -114,6 +98,7 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       yNorm: Number.isFinite(yNorm) ? Math.min(Math.max(yNorm, 0), 1) : 0,
       createdAt: data.createdAt,
       status: data.status || 'active',
+      archivedAt: data.archivedAt || null,
       rating: data.rating || 0,
       tops: data.tops || 0,
       comments: data.comments || 0,
@@ -125,15 +110,6 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       feedbackCount: data.feedbackCount || 0,
       completionCount: data.completionCount || 0,
     };
-
-    console.log(`✅ Route ${snapshot.id} processed:`, {
-      finalXNorm: result.xNorm,
-      finalYNorm: result.yNorm,
-      isValidCoords: result.xNorm >= 0 && result.xNorm <= 1 && result.yNorm >= 0 && result.yNorm <= 1,
-      color: result.color,
-      isValid: Number.isFinite(result.xNorm) && Number.isFinite(result.yNorm),
-      inBounds: result.xNorm >= 0 && result.xNorm <= 1 && result.yNorm >= 0 && result.yNorm <= 1
-    });
 
     return result;
   },
@@ -272,10 +248,13 @@ export class RoutesService {
   }
 
   /**
-   * Archive a route (soft delete)
+   * Archive a route (soft delete) - moves to trash for 2 weeks
    */
   static async archiveRoute(id: string): Promise<void> {
-    await this.updateRoute(id, { status: 'archived' });
+    await this.updateRoute(id, { 
+      status: 'archived',
+      archivedAt: Timestamp.now()
+    });
     // Trigger stats refresh so profile statistics update immediately
     triggerStatsRefresh();
   }
@@ -284,9 +263,96 @@ export class RoutesService {
    * Restore an archived route
    */
   static async restoreRoute(id: string): Promise<void> {
-    await this.updateRoute(id, { status: 'active' });
+    await this.updateRoute(id, { 
+      status: 'active',
+      archivedAt: null  // Clear the archived timestamp
+    });
     // Trigger stats refresh so profile statistics update immediately
     triggerStatsRefresh();
+  }
+
+  /**
+   * Subscribe to archived routes only
+   */
+  static subscribeArchivedRoutes(
+    onChange: (routes: RouteDoc[]) => void,
+    onError?: (error: Error) => void
+  ): () => void {
+    const routesRef = collection(db, this.COLLECTION_NAME).withConverter(routeConverter);
+    const q = query(
+      routesRef,
+      where('status', '==', 'archived'),
+      orderBy('archivedAt', 'desc')
+    );
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const routes = snapshot.docs.map((doc) => doc.data());
+        onChange(routes);
+      },
+      (error) => {
+        console.error('Error subscribing to archived routes:', error);
+        onError?.(error);
+      }
+    );
+  }
+
+  /**
+   * Permanently delete routes that have been archived for more than 2 weeks
+   * This should be called periodically (e.g., on app start or via a Cloud Function)
+   */
+  static async cleanupExpiredArchivedRoutes(): Promise<number> {
+    try {
+      const twoWeeksAgo = new Date();
+      twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+      const twoWeeksAgoTimestamp = Timestamp.fromDate(twoWeeksAgo);
+
+      const routesRef = collection(db, this.COLLECTION_NAME).withConverter(routeConverter);
+      const q = query(
+        routesRef,
+        where('status', '==', 'archived'),
+        where('archivedAt', '<=', twoWeeksAgoTimestamp)
+      );
+
+      const { getDocs } = await import('firebase/firestore');
+      const snapshot = await getDocs(q);
+      
+      let deletedCount = 0;
+      for (const docSnapshot of snapshot.docs) {
+        await deleteDoc(docSnapshot.ref);
+        deletedCount++;
+      }
+
+      if (deletedCount > 0) {
+        console.log(`🗑️ Permanently deleted ${deletedCount} expired archived routes`);
+        triggerStatsRefresh();
+      }
+
+      return deletedCount;
+    } catch (error) {
+      console.error('Error cleaning up expired archived routes:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Get days remaining until permanent deletion for an archived route
+   */
+  static getDaysUntilDeletion(route: RouteDoc): number {
+    if (!route.archivedAt || route.status !== 'archived') {
+      return -1;
+    }
+
+    const archivedDate = route.archivedAt.toDate ? route.archivedAt.toDate() : new Date(route.archivedAt);
+    const deletionDate = new Date(archivedDate);
+    deletionDate.setDate(deletionDate.getDate() + 14);
+
+    const now = new Date();
+    const diffTime = deletionDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    return Math.max(0, diffDays);
   }
 
   /**

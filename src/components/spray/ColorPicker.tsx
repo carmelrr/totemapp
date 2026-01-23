@@ -3,6 +3,7 @@
 
 import React from "react";
 import { View, TouchableOpacity, StyleSheet, Text } from "react-native";
+import { useLanguage } from "@/features/language";
 
 const ROUTE_COLORS = [
   { name: "אדום", value: "#FF4444" },
@@ -25,9 +26,11 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   selectedColor,
   onSelectColor,
 }) => {
+  const { t } = useLanguage();
+
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>צבע המסלול:</Text>
+      <Text style={styles.label}>{t.sprayWall.routeColor}</Text>
       <View style={styles.colorsRow}>
         {ROUTE_COLORS.map((color) => (
           <TouchableOpacity

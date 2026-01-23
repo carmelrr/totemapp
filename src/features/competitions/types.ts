@@ -7,8 +7,9 @@
 
 export type CompetitionFormat = 'national_league' | 'totemtition' | 'custom';
 export type CompetitionStatus = 'draft' | 'upcoming' | 'active' | 'closed' | 'completed' | 'cancelled';
+export type RegistrationStatus = 'closed' | 'open';
 export type RoundStatus = 'pending' | 'active' | 'completed';
-export type ParticipantStatus = 'pending' | 'approved' | 'rejected';
+export type ParticipantStatus = 'not_registered' | 'pending' | 'pending_approval' | 'approved' | 'rejected' | 'cancelled';
 export type JudgeRole = 'judge' | 'head_judge';
 
 // =============== Main Competition Types ===============
@@ -22,6 +23,10 @@ export interface Competition {
   description?: string;
   format: CompetitionFormat;
   status: CompetitionStatus;
+  registrationStatus?: RegistrationStatus;  // For Totemtition - registration open/closed
+  registrationStartDate?: Date;              // When registration opens
+  registrationEndDate?: Date;                // When registration closes
+  resultsVisible?: boolean;                  // Whether results are visible to non-admin users
   startDate: Date;
   endDate: Date;
   rounds?: Round[];
@@ -93,6 +98,9 @@ export interface TotemtitionRoute extends CompetitionRoute {
 
 // =============== Participant Types ===============
 
+export type Gender = 'male' | 'female';
+export type SkillLevel = 'beginner' | 'intermediate' | 'advanced' | 'pro';
+
 /**
  * Competition participant
  */
@@ -105,7 +113,14 @@ export interface Participant {
   userId?: string;                      // linked app user (optional)
   email?: string;
   phone?: string;
-  category?: string;                    // category ID
+  photoURL?: string;                    // profile picture URL
+  
+  // Category assignment fields
+  gender?: Gender;                      // male/female - required for category assignment
+  birthYear?: number;                   // e.g., 1995 - required for category assignment
+  skillLevel?: SkillLevel;              // optional skill level override
+  
+  category?: string;                    // auto-assigned category ID
   categoryName?: string;                // denormalized for display
   status: ParticipantStatus;            // pending, approved, rejected
   registeredAt: Date;
@@ -115,18 +130,29 @@ export interface Participant {
 
 /**
  * Competition category (age group, gender, skill level)
+ * Categories can be defined with rules for automatic participant assignment
  */
 export interface Category {
   id: string;
   competitionId?: string;
-  name: string;
+  name: string;                         // e.g., "נשים 16-18", "גברים מתקדמים"
   description?: string;
+  
+  // Category rules for auto-assignment
+  gender?: Gender;                      // 'male' | 'female' - null means both
+  minAge?: number;                      // e.g., 16 (minimum age for category)
+  maxAge?: number;                      // e.g., 18 (maximum age for category)
+  skillLevels?: SkillLevel[];           // if specified, only these skill levels qualify
+  isProCategory?: boolean;              // true = advanced/pro category (optional override)
+  
+  // Legacy fields (kept for backward compatibility)
   type?: 'age' | 'gender' | 'skill';
   value?: string;
-  minAge?: number;
-  maxAge?: number;
-  order?: number;
-  participantCount?: number;
+  minBirthYear?: number;                // @deprecated - use minAge/maxAge instead
+  maxBirthYear?: number;                // @deprecated - use minAge/maxAge instead
+  
+  order?: number;                       // display order
+  participantCount?: number;            // cached count of participants
 }
 
 // =============== Results Types ===============
@@ -155,6 +181,8 @@ export interface ParticipantResult {
   competitionId: string;
   participantId: string;
   participantName?: string;
+  userName?: string;                    // alias for participantName
+  photoURL?: string | null;             // profile picture URL
   category?: string;
   categoryName?: string;
   routes: RouteResult[] | Record<number, RouteResult>;  // routeNumber -> result OR array
@@ -179,6 +207,7 @@ export interface LeaderboardEntry {
   participantName?: string;
   userName?: string;                    // alias for participantName
   userId?: string;                      // if linked to app user
+  photoURL?: string | null;             // profile picture URL
   points?: number;
   totalPoints?: number;                 // alias for points
   routesCompleted: number;

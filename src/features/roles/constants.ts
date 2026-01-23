@@ -33,6 +33,14 @@ export const ROLES: Record<UserRole, RoleInfo> = {
     icon: '👨‍⚖️',
     color: '#8B5CF6', // purple
   },
+  social_manager: {
+    id: 'social_manager',
+    name: 'מנהל סושיאל',
+    nameEn: 'Social Manager',
+    description: 'יכול ליצור, לערוך ולתזמן הודעות מערכת בפיד',
+    icon: '📢',
+    color: '#F59E0B', // amber
+  },
   admin: {
     id: 'admin',
     name: 'אדמין',
@@ -46,7 +54,7 @@ export const ROLES: Record<UserRole, RoleInfo> = {
 /**
  * All available roles in order of hierarchy
  */
-export const ALL_ROLES: UserRole[] = ['route_setter', 'judge', 'head_judge', 'admin'];
+export const ALL_ROLES: UserRole[] = ['route_setter', 'judge', 'head_judge', 'social_manager', 'admin'];
 
 /**
  * Role hierarchy - higher index = more permissions
@@ -55,6 +63,7 @@ export const ROLE_HIERARCHY: Record<UserRole, number> = {
   route_setter: 1,
   judge: 2,
   head_judge: 3,
+  social_manager: 3, // Same level as head_judge
   admin: 4,
 };
 
@@ -89,6 +98,16 @@ export const ROLE_PERMISSIONS: RolePermissions[] = [
     ],
   },
   {
+    role: 'social_manager',
+    permissions: [
+      'announcements.view',
+      'announcements.create',
+      'announcements.edit',
+      'announcements.delete',
+      'announcements.schedule',
+    ],
+  },
+  {
     role: 'admin',
     permissions: [
       // Route permissions
@@ -104,6 +123,12 @@ export const ROLE_PERMISSIONS: RolePermissions[] = [
       'competitions.enter_results',
       'competitions.edit_results',
       'competitions.manage_participants',
+      // Announcements permissions
+      'announcements.view',
+      'announcements.create',
+      'announcements.edit',
+      'announcements.delete',
+      'announcements.schedule',
       // Admin permissions
       'admin.manage_roles',
       'admin.manage_users',
@@ -163,6 +188,39 @@ export function canManageRoles(roles: UserRole[]): boolean {
   return roles.includes('admin');
 }
 
+// ==================== Competition-specific Permissions ====================
+
+/**
+ * Check if user can manage competition judges
+ * Only Admin and Head Judge can manage judges
+ */
+export function canManageJudges(roles: UserRole[]): boolean {
+  return roles.includes('admin') || roles.includes('head_judge');
+}
+
+/**
+ * Check if user can manage competition participants
+ * Judge, Head Judge, and Admin can manage participants
+ */
+export function canManageParticipants(roles: UserRole[]): boolean {
+  return roles.includes('admin') || roles.includes('judge') || roles.includes('head_judge');
+}
+
+/**
+ * Check if user can manage competition routes
+ * Judge, Head Judge, and Admin can manage routes
+ */
+export function canManageCompetitionRoutes(roles: UserRole[]): boolean {
+  return roles.includes('admin') || roles.includes('judge') || roles.includes('head_judge');
+}
+
+/**
+ * Check if user has any judge-like role (can work with competitions)
+ */
+export function isJudgeRole(roles: UserRole[]): boolean {
+  return roles.includes('admin') || roles.includes('judge') || roles.includes('head_judge');
+}
+
 /**
  * Get role display info
  */
@@ -179,4 +237,12 @@ export function getAssignableRoles(userRoles: UserRole[]): UserRole[] {
     return ALL_ROLES;
   }
   return [];
+}
+
+/**
+ * Check if user can manage announcements
+ * Social Manager and Admin can manage announcements
+ */
+export function canManageAnnouncements(roles: UserRole[]): boolean {
+  return roles.includes('admin') || roles.includes('social_manager');
 }

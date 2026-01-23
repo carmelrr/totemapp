@@ -17,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 import {
   useCommunityRoutes,
   CommunityRoute,
@@ -27,15 +28,17 @@ import {
 
 type SortOption = 'newest' | 'popular' | 'expiring-soon';
 
-const SORT_OPTIONS: { key: SortOption; label: string; icon: string }[] = [
-  { key: 'newest', label: 'חדש', icon: 'time-outline' },
-  { key: 'popular', label: 'פופולרי', icon: 'heart-outline' },
-  { key: 'expiring-soon', label: 'הולך', icon: 'hourglass-outline' },
-];
-
 export const CommunityRoutesListScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { theme } = useTheme();
+  const { t } = useLanguage();
+  
+  const SORT_OPTIONS: { key: SortOption; label: string; icon: string }[] = [
+    { key: 'newest', label: t.community.new, icon: 'time-outline' },
+    { key: 'popular', label: t.community.popular, icon: 'heart-outline' },
+    { key: 'expiring-soon', label: t.community.expiring, icon: 'hourglass-outline' },
+  ];
+  
   const [filters, setFilters] = useState<CommunityRouteFilters>({ sortBy: 'newest' });
   const { routes, loading, refresh } = useCommunityRoutes(filters);
   const [refreshing, setRefreshing] = useState(false);
@@ -93,7 +96,7 @@ export const CommunityRoutesListScreen: React.FC = () => {
                 expiringSoon && styles.expirationTextWarning,
               ]}
             >
-              {daysLeft} ימים
+              {daysLeft} {t.community.daysLeft}
             </Text>
           </View>
           {/* Grade badge */}
@@ -109,7 +112,7 @@ export const CommunityRoutesListScreen: React.FC = () => {
           </Text>
           <View style={styles.routeMeta}>
             <Text style={[styles.creatorName, { color: theme.textSecondary }]}>
-              מאת {item.creatorName}
+              {t.community.by} {item.creatorName}
             </Text>
             {item.gymName && (
               <Text style={[styles.gymName, { color: theme.textSecondary }]}>
@@ -118,6 +121,12 @@ export const CommunityRoutesListScreen: React.FC = () => {
             )}
           </View>
           <View style={styles.statsRow}>
+            <View style={styles.stat}>
+              <Ionicons name="checkmark-circle" size={14} color="#4CAF50" />
+              <Text style={[styles.statText, { color: theme.textSecondary }]}>
+                {item.sentCount || 0}
+              </Text>
+            </View>
             <View style={styles.stat}>
               <Ionicons name="heart" size={14} color="#FF6B6B" />
               <Text style={[styles.statText, { color: theme.textSecondary }]}>
@@ -128,12 +137,6 @@ export const CommunityRoutesListScreen: React.FC = () => {
               <Ionicons name="chatbubble" size={14} color={theme.textSecondary} />
               <Text style={[styles.statText, { color: theme.textSecondary }]}>
                 {item.commentCount || 0}
-              </Text>
-            </View>
-            <View style={styles.stat}>
-              <Ionicons name="eye" size={14} color={theme.textSecondary} />
-              <Text style={[styles.statText, { color: theme.textSecondary }]}>
-                {item.viewCount || 0}
               </Text>
             </View>
           </View>
@@ -183,17 +186,17 @@ export const CommunityRoutesListScreen: React.FC = () => {
     <View style={styles.emptyContainer}>
       <Ionicons name="images-outline" size={80} color={theme.textSecondary} />
       <Text style={[styles.emptyTitle, { color: theme.text }]}>
-        אין מסלולים עדיין
+        {t.community.noRoutes}
       </Text>
       <Text style={[styles.emptySubtitle, { color: theme.textSecondary }]}>
-        היה הראשון ליצור מסלול על תמונה אמיתית של הקיר!
+        {t.community.beFirstToShare}
       </Text>
       <TouchableOpacity
         style={[styles.emptyButton, { backgroundColor: theme.primary }]}
         onPress={handleAddRoute}
       >
         <Ionicons name="add" size={20} color="#fff" />
-        <Text style={styles.emptyButtonText}>צור מסלול חדש</Text>
+        <Text style={styles.emptyButtonText}>{t.community.createNewRoute}</Text>
       </TouchableOpacity>
     </View>
   );
@@ -207,8 +210,8 @@ export const CommunityRoutesListScreen: React.FC = () => {
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
       >
-        <Text style={styles.title}>מסלולי קהילה</Text>
-        <Text style={styles.subtitle}>מסלולים על תמונות אמיתיות • 30 ימים</Text>
+        <Text style={styles.title}>{t.community.title}</Text>
+        <Text style={styles.subtitle}>{t.community.subtitle}</Text>
       </LinearGradient>
 
       {/* Sort Tabs */}
@@ -219,7 +222,7 @@ export const CommunityRoutesListScreen: React.FC = () => {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
-            טוען מסלולים...
+            {t.community.loadingRoutes}
           </Text>
         </View>
       ) : (

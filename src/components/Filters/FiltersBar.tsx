@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { useFiltersStore } from '@/store/useFiltersStore';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 
 export type SortOption = 'grade-asc' | 'grade-desc' | 'popularity';
 
@@ -12,23 +13,25 @@ interface FiltersBarProps {
   onSortChange?: (sort: SortOption) => void;
 }
 
-const SORT_OPTIONS: { value: SortOption; label: string; icon: string }[] = [
-  { value: 'grade-asc', label: 'דירוג קל לקשה (משתמשים)', icon: '📈' },
-  { value: 'grade-desc', label: 'דירוג קשה לקל (משתמשים)', icon: '�' },
-  { value: 'popularity', label: 'הכי פופולרי (כוכבים)', icon: '⭐' },
-];
-
 /**
  * רכיב סינון פשוט - כפתור אחד שפותח את חלון הסינון
  */
-export default function FiltersBar({
+const FiltersBar = React.memo(function FiltersBar({
   routeCount = 0,
   visibleCount = 0,
   sortBy = 'grade-asc',
   onSortChange,
 }: FiltersBarProps) {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const styles = createStyles(theme);
+  
+  // Dynamic sort options based on current language
+  const sortOptions = useMemo(() => [
+    { value: 'grade-asc' as SortOption, label: t.common.gradeEasyToHard, icon: '📈' },
+    { value: 'grade-desc' as SortOption, label: t.common.gradeHardToEasy, icon: '📉' },
+    { value: 'popularity' as SortOption, label: t.common.mostPopular, icon: '⭐' },
+  ], [t]);
   
   const {
     getActiveFiltersCount,
@@ -38,13 +41,17 @@ export default function FiltersBar({
 
   const [showSortModal, setShowSortModal] = useState(false);
 
-  const activeFiltersCount = getActiveFiltersCount();
-  const currentSort = SORT_OPTIONS.find(o => o.value === sortBy) || SORT_OPTIONS[0];
+  const activeFiltersCount = useMemo(() => getActiveFiltersCount(), [getActiveFiltersCount]);
+  const currentSort = useMemo(() => sortOptions.find(o => o.value === sortBy) || sortOptions[0], [sortBy, sortOptions]);
 
-  const handleSortSelect = (sort: SortOption) => {
+  const handleSortSelect = useCallback((sort: SortOption) => {
     onSortChange?.(sort);
     setShowSortModal(false);
-  };
+  }, [onSortChange]);
+
+  const handleOpenFilters = useCallback(() => setFilterSheetOpen(true), [setFilterSheetOpen]);
+  const handleOpenSort = useCallback(() => setShowSortModal(true), []);
+  const handleCloseSort = useCallback(() => setShowSortModal(false), []);
 
   return (
     <View style={styles.container}>
@@ -52,7 +59,7 @@ export default function FiltersBar({
       <Text style={styles.countText}>
         {visibleCount > 0 && visibleCount !== routeCount 
           ? `${visibleCount}/${routeCount}`
-          : `${routeCount} מסלולים`
+          : `${routeCount} ${t.common.routes}`
         }
       </Text>
 
@@ -60,10 +67,10 @@ export default function FiltersBar({
         {/* Sort button */}
         <TouchableOpacity
           style={styles.sortButton}
-          onPress={() => setShowSortModal(true)}
+          onPress={handleOpenSort}
         >
           <Text style={styles.sortIcon}>↕️</Text>
-          <Text style={styles.sortButtonText}>מיון</Text>
+          <Text style={styles.sortButtonText}>{t.common.sort}</Text>
         </TouchableOpacity>
 
         {/* Filter button */}
@@ -72,14 +79,14 @@ export default function FiltersBar({
             styles.filterButton,
             activeFiltersCount > 0 && styles.filterButtonActive,
           ]}
-          onPress={() => setFilterSheetOpen(true)}
+          onPress={handleOpenFilters}
         >
           <Text style={styles.filterIcon}>⚙️</Text>
           <Text style={[
             styles.filterButtonText, 
             activeFiltersCount > 0 && styles.filterButtonTextActive
           ]}>
-            סינון
+            {t.common.filter}
           </Text>
           {activeFiltersCount > 0 && (
             <View style={styles.badge}>
@@ -109,8 +116,8 @@ export default function FiltersBar({
           onPress={() => setShowSortModal(false)}
         >
           <View style={styles.sortModal}>
-            <Text style={styles.sortModalTitle}>מיון לפי</Text>
-            {SORT_OPTIONS.map((option) => (
+            <Text style={styles.sortModalTitle}>{t.common.sort}</Text>
+            {sortOptions.map((option) => (
               <TouchableOpacity
                 key={option.value}
                 style={[
@@ -136,7 +143,9 @@ export default function FiltersBar({
       </Modal>
     </View>
   );
-}
+});
+
+export default FiltersBar;
 
 const createStyles = (theme: any) => StyleSheet.create({
   container: {

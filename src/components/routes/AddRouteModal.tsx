@@ -8,6 +8,7 @@ import {
   TextInput,
   Alert,
 } from "react-native";
+import { useLanguage } from "@/features/language";
 
 export default function AddRouteModal({
   visible,
@@ -15,6 +16,7 @@ export default function AddRouteModal({
   onSave,
   initialCoords,
 }) {
+  const { t } = useLanguage();
   const [grade, setGrade] = useState("");
   const [color, setColor] = useState("");
 
@@ -30,7 +32,7 @@ export default function AddRouteModal({
       onSave({ ...initialCoords, grade, color });
       onClose();
     } else {
-      Alert.alert("שגיאה", "נא למלא את כל השדות");
+      Alert.alert(t.common.error, t.errors.saveFailed);
     }
   };
 
@@ -43,7 +45,7 @@ export default function AddRouteModal({
     >
       <View style={styles.fullScreenContainer}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Add New Route</Text>
+          <Text style={styles.headerTitle}>{t.routes.routeDetails}</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Text style={styles.closeButtonText}>X</Text>
           </TouchableOpacity>
@@ -51,7 +53,7 @@ export default function AddRouteModal({
 
         <View style={styles.content}>
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Grade:</Text>
+            <Text style={styles.label}>{t.routes.grade}:</Text>
             <TextInput
               style={styles.input}
               placeholder="V5"
@@ -62,7 +64,7 @@ export default function AddRouteModal({
           </View>
 
           <View style={styles.fieldGroup}>
-            <Text style={styles.label}>Color:</Text>
+            <Text style={styles.label}>{t.routes.color}:</Text>
             <TextInput
               style={styles.input}
               placeholder="red"
@@ -74,10 +76,10 @@ export default function AddRouteModal({
 
           <View style={styles.buttonContainer}>
             <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
-              <Text style={styles.buttonText}>SAVE</Text>
+              <Text style={styles.buttonText}>{t.common.save}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-              <Text style={styles.buttonText}>CANCEL</Text>
+              <Text style={styles.buttonText}>{t.common.cancel}</Text>
             </TouchableOpacity>
           </View>
         </View>

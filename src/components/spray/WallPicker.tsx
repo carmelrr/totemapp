@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Wall } from "@/features/spraywall/types";
+import { useLanguage } from "@/features/language";
 
 interface WallPickerProps {
   walls: Wall[];
@@ -26,11 +27,13 @@ export const WallPicker: React.FC<WallPickerProps> = ({
   onSelectWall,
   loading = false,
 }) => {
+  const { t } = useLanguage();
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="small" color="#8E4EC6" />
-        <Text style={styles.loadingText}>טוען קירות...</Text>
+        <Text style={styles.loadingText}>{t.wall.loadingWalls}</Text>
       </View>
     );
   }
@@ -38,7 +41,7 @@ export const WallPicker: React.FC<WallPickerProps> = ({
   if (walls.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>אין קירות זמינים</Text>
+        <Text style={styles.emptyText}>{t.wall.noWallsAvailable}</Text>
       </View>
     );
   }
@@ -76,7 +79,7 @@ export const WallPicker: React.FC<WallPickerProps> = ({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>בחר קיר:</Text>
+      <Text style={styles.title}>{t.wall.selectWall}</Text>
       <FlatList
         data={walls}
         keyExtractor={(item) => item.id || item.name}

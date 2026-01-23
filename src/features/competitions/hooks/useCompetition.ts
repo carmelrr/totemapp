@@ -78,6 +78,66 @@ export function useActiveCompetitions() {
 }
 
 /**
+ * Hook to get competitions with open registration
+ */
+export function useOpenRegistrationCompetitions() {
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+
+    const unsubscribe = CompetitionService.subscribeToOpenRegistrationCompetitions(
+      (comps) => {
+        setCompetitions(comps);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  return { 
+    competitions, 
+    loading, 
+    error, 
+    hasOpenRegistration: competitions.length > 0 
+  };
+}
+
+/**
+ * Hook to get completed competitions with visible results
+ */
+export function useCompletedCompetitionsWithResults() {
+  const [competitions, setCompetitions] = useState<Competition[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    setError(null);
+
+    const unsubscribe = CompetitionService.subscribeToCompletedCompetitionsWithResults(
+      (comps) => {
+        setCompetitions(comps);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  return { 
+    competitions, 
+    loading, 
+    error, 
+    hasCompletedWithResults: competitions.length > 0 
+  };
+}
+
+/**
  * Hook to get all competitions
  */
 export function useAllCompetitions() {
@@ -115,10 +175,12 @@ export function useAllCompetitions() {
 
 /**
  * Hook to get competition leaderboard with real-time updates
+ * Supports both National League (top7Points) and Totemtition (1000/N dynamic) formats
  */
 export function useCompetitionLeaderboard(
   competitionId: string | null,
-  category?: string
+  category?: string,
+  format?: 'national_league' | 'totemtition' | 'custom'
 ) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,17 +196,31 @@ export function useCompetitionLeaderboard(
     setLoading(true);
     setError(null);
 
-    const unsubscribe = ResultsService.subscribeToLeaderboard(
-      competitionId,
-      (leaderboard) => {
-        setEntries(leaderboard);
-        setLoading(false);
-      },
-      category
-    );
+    console.log(`[useCompetitionLeaderboard] Subscribing with format: ${format}`);
+
+    // Use Totemtition-specific subscription for 1000/N dynamic scoring
+    const unsubscribe = format === 'totemtition'
+      ? ResultsService.subscribeToTotemtitionLeaderboard(
+          competitionId,
+          (leaderboard) => {
+            console.log('[useCompetitionLeaderboard] Received Totemtition leaderboard:', leaderboard.map(e => ({ name: e.participantName, rank: e.rank, points: e.totalPoints })));
+            setEntries(leaderboard);
+            setLoading(false);
+          },
+          category
+        )
+      : ResultsService.subscribeToLeaderboard(
+          competitionId,
+          (leaderboard) => {
+            console.log('[useCompetitionLeaderboard] Received regular leaderboard:', leaderboard.map(e => ({ name: e.participantName, rank: e.rank, points: e.points })));
+            setEntries(leaderboard);
+            setLoading(false);
+          },
+          category
+        );
 
     return () => unsubscribe();
-  }, [competitionId, category]);
+  }, [competitionId, category, format]);
 
   return { entries, loading, error };
 }
@@ -409,7 +485,12 @@ export function useCompetitionData(competitionId: string | null) {
   const { competition, loading: competitionLoading } = useCompetition(competitionId);
   const { routes, loading: routesLoading, count: routeCount } = useCompetitionRoutes(competitionId);
   const { participants, loading: participantsLoading, count: participantCount } = useParticipants(competitionId);
-  const { entries: leaderboard, loading: leaderboardLoading } = useCompetitionLeaderboard(competitionId);
+  // Pass competition format for correct scoring calculation
+  const { entries: leaderboard, loading: leaderboardLoading } = useCompetitionLeaderboard(
+    competitionId,
+    undefined,
+    competition?.format as 'national_league' | 'totemtition' | 'custom'
+  );
   const timer = useCompetitionTimer(competition);
 
   const loading = competitionLoading || routesLoading || participantsLoading || leaderboardLoading;

@@ -13,19 +13,21 @@ import {
   CreateCompetitionScreen,
   ManageCompetitionScreen,
   ManageParticipantsScreen,
-  ManageJudgesScreen,
+  ManageCategoriesScreen,
   ManageCompetitionRoutesScreen,
   JudgeEntryScreen,
+  CompetitionRegistrationScreen,
 } from '@/features/competitions';
 
 export type CompetitionStackParamList = {
   CompetitionsList: undefined;
   CreateCompetition: undefined;
-  ManageCompetition: { competitionId: string };
+  ManageCompetition: { competitionId: string; initialTab?: 'overview' | 'participants' | 'judges' | 'leaderboard' };
   ManageParticipants: { competitionId: string };
-  ManageJudges: { competitionId: string };
+  ManageCategories: { competitionId: string };
   ManageCompetitionRoutes: { competitionId: string };
   JudgeEntry: { competitionId: string };
+  CompetitionRegistration: { competitionId: string };
 };
 
 const Stack = createNativeStackNavigator<CompetitionStackParamList>();
@@ -64,10 +66,6 @@ export default function CompetitionNavigator() {
         component={ManageParticipantsScreen} 
       />
       <Stack.Screen 
-        name="ManageJudges" 
-        component={ManageJudgesScreen} 
-      />
-      <Stack.Screen 
         name="ManageCompetitionRoutes" 
         component={ManageCompetitionRoutesScreen} 
       />
@@ -77,6 +75,14 @@ export default function CompetitionNavigator() {
         options={{
           gestureEnabled: false, // Prevent accidental back swipe when entering results
         }}
+      />
+      <Stack.Screen 
+        name="ManageCategories" 
+        component={ManageCategoriesScreen}
+      />
+      <Stack.Screen 
+        name="CompetitionRegistration" 
+        component={CompetitionRegistrationScreen}
       />
     </Stack.Navigator>
   );

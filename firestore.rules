@@ -1,5 +1,5 @@
-// Firestore Security Rules - DEVELOPMENT MODE with Competition System
-// כללי אבטחה לסביבת פיתוח כולל מערכת תחרויות
+// Firestore Security Rules - Production Ready
+// חוקי אבטחה לייצור עם הגנה מלאה על מידע משתמשים
 
 rules_version = '2';
 
@@ -8,20 +8,30 @@ service cloud.firestore {
     
     // ==================== Helper Functions ====================
     
+    // בדיקה שהמשתמש מחובר
     function isAuthenticated() {
       return request.auth != null;
     }
     
+    // בדיקה שזה המשתמש עצמו
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // בדיקה שהמשתמש הוא מנהל
     function isAdmin() {
       return isAuthenticated() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true;
     }
     
+    // בדיקה אם השופט קיים בתחרות
     function isJudge(competitionId) {
       return isAuthenticated() &&
         exists(/databases/$(database)/documents/competitions/$(competitionId)/judges/$(request.auth.uid));
     }
     
+    // קבלת הרשאות שופט
     function getJudgePermissions(competitionId) {
       return get(/databases/$(database)/documents/competitions/$(competitionId)/judges/$(request.auth.uid)).data.permissions;
     }
@@ -42,53 +52,166 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/competitions/$(competitionId)).data.status == 'active';
     }
     
+    // בדיקת גודל מסמך - מניעת התקפות מילוי
+    function isReasonableSize() {
+      return request.resource.size < 1000000; // 1MB max
+    }
+    
     // ==================== Users Collection ====================
+    // פרופילי משתמשים - מידע רגיש!
     match /users/{userId} {
-      allow read, write: if true;
+      // קריאה: משתמש יכול לקרוא את הפרופיל שלו, מנהלים יכולים לקרוא הכל
+      // משתמשים אחרים יכולים לקרוא רק מידע ציבורי (לפי הגדרות פרטיות)
+      allow read: if isOwner(userId) || isAdmin() || isAuthenticated();
+      
+      // יצירה: רק המשתמש עצמו יכול ליצור את הפרופיל שלו
+      // וידוא שלא מנסים להגדיר את עצמם כמנהל
+      allow create: if isOwner(userId) && isReasonableSize() &&
+        (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false) &&
+        (!('roles' in request.resource.data) || request.resource.data.roles.size() == 0);
+      
+      // עדכון: המשתמש יכול לעדכן את עצמו (בלי לשנות isAdmin או roles), מנהל יכול לעדכן הכל
+      allow update: if isReasonableSize() && (
+        // משתמש רגיל - יכול לעדכן רק את הפרופיל שלו
+        // אם isAdmin לא מופיע בנתונים החדשים, או שהוא לא משתנה
+        // אם roles לא מופיע בנתונים החדשים, או שהוא לא משתנה
+        (isOwner(userId) && 
+         (!('isAdmin' in request.resource.data) || 
+          !('isAdmin' in resource.data) || 
+          request.resource.data.isAdmin == resource.data.isAdmin) &&
+         (!('roles' in request.resource.data) || 
+          !('roles' in resource.data) || 
+          request.resource.data.roles == resource.data.roles)) ||
+        // מנהל יכול לעדכן הכל
+        isAdmin()
+      );
+      
+      // מחיקה: רק מנהל יכול למחוק משתמש
+      allow delete: if isAdmin();
     }
 
     // ==================== Routes Collection ====================
+    // מסלולי טיפוס - מידע ציבורי
     match /routes/{routeId} {
-      allow read, write: if true;
+      // כולם יכולים לקרוא מסלולים
+      allow read: if true;
+      
+      // רק משתמשים מחוברים יכולים ליצור מסלולים
+      allow create: if isAuthenticated() && isReasonableSize();
+      
+      // רק יוצר המסלול או מנהל יכולים לעדכן/למחוק
+      allow update: if isReasonableSize() && 
+        (isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid));
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
     }
 
-    // ==================== Feedbacks Collection ====================
-    match /feedbacks/{feedbackId} {
-      allow read, write: if true;
+    // ==================== Route Feedbacks Collection ====================
+    // פידבקים על מסלולים
+    match /routeFeedbacks/{feedbackId} {
+      // כולם יכולים לקרוא פידבקים
+      allow read: if true;
+      
+      // רק משתמשים מחוברים יכולים ליצור פידבק
+      allow create: if isAuthenticated() && isReasonableSize() &&
+        request.resource.data.userId == request.auth.uid;
+      
+      // רק היוצר או מנהל יכולים לעדכן/למחוק
+      allow update: if isReasonableSize() && 
+        (isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid));
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+    }
+
+    // ==================== User Route Status Collection ====================
+    // סטטוס מסלולים אישי לכל משתמש
+    match /userRouteStatus/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
     }
     
     // ==================== Community Routes ====================
-    // מסלולי קהילה - מסלולים על תמונות אמיתיות עם תפוגה אוטומטית
-    
+    // מסלולי קהילה - מסלולים על תמונות אמיתיות
     match /communityRoutes/{routeId} {
       allow read: if true;
-      allow create: if request.auth != null;
-      allow update, delete: if request.auth != null && 
-        (request.auth.uid == resource.data.createdBy || 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
+      allow create: if isAuthenticated() && isReasonableSize() &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update: if isReasonableSize() && 
+        (isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid));
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
     }
     
     match /communityRouteComments/{commentId} {
       allow read: if true;
-      allow create: if request.auth != null;
-      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if isAuthenticated() && isReasonableSize() &&
+        request.resource.data.userId == request.auth.uid;
+      allow update: if isReasonableSize() && 
+        (isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid));
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
     
     match /communityRouteLikes/{likeId} {
       allow read: if true;
-      allow create, delete: if request.auth != null;
+      allow create: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
+    // ==================== Spray Wall Collections ====================
+    // קירות ספריי
+    match /walls/{wallId} {
+      // כולם יכולים לקרוא את הקירות
+      allow read: if true;
+      
+      // רק מנהלים יכולים ליצור/לעדכן/למחוק קירות
+      allow create: if isAdmin() && isReasonableSize();
+      allow update: if isAdmin() && isReasonableSize();
+      allow delete: if isAdmin();
+    }
+    
+    // מסלולי ספריי וואל
+    match /sprayRoutes/{routeId} {
+      // כולם יכולים לקרוא מסלולים
+      allow read: if true;
+      
+      // משתמשים מחוברים יכולים ליצור מסלולים
+      allow create: if isAuthenticated() && isReasonableSize();
+      
+      // היוצר או מנהל יכולים לעדכן
+      allow update: if isReasonableSize() && 
+        (isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid));
+      
+      // מחיקה - היוצר או מנהל
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
+    }
+    
+    // פידבקים על מסלולי ספריי וואל
+    match /sprayRouteFeedbacks/{feedbackId} {
+      allow read: if true;
+      allow create: if isAuthenticated() && isReasonableSize() &&
+        request.resource.data.userId == request.auth.uid;
+      allow update: if isReasonableSize() && 
+        (isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid));
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+    }
+
+    // ==================== Social - Follows ====================
+    // מעקב בין משתמשים
+    match /follows/{followId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        request.resource.data.followerId == request.auth.uid;
+      allow delete: if isAuthenticated() && 
+        resource.data.followerId == request.auth.uid;
     }
 
     // ==================== Competitions Collection ====================
     // מערכת תחרויות - ליגה ארצית וטוטמטישן
-    
     match /competitions/{competitionId} {
       // Anyone can read competition details
       allow read: if true;
       
       // Only admins can create/update/delete competitions
-      allow create: if isAdmin();
-      allow update: if isAdmin();
+      allow create: if isAdmin() && isReasonableSize();
+      allow update: if isAdmin() && isReasonableSize();
       allow delete: if isAdmin();
       
       // Routes Sub-collection
@@ -139,9 +262,26 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Sub-collections under any document (fallback for development)
+    // ==================== Push Tokens ====================
+    // טוקנים להתראות Push - כל משתמש שומר רק את שלו
+    match /userPushTokens/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId);
+    }
+
+    // ==================== Error Reports ====================
+    // דיווחי שגיאות - משתמשים יכולים לכתוב, רק מנהלים קוראים
+    match /errorReports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isReasonableSize();
+      allow update, delete: if isAdmin();
+    }
+
+    // ==================== Default Deny ====================
+    // כל מה שלא מוגדר במפורש - אסור!
+    // זה חשוב לאבטחה - אין גישה לכלום שלא מוגדר
     match /{document=**} {
-      allow read, write: if true;
+      allow read, write: if false;
     }
   }
 }

@@ -20,7 +20,7 @@ import {
   Timestamp,
   writeBatch,
 } from 'firebase/firestore';
-import { db } from '@/features/data/firebase';
+import { db, auth } from '@/features/data/firebase';
 import {
   RouteResult,
   ParticipantResult,
@@ -30,8 +30,40 @@ import {
 import {
   calculateRoutePoints,
   calculateTopNPoints,
+  calculateTotemtitionPoints,
   NATIONAL_LEAGUE_SCORING,
 } from '../constants';
+import { getUserRoles } from '@/features/roles/rolesService';
+import { ParticipantService } from './ParticipantService';
+
+/**
+ * Check if user has permission to enter results
+ * Judges, Head Judges, and Admins can enter results
+ */
+async function checkEnterResultsPermission(userId: string): Promise<void> {
+  const userRoles = await getUserRoles(userId);
+  const hasPermission = userRoles.includes('admin') || 
+                       userRoles.includes('judge') || 
+                       userRoles.includes('head_judge');
+  
+  if (!hasPermission) {
+    throw new Error('Not authorized to enter results. Only judges, head judges, and admins can enter results.');
+  }
+}
+
+/**
+ * Check if user has permission to edit results
+ * Head Judges and Admins can edit results
+ */
+async function checkEditResultsPermission(userId: string): Promise<void> {
+  const userRoles = await getUserRoles(userId);
+  const hasPermission = userRoles.includes('admin') || 
+                       userRoles.includes('head_judge');
+  
+  if (!hasPermission) {
+    throw new Error('Not authorized to edit results. Only head judges and admins can edit results.');
+  }
+}
 
 /**
  * Service for managing competition results
@@ -42,10 +74,11 @@ export class ResultsService {
   /**
    * Enter or update a route result for a participant
    * @param competitionId - Competition ID
-   * @param participantId - Participant ID
+   * @param participantId - Participant ID (for self-reporting, this equals enteredBy)
    * @param routeNumber - Route number (1-30)
    * @param result - Route result data
-   * @param enteredBy - Judge user ID
+   * @param enteredBy - User ID entering the result
+   * @param isSelfReport - Whether this is a self-report (Totemtition)
    */
   static async enterRouteResult(
     competitionId: string,
@@ -57,13 +90,32 @@ export class ResultsService {
       attempts: number;
       grade: string;
     },
-    enteredBy: string
+    enteredBy: string,
+    isSelfReport: boolean = false
   ): Promise<void> {
     try {
-      // Calculate points
-      const points = result.completed
+      // Check authorization
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      
+      // For self-reporting (Totemtition), check if user is entering for themselves
+      if (isSelfReport) {
+        if (currentUser.uid !== participantId) {
+          throw new Error('Self-reporting is only allowed for your own results');
+        }
+        // Self-reporting authorization is checked in the UI layer (approved participant check)
+      } else {
+        // Standard authorization check for judges
+        await checkEnterResultsPermission(currentUser.uid);
+      }
+
+      // Calculate points - for TOTEM routes, points will be calculated dynamically
+      const isTotemRoute = result.grade === 'TOTEM';
+      const points = result.completed && !isTotemRoute
         ? calculateRoutePoints(result.grade, result.attempts)
-        : 0;
+        : 0; // TOTEM routes get 0 here, calculated dynamically in leaderboard
 
       const routeResult: RouteResult = {
         routeNumber,
@@ -95,13 +147,36 @@ export class ResultsService {
         // Recalculate totals
         const { totalPoints, top7Points, routesCompleted } = this.calculateTotals(routes);
 
-        await updateDoc(resultRef, {
+        // Build update data
+        const updateData: any = {
           routes,
           totalPoints,
           top7Points,
           routesCompleted,
           lastUpdated: serverTimestamp(),
-        });
+        };
+
+        // Always fetch participant to sync category and name (category might have been assigned after result was created)
+        const participant = await ParticipantService.getParticipantByUserId(competitionId, participantId);
+        if (participant) {
+          // Sync category from participant (critical for per-category scoring)
+          if (participant.category) {
+            updateData.category = participant.category;
+            updateData.categoryName = participant.categoryName || null;
+          }
+          // Sync name if missing
+          if (!existingData.participantName || existingData.participantName === 'Unknown') {
+            const resolvedName = participant.name || participant.userName || 'Unknown';
+            updateData.participantName = resolvedName;
+            updateData.userName = resolvedName;
+          }
+          // Sync photo if available
+          if (participant.photoURL) {
+            updateData.photoURL = participant.photoURL;
+          }
+        }
+
+        await updateDoc(resultRef, updateData);
       } else {
         // Create new result document
         const routes: Record<number, RouteResult> = {
@@ -110,23 +185,21 @@ export class ResultsService {
 
         const { totalPoints, top7Points, routesCompleted } = this.calculateTotals(routes);
 
-        // Get participant name
-        const participantRef = doc(
-          db,
-          'competitions',
-          competitionId,
-          'participants',
-          participantId
-        );
-        const participantDoc = await getDoc(participantRef);
-        const participantData = participantDoc.data() || {};
+        // Get participant name - use userId lookup since participantId is the userId
+        const participant = await ParticipantService.getParticipantByUserId(competitionId, participantId);
+        const resolvedName = participant?.name || participant?.userName || 'Unknown';
+        const photoURL = participant?.photoURL || null;
+        const category = participant?.category || null;
+        const categoryName = participant?.categoryName || null;
 
         await setDoc(resultRef, {
           competitionId,
           participantId,
-          participantName: participantData.name || 'Unknown',
-          category: participantData.category || null,
-          categoryName: participantData.categoryName || null,
+          participantName: resolvedName,
+          userName: resolvedName,
+          photoURL,
+          category,
+          categoryName,
           routes,
           totalPoints,
           top7Points,
@@ -151,6 +224,13 @@ export class ResultsService {
     routeNumber: number
   ): Promise<void> {
     try {
+      // Check authorization
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      await checkEditResultsPermission(currentUser.uid);
+
       const resultRef = doc(
         db,
         'competitions',
@@ -350,6 +430,35 @@ export class ResultsService {
   }
 
   /**
+   * Get leaderboard entries for all categories
+   * Returns a map of category ID -> leaderboard entries
+   */
+  static async getLeaderboardByCategories(
+    competitionId: string,
+    categories: { id: string; name: string }[],
+    limit: number = 50
+  ): Promise<Record<string, LeaderboardEntry[]>> {
+    try {
+      const result: Record<string, LeaderboardEntry[]> = {};
+      
+      // Get leaderboard for each category
+      for (const category of categories) {
+        const categoryLeaderboard = await this.getLeaderboard(
+          competitionId,
+          category.id,
+          limit
+        );
+        result[category.id] = categoryLeaderboard;
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Error getting leaderboard by categories:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Subscribe to leaderboard updates
    */
   static subscribeToLeaderboard(
@@ -378,18 +487,52 @@ export class ResultsService {
     return onSnapshot(
       q,
       (snapshot) => {
-        const entries: LeaderboardEntry[] = snapshot.docs.map((doc, index) => {
+        const entries: LeaderboardEntry[] = snapshot.docs.map((doc) => {
           const data = doc.data();
+          
+          // Calculate total attempts from all routes
+          let totalAttempts = 0;
+          if (data.routes && typeof data.routes === 'object') {
+            Object.values(data.routes).forEach((route: any) => {
+              if (route && typeof route.attempts === 'number') {
+                totalAttempts += route.attempts;
+              }
+            });
+          }
+          
           return {
-            rank: index + 1,
+            rank: 0, // Will be calculated with tie handling
             participantId: doc.id,
-            participantName: data.participantName || 'Unknown',
+            participantName: data.participantName || data.userName || 'Unknown',
+            userName: data.userName || data.participantName || 'Unknown',
+            userId: data.participantId || doc.id,
+            photoURL: data.photoURL || null,
             points: data.top7Points || 0,
+            totalPoints: data.top7Points || 0,
             routesCompleted: data.routesCompleted || 0,
+            totalAttempts,
             category: data.category,
             categoryName: data.categoryName,
           };
         });
+        
+        // Calculate ranks with tie handling
+        // If players have the same points, they share the same rank
+        // Next rank skips to the correct position (e.g., 1,1,1,4 not 1,1,1,2)
+        entries.sort((a, b) => (b.points || 0) - (a.points || 0));
+        let currentRank = 1;
+        for (let i = 0; i < entries.length; i++) {
+          if (i === 0) {
+            entries[i].rank = currentRank;
+          } else if ((entries[i].points || 0) === (entries[i - 1].points || 0)) {
+            // Same points as previous - same rank (tie)
+            entries[i].rank = entries[i - 1].rank;
+          } else {
+            // Different points - rank is position + 1 (to account for ties)
+            entries[i].rank = i + 1;
+          }
+        }
+        
         callback(entries);
       },
       (error) => {
@@ -432,6 +575,76 @@ export class ResultsService {
   }
 
   // =============== Batch Operations ===============
+
+  /**
+   * Fix missing participant names in existing results
+   * This method looks up participants by userId since result doc IDs are userIds
+   */
+  static async fixMissingParticipantNames(competitionId: string): Promise<number> {
+    try {
+      const resultsRef = collection(
+        db,
+        'competitions',
+        competitionId,
+        'results'
+      );
+      const participantsRef = collection(
+        db,
+        'competitions',
+        competitionId,
+        'participants'
+      );
+
+      // Get all participants and build a map by userId (not doc.id)
+      const participantsSnapshot = await getDocs(participantsRef);
+      const participantsByUserId = new Map<string, { name?: string; userName?: string; photoURL?: string }>();
+      participantsSnapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.userId) {
+          participantsByUserId.set(data.userId, {
+            name: data.name,
+            userName: data.userName,
+            photoURL: data.photoURL,
+          });
+        }
+      });
+
+      // Get all results
+      const resultsSnapshot = await getDocs(resultsRef);
+      const batch = writeBatch(db);
+      let fixedCount = 0;
+
+      resultsSnapshot.docs.forEach((resultDoc) => {
+        const data = resultDoc.data();
+        const userId = resultDoc.id; // Result doc ID is the userId
+        const participant = participantsByUserId.get(userId);
+
+        // Check if name is missing or "Unknown"
+        if (
+          (!data.participantName || data.participantName === 'Unknown') &&
+          participant
+        ) {
+          const name = participant.name || participant.userName || 'Unknown';
+          batch.update(resultDoc.ref, {
+            participantName: name,
+            userName: participant.userName || participant.name,
+            photoURL: participant.photoURL || null,
+          });
+          fixedCount++;
+        }
+      });
+
+      if (fixedCount > 0) {
+        await batch.commit();
+        console.log(`Fixed ${fixedCount} missing participant names`);
+      }
+
+      return fixedCount;
+    } catch (error) {
+      console.error('Error fixing missing participant names:', error);
+      throw error;
+    }
+  }
 
   /**
    * Recalculate all rankings for a competition
@@ -486,6 +699,13 @@ export class ResultsService {
    */
   static async clearAllResults(competitionId: string): Promise<void> {
     try {
+      // Check authorization
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      await checkEditResultsPermission(currentUser.uid);
+
       const resultsRef = collection(
         db,
         'competitions',
@@ -538,7 +758,9 @@ export class ResultsService {
       id: docSnap.id,
       competitionId: data.competitionId,
       participantId: docSnap.id,
-      participantName: data.participantName || 'Unknown',
+      participantName: data.participantName || data.userName || 'Unknown',
+      userName: data.userName || data.participantName || 'Unknown',
+      photoURL: data.photoURL || null,
       category: data.category,
       categoryName: data.categoryName,
       routes: data.routes || {},
@@ -549,5 +771,416 @@ export class ResultsService {
       categoryRank: data.categoryRank,
       lastUpdated: data.lastUpdated?.toDate() || new Date(),
     };
+  }
+
+  // =============== Totemtition Scoring ===============
+
+  /**
+   * Calculate Totemtition leaderboard with dynamic 1000/N scoring
+   * This method calculates points based on how many climbers completed each route
+   * @param competitionId - Competition ID
+   * @returns Leaderboard entries with Totemtition scoring
+   */
+  static async calculateTotemtitionLeaderboard(
+    competitionId: string
+  ): Promise<LeaderboardEntry[]> {
+    try {
+      // Get all results
+      const allResults = await this.getAllResults(competitionId);
+      
+      if (allResults.length === 0) {
+        return [];
+      }
+
+      // Step 1: Count completions per route PER CATEGORY
+      // Structure: { category: { routeKey: count } }
+      const categoryRouteCompletionCounts: Record<string, Record<string, number>> = {};
+      
+      allResults.forEach((result) => {
+        const participantCategory = result.category || '__no_category__';
+        if (!categoryRouteCompletionCounts[participantCategory]) {
+          categoryRouteCompletionCounts[participantCategory] = {};
+        }
+        
+        const routes = result.routes;
+        if (routes) {
+          const routeValues = Array.isArray(routes) ? routes : Object.values(routes);
+          routeValues.forEach((route: RouteResult) => {
+            if (route.completed) {
+              const routeKey = route.routeId || String(route.routeNumber);
+              categoryRouteCompletionCounts[participantCategory][routeKey] = 
+                (categoryRouteCompletionCounts[participantCategory][routeKey] || 0) + 1;
+            }
+          });
+        }
+      });
+
+      // Step 2: Calculate points for each participant using CATEGORY-SPECIFIC counts
+      const leaderboardEntries: LeaderboardEntry[] = allResults.map((result) => {
+        let totalPoints = 0;
+        const routes = result.routes;
+        const participantCategory = result.category || '__no_category__';
+        const categoryCompletionCounts = categoryRouteCompletionCounts[participantCategory] || {};
+        
+        if (routes) {
+          const routeValues = Array.isArray(routes) ? routes : Object.values(routes);
+          routeValues.forEach((route: RouteResult) => {
+            if (route.completed) {
+              const routeKey = route.routeId || String(route.routeNumber);
+              const completionCount = categoryCompletionCounts[routeKey] || 1;
+              const points = calculateTotemtitionPoints(1000, completionCount);
+              totalPoints += points;
+            }
+          });
+        }
+
+        return {
+          participantId: result.participantId,
+          participantName: result.participantName || 'Unknown',
+          category: result.category,
+          categoryName: result.categoryName,
+          totalPoints,
+          routesCompleted: result.routesCompleted || 0,
+          rank: 0, // Will be calculated below
+        };
+      });
+
+      // Step 3: Sort by points and assign ranks with tie handling
+      leaderboardEntries.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+      for (let i = 0; i < leaderboardEntries.length; i++) {
+        if (i === 0) {
+          leaderboardEntries[i].rank = 1;
+        } else if ((leaderboardEntries[i].totalPoints || 0) === (leaderboardEntries[i - 1].totalPoints || 0)) {
+          // Same points as previous - same rank (tie)
+          leaderboardEntries[i].rank = leaderboardEntries[i - 1].rank;
+        } else {
+          // Different points - rank is position + 1 (to account for ties)
+          leaderboardEntries[i].rank = i + 1;
+        }
+      }
+
+      return leaderboardEntries;
+    } catch (error) {
+      console.error('Error calculating Totemtition leaderboard:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Subscribe to Totemtition leaderboard with dynamic 1000/N scoring
+   * Recalculates points whenever results change
+   */
+  static subscribeToTotemtitionLeaderboard(
+    competitionId: string,
+    callback: (entries: LeaderboardEntry[]) => void,
+    category?: string
+  ): () => void {
+    const resultsRef = collection(
+      db,
+      'competitions',
+      competitionId,
+      'results'
+    );
+
+    // Subscribe to all results changes
+    return onSnapshot(
+      resultsRef,
+      async (snapshot) => {
+        try {
+          // Step 1: Build all results from snapshot
+          const allResults: ParticipantResult[] = snapshot.docs.map((doc) =>
+            this.mapDocToResult(doc)
+          );
+
+          if (allResults.length === 0) {
+            callback([]);
+            return;
+          }
+
+          // Filter by category if needed
+          const filteredResults = category
+            ? allResults.filter((r) => r.category === category)
+            : allResults;
+
+          // Step 2: Count completions per route PER CATEGORY
+          // For Totemtition, points are divided only among participants in the same category
+          // Structure: { category: { routeKey: count } }
+          const categoryRouteCompletionCounts: Record<string, Record<string, number>> = {};
+
+          allResults.forEach((result) => {
+            const participantCategory = result.category || '__no_category__';
+            if (!categoryRouteCompletionCounts[participantCategory]) {
+              categoryRouteCompletionCounts[participantCategory] = {};
+            }
+            
+            const routes = result.routes;
+            if (routes) {
+              const routeValues = Array.isArray(routes)
+                ? routes
+                : Object.values(routes);
+              routeValues.forEach((route: RouteResult) => {
+                if (route.completed) {
+                  const routeKey = route.routeId || String(route.routeNumber);
+                  categoryRouteCompletionCounts[participantCategory][routeKey] =
+                    (categoryRouteCompletionCounts[participantCategory][routeKey] || 0) + 1;
+                }
+              });
+            }
+          });
+
+          // Step 3: Calculate points for each participant using CATEGORY-SPECIFIC completion counts
+          const leaderboardEntries: LeaderboardEntry[] = filteredResults.map(
+            (result) => {
+              let totalPoints = 0;
+              let totalAttempts = 0;
+              const routes = result.routes;
+              const participantCategory = result.category || '__no_category__';
+              const categoryCompletionCounts = categoryRouteCompletionCounts[participantCategory] || {};
+
+              if (routes) {
+                const routeValues = Array.isArray(routes)
+                  ? routes
+                  : Object.values(routes);
+                routeValues.forEach((route: RouteResult) => {
+                  if (route.attempts) {
+                    totalAttempts += route.attempts;
+                  }
+                  if (route.completed) {
+                    const routeKey = route.routeId || String(route.routeNumber);
+                    // Use category-specific completion count
+                    const completionCount = categoryCompletionCounts[routeKey] || 1;
+                    const points = calculateTotemtitionPoints(1000, completionCount);
+                    totalPoints += points;
+                  }
+                });
+              }
+
+              return {
+                rank: 0, // Will be calculated below
+                participantId: result.participantId,
+                participantName: result.participantName || result.userName || 'Unknown',
+                userName: result.userName || result.participantName || 'Unknown',
+                userId: result.participantId,
+                photoURL: (result as any).photoURL || null,
+                points: totalPoints,
+                totalPoints,
+                routesCompleted: result.routesCompleted || 0,
+                totalAttempts,
+                category: result.category,
+                categoryName: result.categoryName,
+              };
+            }
+          );
+
+          // Step 4: Sort by points and assign ranks with tie handling
+          // If players have the same points, they share the same rank
+          // Next rank skips to the correct position (e.g., 1,1,1,4 not 1,1,1,2)
+          leaderboardEntries.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+          
+          // Debug: Log entries before ranking
+          console.log('[Totemtition Leaderboard] Before ranking:', leaderboardEntries.map(e => ({
+            name: e.participantName,
+            totalPoints: e.totalPoints,
+            points: e.points,
+          })));
+          
+          for (let i = 0; i < leaderboardEntries.length; i++) {
+            if (i === 0) {
+              leaderboardEntries[i].rank = 1;
+            } else if ((leaderboardEntries[i].totalPoints || 0) === (leaderboardEntries[i - 1].totalPoints || 0)) {
+              // Same points as previous - same rank (tie)
+              leaderboardEntries[i].rank = leaderboardEntries[i - 1].rank;
+              console.log(`[Totemtition Leaderboard] TIE: ${leaderboardEntries[i].participantName} has same points (${leaderboardEntries[i].totalPoints}) as ${leaderboardEntries[i - 1].participantName}, both rank ${leaderboardEntries[i].rank}`);
+            } else {
+              // Different points - rank is position + 1 (to account for ties)
+              leaderboardEntries[i].rank = i + 1;
+            }
+          }
+          
+          // Debug: Log final rankings
+          console.log('[Totemtition Leaderboard] Final rankings:', leaderboardEntries.map(e => ({
+            name: e.participantName,
+            points: e.totalPoints,
+            rank: e.rank,
+          })));
+
+          callback(leaderboardEntries);
+        } catch (error) {
+          console.error('Error calculating Totemtition leaderboard:', error);
+          callback([]);
+        }
+      },
+      (error) => {
+        console.error('Error subscribing to Totemtition leaderboard:', error);
+        callback([]);
+      }
+    );
+  }
+
+  /**
+   * Subscribe to route completion counts for Totemtition (category-based)
+   * Returns a map of { category: { routeId: count } }
+   * Also includes a '__global__' key for overall counts (for backward compatibility)
+   */
+  static subscribeToRouteCompletionCountsByCategory(
+    competitionId: string,
+    callback: (counts: Record<string, Record<string, number>>) => void
+  ): () => void {
+    const resultsRef = collection(
+      db,
+      'competitions',
+      competitionId,
+      'results'
+    );
+
+    return onSnapshot(
+      resultsRef,
+      (snapshot) => {
+        const categoryRouteCounts: Record<string, Record<string, number>> = {
+          '__global__': {}, // For backward compatibility
+        };
+
+        snapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          const category = data.category || '__no_category__';
+          const routes = data.routes;
+          
+          if (!categoryRouteCounts[category]) {
+            categoryRouteCounts[category] = {};
+          }
+          
+          if (routes && typeof routes === 'object') {
+            Object.values(routes).forEach((route: any) => {
+              if (route && route.completed) {
+                const routeKey = route.routeId || String(route.routeNumber);
+                // Count per category
+                categoryRouteCounts[category][routeKey] = (categoryRouteCounts[category][routeKey] || 0) + 1;
+                // Also count globally
+                categoryRouteCounts['__global__'][routeKey] = (categoryRouteCounts['__global__'][routeKey] || 0) + 1;
+              }
+            });
+          }
+        });
+
+        callback(categoryRouteCounts);
+      },
+      (error) => {
+        console.error('Error subscribing to route completion counts by category:', error);
+        callback({});
+      }
+    );
+  }
+
+  /**
+   * Subscribe to route completion counts for Totemtition
+   * Returns a map of routeId/routeNumber -> completion count
+   * @deprecated Use subscribeToRouteCompletionCountsByCategory for category-based scoring
+   */
+  static subscribeToRouteCompletionCounts(
+    competitionId: string,
+    callback: (counts: Record<string, number>) => void
+  ): () => void {
+    const resultsRef = collection(
+      db,
+      'competitions',
+      competitionId,
+      'results'
+    );
+
+    return onSnapshot(
+      resultsRef,
+      (snapshot) => {
+        const counts: Record<string, number> = {};
+
+        snapshot.docs.forEach((doc) => {
+          const data = doc.data();
+          const routes = data.routes;
+          
+          if (routes && typeof routes === 'object') {
+            Object.values(routes).forEach((route: any) => {
+              if (route && route.completed) {
+                const routeKey = route.routeId || String(route.routeNumber);
+                counts[routeKey] = (counts[routeKey] || 0) + 1;
+              }
+            });
+          }
+        });
+
+        callback(counts);
+      },
+      (error) => {
+        console.error('Error subscribing to route completion counts:', error);
+        callback({});
+      }
+    );
+  }
+
+  // =============== Category Sync Utilities ===============
+
+  /**
+   * Sync categories for all results in a competition from their participant records
+   * Use this to fix existing results that are missing category data
+   * @param competitionId - Competition ID
+   * @returns Number of results updated
+   */
+  static async syncResultCategories(competitionId: string): Promise<number> {
+    try {
+      const resultsRef = collection(db, 'competitions', competitionId, 'results');
+      const snapshot = await getDocs(resultsRef);
+      
+      let updatedCount = 0;
+      
+      for (const docSnap of snapshot.docs) {
+        const data = docSnap.data();
+        const participantId = docSnap.id;
+        
+        // Get participant data to fetch current category
+        const participant = await ParticipantService.getParticipantByUserId(competitionId, participantId);
+        
+        if (participant && participant.category) {
+          // Check if category needs to be updated
+          if (data.category !== participant.category) {
+            await updateDoc(doc(db, 'competitions', competitionId, 'results', participantId), {
+              category: participant.category,
+              categoryName: participant.categoryName || null,
+            });
+            updatedCount++;
+            console.log(`[syncResultCategories] Updated category for ${participantId}: ${data.category} -> ${participant.category}`);
+          }
+        }
+      }
+      
+      console.log(`[syncResultCategories] Synced ${updatedCount} results in competition ${competitionId}`);
+      return updatedCount;
+    } catch (error) {
+      console.error('Error syncing result categories:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get results that are missing category data
+   * @param competitionId - Competition ID
+   * @returns Array of participant IDs with missing categories
+   */
+  static async getResultsWithMissingCategories(competitionId: string): Promise<string[]> {
+    try {
+      const resultsRef = collection(db, 'competitions', competitionId, 'results');
+      const snapshot = await getDocs(resultsRef);
+      
+      const missingCategories: string[] = [];
+      
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (!data.category) {
+          missingCategories.push(docSnap.id);
+        }
+      });
+      
+      return missingCategories;
+    } catch (error) {
+      console.error('Error getting results with missing categories:', error);
+      throw error;
+    }
   }
 }

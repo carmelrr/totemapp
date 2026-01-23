@@ -20,10 +20,11 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
+import { useRolesContext } from '@/features/roles/RolesContext';
+import { useLanguage } from '@/features/language';
 import {
   useCompetition,
   useParticipants,
-  useIsJudge,
   useCompetitionRoutes,
 } from '@/features/competitions/hooks/useCompetition';
 import { ResultsService } from '@/features/competitions/services/ResultsService';
@@ -34,20 +35,31 @@ import {
   RouteResult,
 } from '@/features/competitions/types';
 import { NATIONAL_LEAGUE_GRADE_POINTS } from '@/features/competitions/constants';
+import { ParticipantService } from '@/features/competitions/services/ParticipantService';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/features/data/firebase';
 
 export default function JudgeEntryScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { competitionId } = route.params;
   const { user } = useAuth();
+  const rolesContext = useRolesContext();
 
   const { competition, loading: compLoading } = useCompetition(competitionId);
   const { participants, loading: partsLoading } = useParticipants(competitionId);
   const { routes, loading: routesLoading } = useCompetitionRoutes(competitionId);
-  const { isJudge, isHeadJudge, loading: judgeLoading } = useIsJudge(competitionId, user?.uid);
+  
+  // Use global roles for judge permissions (admin, judge, head_judge)
+  const isJudge = rolesContext.canEnterResults;
+  const isHeadJudge = rolesContext.isHeadJudge;
+
+  // States for Totemtition self-reporting
+  const [isSelfReporter, setIsSelfReporter] = useState(false);
+  const [selfParticipant, setSelfParticipant] = useState<Participant | null>(null);
+  const [checkingSelfReporter, setCheckingSelfReporter] = useState(true);
 
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
   const [participantResults, setParticipantResults] = useState<ParticipantResult | null>(null);
@@ -56,10 +68,63 @@ export default function JudgeEntryScreen() {
   const [attempts, setAttempts] = useState('1');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  // Category-based route completion counts: category -> routeId -> count
+  const [routeCompletionCountsByCategory, setRouteCompletionCountsByCategory] = useState<Record<string, Record<string, number>>>({});
 
   const styles = createStyles(theme);
 
-  const loading = compLoading || partsLoading || routesLoading || judgeLoading;
+  // Check if this is a Totemtition competition with self-reporting
+  const isTotemtition = competition?.format === 'totemtition';
+
+  // Subscribe to route completion counts by category for Totemtition
+  useEffect(() => {
+    if (!isTotemtition || !competitionId) return;
+
+    const unsubscribe = ResultsService.subscribeToRouteCompletionCountsByCategory(
+      competitionId,
+      (countsByCategory) => {
+        setRouteCompletionCountsByCategory(countsByCategory);
+      }
+    );
+
+    return () => unsubscribe();
+  }, [isTotemtition, competitionId]);
+
+  // Check if user is an approved participant for self-reporting (Totemtition)
+  useEffect(() => {
+    const checkSelfReporter = async () => {
+      if (!user || !isTotemtition) {
+        setCheckingSelfReporter(false);
+        return;
+      }
+
+      try {
+        const participant = await ParticipantService.getParticipantByUserId(competitionId, user.uid);
+        if (participant && participant.status === 'approved') {
+          setIsSelfReporter(true);
+          setSelfParticipant(participant);
+          // Auto-select self as participant in Totemtition mode ONLY if not a judge
+          // Judges (including head judges) should see all participants and choose manually
+          if (!isJudge) {
+            setSelectedParticipant(participant);
+          }
+        }
+      } catch (error) {
+        console.error('Error checking self-reporter status:', error);
+      } finally {
+        setCheckingSelfReporter(false);
+      }
+    };
+
+    checkSelfReporter();
+  }, [user, isTotemtition, competitionId, isJudge]);
+
+  // Determine if user can access this screen
+  // In Totemtition: judges OR approved self-reporters
+  // In other formats: judges only
+  const canAccessScreen = isJudge || (isTotemtition && isSelfReporter);
+
+  const loading = compLoading || partsLoading || routesLoading || checkingSelfReporter;
 
   // Filter approved participants
   const approvedParticipants = participants.filter(p => p.status === 'approved');
@@ -143,11 +208,15 @@ export default function JudgeEntryScreen() {
 
     const attemptsNum = parseInt(attempts) || 1;
     if (attemptsNum < 1 || attemptsNum > (competition.settings.maxAttempts || 10)) {
-      Alert.alert('שגיאה', `מספר ניסיונות חייב להיות בין 1 ל-${competition.settings.maxAttempts || 10}`);
+      Alert.alert(t.common.error, t.competitionExt.attemptsError);
       return;
     }
 
     setIsSubmitting(true);
+
+    // Determine if this is a self-report (Totemtition participant entering their own result)
+    const isSelfReportMode = isTotemtition && isSelfReporter && !isJudge && 
+                              selectedParticipant.userId === user.uid;
 
     try {
       await ResultsService.enterRouteResult(
@@ -160,7 +229,8 @@ export default function JudgeEntryScreen() {
           completed,
           attempts: completed ? attemptsNum : 0,
         },
-        user.uid
+        user.uid,
+        isSelfReportMode
       );
 
       setShowResultModal(false);
@@ -168,13 +238,13 @@ export default function JudgeEntryScreen() {
       // Show feedback
       if (completed) {
         Alert.alert(
-          '✅ נרשם!',
-          `${selectedParticipant.userName} השלים את מסלול ${selectedRoute.routeNumber} ב-${attemptsNum} ניסיונות`
+          t.competitionExt.completedStatus,
+          t.competitionExt.routeCompleted(selectedRoute.routeNumber.toString())
         );
       }
     } catch (error) {
       console.error('Error submitting result:', error);
-      Alert.alert('שגיאה', 'לא ניתן לשמור את התוצאה');
+      Alert.alert(t.common.error, t.competitionExt.cannotSaveScore);
     } finally {
       setIsSubmitting(false);
     }
@@ -242,23 +312,93 @@ export default function JudgeEntryScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={styles.loadingText}>טוען...</Text>
+          <Text style={styles.loadingText}>{t.competitionExt.loading}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  if (!isJudge) {
+  if (!canAccessScreen) {
+    // Show different messages based on context
+    const errorMessage = isTotemtition 
+      ? 'יש להירשם ולקבל אישור כדי להזין תוצאות'
+      : 'רק שופטים רשומים יכולים להזין תוצאות';
+    
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color={theme.error || '#e74c3c'} />
-          <Text style={styles.errorText}>אין לך הרשאות שופט</Text>
-          <Text style={styles.errorSubtext}>
-            רק שופטים רשומים יכולים להזין תוצאות
+          <Text style={styles.errorText}>
+            {t.competitionExt.noPermission}
           </Text>
+          <Text style={styles.errorSubtext}>
+            {t.competitionExt.onlyJudgesCanAccess}
+          </Text>
+          
+          {/* Show registration button for Totemtition/National League if not registered */}
+          {(isTotemtition || competition?.format === 'national_league') && !isSelfReporter && (
+            <TouchableOpacity
+              style={[styles.backBtn, { marginTop: 16 }]}
+              onPress={() => navigation.navigate('CompetitionRegistration', { competitionId })}
+            >
+              <Text style={styles.backBtnText}>{t.competitionExt.register}</Text>
+            </TouchableOpacity>
+          )}
+          
           <TouchableOpacity
-            style={styles.backBtn}
+            style={[styles.backBtn, { backgroundColor: theme.textSecondary }]}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backBtnText}>{t.competitionExt.back}</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Check if competition is active before allowing result entry
+  // Only self-reporters (non-judges) are blocked before competition starts
+  // Judges can still prepare/enter results before competition starts
+  if (!isJudge && competition?.status !== 'active') {
+    const statusMessages: Record<string, { title: string; message: string; icon: string }> = {
+      draft: { 
+        title: 'התחרות עדיין לא התחילה', 
+        message: 'הרשמתך נקלטה! נודיע לך כשהתחרות תתחיל ותוכל להזין תוצאות.',
+        icon: 'time-outline'
+      },
+      closed: { 
+        title: 'התחרות סגורה', 
+        message: 'התחרות סגורה להזנת תוצאות חדשות.',
+        icon: 'lock-closed'
+      },
+      completed: { 
+        title: 'התחרות הסתיימה', 
+        message: 'התחרות הסתיימה. ניתן לצפות בתוצאות.',
+        icon: 'trophy'
+      },
+    };
+    
+    const statusInfo = statusMessages[competition?.status || 'draft'] || statusMessages.draft;
+    
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.errorContainer}>
+          <Ionicons name={statusInfo.icon as any} size={64} color={theme.primary} />
+          <Text style={styles.errorText}>{statusInfo.title}</Text>
+          <Text style={styles.errorSubtext}>{statusInfo.message}</Text>
+          
+          {/* Show view results button for completed competitions */}
+          {competition?.status === 'completed' && (
+            <TouchableOpacity
+              style={[styles.backBtn, { marginTop: 16 }]}
+              onPress={() => navigation.navigate('ManageCompetition', { competitionId })}
+            >
+              <Text style={styles.backBtnText}>צפה בתוצאות</Text>
+            </TouchableOpacity>
+          )}
+          
+          <TouchableOpacity
+            style={[styles.backBtn, { backgroundColor: theme.textSecondary }]}
             onPress={() => navigation.goBack()}
           >
             <Text style={styles.backBtnText}>חזור</Text>
@@ -301,7 +441,30 @@ export default function JudgeEntryScreen() {
     const status = getRouteStatus(item);
     const points = getRoutePoints(item);
     const attempts = getRouteAttempts(item);
-    const basePoints = NATIONAL_LEAGUE_GRADE_POINTS[item.grade] || 100;
+    const isTotemRoute = item.grade === 'TOTEM';
+    const basePoints = isTotemRoute ? 1000 : (NATIONAL_LEAGUE_GRADE_POINTS[item.grade] || 100);
+    const displayGrade = isTotemRoute ? '🎯' : item.grade;
+    
+    // Get the current participant's category for category-based completion counts
+    const currentParticipant = selectedParticipant || selfParticipant;
+    const participantCategory = currentParticipant?.category || '__no_category__';
+    
+    // For Totemtition routes, show actual completion count and calculated points (per category)
+    let pointsLabel: string;
+    let currentRoutePoints = 0;
+    if (isTotemRoute) {
+      // Get completion count for this route within the participant's category
+      const categoryRouteCounts = routeCompletionCountsByCategory[participantCategory] || {};
+      const completionCount = categoryRouteCounts[item.id] || 0;
+      if (completionCount > 0) {
+        currentRoutePoints = Math.floor(1000 / completionCount);
+        pointsLabel = `1000÷${completionCount}`;
+      } else {
+        pointsLabel = '1000÷N';
+      }
+    } else {
+      pointsLabel = `${basePoints} נק'`;
+    }
 
     return (
       <TouchableOpacity
@@ -316,13 +479,18 @@ export default function JudgeEntryScreen() {
         </View>
         
         <View style={styles.routeInfo}>
-          <Text style={styles.routeGrade}>{item.grade}</Text>
-          <Text style={styles.routeBasePoints}>{basePoints} נק'</Text>
+          <Text style={styles.routeGrade}>{displayGrade}</Text>
+          <Text style={styles.routeBasePoints}>{pointsLabel}</Text>
+          {isTotemRoute && currentRoutePoints > 0 && (
+            <Text style={[styles.routeBasePoints, { color: theme.primary, fontWeight: 'bold' }]}>
+              {currentRoutePoints}
+            </Text>
+          )}
         </View>
 
         {status === 'completed' ? (
           <View style={styles.routeResult}>
-            <Text style={styles.routePoints}>{points}</Text>
+            <Text style={styles.routePoints}>{isTotemRoute ? currentRoutePoints : points}</Text>
             <Text style={styles.routeAttempts}>{attempts} ניסיונות</Text>
           </View>
         ) : (
@@ -344,7 +512,7 @@ export default function JudgeEntryScreen() {
         >
           <Ionicons name="arrow-forward" size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>📝 הזנת תוצאות</Text>
+        <Text style={styles.headerTitle}>{t.competitionExt.resultsEntry}</Text>
         <View style={styles.placeholder}>
           {isHeadJudge && (
             <View style={styles.headBadge}>
@@ -365,32 +533,42 @@ export default function JudgeEntryScreen() {
       )}
 
       <View style={styles.content}>
-        {/* Participants Panel */}
-        <View style={styles.participantsPanel}>
-          <Text style={styles.panelTitle}>בחר משתתף</Text>
-          
-          <View style={styles.searchContainer}>
-            <Ionicons name="search" size={18} color={theme.textSecondary} />
-            <TextInput
-              style={styles.searchInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="חפש..."
-              placeholderTextColor={theme.textSecondary}
-              textAlign="right"
+        {/* Participants Panel - Hidden for self-reporters in Totemtition */}
+        {(!isTotemtition || isJudge) && (
+          <View style={styles.participantsPanel}>
+            <Text style={styles.panelTitle}>{t.competitionExt.selectParticipant}</Text>
+            
+            <View style={styles.searchContainer}>
+              <Ionicons name="search" size={18} color={theme.textSecondary} />
+              <TextInput
+                style={styles.searchInput}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                placeholder={t.competitionExt.searchParticipant}
+                placeholderTextColor={theme.textSecondary}
+                textAlign="right"
+              />
+            </View>
+
+            <FlatList
+              data={filteredParticipants}
+              keyExtractor={(item) => item.id}
+              renderItem={renderParticipantItem}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <Text style={styles.emptyText}>{t.competitionExt.noParticipants}</Text>
+              }
             />
           </View>
+        )}
 
-          <FlatList
-            data={filteredParticipants}
-            keyExtractor={(item) => item.id}
-            renderItem={renderParticipantItem}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <Text style={styles.emptyText}>אין משתתפים</Text>
-            }
-          />
-        </View>
+        {/* Self-reporter info for Totemtition */}
+        {isTotemtition && isSelfReporter && !isJudge && selfParticipant && (
+          <View style={styles.selfReporterInfo}>
+            <Text style={styles.selfReporterTitle}>{t.competitionExt.selfScoring}</Text>
+            <Text style={styles.selfReporterName}>{selfParticipant.userName}</Text>
+          </View>
+        )}
 
         {/* Routes Panel */}
         <View style={styles.routesPanel}>
@@ -448,9 +626,14 @@ export default function JudgeEntryScreen() {
             {selectedRoute && (
               <>
                 <View style={styles.modalInfo}>
-                  <Text style={styles.modalGrade}>{selectedRoute.grade}</Text>
+                  <Text style={styles.modalGrade}>
+                    {selectedRoute.grade === 'TOTEM' ? 'TOTEM' : selectedRoute.grade}
+                  </Text>
                   <Text style={styles.modalPoints}>
-                    {NATIONAL_LEAGUE_GRADE_POINTS[selectedRoute.grade] || 100} נקודות בסיס
+                    {selectedRoute.grade === 'TOTEM' 
+                      ? '1000 נקודות בסיס' 
+                      : `${NATIONAL_LEAGUE_GRADE_POINTS[selectedRoute.grade] || 100} נקודות בסיס`
+                    }
                   </Text>
                 </View>
 
@@ -628,6 +811,27 @@ const createStyles = (theme: any) =>
       color: theme.text,
       textAlign: 'center',
       marginBottom: 8,
+    },
+    // Self-reporter info for Totemtition
+    selfReporterInfo: {
+      backgroundColor: theme.primary + '15',
+      borderRadius: 12,
+      padding: 16,
+      marginBottom: 12,
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.primary + '40',
+    },
+    selfReporterTitle: {
+      fontSize: 14,
+      color: theme.primary,
+      fontWeight: '600',
+      marginBottom: 4,
+    },
+    selfReporterName: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.text,
     },
     searchContainer: {
       flexDirection: 'row',

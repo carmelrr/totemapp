@@ -1,23 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
-  SafeAreaView,
   TouchableOpacity,
   Alert,
   StatusBar,
   TextInput,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { THEME_COLORS } from '@/constants/colors';
+import { useTheme } from '@/features/theme/ThemeContext';
+import WallMap from '@/components/WallMap/WallMap';
+import { RouteDoc } from '@/features/routes-map/types/route';
 import { Route } from '../../types/routes';
 import { useAuth } from '@/context/AuthContext';
 import { FeedbackService } from '@/features/routes-map/services/FeedbackService';
+import { useLanguage } from '@/features/language';
+import { VideoLinkInput, VideoLinkButton } from '@/components/feedback';
 
 // V-Scale grades for selector
 const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12'];
@@ -57,6 +61,7 @@ interface RouteFeedback {
   starRating: number;
   suggestedGrade: string;
   comment?: string;
+  videoUrl?: string;
   createdAt?: any;
   isCompleted?: boolean;
 }
@@ -91,23 +96,29 @@ export default function RouteDetailsScreen() {
   const route = useRoute<RouteDetailsScreenRouteProp>();
   const navigation = useNavigation<RouteDetailsScreenNavigationProp>();
   const { user } = useAuth();
+  const { t, language } = useLanguage();
+  const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
+  
+  // Create dynamic styles based on theme
+  const styles = useMemo(() => createStyles(theme), [theme]);
   
   const routeData = route.params?.route;
   
   // Guard clause - אם אין routeId
   if (!routeData) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={[styles.container, { paddingTop: insets.top }]}>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>מסלול לא נמצא</Text>
+          <Text style={styles.errorText}>{t.errors.routeNotFound}</Text>
           <TouchableOpacity
             style={styles.backButtonError}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backButtonErrorText}>חזור</Text>
+            <Text style={styles.backButtonErrorText}>{t.common.back}</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
   
@@ -120,6 +131,8 @@ export default function RouteDetailsScreen() {
   const [sentStarRating, setSentStarRating] = useState(0);
   const [sentSuggestedGrade, setSentSuggestedGrade] = useState('');
   const [sentComment, setSentComment] = useState('');
+  const [sentVideoUrl, setSentVideoUrl] = useState('');
+  const [isVideoLinkValid, setIsVideoLinkValid] = useState(true);
   const [isSubmittingSent, setIsSubmittingSent] = useState(false);
   const [userSentFeedback, setUserSentFeedback] = useState<RouteFeedback | null>(null);
   const [loadingUserFeedback, setLoadingUserFeedback] = useState(false);
@@ -163,6 +176,7 @@ export default function RouteDetailsScreen() {
         setSentStarRating(feedback.starRating || 0);
         setSentSuggestedGrade(feedback.suggestedGrade || '');
         setSentComment(feedback.comment || '');
+        setSentVideoUrl(feedback.videoUrl || '');
       }
     } catch (error) {
       console.error('Error loading user sent feedback:', error);
@@ -174,17 +188,22 @@ export default function RouteDetailsScreen() {
   // Handle Sent! submission
   const handleSubmitSent = async () => {
     if (!user) {
-      Alert.alert('שגיאה', 'יש להתחבר כדי לדווח על סגירת מסלול');
+      Alert.alert(t.common.error, t.errors.unauthorized);
       return;
     }
     
     if (sentStarRating === 0) {
-      Alert.alert('שגיאה', 'יש לבחור דירוג כוכבים');
+      Alert.alert(t.common.error, t.routes.starRating);
       return;
     }
     
     if (!sentSuggestedGrade) {
-      Alert.alert('שגיאה', 'יש לבחור דירוג קושי');
+      Alert.alert(t.common.error, t.routes.suggestedGrade);
+      return;
+    }
+
+    if (!isVideoLinkValid) {
+      Alert.alert(t.common.error, t.videoLink.errors.notAllowed);
       return;
     }
     
@@ -197,6 +216,7 @@ export default function RouteDetailsScreen() {
         starRating: sentStarRating,
         suggestedGrade: sentSuggestedGrade,
         comment: sentComment.trim(),
+        videoUrl: sentVideoUrl.trim() || null,
         isCompleted: true,
       };
       
@@ -212,7 +232,7 @@ export default function RouteDetailsScreen() {
       await loadUserSentFeedback();
     } catch (error) {
       console.error('Error submitting sent feedback:', error);
-      Alert.alert('שגיאה', 'לא הצלחנו לשמור את הפידבק');
+      Alert.alert(t.common.error, t.errors.saveFailed);
     } finally {
       setIsSubmittingSent(false);
     }
@@ -230,11 +250,11 @@ export default function RouteDetailsScreen() {
   const averageStarRating = (routeData as any).averageStarRating || 0;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
       <StatusBar barStyle={textColor === '#FFFFFF' ? 'light-content' : 'dark-content'} />
       
-      {/* Colored Header with Route Name */}
-      <View style={[styles.coloredHeader, { backgroundColor: routeColor }]}>
+      {/* Colored Header with Route Name - extends to top */}
+      <View style={[styles.coloredHeader, { backgroundColor: routeColor, paddingTop: insets.top + 8 }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -243,17 +263,21 @@ export default function RouteDetailsScreen() {
         </TouchableOpacity>
         
         <View style={styles.headerContent}>
-          <Text style={[styles.routeName, { color: textColor }]}>{routeData.name}</Text>
+          <Text style={[styles.routeName, { color: textColor }]}>
+            {language === 'he' && routeData.nameHe ? routeData.nameHe : 
+             language === 'en' && routeData.nameEn ? routeData.nameEn : 
+             routeData.name}
+          </Text>
           {/* שורה שנייה: ממוצע קהל (או דירוג מקורי) + ממוצע כוכבים */}
           <View style={styles.headerSubtitle}>
             {/* ממוצע קהל - אם אין calculatedGrade מציג את הדירוג המקורי */}
             <Text style={[styles.headerStatText, { color: textColor }]}>
-              ממוצע קהל: {communityGrade || originalGrade}
+              {t.routes.communityGrade}: {communityGrade || originalGrade}
             </Text>
             <Text style={[styles.headerDivider, { color: textColor }]}> · </Text>
             {/* ממוצע כוכבים */}
             <Text style={[styles.headerStatText, { color: textColor }]}>
-              ממוצע כוכבים: ★ {averageStarRating > 0 ? averageStarRating.toFixed(1) : '-'}
+              {t.routes.avgStars}: ★ {averageStarRating > 0 ? averageStarRating.toFixed(1) : '-'}
             </Text>
           </View>
         </View>
@@ -262,16 +286,44 @@ export default function RouteDetailsScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {/* 🗺️ Wall Map Section - Show route location on map */}
+        <View style={styles.wallMapSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>📍 {t.routes?.locationOnWall || 'מיקום על הקיר'}</Text>
+          </View>
+          <View style={styles.wallMapContainer}>
+            <WallMap
+              routes={[{
+                id: routeData.id,
+                name: routeData.name,
+                grade: routeData.grade,
+                color: routeData.color || '#3B82F6',
+                xNorm: routeData.coordinates?.x || 0.5,
+                yNorm: routeData.coordinates?.y || 0.5,
+                status: 'active' as const,
+                rating: 0,
+                tops: 0,
+                comments: 0,
+                createdAt: routeData.createdAt,
+              } as RouteDoc]}
+              wallWidth={2560}
+              wallHeight={1600}
+              selectedRouteId={routeData.id}
+              gesturesEnabled={true}
+            />
+          </View>
+        </View>
+
         {/* 🏆 SENT! Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>
-              {userSentFeedback ? '✓ סגרת את המסלול!' : 'סגרת את המסלול? 🏆'}
+              {userSentFeedback ? `✓ ${t.routes.alreadySent}` : `${t.routes.sendRoute}? 🏆`}
             </Text>
           </View>
 
           {loadingUserFeedback ? (
-            <ActivityIndicator color={THEME_COLORS.primary} />
+            <ActivityIndicator color={theme.primary} />
           ) : !showSentForm && !userSentFeedback ? (
             // Show Sent! button
             <TouchableOpacity 
@@ -286,7 +338,7 @@ export default function RouteDetailsScreen() {
             // Show existing feedback
             <View style={styles.existingSentCard}>
               <View style={styles.sentFeedbackRow}>
-                <Text style={styles.sentFeedbackLabel}>דירוג:</Text>
+                <Text style={styles.sentFeedbackLabel}>{t.routes.starRating}:</Text>
                 <View style={styles.sentStarsDisplay}>
                   {[1, 2, 3, 4, 5].map((star) => (
                     <Text
@@ -302,20 +354,23 @@ export default function RouteDetailsScreen() {
                 </View>
               </View>
               <View style={styles.sentFeedbackRow}>
-                <Text style={styles.sentFeedbackLabel}>דרגת קושי:</Text>
+                <Text style={styles.sentFeedbackLabel}>{t.routes.suggestedGrade}:</Text>
                 <Text style={styles.sentFeedbackValue}>{userSentFeedback.suggestedGrade}</Text>
               </View>
               {userSentFeedback.comment && (
                 <View style={styles.sentCommentRow}>
-                  <Text style={styles.sentFeedbackLabel}>הערה:</Text>
+                  <Text style={styles.sentFeedbackLabel}>{t.routes.comment}:</Text>
                   <Text style={styles.sentCommentText}>{userSentFeedback.comment}</Text>
                 </View>
+              )}
+              {userSentFeedback.videoUrl && (
+                <VideoLinkButton url={userSentFeedback.videoUrl} />
               )}
               <TouchableOpacity 
                 style={styles.editSentButton} 
                 onPress={() => setShowSentForm(true)}
               >
-                <Text style={styles.editSentButtonText}>✏️ ערוך</Text>
+                <Text style={styles.editSentButtonText}>✏️ {t.common.edit}</Text>
               </TouchableOpacity>
             </View>
           ) : (
@@ -387,6 +442,14 @@ export default function RouteDetailsScreen() {
                   textAlignVertical="top"
                 />
               </View>
+
+              {/* Video Link */}
+              <VideoLinkInput
+                value={sentVideoUrl}
+                onChange={setSentVideoUrl}
+                onValidationChange={setIsVideoLinkValid}
+                disabled={isSubmittingSent}
+              />
               
               {/* Buttons */}
               <View style={styles.sentFormButtons}>
@@ -398,14 +461,16 @@ export default function RouteDetailsScreen() {
                       setSentStarRating(userSentFeedback.starRating || 0);
                       setSentSuggestedGrade(userSentFeedback.suggestedGrade || '');
                       setSentComment(userSentFeedback.comment || '');
+                      setSentVideoUrl(userSentFeedback.videoUrl || '');
                     } else {
                       setSentStarRating(0);
                       setSentSuggestedGrade('');
                       setSentComment('');
+                      setSentVideoUrl('');
                     }
                   }}
                 >
-                  <Text style={styles.sentCancelButtonText}>ביטול</Text>
+                  <Text style={styles.sentCancelButtonText}>{t.common.cancel}</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity 
@@ -417,7 +482,7 @@ export default function RouteDetailsScreen() {
                     <ActivityIndicator color="#fff" size="small" />
                   ) : (
                     <Text style={styles.sentSubmitButtonText}>
-                      {userSentFeedback ? 'עדכן' : 'שלח!'}
+                      {userSentFeedback ? t.common.update : t.common.submit}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -426,25 +491,25 @@ export default function RouteDetailsScreen() {
           )}
           
           {!user && (
-            <Text style={styles.loginHint}>יש להתחבר כדי לדווח על סגירת מסלול</Text>
+            <Text style={styles.loginHint}>{t.errors.unauthorized}</Text>
           )}
         </View>
 
         {/* All Feedbacks Section - People who completed the route */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>מי סגר את המסלול? 🧗</Text>
+            <Text style={styles.sectionTitle}>{t.routes.communityFeedbacks} 🧗</Text>
             <Text style={styles.completionCount}>
-              {allFeedbacks.length} {allFeedbacks.length === 1 ? 'מטפס' : 'מטפסים'}
+              {allFeedbacks.length}
             </Text>
           </View>
 
           {loadingFeedbacks ? (
-            <ActivityIndicator color={THEME_COLORS.primary} style={{ paddingVertical: 20 }} />
+            <ActivityIndicator color={theme.primary} style={{ paddingVertical: 20 }} />
           ) : allFeedbacks.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={styles.emptyStateEmoji}>🏔️</Text>
-              <Text style={styles.emptyStateText}>אף אחד עוד לא סגר את המסלול</Text>
+              <Text style={styles.emptyStateText}>{t.routes.noFeedbacksYet}</Text>
               <Text style={styles.emptyStateSubtext}>
                 תהיה הראשון! 💪
               </Text>
@@ -489,6 +554,11 @@ export default function RouteDetailsScreen() {
                   {feedback.comment && (
                     <Text style={styles.feedbackComment}>{feedback.comment}</Text>
                   )}
+                  
+                  {/* Video Link Button if exists */}
+                  {feedback.videoUrl && (
+                    <VideoLinkButton url={feedback.videoUrl} />
+                  )}
                 </View>
               ))}
             </View>
@@ -498,14 +568,15 @@ export default function RouteDetailsScreen() {
         {/* Bottom padding */}
         <View style={{ height: 32 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
+// Dynamic styles factory - uses theme for dark/light mode support
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.background,
   },
   // Colored Header
   coloredHeader: {
@@ -580,12 +651,12 @@ const styles = StyleSheet.create({
   },
   // Sections
   section: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.surface,
     marginHorizontal: 16,
     marginTop: 16,
     padding: 20,
     borderRadius: 16,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
@@ -600,11 +671,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: THEME_COLORS.text,
+    color: theme.text,
   },
   completionCount: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     fontWeight: '500',
   },
   // Sent! Button
@@ -612,12 +683,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#10b981',
+    backgroundColor: theme.success,
     paddingVertical: 18,
     paddingHorizontal: 24,
     borderRadius: 16,
     gap: 12,
-    shadowColor: '#10b981',
+    shadowColor: theme.success,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -633,25 +704,25 @@ const styles = StyleSheet.create({
   },
   // Existing Sent Card
   existingSentCard: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: theme.isDark ? 'rgba(16, 185, 129, 0.15)' : '#F0FDF4',
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#BBF7D0',
+    borderColor: theme.isDark ? 'rgba(16, 185, 129, 0.3)' : '#BBF7D0',
   },
   sentFeedbackRow: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#BBF7D0',
+    borderBottomColor: theme.isDark ? 'rgba(16, 185, 129, 0.3)' : '#BBF7D0',
   },
   sentCommentRow: {
     paddingVertical: 12,
   },
   sentFeedbackLabel: {
     fontSize: 14,
-    color: '#166534',
+    color: theme.isDark ? '#4ade80' : '#166534',
     fontWeight: '600',
     marginRight: 12,
     minWidth: 80,
@@ -659,7 +730,7 @@ const styles = StyleSheet.create({
   sentFeedbackValue: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#15803D',
+    color: theme.isDark ? '#4ade80' : '#15803D',
   },
   sentStarsDisplay: {
     flexDirection: 'row',
@@ -667,14 +738,14 @@ const styles = StyleSheet.create({
   },
   sentStarDisplay: {
     fontSize: 20,
-    color: '#D1D5DB',
+    color: theme.isDark ? '#4b5563' : '#D1D5DB',
   },
   sentStarFilled: {
-    color: '#FFD700',
+    color: theme.starColor,
   },
   sentCommentText: {
     fontSize: 14,
-    color: '#166534',
+    color: theme.isDark ? '#4ade80' : '#166534',
     marginTop: 4,
     lineHeight: 20,
   },
@@ -684,16 +755,16 @@ const styles = StyleSheet.create({
   },
   editSentButtonText: {
     fontSize: 14,
-    color: '#15803D',
+    color: theme.isDark ? '#4ade80' : '#15803D',
     fontWeight: '700',
   },
   // Sent! Form
   sentFormCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.card,
     borderRadius: 14,
     padding: 18,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
   },
   sentFormSection: {
     marginBottom: 22,
@@ -701,7 +772,7 @@ const styles = StyleSheet.create({
   sentFormLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: THEME_COLORS.text,
+    color: theme.text,
     marginBottom: 12,
   },
   sentStarsRow: {
@@ -714,14 +785,14 @@ const styles = StyleSheet.create({
   },
   sentStarText: {
     fontSize: 40,
-    color: '#D1D5DB',
+    color: theme.isDark ? '#4b5563' : '#D1D5DB',
   },
   gradeScrollView: {
     flexGrow: 0,
   },
   gradeHint: {
     fontSize: 12,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginBottom: 8,
     textAlign: 'right',
   },
@@ -729,33 +800,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 12,
     borderRadius: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.surface,
     marginRight: 10,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
   },
   gradeOptionSelected: {
-    backgroundColor: '#EFF6FF',
-    borderColor: THEME_COLORS.primary,
+    backgroundColor: theme.isDark ? 'rgba(102, 126, 234, 0.2)' : '#EFF6FF',
+    borderColor: theme.primary,
   },
   gradeOptionText: {
     fontSize: 16,
     fontWeight: '600',
-    color: THEME_COLORS.text,
+    color: theme.text,
   },
   gradeOptionTextSelected: {
-    color: THEME_COLORS.primary,
+    color: theme.primary,
   },
   sentCommentInput: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: theme.inputBackground,
     borderRadius: 12,
     padding: 14,
     fontSize: 15,
-    color: THEME_COLORS.text,
+    color: theme.text,
     minHeight: 90,
     textAlignVertical: 'top',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
   },
   sentFormButtons: {
     flexDirection: 'row',
@@ -766,19 +837,19 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.isDark ? '#374151' : '#F3F4F6',
     alignItems: 'center',
   },
   sentCancelButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   sentSubmitButton: {
     flex: 2,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#10b981',
+    backgroundColor: theme.success,
     alignItems: 'center',
   },
   sentSubmitButtonDisabled: {
@@ -791,7 +862,7 @@ const styles = StyleSheet.create({
   },
   loginHint: {
     fontSize: 13,
-    color: '#9CA3AF',
+    color: theme.textSecondary,
     textAlign: 'center',
     marginTop: 14,
     fontStyle: 'italic',
@@ -808,11 +879,11 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   emptyStateSubtext: {
     fontSize: 14,
-    color: '#9CA3AF',
+    color: theme.textSecondary,
     marginTop: 6,
   },
   // Feedbacks List
@@ -820,11 +891,11 @@ const styles = StyleSheet.create({
     gap: 14,
   },
   feedbackCard: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: theme.card,
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
   },
   feedbackUserRow: {
     flexDirection: 'row',
@@ -835,7 +906,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: THEME_COLORS.primary,
+    backgroundColor: theme.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -848,7 +919,7 @@ const styles = StyleSheet.create({
   feedbackUserName: {
     fontSize: 16,
     fontWeight: '600',
-    color: THEME_COLORS.text,
+    color: theme.text,
   },
   feedbackRatingRow: {
     flexDirection: 'row',
@@ -861,13 +932,13 @@ const styles = StyleSheet.create({
   },
   feedbackStar: {
     fontSize: 18,
-    color: '#D1D5DB',
+    color: theme.isDark ? '#4b5563' : '#D1D5DB',
   },
   feedbackStarFilled: {
-    color: '#FFD700',
+    color: theme.starColor,
   },
   feedbackGradeBadge: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: theme.isDark ? 'rgba(102, 126, 234, 0.2)' : '#EFF6FF',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 8,
@@ -875,13 +946,27 @@ const styles = StyleSheet.create({
   feedbackGradeText: {
     fontSize: 14,
     fontWeight: '700',
-    color: THEME_COLORS.primary,
+    color: theme.primary,
   },
   feedbackComment: {
     marginTop: 12,
     fontSize: 14,
-    color: '#4B5563',
+    color: theme.textSecondary,
     lineHeight: 20,
+  },
+  // Wall Map Section
+  wallMapSection: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  wallMapContainer: {
+    height: 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: theme.mapBackground,
+    borderWidth: 2,
+    borderColor: theme.border,
   },
   // Error State
   errorContainer: {
@@ -892,7 +977,7 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 16,
-    color: '#dc2626',
+    color: theme.error,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -900,7 +985,7 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   backButtonErrorText: {
-    color: '#3b82f6',
+    color: theme.primary,
     fontSize: 16,
     fontWeight: '600',
   },

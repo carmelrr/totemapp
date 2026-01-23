@@ -32,6 +32,7 @@ export interface SprayRouteFeedback {
   starRating: number;       // 1-5
   suggestedGrade: string;   // הדירוג שהמשתמש מציע
   comment: string;
+  videoUrl?: string;        // לינק לסרטון בטא
   createdAt?: any;
   updatedAt?: any;
 }

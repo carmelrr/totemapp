@@ -20,11 +20,13 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 import { useAuth } from '@/context/AuthContext';
 import { WallImageWithHolds } from '@/components/spray/WallImageWithHolds';
 import {
   useCommunityRoute,
   useCommunityRouteLike,
+  useCommunityRouteSent,
   useCommunityRouteComments,
   useDeleteCommunityRoute,
   useExpirationInfo,
@@ -35,11 +37,13 @@ export const CommunityRouteDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const { user } = useAuth();
   const routeId = route.params?.routeId;
 
   const { route: communityRoute, loading } = useCommunityRoute(routeId);
   const { liked, toggle: toggleLike } = useCommunityRouteLike(routeId);
+  const { sent, toggle: toggleSent } = useCommunityRouteSent(routeId);
   const { comments, posting, post: postComment, remove: removeComment } = useCommunityRouteComments(routeId);
   const { deleteRoute, deleting } = useDeleteCommunityRoute();
   const { daysLeft, expiringSoon } = useExpirationInfo(communityRoute?.expiresAt);
@@ -53,22 +57,26 @@ export const CommunityRouteDetailScreen: React.FC = () => {
     await toggleLike();
   };
 
+  const handleSent = async () => {
+    await toggleSent();
+  };
+
   const handlePostComment = async () => {
     if (!commentText.trim()) return;
     try {
       await postComment(commentText.trim());
       setCommentText('');
     } catch (error) {
-      Alert.alert('שגיאה', 'לא הצלחנו לפרסם את התגובה');
+      Alert.alert(t.common.error, t.community.failedToPostComment);
     }
   };
 
   const handleDeleteComment = (comment: CommunityRouteComment) => {
     if (comment.userId !== user?.uid) return;
-    Alert.alert('מחיקת תגובה', 'האם למחוק את התגובה?', [
-      { text: 'ביטול', style: 'cancel' },
+    Alert.alert(t.community.deleteComment, t.community.deleteCommentConfirm, [
+      { text: t.common.cancel, style: 'cancel' },
       {
-        text: 'מחק',
+        text: t.common.delete,
         style: 'destructive',
         onPress: () => removeComment(comment.id!),
       },
@@ -78,19 +86,19 @@ export const CommunityRouteDetailScreen: React.FC = () => {
   const handleDeleteRoute = () => {
     if (!isOwner) return;
     Alert.alert(
-      'מחיקת מסלול',
-      'האם אתה בטוח שברצונך למחוק את המסלול? פעולה זו לא ניתנת לביטול.',
+      t.community.deleteRoute,
+      t.community.deleteRouteConfirm,
       [
-        { text: 'ביטול', style: 'cancel' },
+        { text: t.common.cancel, style: 'cancel' },
         {
-          text: 'מחק',
+          text: t.common.delete,
           style: 'destructive',
           onPress: async () => {
             try {
               await deleteRoute(routeId, communityRoute!.createdBy);
               navigation.goBack();
             } catch (error: any) {
-              Alert.alert('שגיאה', error.message);
+              Alert.alert(t.common.error, error.message);
             }
           },
         },
@@ -123,13 +131,13 @@ export const CommunityRouteDetailScreen: React.FC = () => {
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle-outline" size={60} color={theme.textSecondary} />
           <Text style={[styles.errorText, { color: theme.text }]}>
-            המסלול לא נמצא או שפג תוקפו
+            {t.community.routeNotFound}
           </Text>
           <TouchableOpacity
             style={[styles.backButton, { backgroundColor: theme.primary }]}
             onPress={() => navigation.goBack()}
           >
-            <Text style={styles.backButtonText}>חזרה</Text>
+            <Text style={styles.backButtonText}>{t.community.back}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -198,7 +206,7 @@ export const CommunityRouteDetailScreen: React.FC = () => {
                 color={expiringSoon ? '#fff' : '#fff'}
               />
               <Text style={styles.expirationText}>
-                {daysLeft > 0 ? `נותרו ${daysLeft} ימים` : 'פג תוקף היום'}
+                {daysLeft > 0 ? `${daysLeft} ${t.community.daysRemaining}` : t.community.expiringToday}
               </Text>
             </View>
           </View>
@@ -207,7 +215,7 @@ export const CommunityRouteDetailScreen: React.FC = () => {
           <View style={[styles.infoCard, { backgroundColor: theme.surface }]}>
             <View style={styles.infoRow}>
               <View style={styles.gradeContainer}>
-                <Text style={styles.gradeLabel}>דירוג</Text>
+                <Text style={styles.gradeLabel}>{t.community.grade}</Text>
                 <Text style={[styles.gradeValue, { color: theme.primary }]}>
                   {communityRoute.grade}
                 </Text>
@@ -239,6 +247,24 @@ export const CommunityRouteDetailScreen: React.FC = () => {
 
             {/* Stats and actions */}
             <View style={styles.actionsRow}>
+              {/* Sent button */}
+              <TouchableOpacity style={styles.actionButton} onPress={handleSent}>
+                <Ionicons
+                  name={sent ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                  size={24}
+                  color={sent ? '#4CAF50' : theme.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.actionText,
+                    { color: sent ? '#4CAF50' : theme.textSecondary },
+                  ]}
+                >
+                  {sent ? t.community.sent : (communityRoute.sentCount || 0)}
+                </Text>
+              </TouchableOpacity>
+
+              {/* Like button */}
               <TouchableOpacity style={styles.actionButton} onPress={handleLike}>
                 <Ionicons
                   name={liked ? 'heart' : 'heart-outline'}
@@ -255,24 +281,11 @@ export const CommunityRouteDetailScreen: React.FC = () => {
                 </Text>
               </TouchableOpacity>
 
+              {/* Comment indicator */}
               <View style={styles.actionButton}>
                 <Ionicons name="chatbubble-outline" size={22} color={theme.textSecondary} />
                 <Text style={[styles.actionText, { color: theme.textSecondary }]}>
                   {communityRoute.commentCount || 0}
-                </Text>
-              </View>
-
-              <View style={styles.actionButton}>
-                <Ionicons name="eye-outline" size={22} color={theme.textSecondary} />
-                <Text style={[styles.actionText, { color: theme.textSecondary }]}>
-                  {communityRoute.viewCount || 0}
-                </Text>
-              </View>
-
-              <View style={styles.actionButton}>
-                <Ionicons name="hand-left-outline" size={22} color={theme.textSecondary} />
-                <Text style={[styles.actionText, { color: theme.textSecondary }]}>
-                  {communityRoute.holds?.length || 0}
                 </Text>
               </View>
             </View>
@@ -281,7 +294,7 @@ export const CommunityRouteDetailScreen: React.FC = () => {
           {/* Comments section */}
           <View style={[styles.commentsSection, { backgroundColor: theme.surface }]}>
             <Text style={[styles.sectionTitle, { color: theme.text }]}>
-              תגובות ({comments.length})
+              {t.community.comments} ({comments.length})
             </Text>
 
             {comments.map((comment) => (
@@ -307,7 +320,7 @@ export const CommunityRouteDetailScreen: React.FC = () => {
 
             {comments.length === 0 && (
               <Text style={[styles.noComments, { color: theme.textSecondary }]}>
-                אין תגובות עדיין. היה הראשון להגיב!
+                {t.community.noComments} {t.community.beFirstToComment}
               </Text>
             )}
           </View>
@@ -322,7 +335,7 @@ export const CommunityRouteDetailScreen: React.FC = () => {
             ]}
             value={commentText}
             onChangeText={setCommentText}
-            placeholder="הוסף תגובה..."
+            placeholder={t.community.addComment}
             placeholderTextColor={theme.textSecondary}
             textAlign="right"
             multiline

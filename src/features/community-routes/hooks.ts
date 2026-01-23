@@ -1,7 +1,7 @@
 // src/features/community-routes/hooks.ts
 // Custom hooks for Community Routes feature
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   CommunityRoute,
   CommunityRouteComment,
@@ -12,11 +12,14 @@ import {
   getCommunityRoute,
   getUserCommunityRoutes,
   listenToCommunityRoutes,
+  listenToCommunityRoute,
   createCommunityRoute,
   deleteCommunityRoute,
   uploadCommunityRouteImage,
   toggleLike,
   hasUserLiked,
+  toggleSent,
+  hasUserSent,
   getComments,
   addComment,
   deleteComment,
@@ -109,12 +112,14 @@ export function useUserCommunityRoutes() {
 }
 
 /**
- * Hook to get a single community route
+ * Hook to get a single community route with real-time updates
  */
 export function useCommunityRoute(routeId: string | null) {
   const [route, setRoute] = useState<CommunityRoute | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Use ref instead of state to avoid stale closure in snapshot callback
+  const viewCountedRef = useRef(false);
 
   useEffect(() => {
     if (!routeId) {
@@ -124,19 +129,23 @@ export function useCommunityRoute(routeId: string | null) {
     }
 
     setLoading(true);
-    getCommunityRoute(routeId)
-      .then((fetchedRoute) => {
-        setRoute(fetchedRoute);
-        setLoading(false);
-        // Increment view count
-        if (fetchedRoute) {
-          incrementViewCount(routeId).catch(console.error);
-        }
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
+    setError(null);
+    viewCountedRef.current = false;
+    
+    // Use real-time subscription instead of one-time fetch
+    const unsubscribe = listenToCommunityRoute(routeId, (fetchedRoute) => {
+      setRoute(fetchedRoute);
+      setLoading(false);
+      
+      // Increment view count only once per route view
+      // Using ref to avoid stale closure and infinite loop
+      if (fetchedRoute && !viewCountedRef.current) {
+        viewCountedRef.current = true;
+        incrementViewCount(routeId).catch(console.error);
+      }
+    });
+
+    return () => unsubscribe();
   }, [routeId]);
 
   return { route, loading, error };
@@ -278,6 +287,47 @@ export function useCommunityRouteLike(routeId: string | null) {
   }, [routeId, user?.uid, liked]);
 
   return { liked, loading, toggle };
+}
+
+/**
+ * Hook for managing sent status
+ */
+export function useCommunityRouteSent(routeId: string | null) {
+  const { user } = useAuth();
+  const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!routeId || !user?.uid) {
+      setSent(false);
+      setLoading(false);
+      return;
+    }
+
+    hasUserSent(routeId, user.uid)
+      .then((hasSent) => {
+        setSent(hasSent);
+        setLoading(false);
+      })
+      .catch(() => {
+        setLoading(false);
+      });
+  }, [routeId, user?.uid]);
+
+  const toggle = useCallback(async () => {
+    if (!routeId || !user?.uid) return false;
+
+    try {
+      const newSentState = await toggleSent(routeId, user.uid);
+      setSent(newSentState);
+      return newSentState;
+    } catch (err) {
+      console.error('Error toggling sent:', err);
+      return sent;
+    }
+  }, [routeId, user?.uid, sent]);
+
+  return { sent, loading, toggle };
 }
 
 /**

@@ -18,6 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 import { useAdmin } from '@/context/AdminContext';
 import { useAllCompetitions } from '@/features/competitions/hooks/useCompetition';
 import { Competition } from '@/features/competitions/types';
@@ -29,12 +30,36 @@ import {
 
 export default function CompetitionsListScreen() {
   const { theme } = useTheme();
+  const { t, language } = useLanguage();
   const navigation = useNavigation<any>();
   const { isAdmin } = useAdmin();
   const { competitions, loading, refresh } = useAllCompetitions();
   const [refreshing, setRefreshing] = useState(false);
 
   const styles = createStyles(theme);
+
+  // Dynamic status info based on language
+  const getStatusInfo = (status: string) => {
+    const statusMap = {
+      draft: { label: t.competitionsList.statusDraft, color: '#6b7280', icon: '📝' },
+      upcoming: { label: t.competitionsList.statusUpcoming, color: '#3b82f6', icon: '📅' },
+      active: { label: t.competitionsList.statusActive, color: '#10b981', icon: '🔥' },
+      closed: { label: t.competitionsList.statusClosed, color: '#f59e0b', icon: '🔒' },
+      completed: { label: t.competitionsList.statusCompleted, color: '#6366f1', icon: '🏆' },
+      cancelled: { label: t.competitionsList.statusCancelled, color: '#ef4444', icon: '❌' },
+    };
+    return statusMap[status] || statusMap.draft;
+  };
+
+  // Dynamic format info based on language
+  const getFormatInfo = (format: string) => {
+    const formatMap = {
+      national_league: { label: t.competitionsList.formatNationalLeague, icon: '🏅' },
+      totemtition: { label: t.competitionsList.formatTotemtition, icon: '🎯' },
+      custom: { label: t.competitionsList.formatCustom, icon: '⚙️' },
+    };
+    return formatMap[format] || formatMap.custom;
+  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -52,19 +77,19 @@ export default function CompetitionsListScreen() {
 
   const handleDeleteCompetition = (competition: Competition) => {
     Alert.alert(
-      'מחיקת תחרות',
-      `האם אתה בטוח שברצונך למחוק את "${competition.name}"?`,
+      t.competitionsList.deleteTitle,
+      t.competitionsList.deleteConfirm(competition.name),
       [
-        { text: 'ביטול', style: 'cancel' },
+        { text: t.common.cancel, style: 'cancel' },
         {
-          text: 'מחק',
+          text: t.common.delete,
           style: 'destructive',
           onPress: async () => {
             try {
               await CompetitionService.deleteCompetition(competition.id);
               refresh();
             } catch (error) {
-              Alert.alert('שגיאה', 'לא ניתן למחוק את התחרות');
+              Alert.alert(t.common.error, t.competitionsList.deleteError);
             }
           },
         },
@@ -73,11 +98,11 @@ export default function CompetitionsListScreen() {
   };
 
   const renderCompetitionCard = ({ item }: { item: Competition }) => {
-    const statusInfo = COMPETITION_STATUS_INFO[item.status];
-    const formatInfo = COMPETITION_FORMAT_INFO[item.format];
+    const statusInfo = getStatusInfo(item.status);
+    const formatInfo = getFormatInfo(item.format);
 
-    const startDate = item.startDate.toLocaleDateString('he-IL');
-    const endDate = item.endDate.toLocaleDateString('he-IL');
+    const startDate = item.startDate.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US');
+    const endDate = item.endDate.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US');
 
     return (
       <TouchableOpacity
@@ -122,21 +147,31 @@ export default function CompetitionsListScreen() {
           <View style={styles.statsRow}>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>{item.settings.maxRoutes}</Text>
-              <Text style={styles.statLabel}>מסלולים</Text>
+              <Text style={styles.statLabel}>{t.competitionsList.routes}</Text>
             </View>
             <View style={styles.statItem}>
               <Text style={styles.statValue}>TOP{item.settings.topRoutesForScoring}</Text>
-              <Text style={styles.statLabel}>ניקוד</Text>
+              <Text style={styles.statLabel}>{t.competitionsList.scoring}</Text>
             </View>
           </View>
         </View>
 
         <View style={styles.cardFooter}>
+          {/* Show register button for competitions with open registration */}
+          {(item.format === 'totemtition' || item.format === 'national_league') && item.registrationStatus === 'open' && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.registerButton]}
+              onPress={() => navigation.navigate('CompetitionRegistration', { competitionId: item.id })}
+            >
+              <Text style={styles.registerButtonText}>{t.competitionsList.register}</Text>
+            </TouchableOpacity>
+          )}
+          
           <TouchableOpacity
             style={styles.actionButton}
             onPress={() => handleCompetitionPress(item)}
           >
-            <Text style={styles.actionButtonText}>ניהול →</Text>
+            <Text style={styles.actionButtonText}>{t.competitionsList.manage}</Text>
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -148,7 +183,7 @@ export default function CompetitionsListScreen() {
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
-          <Text style={styles.loadingText}>טוען תחרויות...</Text>
+          <Text style={styles.loadingText}>{t.competitionsList.loading}</Text>
         </View>
       </SafeAreaView>
     );
@@ -164,7 +199,7 @@ export default function CompetitionsListScreen() {
         >
           <Ionicons name="arrow-forward" size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🏆 ניהול תחרויות</Text>
+        <Text style={styles.headerTitle}>{t.competitionsList.title}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -175,7 +210,7 @@ export default function CompetitionsListScreen() {
           onPress={handleCreateCompetition}
         >
           <Ionicons name="add-circle" size={24} color="#fff" />
-          <Text style={styles.createButtonText}>יצירת תחרות חדשה</Text>
+          <Text style={styles.createButtonText}>{t.competitionsList.createNew}</Text>
         </TouchableOpacity>
       )}
 
@@ -191,9 +226,9 @@ export default function CompetitionsListScreen() {
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="trophy-outline" size={64} color={theme.textSecondary} />
-            <Text style={styles.emptyText}>אין תחרויות עדיין</Text>
+            <Text style={styles.emptyText}>{t.competitionsList.noCompetitionsYet}</Text>
             <Text style={styles.emptySubtext}>
-              לחץ על "יצירת תחרות חדשה" להתחיל
+              {t.competitionsList.clickToCreate}
             </Text>
           </View>
         }
@@ -358,6 +393,15 @@ const createStyles = (theme: any) =>
       borderRadius: 8,
     },
     actionButtonText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: 'bold',
+    },
+    registerButton: {
+      backgroundColor: '#27ae60',
+      marginLeft: 8,
+    },
+    registerButtonText: {
       color: '#fff',
       fontSize: 14,
       fontWeight: 'bold',

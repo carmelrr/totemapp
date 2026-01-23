@@ -46,7 +46,9 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     
     // בדיקת תקינות הקואורדינטות
     if (!Number.isFinite(xImg) || !Number.isFinite(yImg)) {
-      console.warn('RouteCircle: Invalid coordinates', { route: route.id, xImg, yImg });
+      if (__DEV__) {
+        console.warn('RouteCircle: Invalid coordinates', { route: route.id, xImg, yImg });
+      }
       return null;
     }
 
@@ -80,7 +82,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       baseSize,
       baseFontSize,
     };
-  }, [route.id, route.xNorm, route.yNorm, route.color, route.grade, wallWidth, wallHeight, imageWidth, imageHeight, circleSize]);
+  }, [route.id, route.xNorm, route.yNorm, route.color, wallWidth, wallHeight, imageWidth, imageHeight, circleSize]);
 
   // אם הקואורדינטות לא תקינות
   if (!precomputedValues) {
@@ -159,12 +161,10 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   };
 
   const handlePress = () => {
-    console.log('[RouteCircle] Tap on route:', route.id);
     onPress?.(route);
   };
 
   const handleLongPress = () => {
-    console.log('[RouteCircle] LongPress on route:', route.id);
     // הפעלת רטט קצר לפידבק
     Vibration.vibrate(50);
     onLongPress?.(route);
@@ -174,6 +174,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   const tapGesture = useMemo(() => 
     Gesture.Tap()
       .enabled(!gesturesDisabled)
+      .hitSlop({ top: 10, bottom: 10, left: 10, right: 10 })
       .onEnd(() => {
         'worklet';
         runOnJS(handlePress)();
@@ -185,6 +186,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     Gesture.LongPress()
       .minDuration(400)
       .enabled(!gesturesDisabled)
+      .hitSlop({ top: 10, bottom: 10, left: 10, right: 10 })
       // שימוש ב-onStart במקום onEnd כדי להפעיל מיד כשהלחיצה הארוכה מזוהה
       // ולא לחכות עד שהאצבע עוזבת את המסך
       .onStart(() => {

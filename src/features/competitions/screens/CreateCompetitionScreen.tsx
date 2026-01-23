@@ -30,9 +30,11 @@ import {
   TOTEMTITION_SETTINGS,
   COMPETITION_FORMAT_INFO,
 } from '@/features/competitions/constants';
+import { useLanguage } from '@/features/language';
 
 export default function CreateCompetitionScreen() {
   const { theme } = useTheme();
+  const { t, language } = useLanguage();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
   
@@ -74,19 +76,19 @@ export default function CreateCompetitionScreen() {
 
   const validateForm = (): boolean => {
     if (!name.trim()) {
-      Alert.alert('שגיאה', 'יש להזין שם לתחרות');
+      Alert.alert(t.common.error, t.competitionExt.mustEnterName);
       return false;
     }
     if (endDate <= startDate) {
-      Alert.alert('שגיאה', 'תאריך הסיום חייב להיות אחרי תאריך ההתחלה');
+      Alert.alert(t.common.error, t.competitionExt.endAfterStart);
       return false;
     }
     if (parseInt(maxRoutes) < 1) {
-      Alert.alert('שגיאה', 'מספר המסלולים חייב להיות לפחות 1');
+      Alert.alert(t.common.error, t.competitionExt.minOneRoute);
       return false;
     }
     if (parseInt(topRoutes) > parseInt(maxRoutes)) {
-      Alert.alert('שגיאה', 'מספר המסלולים לניקוד לא יכול להיות גדול ממספר המסלולים הכולל');
+      Alert.alert(t.common.error, t.competitionExt.topRoutesLimit);
       return false;
     }
     return true;
@@ -95,7 +97,7 @@ export default function CreateCompetitionScreen() {
   const handleSubmit = async () => {
     if (!validateForm()) return;
     if (!user) {
-      Alert.alert('שגיאה', 'יש להתחבר כדי ליצור תחרות');
+      Alert.alert(t.common.error, t.competitionExt.mustLoginToCreate);
       return;
     }
 
@@ -129,11 +131,11 @@ export default function CreateCompetitionScreen() {
       });
 
       Alert.alert(
-        'הצלחה! 🎉',
-        'התחרות נוצרה בהצלחה',
+        t.alerts.success,
+        t.common.success,
         [
           {
-            text: 'נהל תחרות',
+            text: t.admin.adminPanel,
             onPress: () => {
               navigation.replace('ManageCompetition', { competitionId });
             },
@@ -142,7 +144,7 @@ export default function CreateCompetitionScreen() {
       );
     } catch (error) {
       console.error('Error creating competition:', error);
-      Alert.alert('שגיאה', 'לא ניתן ליצור את התחרות. נסה שוב.');
+      Alert.alert(t.common.error, t.competitionExt.cannotCreateCompetition);
     } finally {
       setIsSubmitting(false);
     }
@@ -162,19 +164,19 @@ export default function CreateCompetitionScreen() {
           >
             <Ionicons name="arrow-forward" size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>יצירת תחרות חדשה</Text>
+          <Text style={styles.headerTitle}>{t.competitionExt.createCompetition}</Text>
           <View style={styles.placeholder} />
         </View>
 
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Competition Name */}
           <View style={styles.section}>
-            <Text style={styles.label}>שם התחרות *</Text>
+            <Text style={styles.label}>{t.competitionExt.competitionName}</Text>
             <TextInput
               style={styles.input}
               value={name}
               onChangeText={setName}
-              placeholder="לדוגמה: ליגה ארצית 2025"
+              placeholder={t.competitionExt.competitionNamePlaceholder}
               placeholderTextColor={theme.textSecondary}
               textAlign="right"
             />
@@ -182,12 +184,12 @@ export default function CreateCompetitionScreen() {
 
           {/* Description */}
           <View style={styles.section}>
-            <Text style={styles.label}>תיאור</Text>
+            <Text style={styles.label}>{t.competitionExt.description}</Text>
             <TextInput
               style={[styles.input, styles.textArea]}
               value={description}
               onChangeText={setDescription}
-              placeholder="תיאור קצר של התחרות..."
+              placeholder={t.competitionExt.descriptionPlaceholder}
               placeholderTextColor={theme.textSecondary}
               textAlign="right"
               multiline
@@ -197,7 +199,7 @@ export default function CreateCompetitionScreen() {
 
           {/* Format Selection */}
           <View style={styles.section}>
-            <Text style={styles.label}>פורמט תחרות</Text>
+            <Text style={styles.label}>{t.competitionExt.competitionFormat}</Text>
             <View style={styles.formatOptions}>
               {(['national_league', 'totemtition'] as CompetitionFormat[]).map((f) => {
                 const info = COMPETITION_FORMAT_INFO[f];
@@ -238,16 +240,16 @@ export default function CreateCompetitionScreen() {
 
           {/* Dates */}
           <View style={styles.section}>
-            <Text style={styles.label}>תאריכים</Text>
+            <Text style={styles.label}>{t.competition.dates}</Text>
             <View style={styles.dateRow}>
               <TouchableOpacity 
                 style={styles.dateButton}
                 onPress={() => setShowStartPicker(true)}
               >
                 <Ionicons name="calendar-outline" size={20} color={theme.primary} />
-                <Text style={styles.dateLabel}>התחלה</Text>
+                <Text style={styles.dateLabel}>{t.competitionExt.dateStart}</Text>
                 <Text style={styles.dateValue}>
-                  {startDate.toLocaleDateString('he-IL')}
+                  {startDate.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US')}
                 </Text>
               </TouchableOpacity>
 
@@ -256,9 +258,9 @@ export default function CreateCompetitionScreen() {
                 onPress={() => setShowEndPicker(true)}
               >
                 <Ionicons name="calendar-outline" size={20} color={theme.primary} />
-                <Text style={styles.dateLabel}>סיום</Text>
+                <Text style={styles.dateLabel}>{t.competitionExt.dateEnd}</Text>
                 <Text style={styles.dateValue}>
-                  {endDate.toLocaleDateString('he-IL')}
+                  {endDate.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -297,11 +299,11 @@ export default function CreateCompetitionScreen() {
                   <View style={styles.datePickerModalContent}>
                     <View style={styles.datePickerModalHeader}>
                       <TouchableOpacity onPress={() => setShowStartPicker(false)}>
-                        <Text style={styles.datePickerCancelText}>ביטול</Text>
+                        <Text style={styles.datePickerCancelText}>{t.common.cancel}</Text>
                       </TouchableOpacity>
-                      <Text style={styles.datePickerTitle}>בחר תאריך התחלה</Text>
+                      <Text style={styles.datePickerTitle}>{t.competitionExt.selectStartDate}</Text>
                       <TouchableOpacity onPress={() => setShowStartPicker(false)}>
-                        <Text style={[styles.datePickerCancelText, { color: theme.primary }]}>אישור</Text>
+                        <Text style={[styles.datePickerCancelText, { color: theme.primary }]}>{t.common.confirm}</Text>
                       </TouchableOpacity>
                     </View>
                     <DateTimePicker

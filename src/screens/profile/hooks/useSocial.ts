@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
 import { auth } from "@/features/data/firebase";
@@ -9,6 +9,7 @@ import {
   getUserFollowers,
   getUserFollowing,
   getAllUsers,
+  subscribeToUserSocial,
 } from "@/features/social/socialService";
 import type { SocialUser, ProfileNavigation } from "../types";
 
@@ -21,6 +22,20 @@ export function useSocial() {
   const [followers, setFollowers] = useState<SocialUser[]>([]);
   const [following, setFollowing] = useState<SocialUser[]>([]);
   const [socialActiveTab, setSocialActiveTab] = useState<"search" | "followers" | "following">("search");
+
+  // Real-time subscription to followers/following
+  useEffect(() => {
+    if (!user) return;
+
+    const unsubscribe = subscribeToUserSocial(
+      user.uid,
+      (followersData) => setFollowers(followersData),
+      (followingData) => setFollowing(followingData),
+      (error) => console.error("Error in social subscription:", error)
+    );
+
+    return () => unsubscribe();
+  }, [user]);
 
   const loadSocialData = async () => {
     if (!user) return;
@@ -71,12 +86,12 @@ export function useSocial() {
   };
 
   const showUserProfile = (userToShow: SocialUser) => {
-    navigation.navigate("UserProfile", { userId: userToShow.id });
+    // Use nested navigation to navigate to UserProfile inside ProfileStack
+    (navigation as any).navigate("ProfileTab", {
+      screen: "UserProfile",
+      params: { userId: userToShow.id },
+    });
   };
-
-  useEffect(() => {
-    loadSocialData();
-  }, [user]);
 
   return {
     searchTerm,

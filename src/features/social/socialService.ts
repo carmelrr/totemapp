@@ -282,8 +282,12 @@ export async function getFollowingFeed(userId, pageSize = 20, lastTimestamp = nu
           userPhotoURL: getUserPhotoURL(feedback.userId, feedback.userPhotoURL),
           routeId: feedback.routeId,
           routeName: routeData.name || "מסלול ללא שם",
+          routeNameHe: routeData.nameHe,
+          routeNameEn: routeData.nameEn,
           routeGrade: routeData.grade || "N/A",
           routeColor: routeData.color || "#8e44ad",
+          routeX: routeData.xNorm,
+          routeY: routeData.yNorm,
           feedback: {
             starRating: feedback.starRating,
             suggestedGrade: feedback.suggestedGrade,
@@ -321,8 +325,12 @@ export async function getFollowingFeed(userId, pageSize = 20, lastTimestamp = nu
             userPhotoURL: getUserPhotoURL(feedback.userId, feedback.userPhotoURL),
             routeId: routeDoc.id,
             routeName: routeData.name || "מסלול ללא שם",
+            routeNameHe: routeData.nameHe,
+            routeNameEn: routeData.nameEn,
             routeGrade: routeData.grade || "N/A",
             routeColor: routeData.color || "#8e44ad",
+            routeX: routeData.xNorm,
+            routeY: routeData.yNorm,
             feedback: {
               starRating: feedback.starRating,
               suggestedGrade: feedback.suggestedGrade,
@@ -368,8 +376,12 @@ export async function getFollowingFeed(userId, pageSize = 20, lastTimestamp = nu
             userPhotoURL: getUserPhotoURL(followedUserId, feedback.userPhotoURL),
             routeId: feedback.routeId,
             routeName: routeData.name || "מסלול ללא שם",
+            routeNameHe: routeData.nameHe,
+            routeNameEn: routeData.nameEn,
             routeGrade: routeData.grade || "N/A",
             routeColor: routeData.color || "#8e44ad",
+            routeX: routeData.xNorm,
+            routeY: routeData.yNorm,
             feedback: {
               starRating: feedback.starRating,
               suggestedGrade: feedback.suggestedGrade,
@@ -415,8 +427,12 @@ export async function getFollowingFeed(userId, pageSize = 20, lastTimestamp = nu
               userPhotoURL: getUserPhotoURL(followedUserId, feedback.userPhotoURL),
               routeId: routeDoc.id,
               routeName: routeData.name || "מסלול ללא שם",
+              routeNameHe: routeData.nameHe,
+              routeNameEn: routeData.nameEn,
               routeGrade: routeData.grade || "N/A",
               routeColor: routeData.color || "#8e44ad",
+              routeX: routeData.xNorm,
+              routeY: routeData.yNorm,
               feedback: {
                 starRating: feedback.starRating,
                 suggestedGrade: feedback.suggestedGrade,
@@ -505,6 +521,8 @@ export async function getUserHistory(userId, pageSize = 20, lastTimestamp = null
         type: isCompleted ? "closure" : "feedback",
         routeId: routeId,
         routeName: routeData.name || "מסלול ללא שם",
+        routeNameHe: routeData.nameHe,
+        routeNameEn: routeData.nameEn,
         routeGrade: routeData.grade || "N/A",
         routeColor: routeData.color || "#8e44ad",
         feedback: {
@@ -551,6 +569,8 @@ export async function getUserHistory(userId, pageSize = 20, lastTimestamp = null
           type: feedback.closedRoute ? "closure" : "feedback",
           routeId: routeDoc.id,
           routeName: routeData.name || "מסלול ללא שם",
+          routeNameHe: routeData.nameHe,
+          routeNameEn: routeData.nameEn,
           routeGrade: routeData.grade || "N/A",
           routeColor: routeData.color || "#8e44ad",
           feedback: {
@@ -642,6 +662,8 @@ export async function getUserActivityFeed(userId) {
           routeId: routeId,
           routeGrade: routeData.grade,
           routeName: routeData.name,
+          routeNameHe: routeData.nameHe,
+          routeNameEn: routeData.nameEn,
           routeColor: routeData.color,
           feedback: {
             ...feedback,
@@ -668,15 +690,18 @@ export async function getUserActivityFeed(userId) {
           seenIds.add(uniqueId);
           
           const feedback = feedbackDoc.data();
+          const routeData = routeDoc.data();
           activities.push({
             id: uniqueId,
             type: feedback.closedRoute ? "route_closure" : "route_feedback",
             userId: followedUserId,
             userDisplayName: feedback.userDisplayName,
             routeId: routeDoc.id,
-            routeGrade: routeDoc.data().grade,
-            routeName: routeDoc.data().name,
-            routeColor: routeDoc.data().color,
+            routeGrade: routeData.grade,
+            routeName: routeData.name,
+            routeNameHe: routeData.nameHe,
+            routeNameEn: routeData.nameEn,
+            routeColor: routeData.color,
             feedback: feedback,
             createdAt: feedback.submittedAt?.toDate?.() || feedback.submittedAt || new Date(),
           });
@@ -1011,4 +1036,145 @@ export async function checkUserIsAdmin(userId: string): Promise<boolean> {
     console.error("Error checking admin status:", error);
     return false;
   }
+}
+
+/**
+ * Subscribe to real-time updates for a user's followers and following
+ * @param userId The user ID to subscribe to
+ * @param onFollowersChange Callback when followers change
+ * @param onFollowingChange Callback when following change
+ * @param onError Optional error callback
+ * @returns Unsubscribe function
+ */
+export function subscribeToUserSocial(
+  userId: string,
+  onFollowersChange: (followers: any[]) => void,
+  onFollowingChange: (following: any[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const userRef = doc(db, "users", userId);
+  
+  return onSnapshot(
+    userRef,
+    async (docSnap) => {
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        const followerIds = userData.followers || [];
+        const followingIds = userData.following || [];
+        
+        // Fetch follower details
+        const followersData: any[] = [];
+        for (const followerId of followerIds) {
+          try {
+            const followerDoc = await getDoc(doc(db, "users", followerId));
+            if (followerDoc.exists()) {
+              followersData.push({
+                id: followerId,
+                ...followerDoc.data(),
+              });
+            }
+          } catch (e) {
+            // Skip failed fetches
+          }
+        }
+        onFollowersChange(followersData);
+        
+        // Fetch following details
+        const followingData: any[] = [];
+        for (const followingId of followingIds) {
+          try {
+            const followingDoc = await getDoc(doc(db, "users", followingId));
+            if (followingDoc.exists()) {
+              followingData.push({
+                id: followingId,
+                ...followingDoc.data(),
+              });
+            }
+          } catch (e) {
+            // Skip failed fetches
+          }
+        }
+        onFollowingChange(followingData);
+      } else {
+        onFollowersChange([]);
+        onFollowingChange([]);
+      }
+    },
+    (error) => {
+      console.error('Error subscribing to user social:', error);
+      onError?.(error);
+    }
+  );
+}
+
+/**
+ * Subscribe to real-time updates for user profile data
+ * @param userId The user ID to subscribe to
+ * @param onProfileChange Callback when profile data changes
+ * @param onError Optional error callback
+ * @returns Unsubscribe function
+ */
+export function subscribeToUserProfile(
+  userId: string,
+  onProfileChange: (profile: any) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const userRef = doc(db, "users", userId);
+  
+  return onSnapshot(
+    userRef,
+    (docSnap) => {
+      if (docSnap.exists()) {
+        onProfileChange({
+          id: docSnap.id,
+          ...docSnap.data(),
+        });
+      } else {
+        onProfileChange(null);
+      }
+    },
+    (error) => {
+      console.error('Error subscribing to user profile:', error);
+      onError?.(error);
+    }
+  );
+}
+
+/**
+ * Subscribe to real-time leaderboard updates
+ * @param onLeaderboardChange Callback when leaderboard changes
+ * @param onError Optional error callback
+ * @returns Unsubscribe function
+ */
+export function subscribeToLeaderboard(
+  onLeaderboardChange: (users: any[]) => void,
+  onError?: (error: Error) => void
+): () => void {
+  const usersRef = collection(db, "users");
+  
+  return onSnapshot(
+    usersRef,
+    (snapshot) => {
+      const users: any[] = [];
+      
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        users.push({
+          id: docSnap.id,
+          displayName: data.displayName || 'משתמש',
+          email: data.email || '',
+          photoURL: data.photoURL || null,
+          followers: data.followers || [],
+          following: data.following || [],
+          ...data,
+        });
+      });
+      
+      onLeaderboardChange(users);
+    },
+    (error) => {
+      console.error('Error subscribing to leaderboard:', error);
+      onError?.(error);
+    }
+  );
 }

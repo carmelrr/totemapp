@@ -16,6 +16,7 @@ import { WallPicker } from "@/components/spray/WallPicker";
 import { WallImageWithHolds } from "@/components/spray/WallImageWithHolds";
 import { HoldTypePicker } from "@/components/spray/HoldTypePicker";
 import { useWalls } from "@/features/walls/hooks";
+import { useLanguage } from "@/features/language";
 import { Wall, Hold, HoldType, HOLD_TYPES } from "@/features/spraywall/types";
 import { updateRoute } from "@/features/spraywall/routesService";
 
@@ -26,6 +27,7 @@ export const AddRouteScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { walls, loading: wallsLoading } = useWalls();
+  const { t } = useLanguage();
 
   // Edit mode params
   const isEditMode = route.params?.editMode === true;
@@ -58,9 +60,9 @@ export const AddRouteScreen: React.FC = () => {
   // Update header title for edit mode
   useEffect(() => {
     if (isEditMode) {
-      navigation.setOptions({ title: "ערוך אחיזות" });
+      navigation.setOptions({ title: t.spray.editHolds });
     }
-  }, [isEditMode, navigation]);
+  }, [isEditMode, navigation, t]);
   
   // Current hold type selection
   const [selectedHoldType, setSelectedHoldType] = useState<HoldType>('middle');
@@ -127,11 +129,11 @@ export const AddRouteScreen: React.FC = () => {
   // Navigate to next screen (Route Details) or save in edit mode
   const handleContinue = async () => {
     if (!selectedWall) {
-      Alert.alert("שגיאה", "יש לבחור קיר");
+      Alert.alert(t.common.error, t.spray.selectWall);
       return;
     }
     if (lockedHolds.length === 0) {
-      Alert.alert("שגיאה", "יש לסמן לפחות אחיזה אחת על הקיר");
+      Alert.alert(t.common.error, t.spray.mustSelectHolds);
       return;
     }
 
@@ -142,9 +144,9 @@ export const AddRouteScreen: React.FC = () => {
         await updateRoute(editRouteId, {
           holds: lockedHolds,
         });
-        Alert.alert("הצלחה", "האחיזות עודכנו בהצלחה", [
+        Alert.alert(t.common.success, t.spray.holdsUpdatedSuccess, [
           {
-            text: "אישור",
+            text: t.common.ok,
             onPress: () => {
               // Go back twice to return to SprayRouteDetail (skip past this screen)
               navigation.pop(1);
@@ -153,7 +155,7 @@ export const AddRouteScreen: React.FC = () => {
         ]);
       } catch (error) {
         console.error("Error updating route holds:", error);
-        Alert.alert("שגיאה", "לא הצלחנו לעדכן את האחיזות");
+        Alert.alert(t.common.error, t.spray.failedToUpdateHolds);
       } finally {
         setIsSaving(false);
       }
@@ -199,7 +201,7 @@ export const AddRouteScreen: React.FC = () => {
                 >
                   <Text style={styles.actionButtonText}>✕</Text>
                 </TouchableOpacity>
-                <Text style={styles.activeHoldHint}>גרור להזיז • צבוט לשנות גודל</Text>
+                <Text style={styles.activeHoldHint}>{t.spray.dragToMove}</Text>
                 <TouchableOpacity
                   style={styles.confirmButton}
                   onPress={handleConfirmActiveHold}
@@ -231,14 +233,14 @@ export const AddRouteScreen: React.FC = () => {
             {/* Hold count and actions */}
             <View style={styles.holdActions}>
               <Text style={styles.holdCount}>
-                {lockedHolds.length} אחיזות מסומנות
+                {lockedHolds.length} {t.spray.holdsMarked}
               </Text>
               {lockedHolds.length > 0 && (
                 <TouchableOpacity
                   style={styles.clearButton}
                   onPress={handleClearHolds}
                 >
-                  <Text style={styles.clearButtonText}>נקה הכל</Text>
+                  <Text style={styles.clearButtonText}>{t.spray.clearAll}</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -256,7 +258,7 @@ export const AddRouteScreen: React.FC = () => {
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <Text style={styles.continueButtonText}>
-                  {isEditMode ? "שמור שינויים" : "המשך לפרטי המסלול"}
+                  {isEditMode ? t.spray.saveChanges : t.spray.continueToDetails}
                 </Text>
               )}
             </TouchableOpacity>
@@ -267,7 +269,7 @@ export const AddRouteScreen: React.FC = () => {
         {!selectedWall && !wallsLoading && (
           <View style={styles.emptyState}>
             <Text style={styles.emptyStateIcon}>👆</Text>
-            <Text style={styles.emptyStateText}>בחר קיר כדי להתחיל</Text>
+            <Text style={styles.emptyStateText}>{t.spray.selectWallToStart}</Text>
           </View>
         )}
       </ScrollView>
@@ -339,7 +341,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   imageContainer: {
-    height: 400,
+    flex: 1,
+    minHeight: 250,
+    maxHeight: '60%', // Responsive height
     marginHorizontal: 16,
     borderRadius: 12,
     overflow: "hidden",

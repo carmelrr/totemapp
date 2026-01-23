@@ -1,7 +1,7 @@
 // src/screens/SprayWall/WallDetailScreen.tsx
 // Main Spray Wall screen showing the wall with its routes
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,9 @@ import { useRoutesForWall } from "@/features/spraywall/hooks";
 import { WallImageWithHolds } from "@/components/spray/WallImageWithHolds";
 import { SprayRoute } from "@/features/spraywall/types";
 import { useAdmin } from "@/context/AdminContext";
+import { useRolesContext } from "@/features/roles";
+import { useLanguage } from "@/features/language";
+import { useTheme } from "@/features/theme/ThemeContext";
 import * as ImagePicker from "expo-image-picker";
 import { updateWallImage } from "@/features/walls/wallsService";
 
@@ -26,6 +29,17 @@ export const WallDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { isAdmin, adminModeEnabled } = useAdmin();
+  const { canEditRoutes, isRouteSetter } = useRolesContext();
+  const { t } = useLanguage();
+  const { theme } = useTheme();
+  
+  // Dynamic styles based on theme
+  const dynamicStyles = useMemo(() => createStyles(theme), [theme]);
+  
+  // Edit mode is enabled when admin mode is on OR route setter has toggled it
+  const [routeSetterEditMode, setRouteSetterEditMode] = useState(false);
+  const editModeEnabled = adminModeEnabled || (isRouteSetter && routeSetterEditMode);
+  const canAccessEditMode = isAdmin || canEditRoutes;
 
   // Get walls and use the first one (Spray Wall has only one wall)
   const { walls, loading: wallsLoading } = useWalls();
@@ -65,12 +79,12 @@ export const WallDetailScreen: React.FC = () => {
     if (!isAdmin) return;
 
     Alert.alert(
-      "שינוי תמונת קיר",
-      "⚠️ שים לב: שינוי תמונת הקיר ימחק את כל המסלולים הקיימים!\n\nהאם להמשיך?",
+      t.spray.changeWallImage,
+      t.spray.changeWallWarning,
       [
-        { text: "ביטול", style: "cancel" },
+        { text: t.common.cancel, style: "cancel" },
         {
-          text: "המשך",
+          text: t.common.continue || "Continue",
           style: "destructive",
           onPress: pickNewImage,
         },
@@ -81,7 +95,7 @@ export const WallDetailScreen: React.FC = () => {
   const pickNewImage = async () => {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         quality: 0.8,
       });
@@ -89,12 +103,12 @@ export const WallDetailScreen: React.FC = () => {
       if (!result.canceled && result.assets[0]) {
         setUpdatingWall(true);
         await updateWallImage(wallId, result.assets[0].uri, true);
-        Alert.alert("הצלחה", "תמונת הקיר עודכנה וכל המסלולים נמחקו");
+        Alert.alert(t.common.success, t.spray.wallImageUpdated);
         setSelectedRoute(null);
       }
     } catch (error) {
       console.error("Error updating wall image:", error);
-      Alert.alert("שגיאה", "לא הצלחנו לעדכן את תמונת הקיר");
+      Alert.alert(t.common.error, t.spray.failedToUpdateWall);
     } finally {
       setUpdatingWall(false);
     }
@@ -105,40 +119,60 @@ export const WallDetailScreen: React.FC = () => {
     const displayGrade = item.calculatedGrade || item.grade;
     const averageRating = item.averageStarRating || 0;
     
+    // Render stars for rating display (like routes map)
+    const renderStars = (rating: number) => {
+      const stars = [];
+      for (let i = 1; i <= 5; i++) {
+        stars.push(
+          <Text 
+            key={i} 
+            style={[
+              dynamicStyles.starIcon, 
+              i <= rating && dynamicStyles.starFilled
+            ]}
+          >
+            ★
+          </Text>
+        );
+      }
+      return stars;
+    };
+    
     return (
       <TouchableOpacity
-        style={[styles.routeItem, isSelected && styles.routeItemSelected]}
+        style={[dynamicStyles.routeItem, isSelected && dynamicStyles.routeItemSelected]}
         onPress={() => handleRoutePress(item)}
         onLongPress={() => handleRouteLongPress(item)}
         activeOpacity={0.7}
       >
-        <View style={styles.routeInfo}>
-          <Text style={[styles.routeName, isSelected && styles.routeNameSelected]}>
+        <View style={dynamicStyles.routeInfo}>
+          <Text style={[dynamicStyles.routeName, isSelected && dynamicStyles.routeNameSelected]}>
             {item.name}
           </Text>
-          <View style={styles.routeMeta}>
-            <Text style={styles.routeGrade}>{displayGrade}</Text>
+          <View style={dynamicStyles.routeMeta}>
+            <Text style={dynamicStyles.routeGrade}>{displayGrade}</Text>
             {averageRating > 0 && (
-              <View style={styles.ratingBadge}>
-                <Text style={styles.ratingStar}>⭐</Text>
-                <Text style={styles.ratingText}>{averageRating.toFixed(1)}</Text>
+              <View style={dynamicStyles.ratingBadge}>
+                <View style={dynamicStyles.starsRow}>
+                  {renderStars(Math.round(averageRating))}
+                </View>
+                <Text style={dynamicStyles.ratingText}>({averageRating.toFixed(1)})</Text>
               </View>
             )}
             {(item.topsCount || 0) > 0 && (
-              <Text style={styles.topsCount}>🏆 {item.topsCount}</Text>
+              <Text style={dynamicStyles.topsCount}>🏆 {item.topsCount}</Text>
             )}
           </View>
         </View>
-        <Text style={styles.holdCount}>{item.holds?.length || 0} אחיזות</Text>
       </TouchableOpacity>
     );
   };
 
   if (wallsLoading) {
     return (
-      <SafeAreaView style={styles.loadingContainer} edges={["top"]}>
+      <SafeAreaView style={dynamicStyles.loadingContainer} edges={["top"]}>
         <ActivityIndicator size="large" color="#8E4EC6" />
-        <Text style={styles.loadingText}>טוען...</Text>
+        <Text style={dynamicStyles.loadingText}>{t.spray.loading}</Text>
       </SafeAreaView>
     );
   }
@@ -146,28 +180,28 @@ export const WallDetailScreen: React.FC = () => {
   // No wall exists yet - show empty state with option to add wall (admin only)
   if (!wall) {
     return (
-      <SafeAreaView style={styles.emptyContainer} edges={["top"]}>
-        <Text style={styles.emptyIcon}>🧗‍♂️</Text>
-        <Text style={styles.emptyText}>אין קיר עדיין</Text>
+      <SafeAreaView style={dynamicStyles.emptyContainer} edges={["top"]}>
+        <Text style={dynamicStyles.emptyIcon}>🧗‍♂️</Text>
+        <Text style={dynamicStyles.emptyText}>{t.spray.noWallYet}</Text>
         {isAdmin && adminModeEnabled && (
           <TouchableOpacity 
-            style={styles.addWallButton} 
+            style={dynamicStyles.addWallButton} 
             onPress={() => navigation.navigate("AddWall")}
           >
-            <Text style={styles.addWallButtonText}>+ הוסף קיר</Text>
+            <Text style={dynamicStyles.addWallButtonText}>{t.spray.addWall}</Text>
           </TouchableOpacity>
         )}
         {(!isAdmin || !adminModeEnabled) && (
-          <Text style={styles.emptySubtext}>רק מנהל במצב עריכה יכול להוסיף קיר</Text>
+          <Text style={dynamicStyles.emptySubtext}>{t.spray.onlyAdminCanAddWall}</Text>
         )}
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={["top"]}>
+    <SafeAreaView style={dynamicStyles.container} edges={["top"]}>
       {/* Wall Image with Selected Route's Holds */}
-      <View style={styles.imageContainer}>
+      <View style={dynamicStyles.imageContainer}>
         <WallImageWithHolds
           imageUrl={wall.imageUrl}
           holds={selectedRoute?.holds || []}
@@ -175,63 +209,63 @@ export const WallDetailScreen: React.FC = () => {
           editable={false}
         />
         {selectedRoute && (
-          <View style={styles.selectedRouteOverlay}>
-            <Text style={styles.selectedRouteText}>
+          <View style={dynamicStyles.selectedRouteOverlay}>
+            <Text style={dynamicStyles.selectedRouteText}>
               {selectedRoute.name} • {selectedRoute.calculatedGrade || selectedRoute.grade}
             </Text>
             <TouchableOpacity 
-              style={styles.openRouteButton}
+              style={dynamicStyles.openRouteButton}
               onPress={() => handleRoutePress(selectedRoute)}
             >
-              <Text style={styles.openRouteButtonText}>פתח פרטים →</Text>
+              <Text style={dynamicStyles.openRouteButtonText}>{t.spray.openDetails}</Text>
             </TouchableOpacity>
           </View>
         )}
         
-        {/* Admin edit mode toggle */}
-        {isAdmin && adminModeEnabled && (
+        {/* Edit mode toggle - available for admins and route setters */}
+        {canAccessEditMode && editModeEnabled && (
           <TouchableOpacity 
-            style={[styles.editModeButton, editMode && styles.editModeButtonActive]}
+            style={[dynamicStyles.editModeButton, editMode && dynamicStyles.editModeButtonActive]}
             onPress={() => setEditMode(!editMode)}
           >
-            <Text style={styles.editModeButtonText}>{editMode ? '✓ עריכה' : '✏️'}</Text>
+            <Text style={dynamicStyles.editModeButtonText}>{editMode ? t.spray.editing : '✏️'}</Text>
           </TouchableOpacity>
         )}
         
-        {/* Admin button to change wall image - only in edit mode */}
+        {/* Admin button to change wall image - only for full admins in edit mode */}
         {isAdmin && adminModeEnabled && editMode && (
           <TouchableOpacity 
-            style={styles.changeWallButton}
+            style={dynamicStyles.changeWallButton}
             onPress={handleChangeWallImage}
             disabled={updatingWall}
           >
             {updatingWall ? (
               <ActivityIndicator size="small" color="#fff" />
             ) : (
-              <Text style={styles.changeWallButtonText}>🔄 שנה תמונה</Text>
+              <Text style={dynamicStyles.changeWallButtonText}>🔄 {t.spray.changeWallImage}</Text>
             )}
           </TouchableOpacity>
         )}
       </View>
 
       {/* Routes List */}
-      <View style={styles.routesSection}>
-        <View style={styles.routesHeader}>
-          <Text style={styles.routesTitle}>מסלולים ({routes.length})</Text>
-          <TouchableOpacity style={styles.addButton} onPress={handleAddRoute}>
-            <Text style={styles.addButtonText}>+ הוסף מסלול</Text>
+      <View style={dynamicStyles.routesSection}>
+        <View style={dynamicStyles.routesHeader}>
+          <Text style={dynamicStyles.routesTitle}>{t.routes.title} ({routes.length})</Text>
+          <TouchableOpacity style={dynamicStyles.addButton} onPress={handleAddRoute}>
+            <Text style={dynamicStyles.addButtonText}>+ {t.spray.createRoute}</Text>
           </TouchableOpacity>
         </View>
 
         {routesLoading ? (
-          <View style={styles.routesLoading}>
+          <View style={dynamicStyles.routesLoading}>
             <ActivityIndicator size="small" color="#8E4EC6" />
           </View>
         ) : routes.length === 0 ? (
-          <View style={styles.emptyRoutes}>
-            <Text style={styles.emptyRoutesText}>אין מסלולים עדיין</Text>
+          <View style={dynamicStyles.emptyRoutes}>
+            <Text style={dynamicStyles.emptyRoutesText}>{t.routes.noRoutes}</Text>
             <TouchableOpacity onPress={handleAddRoute}>
-              <Text style={styles.emptyRoutesLink}>הוסף מסלול ראשון →</Text>
+              <Text style={dynamicStyles.emptyRoutesLink}>{t.spray.createRoute} →</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -239,7 +273,7 @@ export const WallDetailScreen: React.FC = () => {
             data={routes}
             keyExtractor={(item) => item.id || item.name}
             renderItem={renderRouteItem}
-            contentContainerStyle={styles.routesList}
+            contentContainerStyle={dynamicStyles.routesList}
             showsVerticalScrollIndicator={false}
           />
         )}
@@ -248,26 +282,28 @@ export const WallDetailScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: theme.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: theme.background,
   },
   imageContainer: {
-    height: 300,
+    flex: 1,
+    minHeight: 200,
+    maxHeight: '50%', // Responsive height
     position: "relative",
   },
   selectedRouteOverlay: {
     position: "absolute",
     top: 12,
     left: 12,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: theme.isDark ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.6)",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -279,7 +315,7 @@ const styles = StyleSheet.create({
   },
   routesSection: {
     flex: 1,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.surface,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     marginTop: -20,
@@ -292,15 +328,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: theme.border,
   },
   routesTitle: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 18,
     fontWeight: "bold",
   },
   addButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: theme.success,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 16,
@@ -316,7 +352,7 @@ const styles = StyleSheet.create({
   routeItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#3a3a3a",
+    backgroundColor: theme.isDark ? "#3a3a3a" : "#f0f0f0",
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
@@ -324,8 +360,8 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   routeItemSelected: {
-    borderColor: "#8E4EC6",
-    backgroundColor: "#4a3a5a",
+    borderColor: theme.primary,
+    backgroundColor: theme.isDark ? "#4a3a5a" : "#e8e0f0",
   },
   colorDot: {
     width: 24,
@@ -337,20 +373,20 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   routeName: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 16,
     fontWeight: "500",
   },
   routeNameSelected: {
-    color: "#8E4EC6",
+    color: theme.primary,
   },
   routeGrade: {
-    color: "#8E4EC6",
+    color: theme.primary,
     fontSize: 14,
     fontWeight: "600",
   },
   holdCount: {
-    color: "#666",
+    color: theme.textSecondary,
     fontSize: 12,
   },
   routeMeta: {
@@ -363,21 +399,31 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
+  starsRow: {
+    flexDirection: "row",
+  },
+  starIcon: {
+    color: theme.textSecondary,
+    fontSize: 12,
+  },
+  starFilled: {
+    color: theme.starColor,
+  },
   ratingStar: {
     fontSize: 12,
   },
   ratingText: {
-    color: "#FFD700",
+    color: theme.starColor,
     fontSize: 12,
     marginLeft: 2,
   },
   topsCount: {
-    color: "#4CAF50",
+    color: theme.success,
     fontSize: 12,
   },
   openRouteButton: {
     marginTop: 8,
-    backgroundColor: "#8E4EC6",
+    backgroundColor: theme.primary,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
@@ -427,11 +473,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   emptyRoutesText: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 16,
   },
   emptyRoutesLink: {
-    color: "#8E4EC6",
+    color: theme.primary,
     fontSize: 14,
     marginTop: 8,
   },
@@ -440,7 +486,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#1a1a1a",
+    backgroundColor: theme.background,
     padding: 20,
   },
   emptyIcon: {
@@ -448,18 +494,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyText: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 20,
     fontWeight: "bold",
     marginBottom: 8,
   },
   emptySubtext: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 14,
     marginTop: 8,
   },
   addWallButton: {
-    backgroundColor: "#8E4EC6",
+    backgroundColor: theme.primary,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 24,
@@ -471,7 +517,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   loadingText: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 14,
     marginTop: 12,
   },
