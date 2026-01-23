@@ -73,6 +73,8 @@ export class FeedbackService {
         }
     ): Promise<void> {
         try {
+            console.log("📝 Adding feedback for route:", routeId, "user:", feedbackData.userId);
+            
             const feedbackWithMeta = {
                 ...feedbackData,
                 routeId,
@@ -81,20 +83,29 @@ export class FeedbackService {
             };
 
             await addDoc(feedbacksRef, feedbackWithMeta);
+            console.log("✅ Feedback added successfully");
 
             // Update route statistics
-            await RouteStatsService.updateRouteStatistics(routeId);
+            try {
+                await RouteStatsService.updateRouteStatistics(routeId);
+            } catch (statsError) {
+                console.warn("⚠️ Could not update route stats:", statsError);
+            }
 
-            // Update user statistics
-            await UserStatsService.updateUserStats(
-                feedbackData.userId,
-                {
-                    starRating: feedbackData.starRating,
-                    suggestedGrade: feedbackData.suggestedGrade,
-                    isCompleted: feedbackData.isCompleted,
-                },
-                "add"
-            );
+            // Update user statistics (don't fail if this fails)
+            try {
+                await UserStatsService.updateUserStats(
+                    feedbackData.userId,
+                    {
+                        starRating: feedbackData.starRating,
+                        suggestedGrade: feedbackData.suggestedGrade,
+                        isCompleted: feedbackData.isCompleted,
+                    },
+                    "add"
+                );
+            } catch (userStatsError) {
+                console.warn("⚠️ Could not update user stats:", userStatsError);
+            }
 
             // Trigger stats refresh for any listening components (e.g., ProfileScreen)
             triggerStatsRefresh();
