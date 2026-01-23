@@ -277,6 +277,22 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ==================== App Settings ====================
+    // הגדרות אפליקציה (default avatar, etc.)
+    match /settings/{settingId} {
+      // כולם יכולים לקרוא הגדרות
+      allow read: if true;
+      // רק מנהלים יכולים לשנות הגדרות
+      allow write: if isAdmin();
+    }
+
+    // ==================== Announcements ====================
+    // הודעות מערכת
+    match /announcements/{announcementId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
     // ==================== Default Deny ====================
     // כל מה שלא מוגדר במפורש - אסור!
     // זה חשוב לאבטחה - אין גישה לכלום שלא מוגדר
