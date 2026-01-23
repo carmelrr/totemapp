@@ -1,0 +1,53 @@
+{
+  "project_info": {
+    "project_number": "720872675049",
+    "project_id": "totemapp-464009",
+    "storage_bucket": "totemapp-464009.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:720872675049:android:850cb87d2c35e95807c278",
+        "android_client_info": {
+          "package_name": "com.totemapp.climbing"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "720872675049-ubhok243tvh36cut4ptchnubsckulj04.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.totemapp.climbing"
+          }
+        },
+        {
+          "client_id": "720872675049-60m0tk2krk77qi5tdf699o9kmlpsfdsd.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCQQB2xFaCSDyz0jiEncmPfGSiDFCHi8RE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "720872675049-60m0tk2krk77qi5tdf699o9kmlpsfdsd.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "720872675049-e0du1dtbe53puak85sr4da6c8i0gjhak.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "totemapp.com"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
