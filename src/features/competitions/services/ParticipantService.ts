@@ -251,8 +251,8 @@ export class ParticipantService {
       idNumber: string;
       email: string;
       phone: string;
-      category: string;
-      categoryName: string;
+      category: string | null;
+      categoryName: string | null;
       status: string;
       isActive: boolean;
     }>
@@ -319,6 +319,7 @@ export class ParticipantService {
       }
 
       // Filter out undefined values - Firebase doesn't accept undefined
+      // null is allowed (used to clear fields like category)
       const cleanData = Object.fromEntries(
         Object.entries(data).filter(([_, value]) => value !== undefined)
       );

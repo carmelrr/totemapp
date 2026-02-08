@@ -216,8 +216,8 @@ export default function ManageCategoriesScreen() {
 
     try {
       await ParticipantService.updateParticipant(competitionId, selectedParticipant.id, {
-        category: categoryId,
-        categoryName: categoryName,
+        category: categoryId || null,
+        categoryName: categoryName || null,
       });
       setShowAssignModal(false);
       setSelectedParticipant(null);
