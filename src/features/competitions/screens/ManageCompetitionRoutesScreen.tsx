@@ -34,6 +34,7 @@ import { NATIONAL_LEAGUE_GRADE_POINTS, TOTEMTITION_SETTINGS } from '@/features/c
 import CompetitionWallMap from '@/features/competitions/components/CompetitionWallMap';
 import { usePublishedRooms } from '@/features/wall-editor/hooks/usePublishedRooms';
 import { useEditorMap } from '@/features/wall-editor/hooks/useEditorMap';
+import { snapNormToNearestWall } from '@/utils/snapToWall';
 
 // Wall dimensions (should match your actual wall)
 const WALL_WIDTH = 1000;
@@ -247,14 +248,24 @@ export default function ManageCompetitionRoutesScreen() {
   const handleMapTap = useCallback(async (coordinates: { xNorm: number; yNorm: number }) => {
     if (!selectedRouteForPlacement) return;
     
+    // Snap to nearest wall if room data is available
+    let { xNorm, yNorm } = coordinates;
+    if (mapRoom) {
+      const snapped = snapNormToNearestWall(xNorm, yNorm, mapRoom);
+      if (snapped.snapped) {
+        xNorm = snapped.xNorm;
+        yNorm = snapped.yNorm;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       await CompetitionRoutesService.updateRoute(
         competitionId,
         selectedRouteForPlacement.id,
         {
-          xNorm: coordinates.xNorm,
-          yNorm: coordinates.yNorm,
+          xNorm,
+          yNorm,
         }
       );
       
@@ -279,7 +290,7 @@ export default function ManageCompetitionRoutesScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [competitionId, selectedRouteForPlacement, routes, refresh]);
+  }, [competitionId, selectedRouteForPlacement, routes, refresh, mapRoom]);
 
   // Start placing routes on map
   const handleStartPlacingRoutes = () => {
