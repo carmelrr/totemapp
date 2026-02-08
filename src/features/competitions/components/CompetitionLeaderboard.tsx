@@ -254,11 +254,20 @@ function CategorySection({
                 <Text style={styles.podiumName} numberOfLines={1}>
                   {entry.participantName || entry.userName || 'Unknown'}
                 </Text>
-                <Text style={styles.podiumPoints}>
-                  {isZoneTop && entry.totalTops !== undefined
-                    ? formatIFSCResult(entry.totalTops || 0, entry.totalZones || 0, entry.totalTopAttempts || 0, entry.totalZoneAttempts || 0)
-                    : formatPoints(entry.points)}
-                </Text>
+                {isZoneTop && entry.totalTops !== undefined ? (
+                  <>
+                    <Text style={styles.podiumPoints}>
+                      {formatIFSCResult(entry.totalTops || 0, entry.totalZones || 0, entry.totalTopAttempts || 0, entry.totalZoneAttempts || 0)}
+                    </Text>
+                    <Text style={styles.podiumPoints}>
+                      {formatPoints(entry.points)}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.podiumPoints}>
+                    {formatPoints(entry.points)}
+                  </Text>
+                )}
                 <Text style={styles.podiumMedal}>{medal}</Text>
               </TouchableOpacity>
             );
@@ -552,11 +561,20 @@ export function CompetitionLeaderboard({
                 <Text style={styles.podiumName} numberOfLines={1}>
                   {entry.participantName || entry.userName || 'Unknown'}
                 </Text>
-                <Text style={styles.podiumPoints}>
-                  {isZoneTop && entry.totalTops !== undefined
-                    ? formatIFSCResult(entry.totalTops || 0, entry.totalZones || 0, entry.totalTopAttempts || 0, entry.totalZoneAttempts || 0)
-                    : formatPoints(entry.points)}
-                </Text>
+                {isZoneTop && entry.totalTops !== undefined ? (
+                  <>
+                    <Text style={styles.podiumPoints}>
+                      {formatIFSCResult(entry.totalTops || 0, entry.totalZones || 0, entry.totalTopAttempts || 0, entry.totalZoneAttempts || 0)}
+                    </Text>
+                    <Text style={styles.podiumPoints}>
+                      {formatPoints(entry.points)}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.podiumPoints}>
+                    {formatPoints(entry.points)}
+                  </Text>
+                )}
                 <Text style={styles.podiumMedal}>{medal}</Text>
               </TouchableOpacity>
             );
