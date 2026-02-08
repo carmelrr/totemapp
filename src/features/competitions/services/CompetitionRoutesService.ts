@@ -54,6 +54,8 @@ export class CompetitionRoutesService {
       grade: string;
       xNorm: number;
       yNorm: number;
+      pointsTop?: number;
+      pointsZone?: number;
     },
     createdBy: string
   ): Promise<string> {
@@ -74,7 +76,7 @@ export class CompetitionRoutesService {
 
       const basePoints = getGradeBasePoints(data.grade);
 
-      const routeData = {
+      const routeData: any = {
         competitionId,
         number: data.number,
         grade: data.grade,
@@ -85,6 +87,10 @@ export class CompetitionRoutesService {
         createdAt: serverTimestamp(),
         createdBy,
       };
+
+      // Store per-route scoring overrides for custom_points / ifsc_points
+      if (data.pointsTop !== undefined) routeData.pointsTop = data.pointsTop;
+      if (data.pointsZone !== undefined) routeData.pointsZone = data.pointsZone;
 
       const docRef = await addDoc(routesRef, routeData);
       console.log('Route added:', docRef.id);
@@ -108,6 +114,8 @@ export class CompetitionRoutesService {
       yNorm: number;
       color: string;
       isActive: boolean;
+      pointsTop: number;
+      pointsZone: number;
     }>
   ): Promise<void> {
     try {
@@ -476,6 +484,9 @@ export class CompetitionRoutesService {
       isActive: data.isActive ?? true,
       createdAt: data.createdAt?.toDate() || new Date(),
       createdBy: data.createdBy,
+      // Per-route scoring overrides (custom_points / ifsc_points)
+      ...(data.pointsTop !== undefined && { pointsTop: data.pointsTop }),
+      ...(data.pointsZone !== undefined && { pointsZone: data.pointsZone }),
     };
   }
 }

@@ -1067,6 +1067,10 @@ export const en = {
     standardPenaltyExplanation: "Score = Top - Penalty × (Attempt - 1). Standard IFSC scoring.",
     attemptNumberShort: "Attempt #",
     saveResult: "Save Result",
+    editRoutePoints: "Edit Scoring",
+    routeLabel: "Route",
+    perRoutePointsHint: "Leave empty to use default",
+    invalidPoints: "Invalid score value",
     // Default category names
     categoryMaleOpen: "Men",
     categoryFemaleOpen: "Women",

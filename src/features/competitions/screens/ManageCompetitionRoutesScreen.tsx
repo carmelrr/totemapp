@@ -30,7 +30,7 @@ import {
 } from '@/features/competitions/hooks/useCompetition';
 import { CompetitionRoutesService } from '@/features/competitions/services/CompetitionRoutesService';
 import { CompetitionRoute } from '@/features/competitions/types';
-import { NATIONAL_LEAGUE_GRADE_POINTS, TOTEMTITION_SETTINGS } from '@/features/competitions/constants';
+import { NATIONAL_LEAGUE_GRADE_POINTS, TOTEMTITION_SETTINGS, isZoneTopFormat } from '@/features/competitions/constants';
 import CompetitionWallMap from '@/features/competitions/components/CompetitionWallMap';
 import { usePublishedRooms } from '@/features/wall-editor/hooks/usePublishedRooms';
 import { useEditorMap } from '@/features/wall-editor/hooks/useEditorMap';
@@ -73,8 +73,22 @@ export default function ManageCompetitionRoutesScreen() {
 
   // Check if this is Totemtition format (no grades needed)
   const isTotemtition = competition?.format === 'totemtition';
+  const isCustomPoints = competition?.format === 'custom_points';
+  const isZoneTop = competition?.format ? isZoneTopFormat(competition.format) : false;
   const [selectedGrade, setSelectedGrade] = useState('V3');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Per-route points for custom_points format
+  const defaultTop = competition?.settings?.defaultPointsTop ?? 25;
+  const defaultZone = competition?.settings?.defaultPointsZone ?? 10;
+  const [newRoutePointsTop, setNewRoutePointsTop] = useState('');
+  const [newRoutePointsZone, setNewRoutePointsZone] = useState('');
+  
+  // Edit route modal
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingRoute, setEditingRoute] = useState<CompetitionRoute | null>(null);
+  const [editPointsTop, setEditPointsTop] = useState('');
+  const [editPointsZone, setEditPointsZone] = useState('');
   
   // View mode: list or map
   const [viewMode, setViewMode] = useState<ViewMode>('list');
@@ -143,21 +157,38 @@ export default function ManageCompetitionRoutesScreen() {
     setIsSubmitting(true);
     try {
       // For Totemtition, use 'TOTEM' as grade placeholder (points are calculated dynamically)
-      const gradeToUse = isTotemtition ? 'TOTEM' : selectedGrade;
+      const gradeToUse = isTotemtition ? 'TOTEM' : isZoneTop ? 'ZT' : selectedGrade;
       
+      // Build per-route points for zone/top formats
+      const routeData: {
+        number: number;
+        grade: string;
+        xNorm: number;
+        yNorm: number;
+        pointsTop?: number;
+        pointsZone?: number;
+      } = {
+        number: routeNum,
+        grade: gradeToUse,
+        xNorm: 0,
+        yNorm: 0,
+      };
+
+      if (isZoneTop) {
+        routeData.pointsTop = newRoutePointsTop ? parseFloat(newRoutePointsTop) : defaultTop;
+        routeData.pointsZone = newRoutePointsZone ? parseFloat(newRoutePointsZone) : defaultZone;
+      }
+
       await CompetitionRoutesService.addRoute(
         competitionId, 
-        {
-          number: routeNum,
-          grade: gradeToUse,
-          xNorm: 0,
-          yNorm: 0,
-        },
+        routeData,
         user.uid
       );
 
       setShowAddModal(false);
       setNewRouteNumber('');
+      setNewRoutePointsTop('');
+      setNewRoutePointsZone('');
       refresh();
     } catch (error) {
       Alert.alert('שגיאה', 'לא ניתן להוסיף את המסלול');
@@ -170,7 +201,7 @@ export default function ManageCompetitionRoutesScreen() {
     if (!competition || !user) return;
     
     const routeCount = competition.settings.maxRoutes;
-    const formatLabel = isTotemtition ? '1000 נקודות לכל מסלול' : 'V0-V8';
+    const formatLabel = isTotemtition ? '1000 נקודות לכל מסלול' : isZoneTop ? `T${defaultTop}/Z${defaultZone}` : 'V0-V8';
 
     Alert.alert(
       'הוספת מסלולים',
@@ -185,10 +216,12 @@ export default function ManageCompetitionRoutesScreen() {
               const grades = ['V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8'];
               
               for (let i = 1; i <= competition.settings.maxRoutes; i++) {
-                // For Totemtition - use 'TOTEM' grade, for others - distribute grades
+                // For Totemtition - use 'TOTEM' grade, zone/top - use 'ZT', others - distribute grades
                 let grade: string;
                 if (isTotemtition) {
                   grade = 'TOTEM';
+                } else if (isZoneTop) {
+                  grade = 'ZT';
                 } else {
                   // Assign grades in a balanced way
                   const gradeIndex = Math.min(Math.floor((i - 1) / (competition.settings.maxRoutes / grades.length)), grades.length - 1);
@@ -196,14 +229,22 @@ export default function ManageCompetitionRoutesScreen() {
                 }
                 
                 if (!routes.some(r => r.routeNumber === i)) {
+                  const routeData: any = {
+                    number: i,
+                    grade,
+                    xNorm: 0,
+                    yNorm: 0,
+                  };
+
+                  // Add default zone/top points
+                  if (isZoneTop) {
+                    routeData.pointsTop = defaultTop;
+                    routeData.pointsZone = defaultZone;
+                  }
+
                   await CompetitionRoutesService.addRoute(
                     competitionId, 
-                    {
-                      number: i,
-                      grade,
-                      xNorm: 0,
-                      yNorm: 0,
-                    },
+                    routeData,
                     user.uid
                   );
                 }
@@ -319,6 +360,41 @@ export default function ManageCompetitionRoutesScreen() {
     setShowColorModal(true);
   };
 
+  // Handle editing route points (custom_points format)
+  const handleOpenEditRoute = (route: CompetitionRoute) => {
+    setEditingRoute(route);
+    setEditPointsTop(String(route.pointsTop ?? defaultTop));
+    setEditPointsZone(String(route.pointsZone ?? defaultZone));
+    setShowEditModal(true);
+  };
+
+  const handleSaveEditRoute = async () => {
+    if (!editingRoute) return;
+
+    const pTop = parseFloat(editPointsTop);
+    const pZone = parseFloat(editPointsZone);
+    if (isNaN(pTop) || isNaN(pZone) || pTop < 0 || pZone < 0) {
+      Alert.alert(t.competitions?.error || 'שגיאה', t.competitions?.invalidPoints || 'ערך ניקוד לא תקין');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await CompetitionRoutesService.updateRoute(
+        competitionId,
+        editingRoute.id,
+        { pointsTop: pTop, pointsZone: pZone }
+      );
+      setShowEditModal(false);
+      setEditingRoute(null);
+      refresh();
+    } catch (error) {
+      Alert.alert(t.competitions?.error || 'שגיאה', 'לא ניתן לעדכן את הניקוד');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleColorSelect = async (colorHex: string) => {
     if (!selectedRouteForColor) return;
     
@@ -372,12 +448,27 @@ export default function ManageCompetitionRoutesScreen() {
   };
 
   const renderRouteItem = ({ item }: { item: CompetitionRoute }) => {
-    // For Totemtition - show 1000 pts (dynamic division), for others - use grade-based points
+    // Display logic per format
     const isTotemRoute = item.grade === 'TOTEM';
-    const points = isTotemRoute ? 1000 : (NATIONAL_LEAGUE_GRADE_POINTS[item.grade] || 100);
-    const displayGrade = isTotemRoute ? '🎯' : item.grade;
-    const pointsLabel = isTotemRoute ? '1000÷N נק\'' : `${points} נקודות`;
+    const isZoneTopRoute = item.grade === 'ZT' || (isZoneTop && item.grade !== 'TOTEM');
     const routeColor = item.color || '#3b82f6'; // Default blue if no color set
+
+    let displayGrade: string;
+    let pointsLabel: string;
+
+    if (isTotemRoute) {
+      displayGrade = '🎯';
+      pointsLabel = '1000÷N נק\'';
+    } else if (isZoneTopRoute) {
+      const pTop = item.pointsTop ?? defaultTop;
+      const pZone = item.pointsZone ?? defaultZone;
+      displayGrade = `T${pTop}`;
+      pointsLabel = `Z${pZone} / T${pTop}`;
+    } else {
+      const points = NATIONAL_LEAGUE_GRADE_POINTS[item.grade] || 100;
+      displayGrade = item.grade;
+      pointsLabel = `${points} נקודות`;
+    }
     
     return (
       <View style={styles.routeItem}>
@@ -390,6 +481,15 @@ export default function ManageCompetitionRoutesScreen() {
           <Text style={styles.routeGrade}>{displayGrade}</Text>
           <Text style={styles.routePoints}>{pointsLabel}</Text>
         </View>
+        {/* Edit points button - only for custom_points format */}
+        {isCustomPoints && (
+          <TouchableOpacity
+            style={styles.editBtn}
+            onPress={() => handleOpenEditRoute(item)}
+          >
+            <Ionicons name="pencil" size={16} color={theme.primary} />
+          </TouchableOpacity>
+        )}
         {/* Color picker button - only for head judges and admins */}
         {(rolesContext.isHeadJudge || rolesContext.isAdmin) && (
           <TouchableOpacity
@@ -672,8 +772,8 @@ export default function ManageCompetitionRoutesScreen() {
               />
             </View>
 
-            {/* Hide grade selection for Totemtition - routes are scored by 1000/N */}
-            {!isTotemtition && (
+            {/* Hide grade selection for Totemtition and Zone/Top formats */}
+            {!isTotemtition && !isZoneTop && (
               <View style={styles.inputSection}>
                 <Text style={styles.inputLabel}>דרגת קושי</Text>
                 <View style={styles.gradesGrid}>
@@ -706,6 +806,44 @@ export default function ManageCompetitionRoutesScreen() {
               <View style={styles.totemtitionInfo}>
                 <Text style={styles.totemtitionInfoText}>
                   🎯 מסלולי תחרוטוטם: 1000 נקודות מחולקות בין כל המשלימים
+                </Text>
+              </View>
+            )}
+
+            {/* Zone/Top per-route points (custom_points) */}
+            {isCustomPoints && (
+              <View style={styles.inputSection}>
+                <Text style={styles.inputLabel}>{t.competitions?.pointsTopLabel || 'נקודות ל-Top'}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newRoutePointsTop}
+                  onChangeText={setNewRoutePointsTop}
+                  keyboardType="decimal-pad"
+                  placeholder={String(defaultTop)}
+                  placeholderTextColor={theme.textSecondary}
+                  textAlign="center"
+                />
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t.competitions?.pointsZoneLabel || 'נקודות ל-Zone'}</Text>
+                <TextInput
+                  style={styles.input}
+                  value={newRoutePointsZone}
+                  onChangeText={setNewRoutePointsZone}
+                  keyboardType="decimal-pad"
+                  placeholder={String(defaultZone)}
+                  placeholderTextColor={theme.textSecondary}
+                  textAlign="center"
+                />
+                <Text style={styles.zoneTopHint}>
+                  {t.competitions?.perRoutePointsHint || 'השאר ריק לשימוש בברירת מחדל'}
+                </Text>
+              </View>
+            )}
+
+            {/* IFSC format info */}
+            {isZoneTop && !isCustomPoints && (
+              <View style={styles.totemtitionInfo}>
+                <Text style={styles.totemtitionInfoText}>
+                  🏆 IFSC: Top={defaultTop} / Zone={defaultZone}
                 </Text>
               </View>
             )}
@@ -776,6 +914,73 @@ export default function ManageCompetitionRoutesScreen() {
                 );
               })}
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Route Points Modal (custom_points) */}
+      <Modal
+        visible={showEditModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowEditModal(false);
+          setEditingRoute(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {t.competitions?.editRoutePoints || 'עריכת ניקוד'} - {t.competitions?.routeLabel || 'מסלול'} {editingRoute?.routeNumber}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowEditModal(false);
+                  setEditingRoute(null);
+                }}
+              >
+                <Ionicons name="close" size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.inputSection}>
+              <Text style={styles.inputLabel}>{t.competitions?.pointsTopLabel || 'נקודות ל-Top'}</Text>
+              <TextInput
+                style={styles.input}
+                value={editPointsTop}
+                onChangeText={setEditPointsTop}
+                keyboardType="decimal-pad"
+                placeholder={String(defaultTop)}
+                placeholderTextColor={theme.textSecondary}
+                textAlign="center"
+              />
+            </View>
+
+            <View style={styles.inputSection}>
+              <Text style={styles.inputLabel}>{t.competitions?.pointsZoneLabel || 'נקודות ל-Zone'}</Text>
+              <TextInput
+                style={styles.input}
+                value={editPointsZone}
+                onChangeText={setEditPointsZone}
+                keyboardType="decimal-pad"
+                placeholder={String(defaultZone)}
+                placeholderTextColor={theme.textSecondary}
+                textAlign="center"
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.submitBtn}
+              onPress={handleSaveEditRoute}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitBtnText}>{t.competitions?.saveResult || 'שמור'}</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -923,6 +1128,16 @@ const createStyles = (theme: any) =>
     },
     deleteBtn: {
       padding: 8,
+    },
+    editBtn: {
+      padding: 8,
+      marginRight: 4,
+    },
+    zoneTopHint: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      textAlign: 'center',
+      marginTop: 6,
     },
     emptyState: {
       alignItems: 'center',

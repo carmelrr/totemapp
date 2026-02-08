@@ -1070,6 +1070,10 @@ export const he: TranslationKeys = {
     standardPenaltyExplanation: "ניקוד = Top - קנס × (ניסיון - 1). ניקוד IFSC סטנדרטי.",
     attemptNumberShort: "ניסיון #",
     saveResult: "שמור תוצאה",
+    editRoutePoints: "עריכת ניקוד",
+    routeLabel: "מסלול",
+    perRoutePointsHint: "השאר ריק לשימוש בברירת מחדל",
+    invalidPoints: "ערך ניקוד לא תקין",
     // Default category names
     categoryMaleOpen: "גברים",
     categoryFemaleOpen: "נשים",
