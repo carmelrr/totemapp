@@ -158,11 +158,11 @@ export class ResultsService {
         points,
         enteredBy,
         enteredAt: new Date(),
-        // Zone/Top fields
-        topAchieved: result.topAchieved,
-        topAttempt: result.topAttempt,
-        zoneAchieved: result.zoneAchieved,
-        zoneAttempt: result.zoneAttempt,
+        // Zone/Top fields – only include defined values (Firestore rejects undefined)
+        ...(result.topAchieved !== undefined && { topAchieved: result.topAchieved }),
+        ...(result.topAttempt !== undefined && { topAttempt: result.topAttempt }),
+        ...(result.zoneAchieved !== undefined && { zoneAchieved: result.zoneAchieved }),
+        ...(result.zoneAttempt !== undefined && { zoneAttempt: result.zoneAttempt }),
       };
 
       // Get or create participant result document
