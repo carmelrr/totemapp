@@ -286,6 +286,19 @@ export function formatPoints(points: number): string {
 }
 
 /**
+ * Format IFSC-style result string: "4T4z 4 4"
+ * tops T zones z totalTopAttempts totalZoneAttempts
+ */
+export function formatIFSCResult(
+  tops: number,
+  zones: number,
+  topAttempts: number,
+  zoneAttempts: number
+): string {
+  return `${tops}T${zones}z ${topAttempts} ${zoneAttempts}`;
+}
+
+/**
  * Get grade base points
  * @param grade - Route grade
  * @returns Base points for the grade

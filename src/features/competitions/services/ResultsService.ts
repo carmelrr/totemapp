@@ -1077,6 +1077,10 @@ export class ResultsService {
           let totalPoints = 0;
           let totalAttempts = 0;
           let routesCompleted = 0;
+          let totalTops = 0;
+          let totalZones = 0;
+          let totalTopAttempts = 0;
+          let totalZoneAttempts = 0;
           const routes = result.routes;
 
           if (routes) {
@@ -1093,6 +1097,15 @@ export class ResultsService {
                 if (route.completed || route.topAchieved) {
                   routesCompleted++;
                 }
+              }
+              // IFSC aggregates
+              if (route.topAchieved) {
+                totalTops++;
+                totalTopAttempts += route.topAttempt || 1;
+              }
+              if (route.zoneAchieved) {
+                totalZones++;
+                totalZoneAttempts += route.zoneAttempt || 1;
               }
             });
           }
@@ -1113,6 +1126,10 @@ export class ResultsService {
             totalAttempts,
             category: result.category,
             categoryName: result.categoryName,
+            totalTops,
+            totalZones,
+            totalTopAttempts,
+            totalZoneAttempts,
           };
         });
 

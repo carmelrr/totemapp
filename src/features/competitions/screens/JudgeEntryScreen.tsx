@@ -35,7 +35,7 @@ import {
   RouteResult,
 } from '@/features/competitions/types';
 import { NATIONAL_LEAGUE_GRADE_POINTS } from '@/features/competitions/constants';
-import { isZoneTopFormat } from '@/features/competitions/constants';
+import { isZoneTopFormat, formatIFSCResult } from '@/features/competitions/constants';
 import { ParticipantService } from '@/features/competitions/services/ParticipantService';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/features/data/firebase';
@@ -360,7 +360,9 @@ export default function JudgeEntryScreen() {
   const getRouteStatus = (route: CompetitionRoute) => {
     const result = findRouteResult(route.id);
     if (!result) return 'not_attempted';
-    return result.completed ? 'completed' : 'not_attempted';
+    // For zone_top, zone-only also counts as attempted
+    if (result.completed || result.topAchieved || result.zoneAchieved) return 'completed';
+    return 'not_attempted';
   };
 
   const getRoutePoints = (route: CompetitionRoute) => {
@@ -507,6 +509,7 @@ export default function JudgeEntryScreen() {
 
   const renderRouteItem = ({ item }: { item: CompetitionRoute }) => {
     const status = getRouteStatus(item);
+    const result = findRouteResult(item.id);
     const points = getRoutePoints(item);
     const attempts = getRouteAttempts(item);
     const isTotemRoute = item.grade === 'TOTEM';
@@ -530,8 +533,21 @@ export default function JudgeEntryScreen() {
       } else {
         pointsLabel = '1000÷N';
       }
+    } else if (isZoneTop) {
+      // For zone_top, don't show base points as they're not meaningful to the user
+      pointsLabel = '';
     } else {
       pointsLabel = `${basePoints} נק'`;
+    }
+
+    // Build zone/top result display for completed routes
+    let resultDisplay: string | null = null;
+    if (status === 'completed' && isZoneTop && result) {
+      const t = result.topAchieved ? '1T' : '0T';
+      const z = result.zoneAchieved ? '1z' : '0z';
+      const ta = result.topAchieved ? (result.topAttempt || 1) : 0;
+      const za = result.zoneAchieved ? (result.zoneAttempt || 1) : 0;
+      resultDisplay = `${t}${z} ${ta} ${za}`;
     }
 
     return (
@@ -548,7 +564,9 @@ export default function JudgeEntryScreen() {
         
         <View style={styles.routeInfo}>
           <Text style={styles.routeGrade}>{displayGrade}</Text>
-          <Text style={styles.routeBasePoints}>{pointsLabel}</Text>
+          {pointsLabel !== '' && (
+            <Text style={styles.routeBasePoints}>{pointsLabel}</Text>
+          )}
           {isTotemRoute && currentRoutePoints > 0 && (
             <Text style={[styles.routeBasePoints, { color: theme.primary, fontWeight: 'bold' }]}>
               {currentRoutePoints}
@@ -558,8 +576,14 @@ export default function JudgeEntryScreen() {
 
         {status === 'completed' ? (
           <View style={styles.routeResult}>
-            <Text style={styles.routePoints}>{isTotemRoute ? currentRoutePoints : points}</Text>
-            <Text style={styles.routeAttempts}>{attempts} ניסיונות</Text>
+            {isZoneTop && resultDisplay ? (
+              <Text style={styles.routePoints}>{resultDisplay}</Text>
+            ) : (
+              <>
+                <Text style={styles.routePoints}>{isTotemRoute ? currentRoutePoints : points}</Text>
+                <Text style={styles.routeAttempts}>{attempts} ניסיונות</Text>
+              </>
+            )}
           </View>
         ) : (
           <View style={styles.routeAction}>
@@ -648,7 +672,20 @@ export default function JudgeEntryScreen() {
                 </Text>
                 {participantResults && (
                   <Text style={styles.selectedScore}>
-                    סה"כ: {participantResults.totalPoints} נק'
+                    {isZoneTop
+                      ? (() => {
+                          const allRoutes = participantResults.routes
+                            ? (Array.isArray(participantResults.routes) ? participantResults.routes : Object.values(participantResults.routes))
+                            : [];
+                          let tops = 0, zones = 0, topAtt = 0, zoneAtt = 0;
+                          allRoutes.forEach((r: RouteResult) => {
+                            if (r.topAchieved) { tops++; topAtt += r.topAttempt || 1; }
+                            if (r.zoneAchieved) { zones++; zoneAtt += r.zoneAttempt || 1; }
+                          });
+                          return formatIFSCResult(tops, zones, topAtt, zoneAtt);
+                        })()
+                      : `סה"כ: ${participantResults.totalPoints} נק'`
+                    }
                   </Text>
                 )}
               </View>
@@ -701,7 +738,7 @@ export default function JudgeEntryScreen() {
                     {selectedRoute.grade === 'TOTEM' 
                       ? t.competitionExt.totemBasePoints
                       : isZoneTop
-                        ? `Top: ${selectedRoute.pointsTop ?? competition?.settings?.defaultPointsTop ?? 25} | Zone: ${selectedRoute.pointsZone ?? competition?.settings?.defaultPointsZone ?? 10}`
+                        ? `Zone / Top`
                         : t.competitionExt.basePointsInfo(NATIONAL_LEAGUE_GRADE_POINTS[selectedRoute.grade] || 100)
                     }
                   </Text>

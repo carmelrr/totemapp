@@ -28,7 +28,7 @@ import {
 } from '@/features/competitions/types';
 import { ParticipantService } from '@/features/competitions/services/ParticipantService';
 import { ResultsService } from '@/features/competitions/services/ResultsService';
-import { formatPoints, isZoneTopFormat } from '@/features/competitions/constants';
+import { formatPoints, formatIFSCResult, isZoneTopFormat } from '@/features/competitions/constants';
 import { CachedAvatar } from '@/components/ui/CachedAvatar';
 
 interface CompetitionLeaderboardProps {
@@ -143,6 +143,7 @@ function CategorySection({
   theme,
   t,
   styles,
+  isZoneTop,
 }: {
   category: Category;
   categoryEntries: LeaderboardEntry[];
@@ -152,6 +153,7 @@ function CategorySection({
   theme: any;
   t: any;
   styles: any;
+  isZoneTop?: boolean;
 }) {
   // Merge leaderboard entries with participants who don't have scores yet
   const allEntries = useMemo(() => {
@@ -253,7 +255,9 @@ function CategorySection({
                   {entry.participantName || entry.userName || 'Unknown'}
                 </Text>
                 <Text style={styles.podiumPoints}>
-                  {formatPoints(entry.points)}
+                  {isZoneTop && entry.totalTops !== undefined
+                    ? formatIFSCResult(entry.totalTops || 0, entry.totalZones || 0, entry.totalTopAttempts || 0, entry.totalZoneAttempts || 0)
+                    : formatPoints(entry.points)}
                 </Text>
                 <Text style={styles.podiumMedal}>{medal}</Text>
               </TouchableOpacity>
@@ -268,6 +272,9 @@ function CategorySection({
     const isCurrentUser = item.userId === currentUserId;
     const displayName = item.participantName || item.userName || 'Unknown';
     const hasScore = (item.points || 0) > 0;
+    const ifscLine = isZoneTop && hasScore
+      ? formatIFSCResult(item.totalTops || 0, item.totalZones || 0, item.totalTopAttempts || 0, item.totalZoneAttempts || 0)
+      : null;
 
     return (
       <TouchableOpacity
@@ -304,7 +311,9 @@ function CategorySection({
           </Text>
           <Text style={[styles.statsText, !hasScore && styles.noScoreText]}>
             {hasScore 
-              ? `${item.routesCompleted} ${t.competition.routesCompleted} | ${formatPoints(item.points)}`
+              ? ifscLine
+                ? `${ifscLine} | ${formatPoints(item.points)}`
+                : `${item.routesCompleted} ${t.competition.routesCompleted} | ${formatPoints(item.points)}`
               : t.competition.noScoreYet || 'אין ניקוד עדיין'
             }
           </Text>
@@ -377,6 +386,7 @@ export function CompetitionLeaderboard({
   // Determine if we should show categories
   // Check both the setting AND if we actually have categories
   const hasCategories = competition.settings?.enableCategories && categories.length > 0;
+  const isZoneTop = isZoneTopFormat(competition.format);
   
   const styles = createStyles(theme);
 
@@ -543,7 +553,9 @@ export function CompetitionLeaderboard({
                   {entry.participantName || entry.userName || 'Unknown'}
                 </Text>
                 <Text style={styles.podiumPoints}>
-                  {formatPoints(entry.points)}
+                  {isZoneTop && entry.totalTops !== undefined
+                    ? formatIFSCResult(entry.totalTops || 0, entry.totalZones || 0, entry.totalTopAttempts || 0, entry.totalZoneAttempts || 0)
+                    : formatPoints(entry.points)}
                 </Text>
                 <Text style={styles.podiumMedal}>{medal}</Text>
               </TouchableOpacity>
@@ -558,6 +570,9 @@ export function CompetitionLeaderboard({
     const isCurrentUser = item.userId === currentUserId;
     const displayName = item.participantName || item.userName || 'Unknown';
     const hasScore = (item.points || 0) > 0;
+    const ifscLine = isZoneTop && hasScore
+      ? formatIFSCResult(item.totalTops || 0, item.totalZones || 0, item.totalTopAttempts || 0, item.totalZoneAttempts || 0)
+      : null;
 
     return (
       <TouchableOpacity
@@ -593,7 +608,9 @@ export function CompetitionLeaderboard({
           </Text>
           <Text style={[styles.statsText, !hasScore && styles.noScoreText]}>
             {hasScore 
-              ? `${item.routesCompleted} ${t.competition.routesCompleted} | ${formatPoints(item.points)}`
+              ? ifscLine
+                ? `${ifscLine} | ${formatPoints(item.points)}`
+                : `${item.routesCompleted} ${t.competition.routesCompleted} | ${formatPoints(item.points)}`
               : t.competition.noScoreYet || 'אין ניקוד עדיין'
             }
           </Text>
@@ -634,10 +651,12 @@ export function CompetitionLeaderboard({
           </Text>
           <Text style={styles.statLabel}>{t.competition.routesCompleted}</Text>
         </View>
-        <View style={styles.statBox}>
-          <Text style={styles.statValue}>TOP{competition.settings.topRoutesForScoring}</Text>
-          <Text style={styles.statLabel}>{t.competition.scoring}</Text>
-        </View>
+        {!isZoneTop && (
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>TOP{competition.settings.topRoutesForScoring}</Text>
+            <Text style={styles.statLabel}>{t.competition.scoring}</Text>
+          </View>
+        )}
       </View>
 
       {/* If has categories - show each category as a section */}
@@ -655,6 +674,7 @@ export function CompetitionLeaderboard({
               theme={theme}
               t={t}
               styles={styles}
+              isZoneTop={isZoneTop}
             />
           );
         })

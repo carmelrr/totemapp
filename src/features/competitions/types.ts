@@ -240,6 +240,11 @@ export interface LeaderboardEntry {
   category?: string;
   categoryName?: string;
   isCurrentUser?: boolean;              // highlight if viewing user
+  // IFSC-style aggregates for zone_top format
+  totalTops?: number;                   // total number of topped routes
+  totalZones?: number;                  // total number of zoned routes
+  totalTopAttempts?: number;            // sum of attempts to top
+  totalZoneAttempts?: number;           // sum of attempts to zone
 }
 
 /**
