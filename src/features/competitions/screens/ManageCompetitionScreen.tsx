@@ -153,7 +153,7 @@ export default function ManageCompetitionScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={styles.loadingText}>טוען תחרות...</Text>
@@ -164,7 +164,7 @@ export default function ManageCompetitionScreen() {
 
   if (!competition) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color={theme.error || '#e74c3c'} />
           <Text style={styles.errorText}>התחרות לא נמצאה</Text>
@@ -183,7 +183,7 @@ export default function ManageCompetitionScreen() {
   // Allow viewer-only access for leaderboard tab
   if (competition.format === 'national_league' && !hasManagementAccess && !isViewerOnly) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -361,6 +361,14 @@ export default function ManageCompetitionScreen() {
                 onPress={() => handleStatusChange('completed')}
               >
                 <Text style={styles.actionBtnText}>סיים תחרות</Text>
+              </TouchableOpacity>
+            )}
+            {competition.status === 'completed' && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: '#3498db' }]}
+                onPress={() => handleStatusChange('active')}
+              >
+                <Text style={styles.actionBtnText}>הפעל שוב</Text>
               </TouchableOpacity>
             )}
             {competition.status !== 'cancelled' && competition.status !== 'completed' && (
@@ -725,7 +733,7 @@ export default function ManageCompetitionScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

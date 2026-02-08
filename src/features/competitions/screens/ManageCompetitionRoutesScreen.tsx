@@ -150,7 +150,7 @@ export default function ManageCompetitionRoutesScreen() {
   // Check if user has permission to manage routes
   if (!rolesContext.canManageCompetitionRoutes) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -567,7 +567,7 @@ export default function ManageCompetitionRoutesScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
         </View>
@@ -576,7 +576,7 @@ export default function ManageCompetitionRoutesScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

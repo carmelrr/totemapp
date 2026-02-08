@@ -414,7 +414,7 @@ export default function JudgeEntryScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={styles.loadingText}>{t.competitionExt.loading}</Text>
@@ -430,7 +430,7 @@ export default function JudgeEntryScreen() {
       : 'רק שופטים רשומים יכולים להזין תוצאות';
     
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color={theme.error || '#e74c3c'} />
           <Text style={styles.errorText}>
@@ -487,7 +487,7 @@ export default function JudgeEntryScreen() {
     const statusInfo = statusMessages[competition?.status || 'draft'] || statusMessages.draft;
     
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.errorContainer}>
           <Ionicons name={statusInfo.icon as any} size={64} color={theme.primary} />
           <Text style={styles.errorText}>{statusInfo.title}</Text>
@@ -632,7 +632,7 @@ export default function JudgeEntryScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

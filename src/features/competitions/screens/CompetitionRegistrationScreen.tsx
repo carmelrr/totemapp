@@ -160,7 +160,7 @@ export default function CompetitionRegistrationScreen() {
 
   if (loading || competitionLoading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={styles.loadingText}>{t.competitionExt.loading}</Text>
@@ -171,7 +171,7 @@ export default function CompetitionRegistrationScreen() {
 
   if (!competition) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={64} color={theme.error || '#e74c3c'} />
           <Text style={styles.errorText}>{t.competitionExt.competitionNotFound}</Text>
@@ -458,7 +458,7 @@ export default function CompetitionRegistrationScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

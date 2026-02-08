@@ -77,7 +77,7 @@ export default function ManageParticipantsScreen() {
   // Check if user has permission to manage participants
   if (!rolesContext.canManageParticipants) {
     return (
-      <SafeAreaView style={createStyles(theme).container} edges={['top']}>
+      <SafeAreaView style={createStyles(theme).container} edges={['top', 'bottom']}>
         <View style={createStyles(theme).header}>
           <TouchableOpacity
             style={createStyles(theme).backButton}
@@ -116,7 +116,7 @@ export default function ManageParticipantsScreen() {
     pending: participants.filter(p => p.status === 'pending' || p.status === 'pending_approval').length,
   }), [participants]);
 
-  // Search users
+  // Search users (case-insensitive by running multiple queries)
   const handleSearch = useCallback(async (text: string) => {
     setSearchQuery(text);
     if (text.length < 2) {
@@ -126,29 +126,46 @@ export default function ManageParticipantsScreen() {
 
     setIsSearching(true);
     try {
-      // Search by displayName
       const usersRef = collection(db, 'users');
-      const q = query(
-        usersRef,
-        where('displayName', '>=', text),
-        where('displayName', '<=', text + '\uf8ff'),
-        limit(10)
-      );
-      const snapshot = await getDocs(q);
-      
-      const results: UserSearchResult[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        // Exclude users already in participants
-        if (!participants.some(p => p.userId === doc.id)) {
-          results.push({
-            id: doc.id,
-            displayName: data.displayName || data.email || 'משתמש',
-            email: data.email,
-            photoURL: data.photoURL,
-          });
-        }
+
+      // Build case variants to search: original, lowercase, and capitalized
+      const variants = new Set<string>();
+      variants.add(text);
+      variants.add(text.toLowerCase());
+      variants.add(text.charAt(0).toUpperCase() + text.slice(1).toLowerCase());
+
+      // Run queries for each variant in parallel
+      const queryPromises = Array.from(variants).map(variant => {
+        const q = query(
+          usersRef,
+          where('displayName', '>=', variant),
+          where('displayName', '<=', variant + '\uf8ff'),
+          limit(10)
+        );
+        return getDocs(q);
       });
+
+      const snapshots = await Promise.all(queryPromises);
+
+      // Merge results, deduplicate by doc ID
+      const seen = new Set<string>();
+      const results: UserSearchResult[] = [];
+      for (const snapshot of snapshots) {
+        snapshot.forEach((doc) => {
+          if (seen.has(doc.id)) return;
+          seen.add(doc.id);
+          const data = doc.data();
+          // Exclude users already in participants
+          if (!participants.some(p => p.userId === doc.id)) {
+            results.push({
+              id: doc.id,
+              displayName: data.displayName || data.email || 'משתמש',
+              email: data.email,
+              photoURL: data.photoURL,
+            });
+          }
+        });
+      }
       
       setSearchResults(results);
     } catch (error) {
@@ -426,7 +443,7 @@ export default function ManageParticipantsScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity

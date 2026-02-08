@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @fileoverview Create Competition Screen (Admin)
  * @description Form for creating a new competition
  */
@@ -197,7 +197,7 @@ export default function CreateCompetitionScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <KeyboardAvoidingView 
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
