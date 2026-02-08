@@ -17,7 +17,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/features/theme/ThemeContext';\nimport { useLanguage } from '@/features/language';
+import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 import { useAdmin } from '@/context/AdminContext';
 import { useRolesContext } from '@/features/roles/RolesContext';
 import { useAuth } from '@/context/AuthContext';
