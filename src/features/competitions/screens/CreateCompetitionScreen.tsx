@@ -121,7 +121,7 @@ export default function CreateCompetitionScreen() {
       Alert.alert(t.common.error, t.competitionExt.minOneRoute);
       return false;
     }
-    if (parseInt(topRoutes) > parseInt(maxRoutes)) {
+    if (showTopRoutes && parseInt(topRoutes) > parseInt(maxRoutes)) {
       Alert.alert(t.common.error, t.competitionExt.topRoutesLimit);
       return false;
     }
@@ -146,10 +146,10 @@ export default function CreateCompetitionScreen() {
         endDate,
         settings: {
           maxRoutes: parseInt(maxRoutes),
-          topRoutesForScoring: parseInt(topRoutes),
-          attemptPenalty: parseInt(attemptPenalty),
-          maxAttempts: parseInt(maxAttempts),
-          enableCategories,
+          topRoutesForScoring: showTopRoutes ? parseInt(topRoutes) : 999,
+          attemptPenalty: showAttemptPenalty ? parseInt(attemptPenalty) : 0,
+          maxAttempts: showMaxAttempts ? parseInt(maxAttempts) : 999,
+          enableCategories: showCategories ? enableCategories : false,
           enableRounds: false,
           allowSelfEntry: resultsEntryMode === 'selfEntry',
           judgesOnly: resultsEntryMode === 'judgesOnly',
