@@ -27,6 +27,7 @@ import { useLanguage } from '@/features/language';
 import { useCompetition, useParticipants } from '@/features/competitions/hooks/useCompetition';
 import { ParticipantService } from '@/features/competitions/services/ParticipantService';
 import { Category, Gender, SkillLevel, Participant } from '@/features/competitions/types';
+import { isZoneTopFormat } from '@/features/competitions/constants';
 
 interface CategoryFormData {
   name: string;
@@ -36,6 +37,7 @@ interface CategoryFormData {
   maxAge: string;
   skillLevels: SkillLevel[];
   order: number;
+  routePrefix: string;
 }
 
 const EMPTY_FORM: CategoryFormData = {
@@ -46,6 +48,7 @@ const EMPTY_FORM: CategoryFormData = {
   maxAge: '',
   skillLevels: [],
   order: 0,
+  routePrefix: '',
 };
 
 // Skill level values (labels will be set dynamically with translations)
@@ -117,6 +120,7 @@ export default function ManageCategoriesScreen() {
       maxAge: category.maxAge?.toString() || '',
       skillLevels: category.skillLevels || [],
       order: category.order || 0,
+      routePrefix: category.routePrefix || '',
     });
     setShowModal(true);
   };
@@ -137,6 +141,7 @@ export default function ManageCategoriesScreen() {
         maxAge: formData.maxAge ? parseInt(formData.maxAge) : undefined,
         skillLevels: formData.skillLevels.length > 0 ? formData.skillLevels : undefined,
         order: formData.order,
+        routePrefix: formData.routePrefix.trim() || undefined,
       };
 
       if (editingCategory) {
@@ -424,6 +429,22 @@ export default function ManageCategoriesScreen() {
                 multiline
                 numberOfLines={2}
               />
+
+              {/* Route Prefix - only for zone_top format */}
+              {competition?.format && isZoneTopFormat(competition.format) && (
+                <>
+                  <Text style={styles.inputLabel}>קידומת מסלולים</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    value={formData.routePrefix}
+                    onChangeText={(text) => setFormData(prev => ({ ...prev, routePrefix: text.toUpperCase() }))}
+                    placeholder='לדוגמה: M → M1, M2...'
+                    placeholderTextColor={theme.textSecondary}
+                    maxLength={3}
+                    autoCapitalize="characters"
+                  />
+                </>
+              )}
 
               {/* Gender */}
               <Text style={styles.inputLabel}>{t.competitionExt.genderFilter}</Text>

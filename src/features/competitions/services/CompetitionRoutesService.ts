@@ -405,6 +405,33 @@ export class CompetitionRoutesService {
     }
   }
 
+  /**
+   * Update a route's position for a specific category
+   * Stores positions per-category in categoryPositions map
+   */
+  static async updateRouteCategoryPosition(
+    competitionId: string,
+    routeId: string,
+    categoryId: string,
+    xNorm: number,
+    yNorm: number
+  ): Promise<void> {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) throw new Error('User not authenticated');
+      await checkManageRoutesPermission(currentUser.uid);
+
+      const routeRef = doc(db, 'competitions', competitionId, 'routes', routeId);
+      await updateDoc(routeRef, {
+        [`categoryPositions.${categoryId}`]: { xNorm, yNorm },
+      });
+      console.log(`Route ${routeId} position updated for category ${categoryId}`);
+    } catch (error) {
+      console.error('Error updating route category position:', error);
+      throw error;
+    }
+  }
+
   // =============== Totemtition-specific ===============
 
   /**
@@ -487,6 +514,8 @@ export class CompetitionRoutesService {
       // Per-route scoring overrides (zone_top format)
       ...(data.pointsTop !== undefined && { pointsTop: data.pointsTop }),
       ...(data.pointsZone !== undefined && { pointsZone: data.pointsZone }),
+      // Per-category positions
+      ...(data.categoryPositions && { categoryPositions: data.categoryPositions }),
     };
   }
 }

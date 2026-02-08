@@ -104,6 +104,9 @@ export interface CompetitionRoute {
   // Per-route scoring overrides (zone_top format)
   pointsTop?: number;                   // custom top points for this route
   pointsZone?: number;                  // custom zone points for this route
+
+  // Per-category positions on wall map (zone_top with categories)
+  categoryPositions?: Record<string, { xNorm: number; yNorm: number }>;
 }
 
 /**
@@ -172,6 +175,7 @@ export interface Category {
   
   order?: number;                       // display order
   participantCount?: number;            // cached count of participants
+  routePrefix?: string;                 // route label prefix (e.g., 'M' → M1, M2...)
 }
 
 // =============== Results Types ===============

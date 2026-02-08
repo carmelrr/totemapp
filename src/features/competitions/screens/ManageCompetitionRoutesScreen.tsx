@@ -15,6 +15,7 @@ import {
   Modal,
   TextInput,
   Dimensions,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -29,9 +30,10 @@ import {
   useCompetitionRoutes,
 } from '@/features/competitions/hooks/useCompetition';
 import { CompetitionRoutesService } from '@/features/competitions/services/CompetitionRoutesService';
-import { CompetitionRoute } from '@/features/competitions/types';
+import { CompetitionRoute, Category } from '@/features/competitions/types';
 import { NATIONAL_LEAGUE_GRADE_POINTS, TOTEMTITION_SETTINGS, isZoneTopFormat } from '@/features/competitions/constants';
 import CompetitionWallMap from '@/features/competitions/components/CompetitionWallMap';
+import { ParticipantService } from '@/features/competitions/services/ParticipantService';
 import { usePublishedRooms } from '@/features/wall-editor/hooks/usePublishedRooms';
 import { useEditorMap } from '@/features/wall-editor/hooks/useEditorMap';
 import { snapNormToNearestWall } from '@/utils/snapToWall';
@@ -99,6 +101,49 @@ export default function ManageCompetitionRoutesScreen() {
   // Color picker modal
   const [showColorModal, setShowColorModal] = useState(false);
   const [selectedRouteForColor, setSelectedRouteForColor] = useState<CompetitionRoute | null>(null);
+
+  // Per-category map positioning (zone_top with categories)
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const hasCategories = isZoneTop && competition?.settings?.enableCategories && categories.length > 0;
+
+  // Load categories for zone_top format
+  React.useEffect(() => {
+    if (!isZoneTop || !competition?.settings?.enableCategories) return;
+    ParticipantService.getCategories(competitionId).then(cats => {
+      setCategories(cats);
+      if (cats.length > 0 && !selectedCategoryId) {
+        setSelectedCategoryId(cats[0].id);
+      }
+    }).catch(() => setCategories([]));
+  }, [competitionId, isZoneTop, competition?.settings?.enableCategories]);
+
+  // Get the selected category object
+  const selectedCategory = useMemo(() => 
+    categories.find(c => c.id === selectedCategoryId) || null,
+    [categories, selectedCategoryId]
+  );
+
+  // Build routes with category-specific positions for the map
+  const routesForMap = useMemo(() => {
+    if (!hasCategories || !selectedCategoryId) return routes;
+    return routes.map(r => {
+      const catPos = r.categoryPositions?.[selectedCategoryId];
+      if (catPos) {
+        return { ...r, xNorm: catPos.xNorm, yNorm: catPos.yNorm };
+      }
+      // Route not yet positioned for this category
+      return { ...r, xNorm: 0, yNorm: 0 };
+    });
+  }, [routes, hasCategories, selectedCategoryId]);
+
+  // Get route display label (with category prefix)
+  const getRouteLabel = useCallback((routeNumber: number) => {
+    if (hasCategories && selectedCategory?.routePrefix) {
+      return `${selectedCategory.routePrefix}${routeNumber}`;
+    }
+    return String(routeNumber);
+  }, [hasCategories, selectedCategory]);
 
   const styles = createStyles(theme);
 
@@ -300,17 +345,27 @@ export default function ManageCompetitionRoutesScreen() {
 
     setIsSubmitting(true);
     try {
-      await CompetitionRoutesService.updateRoute(
-        competitionId,
-        selectedRouteForPlacement.id,
-        {
+      if (hasCategories && selectedCategoryId) {
+        // Per-category positioning
+        await CompetitionRoutesService.updateRouteCategoryPosition(
+          competitionId,
+          selectedRouteForPlacement.id,
+          selectedCategoryId,
           xNorm,
           yNorm,
-        }
-      );
+        );
+      } else {
+        // Standard positioning
+        await CompetitionRoutesService.updateRoute(
+          competitionId,
+          selectedRouteForPlacement.id,
+          { xNorm, yNorm }
+        );
+      }
       
       // Move to next unplaced route or exit placement mode
-      const nextUnplaced = routes.find(r => 
+      const currentRoutes = hasCategories ? routesForMap : routes;
+      const nextUnplaced = currentRoutes.find(r => 
         r.id !== selectedRouteForPlacement.id && 
         (!r.xNorm || !r.yNorm || r.xNorm === 0 || r.yNorm === 0)
       );
@@ -330,11 +385,12 @@ export default function ManageCompetitionRoutesScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [competitionId, selectedRouteForPlacement, routes, refresh, mapRoom]);
+  }, [competitionId, selectedRouteForPlacement, routes, routesForMap, refresh, mapRoom, hasCategories, selectedCategoryId]);
 
   // Start placing routes on map
   const handleStartPlacingRoutes = () => {
-    const unplacedRoutes = routes.filter(r => !r.xNorm || !r.yNorm || r.xNorm === 0 || r.yNorm === 0);
+    const currentRoutes = hasCategories ? routesForMap : routes;
+    const unplacedRoutes = currentRoutes.filter(r => !r.xNorm || !r.yNorm || r.xNorm === 0 || r.yNorm === 0);
     if (unplacedRoutes.length === 0) {
       Alert.alert('שים לב', 'כל המסלולים כבר ממוקמים על המפה');
       setViewMode('map');
@@ -415,9 +471,10 @@ export default function ManageCompetitionRoutesScreen() {
     }
   };
 
-  // Get routes positioned on map
-  const positionedRoutes = routes.filter(r => r.xNorm && r.yNorm && r.xNorm > 0 && r.yNorm > 0);
-  const unpositionedRoutes = routes.filter(r => !r.xNorm || !r.yNorm || r.xNorm === 0 || r.yNorm === 0);
+  // Get routes positioned on map (use category-specific positions when applicable)
+  const currentRoutes = hasCategories ? routesForMap : routes;
+  const positionedRoutes = currentRoutes.filter(r => r.xNorm && r.yNorm && r.xNorm > 0 && r.yNorm > 0);
+  const unpositionedRoutes = currentRoutes.filter(r => !r.xNorm || !r.yNorm || r.xNorm === 0 || r.yNorm === 0);
 
   const handleDeleteAllRoutes = () => {
     Alert.alert(
@@ -473,7 +530,7 @@ export default function ManageCompetitionRoutesScreen() {
       <View style={styles.routeItem}>
         <View style={[styles.routeNumber, { backgroundColor: routeColor }]}>
           <Text style={[styles.routeNumberText, { color: getContrastTextColor(routeColor) }]}>
-            {item.routeNumber}
+            {getRouteLabel(item.routeNumber)}
           </Text>
         </View>
         <View style={styles.routeInfo}>
@@ -536,7 +593,7 @@ export default function ManageCompetitionRoutesScreen() {
           <Ionicons name="arrow-forward" size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {isPlacingRoute ? `מיקום מסלול ${selectedRouteForPlacement?.routeNumber}` : '🗺️ מסלולי תחרות'}
+          {isPlacingRoute ? `מיקום מסלול ${selectedRouteForPlacement ? getRouteLabel(selectedRouteForPlacement.routeNumber) : ''}` : '🗺️ מסלולי תחרות'}
         </Text>
         <View style={styles.placeholder} />
       </View>
@@ -574,6 +631,31 @@ export default function ManageCompetitionRoutesScreen() {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Category Selector - shown when categories have prefixes */}
+      {hasCategories && (
+        <View style={styles.categorySelectorContainer}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categorySelectorScroll}>
+            {categories.map(cat => (
+              <TouchableOpacity
+                key={cat.id}
+                style={[
+                  styles.categorySelectorBtn,
+                  selectedCategoryId === cat.id && styles.categorySelectorBtnActive,
+                ]}
+                onPress={() => setSelectedCategoryId(cat.id)}
+              >
+                <Text style={[
+                  styles.categorySelectorBtnText,
+                  selectedCategoryId === cat.id && styles.categorySelectorBtnTextActive,
+                ]}>
+                  {cat.name}{cat.routePrefix ? ` (${cat.routePrefix})` : ''}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       {/* Stats */}
       <View style={styles.statsBar}>
@@ -681,13 +763,14 @@ export default function ManageCompetitionRoutesScreen() {
                 onRoutePress={handleRoutePress}
                 selectedRouteId={selectedRouteForPlacement?.id}
                 room={mapRoom}
+                routePrefix={selectedCategory?.routePrefix}
               />
               
               {/* Placement mode controls */}
               {isPlacingRoute && (
                 <View style={styles.placementControls}>
                   <Text style={styles.placementText}>
-                    לחץ על המפה למיקום מסלול {selectedRouteForPlacement?.routeNumber}
+                    לחץ על המפה למיקום מסלול {selectedRouteForPlacement ? getRouteLabel(selectedRouteForPlacement.routeNumber) : ''}
                   </Text>
                   <View style={styles.placementButtons}>
                     {unpositionedRoutes.length > 0 && (
@@ -1009,6 +1092,34 @@ const createStyles = (theme: any) =>
     },
     placeholder: {
       width: 32,
+    },
+    categorySelectorContainer: {
+      paddingHorizontal: 16,
+      paddingTop: 12,
+      paddingBottom: 4,
+    },
+    categorySelectorScroll: {
+      gap: 8,
+    },
+    categorySelectorBtn: {
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 20,
+      backgroundColor: theme.card,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    categorySelectorBtnActive: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
+    categorySelectorBtnText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    categorySelectorBtnTextActive: {
+      color: '#fff',
     },
     statsBar: {
       flexDirection: 'row',

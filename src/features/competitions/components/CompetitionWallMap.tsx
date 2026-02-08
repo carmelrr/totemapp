@@ -37,6 +37,8 @@ interface CompetitionWallMapProps {
   circleSize?: number;
   /** Room data for rendering the dynamic wall map (optional — shows fallback if not provided) */
   room?: Room | null;
+  /** Route prefix to prepend to route numbers (e.g., "M" → M1, M2) */
+  routePrefix?: string;
 }
 
 /**
@@ -57,6 +59,7 @@ export default function CompetitionWallMap({
   routeCompletionCounts = {},
   circleSize,
   room,
+  routePrefix,
 }: CompetitionWallMapProps) {
   const { theme } = useTheme();
   const { t } = useLanguage();
@@ -239,6 +242,7 @@ export default function CompetitionWallMap({
                   isCompleted={userCompletedRoutes.includes(route.id)}
                   completionCount={routeCompletionCounts[route.id]}
                   circleSize={circleSize}
+                  displayLabel={routePrefix ? `${routePrefix}${route.routeNumber}` : undefined}
                 />
               ))}
             </View>

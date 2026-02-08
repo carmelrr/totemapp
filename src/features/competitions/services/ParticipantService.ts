@@ -718,6 +718,7 @@ export class ParticipantService {
       maxAge?: number;
       skillLevels?: SkillLevel[];
       order?: number;
+      routePrefix?: string;
     }
   ): Promise<string> {
     try {
@@ -738,6 +739,7 @@ export class ParticipantService {
         skillLevels: data.skillLevels || null,
         order: data.order || 0,
         participantCount: 0,
+        routePrefix: data.routePrefix || null,
       };
 
       const docRef = await addDoc(categoriesRef, categoryData);
@@ -763,6 +765,7 @@ export class ParticipantService {
       maxAge?: number | null;
       skillLevels?: SkillLevel[] | null;
       order?: number;
+      routePrefix?: string | null;
     }
   ): Promise<void> {
     try {
@@ -783,6 +786,7 @@ export class ParticipantService {
       if (data.maxAge !== undefined) updateData.maxAge = data.maxAge;
       if (data.skillLevels !== undefined) updateData.skillLevels = data.skillLevels;
       if (data.order !== undefined) updateData.order = data.order;
+      if (data.routePrefix !== undefined) updateData.routePrefix = data.routePrefix;
 
       await updateDoc(categoryRef, updateData);
       console.log('Category updated:', categoryId);
@@ -887,6 +891,7 @@ export class ParticipantService {
           skillLevels: data.skillLevels || undefined,
           order: data.order,
           participantCount: data.participantCount || 0,
+          routePrefix: data.routePrefix || undefined,
         };
       });
     } catch (error) {

@@ -33,6 +33,7 @@ import {
   CompetitionRoute,
   ParticipantResult,
   RouteResult,
+  Category,
 } from '@/features/competitions/types';
 import { NATIONAL_LEAGUE_GRADE_POINTS } from '@/features/competitions/constants';
 import { isZoneTopFormat, formatIFSCResult } from '@/features/competitions/constants';
@@ -79,12 +80,42 @@ export default function JudgeEntryScreen() {
   const [topAchieved, setTopAchieved] = useState(false);
   const [topAttempt, setTopAttempt] = useState('1');
 
+  // Categories for route prefix display
+  const [categories, setCategories] = useState<Category[]>([]);
+
   const styles = createStyles(theme);
 
   // Check if this is a Totemtition competition with self-reporting
   const isTotemtition = competition?.format === 'totemtition';
   const isZoneTop = competition?.format ? isZoneTopFormat(competition.format) : false;
   const hasZone = isZoneTop && (competition?.settings?.enableZone !== false);
+
+  // Load categories for route prefix display
+  useEffect(() => {
+    if (!isZoneTop || !competitionId) return;
+    const loadCategories = async () => {
+      try {
+        const cats = await ParticipantService.getCategories(competitionId);
+        setCategories(cats);
+      } catch (error) {
+        console.error('Error loading categories:', error);
+      }
+    };
+    loadCategories();
+  }, [isZoneTop, competitionId]);
+
+  // Get route label with prefix based on current participant's category
+  const getRouteLabel = useCallback((routeNumber: number): string => {
+    const currentParticipant = selectedParticipant || selfParticipant;
+    if (!currentParticipant?.category || categories.length === 0) {
+      return String(routeNumber);
+    }
+    const cat = categories.find(c => c.id === currentParticipant.category);
+    if (cat?.routePrefix) {
+      return `${cat.routePrefix}${routeNumber}`;
+    }
+    return String(routeNumber);
+  }, [categories, selectedParticipant, selfParticipant]);
 
   // Subscribe to route completion counts by category for Totemtition
   useEffect(() => {
@@ -305,13 +336,13 @@ export default function JudgeEntryScreen() {
         if (topAchieved) {
           Alert.alert(
             t.competitionExt.completedStatus,
-            t.competitionExt.routeCompleted(selectedRoute.routeNumber.toString())
+            t.competitionExt.routeCompleted(getRouteLabel(selectedRoute.routeNumber))
           );
         }
       } else if (completed) {
         Alert.alert(
           t.competitionExt.completedStatus,
-          t.competitionExt.routeCompleted(selectedRoute.routeNumber.toString())
+          t.competitionExt.routeCompleted(getRouteLabel(selectedRoute.routeNumber))
         );
       }
     } catch (error) {
@@ -565,7 +596,7 @@ export default function JudgeEntryScreen() {
         onPress={() => handleRoutePress(item)}
       >
         <View style={styles.routeNumber}>
-          <Text style={styles.routeNumberText}>{item.routeNumber}</Text>
+          <Text style={styles.routeNumberText}>{getRouteLabel(item.routeNumber)}</Text>
         </View>
         
         <View style={styles.routeInfo}>
@@ -727,7 +758,7 @@ export default function JudgeEntryScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {t.competitionExt.routeLabel(selectedRoute?.routeNumber ?? 0)}
+                {selectedRoute ? getRouteLabel(selectedRoute.routeNumber) : t.competitionExt.routeLabel(0)}
               </Text>
               <TouchableOpacity onPress={() => setShowResultModal(false)}>
                 <Ionicons name="close" size={24} color={theme.text} />

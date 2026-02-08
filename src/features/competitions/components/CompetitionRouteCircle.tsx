@@ -31,6 +31,7 @@ interface CompetitionRouteCircleProps {
   completionCount?: number; // For totemtition - show how many completed
   isCompleted?: boolean; // For totemtition - if current user completed this route
   circleSize?: number; // Override default circle size
+  displayLabel?: string; // Override label (e.g., "M1" instead of "1")
 }
 
 /**
@@ -75,6 +76,7 @@ const arePropsEqual = (
   if (prevProps.isCompleted !== nextProps.isCompleted) return false;
   if (prevProps.completionCount !== nextProps.completionCount) return false;
   if (prevProps.circleSize !== nextProps.circleSize) return false;
+  if (prevProps.displayLabel !== nextProps.displayLabel) return false;
   
   return true;
 };
@@ -95,6 +97,7 @@ const CompetitionRouteCircle = React.memo<CompetitionRouteCircleProps>(({
   completionCount,
   isCompleted = false,
   circleSize: customCircleSize,
+  displayLabel,
 }) => {
   // Default circle size if not provided
   const baseCircleSize = customCircleSize ?? 16;
@@ -233,14 +236,14 @@ const CompetitionRouteCircle = React.memo<CompetitionRouteCircleProps>(({
     [interactive, onPress, route]
   );
 
-  // Display route number (1-based)
-  const routeNumber = route.routeNumber ?? route.number ?? 0;
+  // Display route number (1-based) or custom label
+  const routeLabel = displayLabel ?? String(route.routeNumber ?? route.number ?? 0);
 
   return (
     <GestureDetector gesture={tapGesture}>
       <Animated.View style={[circleStyle, shadowStyle]}>
         <Animated.Text style={textStyle} allowFontScaling={false}>
-          {routeNumber}
+          {routeLabel}
         </Animated.Text>
       </Animated.View>
     </GestureDetector>
