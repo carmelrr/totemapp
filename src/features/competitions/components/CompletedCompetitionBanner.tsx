@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 import { Competition } from '@/features/competitions/types';
 import { COMPETITION_FORMAT_INFO } from '@/features/competitions/constants';
 
@@ -25,6 +26,7 @@ export function CompletedCompetitionBanner({
   onPress,
 }: CompletedCompetitionBannerProps) {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const formatInfo = COMPETITION_FORMAT_INFO[competition.format];
   
   const styles = createStyles(theme);
@@ -38,11 +40,11 @@ export function CompletedCompetitionBanner({
       <View style={styles.header}>
         <View style={styles.completedBadge}>
           <Ionicons name="trophy" size={14} color="#fff" />
-          <Text style={styles.completedText}>תחרות הסתיימה</Text>
+          <Text style={styles.completedText}>{t.competitionExt.competitionCompleted}</Text>
         </View>
         <View style={styles.resultsAvailableBadge}>
           <Ionicons name="eye" size={12} color="#fff" />
-          <Text style={styles.resultsAvailableText}>תוצאות זמינות</Text>
+          <Text style={styles.resultsAvailableText}>{t.competitionExt.resultsAvailable}</Text>
         </View>
       </View>
 
@@ -58,7 +60,7 @@ export function CompletedCompetitionBanner({
 
       <TouchableOpacity style={styles.viewButton} onPress={onPress}>
         <Ionicons name="podium" size={18} color="#fff" />
-        <Text style={styles.viewButtonText}>צפה בתוצאות</Text>
+        <Text style={styles.viewButtonText}>{t.competitionExt.viewResultsBanner}</Text>
       </TouchableOpacity>
     </TouchableOpacity>
   );

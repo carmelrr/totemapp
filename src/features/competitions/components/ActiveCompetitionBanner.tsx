@@ -109,7 +109,7 @@ export function ActiveCompetitionBanner({
               color="#fff" 
             />
             <Text style={styles.registeredBadgeText}>
-              {isApproved ? 'משתתף רשום' : 'ממתין לאישור'}
+              {isApproved ? t.competitionExt.registeredParticipant : t.competitionExt.waitingForApproval}
             </Text>
           </View>
         )}
@@ -128,7 +128,7 @@ export function ActiveCompetitionBanner({
             onPress={onEnterResults}
           >
             <Ionicons name="create" size={18} color="#fff" />
-            <Text style={styles.enterResultsButtonText}>הזן תוצאות</Text>
+            <Text style={styles.enterResultsButtonText}>{t.competitionExt.enterResultsAction}</Text>
           </TouchableOpacity>
         )}
         

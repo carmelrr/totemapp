@@ -102,7 +102,7 @@ export default function CompetitionRegistrationScreen() {
         competitionId,
         user.uid,
         {
-          displayName: user.displayName || 'משתתף',
+          displayName: user.displayName || t.competitionExt.defaultParticipantName,
           email: user.email || undefined,
           phone: phone || undefined,
           photoURL: user.photoURL || undefined,

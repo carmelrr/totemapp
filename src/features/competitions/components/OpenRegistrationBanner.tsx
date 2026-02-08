@@ -30,7 +30,7 @@ export function OpenRegistrationBanner({
   onRegisterPress,
 }: OpenRegistrationBannerProps) {
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useAuth();
   const formatInfo = COMPETITION_FORMAT_INFO[competition.format];
   
@@ -67,7 +67,7 @@ export function OpenRegistrationBanner({
   }, [competition.id, user]);
 
   // Format the start date
-  const startDate = competition.startDate.toLocaleDateString('he-IL', {
+  const startDate = competition.startDate.toLocaleDateString(language === 'he' ? 'he-IL' : 'en-US', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
@@ -77,9 +77,9 @@ export function OpenRegistrationBanner({
     if (!isRegistered) return null;
 
     const statusLabels: Record<string, { text: string; color: string; icon: keyof typeof Ionicons.glyphMap }> = {
-      pending_approval: { text: 'ממתין לאישור', color: '#f39c12', icon: 'time' },
-      approved: { text: 'רשום ומאושר ✓', color: '#27ae60', icon: 'checkmark-circle' },
-      rejected: { text: 'נדחה', color: '#e74c3c', icon: 'close-circle' },
+      pending_approval: { text: t.competitionExt.waitingApproval, color: '#f39c12', icon: 'time' },
+      approved: { text: t.competitionExt.registeredAndApproved, color: '#27ae60', icon: 'checkmark-circle' },
+      rejected: { text: t.competitionExt.rejected, color: '#e74c3c', icon: 'close-circle' },
     };
 
     const status = statusLabels[registrationStatus || ''] || statusLabels.pending_approval;
@@ -131,13 +131,13 @@ export function OpenRegistrationBanner({
             styles.registrationText,
             isPendingApproval && styles.registrationTextPending
           ]}>
-            {isApprovedParticipant ? 'נרשמת בהצלחה!' : isPendingApproval ? 'ממתין לאישור' : 'הרשמה פתוחה!'}
+            {isApprovedParticipant ? t.competitionExt.registeredSuccess : isPendingApproval ? t.competitionExt.waitingForApprovalBanner : t.competitionExt.registrationOpen}
           </Text>
         </View>
         <View style={styles.startDateContainer}>
           <Ionicons name="calendar-outline" size={14} color={theme.textSecondary} />
           <Text style={styles.startDateText}>
-            מתחילה: {startDate}
+            {t.competitionExt.startsOn(startDate)}
           </Text>
         </View>
       </View>
@@ -166,7 +166,7 @@ export function OpenRegistrationBanner({
             <View style={styles.approvedMessage}>
               <Ionicons name="checkmark-circle" size={18} color="#27ae60" />
               <Text style={styles.approvedMessageText}>
-                ההרשמה אושרה! התחרות עדיין לא התחילה - נודיע לך כשתתחיל
+                {t.competitionExt.approvedWaitingForStart}
               </Text>
             </View>
           </View>
@@ -175,7 +175,7 @@ export function OpenRegistrationBanner({
             <View style={styles.pendingMessage}>
               <Ionicons name="time" size={20} color="#f39c12" />
               <Text style={styles.pendingMessageText}>
-                הבקשה נשלחה וממתינה לאישור שופט
+                {t.competitionExt.requestSentWaiting}
               </Text>
             </View>
           </View>
@@ -184,18 +184,18 @@ export function OpenRegistrationBanner({
             <View style={styles.rejectedMessage}>
               <Ionicons name="close-circle" size={18} color="#e74c3c" />
               <Text style={styles.rejectedMessageText}>
-                הבקשה נדחתה
+                {t.competitionExt.requestRejected}
               </Text>
             </View>
             <TouchableOpacity style={styles.registerButton} onPress={onRegisterPress}>
               <Ionicons name="refresh" size={18} color="#fff" />
-              <Text style={styles.registerButtonText}>נסה שוב</Text>
+              <Text style={styles.registerButtonText}>{t.competitionExt.tryAgain}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <TouchableOpacity style={styles.registerButton} onPress={onRegisterPress}>
             <Ionicons name="person-add" size={18} color="#fff" />
-            <Text style={styles.registerButtonText}>הירשם עכשיו</Text>
+            <Text style={styles.registerButtonText}>{t.competitionExt.registerNow}</Text>
           </TouchableOpacity>
         )}
       </View>

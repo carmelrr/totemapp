@@ -17,7 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '@/features/theme/ThemeContext';
+import { useTheme } from '@/features/theme/ThemeContext';\nimport { useLanguage } from '@/features/language';
 import { useAdmin } from '@/context/AdminContext';
 import { useRolesContext } from '@/features/roles/RolesContext';
 import { useAuth } from '@/context/AuthContext';
@@ -49,6 +49,7 @@ type TabType = 'overview' | 'participants' | 'leaderboard' | 'map';
 
 export default function ManageCompetitionScreen() {
   const { theme } = useTheme();
+  const { t, language } = useLanguage();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { competitionId, initialTab } = route.params;
@@ -637,7 +638,7 @@ export default function ManageCompetitionScreen() {
         <View style={styles.tabContent}>
           <View style={styles.mapLoadingContainer}>
             <ActivityIndicator size="large" color={theme.primary} />
-            <Text style={styles.mapLoadingText}>טוען מפת מסלולים...</Text>
+            <Text style={styles.mapLoadingText}>{t.competitionExt.loadingRouteMap}</Text>
           </View>
         </View>
       );
@@ -648,11 +649,11 @@ export default function ManageCompetitionScreen() {
         <View style={styles.tabContent}>
           <View style={styles.mapEmptyContainer}>
             <Ionicons name="map-outline" size={64} color={theme.textSecondary} />
-            <Text style={styles.mapEmptyTitle}>אין מסלולים על המפה</Text>
+            <Text style={styles.mapEmptyTitle}>{t.competitionExt.noRoutesOnMap}</Text>
             <Text style={styles.mapEmptyText}>
               {rolesContext.isJudgeRole 
-                ? 'לך למסלולי תחרות כדי למקם מסלולים על המפה'
-                : 'המסלולים עדיין לא מוקמו על המפה'}
+                ? t.competitionExt.noRoutesOnMap
+                : t.competitionExt.noRoutesOnMap}
             </Text>
             {rolesContext.isJudgeRole && (
               <TouchableOpacity
@@ -660,7 +661,7 @@ export default function ManageCompetitionScreen() {
                 onPress={() => navigation.navigate('ManageCompetitionRoutes', { competitionId })}
               >
                 <Ionicons name="map" size={18} color="#fff" />
-                <Text style={styles.goToRoutesBtnText}>מסלולי תחרות</Text>
+                <Text style={styles.goToRoutesBtnText}>{t.competitionExt.competitionRoutesTitle}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -690,13 +691,13 @@ export default function ManageCompetitionScreen() {
         <View style={styles.mapLegend}>
           <Text style={styles.mapLegendTitle}>
             {competition.format === 'national_league' 
-              ? '🏅 מפת מסלולי ליגה' 
-              : '🎯 מפת מסלולי תחרוטוטם'}
+              ? `🏅 ${COMPETITION_FORMAT_INFO.national_league.label}` 
+              : `🎯 ${COMPETITION_FORMAT_INFO.totemtition.label}`}
           </Text>
           <Text style={styles.mapLegendText}>
             {competition.format === 'totemtition' && competition.status === 'active'
-              ? 'לחץ על מסלול להזנת ניקוד'
-              : `${positionedRoutes.length} מסלולים על המפה`}
+              ? t.competitionExt.tapToPlaceBadge
+              : `${positionedRoutes.length} ${t.competitionExt.routesCount}`}
           </Text>
         </View>
       </View>
@@ -707,10 +708,10 @@ export default function ManageCompetitionScreen() {
   // For viewer-only users, show map and leaderboard tabs (not overview/participants which are admin-only)
   // Add map tab when competition is active and has routes
   const allTabs: { key: TabType; label: string; icon: string }[] = [
-    { key: 'overview', label: 'סקירה', icon: 'home' },
-    { key: 'participants', label: 'משתתפים', icon: 'people' },
-    { key: 'map', label: 'מפה', icon: 'map' },
-    { key: 'leaderboard', label: 'דירוג', icon: 'trophy' },
+    { key: 'overview', label: t.competitionExt.tabOverview, icon: 'home' },
+    { key: 'participants', label: t.competitionExt.tabParticipants, icon: 'people' },
+    { key: 'map', label: t.competitionExt.tabMap, icon: 'map' },
+    { key: 'leaderboard', label: t.competitionExt.tabLeaderboard, icon: 'trophy' },
   ];
   
   // Filter tabs based on user permissions
