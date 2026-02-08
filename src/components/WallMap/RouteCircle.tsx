@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
-import { Vibration } from 'react-native';
-import Animated, { useAnimatedStyle, useDerivedValue, SharedValue, runOnJS } from 'react-native-reanimated';
+import { Vibration, TouchableOpacity, StyleSheet, Text } from 'react-native';
+import Animated, { useAnimatedStyle, SharedValue, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { RouteDoc } from '@/features/routes-map/types/route';
 import { getColorHex, getContrastTextColor } from '@/constants/colors';
@@ -89,69 +89,54 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     return null;
   }
 
-  // גודל קבוע על המסך - העיגולים שומרים על אותו קוטר פיזי (למשל 32px) 
-  // גם כשעושים זום על המפה. מחלקים ב-scale כדי לפצות על הזום.
-  const compensatedSize = useDerivedValue(() => {
-    const currentScale = scale?.value ?? 1;
-    const safeScale = Number.isFinite(currentScale) && currentScale > 0 
-      ? Math.min(Math.max(currentScale, 0.1), 10) 
-      : 1;
-    
-    // מחלקים בscale כדי שהגודל על המסך יישאר קבוע
-    return precomputedValues.baseSize / safeScale;
-  });
+  // גודל קבוע על המסך - משתמשים ב-transform scale במקום שינוי גודל
+  // זה מונע ריצוד כי ה-transform מיושם באופן אטומי ע"י מנוע הרינדור
+  
+  // חישוב גודל וoffset קבועים (ללא תלות ב-scale)
+  const baseSize = precomputedValues.baseSize;
+  const baseOffset = baseSize / 2;
+  const baseBorderWidth = selected ? 3 : 1;
 
-  const compensatedFontSize = useDerivedValue(() => {
-    const currentScale = scale?.value ?? 1;
-    const safeScale = Number.isFinite(currentScale) && currentScale > 0 
-      ? Math.min(Math.max(currentScale, 0.1), 10) 
-      : 1;
-    
-    return precomputedValues.baseFontSize / safeScale;
-  });
-
-  // Offset למרכוז העיגול
-  const compensatedOffset = useDerivedValue(() => {
-    return compensatedSize.value / 2;
-  });
-
-  // Border width שמפצה על הזום
-  const compensatedBorderWidth = useDerivedValue(() => {
-    const currentScale = scale?.value ?? 1;
-    const safeScale = Number.isFinite(currentScale) && currentScale > 0 
-      ? Math.min(Math.max(currentScale, 0.1), 10) 
-      : 1;
-    const baseBorder = selected ? 3 : 1;
-    return baseBorder / safeScale;
-  });
-
-  // עיצוב העיגול - גודל קבוע על המסך
+  // עיצוב העיגול - מיקום קבוע, transform לפיצוי זום
   const circleStyle = useAnimatedStyle(() => {
-    const size = compensatedSize.value;
-    const offset = compensatedOffset.value;
-    const borderW = compensatedBorderWidth.value;
+    const currentScale = scale?.value ?? 1;
+    const safeScale = Number.isFinite(currentScale) && currentScale > 0 
+      ? Math.min(Math.max(currentScale, 0.1), 10) 
+      : 1;
+    
+    // At low zoom (scale ≤ 1.8), show circles at HALF size to reduce overlap.
+    // Smoothly transition to full size between scale 1.8 and 2.2.
+    // Above 2.2, circles stay at full user-chosen size (zoom-compensated as before).
+    const sizeFactor = interpolate(
+      safeScale,
+      [1.0, 1.8, 2.2],
+      [0.5, 0.5, 1.0],
+      Extrapolation.CLAMP
+    );
     
     return {
       position: 'absolute',
-      left: precomputedValues.xImg - offset,
-      top: precomputedValues.yImg - offset,
-      width: size,
-      height: size,
-      borderRadius: size / 2,
+      left: precomputedValues.xImg - baseOffset,
+      top: precomputedValues.yImg - baseOffset,
+      width: baseSize,
+      height: baseSize,
+      borderRadius: baseSize / 2,
       backgroundColor: precomputedValues.colorHex,
-      borderWidth: borderW,
+      borderWidth: baseBorderWidth,
       borderColor: selected ? '#0066cc' : '#ffffff',
       elevation: selected ? 8 : 4,
       justifyContent: 'center',
       alignItems: 'center',
+      transform: [{ scale: sizeFactor / safeScale }],
     };
   });
 
-  const textStyle = useAnimatedStyle(() => ({
-    fontSize: compensatedFontSize.value,
+  // הטקסט לא צריך פיצוי נפרד - ה-transform של ההורה כבר מטפל בזה
+  const textStyle = {
+    fontSize: precomputedValues.baseFontSize,
     fontWeight: 'bold' as const,
     color: precomputedValues.textColor,
-  }));
+  };
 
   const shadowStyle = {
     shadowColor: '#000000',
@@ -170,45 +155,25 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     onLongPress?.(route);
   };
 
-  // Gesture handlers using react-native-gesture-handler
-  const tapGesture = useMemo(() => 
-    Gesture.Tap()
-      .enabled(!gesturesDisabled)
-      .hitSlop({ top: 10, bottom: 10, left: 10, right: 10 })
-      .onEnd(() => {
-        'worklet';
-        runOnJS(handlePress)();
-      }),
-    [route, onPress, gesturesDisabled]
-  );
-
-  const longPressGesture = useMemo(() =>
-    Gesture.LongPress()
-      .minDuration(400)
-      .enabled(!gesturesDisabled)
-      .hitSlop({ top: 10, bottom: 10, left: 10, right: 10 })
-      // שימוש ב-onStart במקום onEnd כדי להפעיל מיד כשהלחיצה הארוכה מזוהה
-      // ולא לחכות עד שהאצבע עוזבת את המסך
-      .onStart(() => {
-        'worklet';
-        runOnJS(handleLongPress)();
-      }),
-    [route, onLongPress, gesturesDisabled]
-  );
-
-  const composedGesture = useMemo(() =>
-    Gesture.Exclusive(longPressGesture, tapGesture),
-    [longPressGesture, tapGesture]
-  );
-
+  // Use TouchableOpacity for reliable touch detection at any zoom level
+  // The touch area is the full circle which maintains correct position
   return (
-    <GestureDetector gesture={composedGesture}>
-      <Animated.View style={[circleStyle, shadowStyle]}>
-        <Animated.Text style={textStyle}>
-          {route.grade || '?'}
-        </Animated.Text>
-      </Animated.View>
-    </GestureDetector>
+    <Animated.View style={[circleStyle, shadowStyle]} pointerEvents="box-none">
+      <TouchableOpacity
+        style={StyleSheet.absoluteFill}
+        onPress={gesturesDisabled ? undefined : handlePress}
+        onLongPress={gesturesDisabled || !onLongPress ? undefined : handleLongPress}
+        delayLongPress={400}
+        activeOpacity={0.7}
+        disabled={gesturesDisabled}
+      >
+        <Animated.View style={styles.innerContainer}>
+          <Text style={textStyle}>
+            {route.grade || '?'}
+          </Text>
+        </Animated.View>
+      </TouchableOpacity>
+    </Animated.View>
   );
 }, (prevProps, nextProps) => {
   // React.memo comparison function for optimization
@@ -221,10 +186,20 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     prevProps.wallWidth === nextProps.wallWidth &&
     prevProps.wallHeight === nextProps.wallHeight &&
     prevProps.scale === nextProps.scale && // השוואת reference במקום קריאת value
-    prevProps.gesturesDisabled === nextProps.gesturesDisabled
+    prevProps.gesturesDisabled === nextProps.gesturesDisabled &&
+    prevProps.onPress === nextProps.onPress &&
+    prevProps.onLongPress === nextProps.onLongPress
   );
 });
 
 RouteCircle.displayName = 'RouteCircle';
+
+const styles = StyleSheet.create({
+  innerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
 
 export default RouteCircle;

@@ -1,9 +1,12 @@
 // src/components/spray/ColorPicker.tsx
 // Simple color picker for route colors
 
-import React from "react";
+import React, { useMemo } from "react";
 import { View, TouchableOpacity, StyleSheet, Text } from "react-native";
 import { useLanguage } from "@/features/language";
+import { useTheme, lightTheme } from "@/features/theme/ThemeContext";
+
+type Theme = typeof lightTheme;
 
 const ROUTE_COLORS = [
   { name: "אדום", value: "#FF4444" },
@@ -27,6 +30,8 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   onSelectColor,
 }) => {
   const { t } = useLanguage();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
     <View style={styles.container}>
@@ -58,13 +63,14 @@ export const ColorPicker: React.FC<ColorPickerProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+// Dynamic styles based on theme
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     padding: 12,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.surface,
   },
   label: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 8,
@@ -79,12 +85,12 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.3)",
+    borderColor: theme.isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.2)",
     justifyContent: "center",
     alignItems: "center",
   },
   colorButtonSelected: {
-    borderColor: "#fff",
+    borderColor: theme.text,
     borderWidth: 3,
   },
   checkmark: {

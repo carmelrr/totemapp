@@ -3,7 +3,7 @@
  * @description Screen for creating/editing announcements with preview
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -23,7 +23,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import Slider from '@react-native-community/slider';
-import { useTheme } from '@/features/theme/ThemeContext';
+import { useTheme, lightTheme } from '@/features/theme/ThemeContext';
 import { useRolesContext } from '@/features/roles/RolesContext';
 import { useLanguage } from '@/features/language';
 import {
@@ -43,12 +43,15 @@ import {
 } from '../announcementService';
 import { AnnouncementCard } from '../components/AnnouncementCard';
 
+type Theme = typeof lightTheme;
+
 export function AnnouncementEditorScreen() {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const navigation = useNavigation();
   const route = useRoute();
   const { canManageAnnouncements } = useRolesContext();
+  const styles = useMemo(() => createStyles(theme), [theme]);
   
   const announcementId = (route.params as any)?.announcementId;
   const isEditing = !!announcementId;
@@ -393,7 +396,7 @@ export function AnnouncementEditorScreen() {
               />
               <View style={styles.imageBackgroundActions}>
                 <TouchableOpacity
-                  style={[styles.imageActionButton, { backgroundColor: theme.primary }]}
+                  style={[styles.imageActionButton, { backgroundColor: theme.buttonPrimary }]}
                   onPress={() => setShowImageEditor(true)}
                 >
                   <Ionicons name="settings" size={18} color="#FFFFFF" />
@@ -622,7 +625,7 @@ export function AnnouncementEditorScreen() {
           <Text style={styles.draftButtonText}>שמור טיוטה</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.footerButton, styles.publishButton, { backgroundColor: theme.primary }]}
+          style={[styles.footerButton, styles.publishButton, { backgroundColor: theme.buttonPrimary }]}
           onPress={() => handleSave(false)}
           disabled={saving}
         >
@@ -839,7 +842,7 @@ export function AnnouncementEditorScreen() {
 
             {/* Done Button */}
             <TouchableOpacity
-              style={[styles.doneButton, { backgroundColor: theme.primary }]}
+              style={[styles.doneButton, { backgroundColor: theme.buttonPrimary }]}
               onPress={() => setShowImageEditor(false)}
             >
               <Text style={styles.doneButtonText}>סיום עריכה</Text>
@@ -956,9 +959,10 @@ export function AnnouncementEditorScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: theme.background,
   },
   loadingContainer: {
     flex: 1,
@@ -973,7 +977,7 @@ const styles = StyleSheet.create({
   },
   accessDeniedText: {
     fontSize: 18,
-    color: '#666',
+    color: theme.textSecondary,
     marginTop: 16,
   },
   header: {
@@ -984,6 +988,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
+    backgroundColor: theme.headerGradient,
   },
   headerButton: {
     padding: 8,
@@ -1008,11 +1013,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
     textAlign: 'right',
+    color: theme.text,
   },
   input: {
     borderRadius: 12,
     padding: 14,
     fontSize: 16,
+    backgroundColor: theme.inputBackground,
+    color: theme.text,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
   textArea: {
     minHeight: 100,
@@ -1024,12 +1034,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 12,
     borderRadius: 12,
+    backgroundColor: theme.surface,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
   selectedIcon: {
     fontSize: 32,
   },
   changeText: {
     fontSize: 14,
+    color: theme.primary,
   },
   backgroundPresets: {
     flexDirection: 'row',
@@ -1053,6 +1067,9 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     gap: 12,
+    backgroundColor: theme.surface,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
   dateInfo: {
     flex: 1,
@@ -1060,10 +1077,12 @@ const styles = StyleSheet.create({
   },
   dateLabel: {
     fontSize: 12,
+    color: theme.textSecondary,
   },
   dateValue: {
     fontSize: 15,
     fontWeight: '500',
+    color: theme.text,
   },
   // CTA Button Styling
   ctaPreviewContainer: {
@@ -1084,6 +1103,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginTop: 12,
     marginBottom: 8,
+    color: theme.textSecondary,
   },
   colorOptionsRow: {
     flexDirection: 'row',
@@ -1099,11 +1119,11 @@ const styles = StyleSheet.create({
   },
   whiteColorOption: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
   },
   selectedColorOption: {
     borderWidth: 3,
-    borderColor: '#3B82F6',
+    borderColor: theme.primary,
   },
   sliderRow: {
     flexDirection: 'row',
@@ -1114,6 +1134,7 @@ const styles = StyleSheet.create({
   sliderValueText: {
     fontSize: 13,
     fontWeight: '500',
+    color: theme.text,
   },
   ctaSlider: {
     width: '100%',
@@ -1124,7 +1145,8 @@ const styles = StyleSheet.create({
     padding: 16,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: theme.border,
+    backgroundColor: theme.surface,
   },
   footerButton: {
     flex: 1,
@@ -1133,14 +1155,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   draftButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.card,
   },
   draftButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#374151',
+    color: theme.text,
   },
-  publishButton: {},
+  publishButton: {
+    backgroundColor: theme.buttonPrimary,
+  },
   publishButtonText: {
     fontSize: 16,
     fontWeight: '600',
@@ -1156,6 +1180,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     padding: 20,
     maxHeight: '60%',
+    backgroundColor: theme.modalBackground,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1166,6 +1191,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
+    color: theme.text,
   },
   iconsGrid: {
     flexDirection: 'row',
@@ -1179,26 +1205,29 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     borderRadius: 12,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.card,
   },
   selectedIconOption: {
-    backgroundColor: '#3B82F6',
+    backgroundColor: theme.primary,
   },
   iconOptionText: {
     fontSize: 28,
   },
   previewContainer: {
     flex: 1,
+    backgroundColor: theme.background,
   },
   previewHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
+    backgroundColor: theme.surface,
   },
   previewTitle: {
     fontSize: 18,
     fontWeight: '600',
+    color: theme.text,
   },
   previewContent: {
     flex: 1,
@@ -1234,9 +1263,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   imagePickerButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.card,
     borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderColor: theme.border,
     borderStyle: 'dashed',
   },
   // Image Editor Modal Styles
@@ -1245,6 +1274,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     maxHeight: '90%',
     paddingBottom: 20,
+    backgroundColor: theme.modalBackground,
   },
   imageEditorPreview: {
     marginHorizontal: 16,
@@ -1267,10 +1297,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     flex: 1,
+    color: theme.text,
   },
   sliderValue: {
     fontSize: 13,
     fontWeight: '500',
+    color: theme.textSecondary,
   },
   slider: {
     width: '100%',
@@ -1291,7 +1323,7 @@ const styles = StyleSheet.create({
   selectedOverlayColor: {
     borderWidth: 3,
     borderColor: '#FFFFFF',
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
@@ -1307,16 +1339,19 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginTop: 8,
     marginBottom: 16,
+    borderColor: theme.border,
   },
   resetButtonText: {
     fontSize: 14,
     fontWeight: '500',
+    color: theme.textSecondary,
   },
   doneButton: {
     marginHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
+    backgroundColor: theme.buttonPrimary,
   },
   doneButtonText: {
     color: '#FFFFFF',

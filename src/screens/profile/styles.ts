@@ -1,10 +1,31 @@
-import { StyleSheet } from "react-native";
+import { StyleSheet, Dimensions } from "react-native";
 import { lightTheme } from "@/features/theme/ThemeContext";
 
 type Theme = typeof lightTheme;
 
-export const createStyles = (theme: Theme) =>
-  StyleSheet.create({
+interface LayoutInfo {
+  isLandscape: boolean;
+  isTablet: boolean;
+  width: number;
+  height: number;
+}
+
+interface InsetsInfo {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsInfo) => {
+  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const isLandscape = layout?.isLandscape ?? screenWidth > screenHeight;
+  const isTablet = layout?.isTablet ?? false;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  const horizontalPadding = isLandscape ? Math.max(insets?.left ?? 0, insets?.right ?? 0, 20) : 20;
+  const contentMaxWidth = isLandscape ? Math.min((layout?.width ?? screenWidth) * 0.7, 600) : undefined;
+  
+  return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.background,
@@ -15,38 +36,37 @@ export const createStyles = (theme: Theme) =>
     scrollContent: {
       flexGrow: 1,
       paddingBottom: 20,
+      alignItems: isLandscape ? 'center' : undefined,
     },
     // Header styles
     header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
       backgroundColor: theme.headerGradient,
-      paddingTop: 10,
-      paddingHorizontal: 20,
-      paddingBottom: 15,
-      borderBottomLeftRadius: 25,
-      borderBottomRightRadius: 25,
-      shadowColor: "#000",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
-      shadowRadius: 10,
-      elevation: 8,
+      paddingVertical: isPhoneLandscape ? 8 : 14,
+      paddingHorizontal: Math.max(horizontalPadding, 16),
     },
     headerContent: {
       flexDirection: "row",
-      justifyContent: "space-between",
+      justifyContent: "center",
       alignItems: "center",
-    },
-    headerTitle: {
-      fontSize: 24,
-      fontWeight: "bold",
-      color: "#fff",
-      textAlign: "right",
+      gap: 8,
       flex: 1,
     },
+    headerTitle: {
+      fontSize: isPhoneLandscape ? 18 : 20,
+      fontWeight: "bold",
+      color: "#fff",
+      textAlign: "center",
+    },
     menuButton: {
-      backgroundColor: "rgba(255,255,255,0.2)",
+      position: 'absolute',
+      right: horizontalPadding,
+      backgroundColor: "rgba(255,255,255,0.15)",
       borderRadius: 12,
-      padding: 12,
-      marginLeft: 15,
+      padding: 8,
     },
     menuIcon: {
       fontSize: 20,
@@ -65,8 +85,8 @@ export const createStyles = (theme: Theme) =>
     socialSection: {
       backgroundColor: theme.surface,
       borderRadius: 20,
-      padding: 20,
-      margin: 20,
+      padding: isPhoneLandscape ? 15 : 20,
+      margin: horizontalPadding,
       marginTop: 15,
       marginBottom: 15,
       shadowColor: theme.shadow,
@@ -74,6 +94,9 @@ export const createStyles = (theme: Theme) =>
       shadowOpacity: 0.12,
       shadowRadius: 12,
       elevation: 5,
+      maxWidth: contentMaxWidth,
+      width: isLandscape ? '100%' : undefined,
+      alignSelf: isLandscape ? 'center' : undefined,
     },
     socialTabs: {
       flexDirection: "row",
@@ -162,7 +185,7 @@ export const createStyles = (theme: Theme) =>
       fontWeight: "500",
     },
     followButton: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingHorizontal: 18,
       paddingVertical: 10,
       borderRadius: 20,
@@ -323,7 +346,7 @@ export const createStyles = (theme: Theme) =>
       color: theme.text,
     },
     editButton: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingVertical: 14,
       paddingHorizontal: 20,
       borderRadius: 12,
@@ -541,7 +564,7 @@ export const createStyles = (theme: Theme) =>
       gap: 10,
     },
     defaultAvatarButton: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingVertical: 10,
       paddingHorizontal: 16,
       borderRadius: 10,
@@ -923,3 +946,4 @@ export const createStyles = (theme: Theme) =>
       fontWeight: "bold",
     },
   });
+};

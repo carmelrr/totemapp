@@ -43,16 +43,15 @@ export default function RouteMarkersLayer({
           { imgW: imageWidth, imgH: imageHeight }
         );
 
-        const markerSize = 36;
-        let left = xImg - markerSize / 2;
-        let top = yImg - markerSize / 2;
+        // Position at exact center - the marker will center itself
+        // This prevents jitter since we don't offset based on size
+        let left = xImg;
+        let top = yImg;
         // Clamp positions so markers do not render completely outside
         if (!Number.isFinite(left) || !Number.isFinite(top)) {
           left = 0;
           top = 0;
         }
-        left = Math.max(0, left);
-        top = Math.max(0, top);
         return (
           <Animated.View
             key={route.id}
@@ -81,7 +80,9 @@ export default function RouteMarkersLayer({
 const styles = StyleSheet.create({
   markerContainer: {
     position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
+    // Center the marker at this position using transform
+    // This is more stable than using left/top offset since
+    // the position doesn't change when scale changes
+    transform: [{ translateX: -18 }, { translateY: -18 }],
   },
 });

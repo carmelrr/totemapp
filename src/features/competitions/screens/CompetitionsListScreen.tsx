@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
 import { useAdmin } from '@/context/AdminContext';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useAllCompetitions } from '@/features/competitions/hooks/useCompetition';
 import { Competition } from '@/features/competitions/types';
 import { CompetitionService } from '@/features/competitions/services/CompetitionService';
@@ -197,9 +198,12 @@ export default function CompetitionsListScreen() {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-forward" size={24} color={theme.text} />
+          <Ionicons name="arrow-forward" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t.competitionsList.title}</Text>
+        <View style={styles.headerCenter}>
+          <BrandLogo variant="icon" color="white" size={24} />
+          <Text style={styles.headerTitle}>{t.competitionsList.title}</Text>
+        </View>
         <View style={styles.placeholder} />
       </View>
 
@@ -258,27 +262,32 @@ const createStyles = (theme: any) =>
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: 16,
-      paddingVertical: 16,
-      backgroundColor: theme.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      paddingVertical: 14,
+      backgroundColor: theme.headerGradient,
     },
     backButton: {
-      padding: 4,
+      padding: 8,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.15)',
+    },
+    headerCenter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
     },
     headerTitle: {
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: 'bold',
-      color: theme.text,
+      color: '#fff',
     },
     placeholder: {
-      width: 32,
+      width: 40,
     },
     createButton: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       marginHorizontal: 16,
       marginVertical: 12,
       paddingVertical: 14,
@@ -387,7 +396,7 @@ const createStyles = (theme: any) =>
       alignItems: 'flex-end',
     },
     actionButton: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingHorizontal: 20,
       paddingVertical: 10,
       borderRadius: 8,

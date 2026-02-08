@@ -1,21 +1,30 @@
 // src/components/spray/HoldTypePicker.tsx
 // Component for selecting hold type (start/middle/feet)
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { HoldType, HOLD_TYPES } from '@/features/spraywall/types';
 import { useLanguage } from '@/features/language';
+import { useTheme, lightTheme } from '@/features/theme/ThemeContext';
+
+type Theme = typeof lightTheme;
 
 interface HoldTypePickerProps {
   selectedType: HoldType;
   onSelectType: (type: HoldType) => void;
+  /** Compact mode for landscape side panel */
+  compact?: boolean;
 }
 
 export const HoldTypePicker: React.FC<HoldTypePickerProps> = ({
   selectedType,
   onSelectType,
+  compact = false,
 }) => {
   const { t } = useLanguage();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme, compact), [theme, compact]);
+  
   const types: HoldType[] = ['start', 'middle', 'feet'];
 
   return (
@@ -52,36 +61,38 @@ export const HoldTypePicker: React.FC<HoldTypePickerProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+// Dynamic styles based on theme
+const createStyles = (theme: Theme, compact: boolean = false) => StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#2a2a2a',
+    paddingHorizontal: compact ? 4 : 16,
+    paddingVertical: compact ? 6 : 12,
+    backgroundColor: compact ? 'transparent' : theme.surface,
   },
   label: {
-    color: '#fff',
-    fontSize: 14,
+    color: theme.text,
+    fontSize: compact ? 10 : 14,
     fontWeight: '600',
-    marginBottom: 10,
-    textAlign: 'right',
+    marginBottom: compact ? 4 : 10,
+    textAlign: compact ? 'center' : 'right',
   },
   buttonRow: {
-    flexDirection: 'row',
+    flexDirection: compact ? 'column' : 'row',
     justifyContent: 'space-between',
-    gap: 8,
+    gap: compact ? 4 : 8,
   },
   button: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    borderWidth: 3,
+    flex: compact ? undefined : 1,
+    paddingVertical: compact ? 6 : 12,
+    paddingHorizontal: compact ? 4 : 8,
+    borderRadius: compact ? 6 : 8,
+    borderWidth: compact ? 2 : 3,
     backgroundColor: 'transparent',
     alignItems: 'center',
+    minWidth: compact ? 60 : undefined,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 14,
+    color: theme.text,
+    fontSize: compact ? 10 : 14,
     fontWeight: '600',
   },
   buttonTextSelected: {

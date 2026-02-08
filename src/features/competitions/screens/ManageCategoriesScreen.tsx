@@ -618,7 +618,7 @@ const createStyles = (theme: any) =>
       color: theme.text,
     },
     addButton: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       borderRadius: 20,
       padding: 8,
     },
@@ -658,7 +658,7 @@ const createStyles = (theme: any) =>
     actionButton: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingHorizontal: 16,
       paddingVertical: 10,
       borderRadius: 8,
@@ -897,7 +897,7 @@ const createStyles = (theme: any) =>
       color: '#fff',
     },
     submitButton: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       margin: 16,
       padding: 14,
       borderRadius: 8,

@@ -1,9 +1,9 @@
-/**
+﻿/**
  * @fileoverview Roles Management Screen
  * @description Admin screen for managing user roles
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -26,6 +26,11 @@ import {
   subscribeToAllUsersWithRoles,
 } from './rolesService';
 import { useRolesContext } from './RolesContext';
+import { useTheme, lightTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
+import { BrandLogo } from '@/components/ui/BrandLogo';
+
+type Theme = typeof lightTheme;
 
 const ROLE_COLORS: Record<UserRole, string> = {
   route_setter: '#4CAF50',
@@ -37,6 +42,10 @@ const ROLE_COLORS: Record<UserRole, string> = {
 
 export function RolesManagementScreen() {
   const { canManageRoles, loading: roleLoading } = useRolesContext();
+  const { theme } = useTheme();
+  const { t } = useLanguage();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  
   const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,7 +67,7 @@ export function RolesManagementScreen() {
       },
       (error) => {
         console.error('Error subscribing to users with roles:', error);
-        Alert.alert('שגיאה', 'לא הצלחנו לטעון את רשימת המשתמשים');
+        Alert.alert(t.roles.error, t.roles.loadError);
         setLoading(false);
       }
     );
@@ -88,7 +97,7 @@ export function RolesManagementScreen() {
       setUsers(results);
     } catch (error) {
       console.error('Error searching users:', error);
-      Alert.alert('שגיאה', 'לא הצלחנו לחפש משתמשים');
+      Alert.alert(t.roles.error, t.roles.searchError);
     } finally {
       setSearching(false);
     }
@@ -125,10 +134,10 @@ export function RolesManagementScreen() {
         )
       );
       setModalVisible(false);
-      Alert.alert('הצלחה', 'התפקידים עודכנו בהצלחה');
+      Alert.alert(t.roles.success, t.roles.rolesUpdated);
     } catch (error) {
       console.error('Error saving roles:', error);
-      Alert.alert('שגיאה', 'לא הצלחנו לשמור את התפקידים');
+      Alert.alert(t.roles.error, t.roles.saveError);
     } finally {
       setSaving(false);
     }
@@ -149,13 +158,13 @@ export function RolesManagementScreen() {
       onPress={() => openEditModal(item)}
     >
       <View style={styles.userInfo}>
-        <Text style={styles.userName}>{item.displayName || 'משתמש ללא שם'}</Text>
+        <Text style={styles.userName}>{item.displayName || t.roles.userWithoutName}</Text>
         <Text style={styles.userEmail}>{item.email}</Text>
         <View style={styles.rolesContainer}>
           {item.roles.length > 0 ? (
             item.roles.map(renderRoleBadge)
           ) : (
-            <Text style={styles.noRoles}>ללא תפקידים</Text>
+            <Text style={styles.noRoles}>{t.roles.noRoles}</Text>
           )}
         </View>
       </View>
@@ -207,7 +216,7 @@ export function RolesManagementScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.accessDenied}>
           <Ionicons name="lock-closed" size={64} color="#ccc" />
-          <Text style={styles.accessDeniedText}>אין לך הרשאה לצפות בעמוד זה</Text>
+          <Text style={styles.accessDeniedText}>{t.roles.noPermission}</Text>
         </View>
       </SafeAreaView>
     );
@@ -216,7 +225,8 @@ export function RolesManagementScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>ניהול תפקידים</Text>
+        <BrandLogo variant="icon" color="white" size={24} />
+        <Text style={styles.headerTitle}>{t.roles.title}</Text>
       </View>
 
       <View style={styles.searchContainer}>
@@ -224,7 +234,7 @@ export function RolesManagementScreen() {
           <Ionicons name="search" size={20} color="#666" />
           <TextInput
             style={styles.searchInput}
-            placeholder="חיפוש משתמש לפי שם או אימייל..."
+            placeholder={t.roles.searchPlaceholder}
             value={searchQuery}
             onChangeText={setSearchQuery}
             onSubmitEditing={handleSearch}
@@ -242,7 +252,7 @@ export function RolesManagementScreen() {
           )}
         </View>
         <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
-          <Text style={styles.searchButtonText}>חפש</Text>
+          <Text style={styles.searchButtonText}>{t.roles.search}</Text>
         </TouchableOpacity>
       </View>
 
@@ -258,7 +268,7 @@ export function RolesManagementScreen() {
             <View style={styles.emptyState}>
               <Ionicons name="people-outline" size={48} color="#ccc" />
               <Text style={styles.emptyText}>
-                {searchQuery ? 'לא נמצאו תוצאות' : 'אין משתמשים עם תפקידים'}
+                {searchQuery ? t.roles.noResults : t.roles.noUsersWithRoles}
               </Text>
             </View>
           }
@@ -274,14 +284,14 @@ export function RolesManagementScreen() {
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <TouchableOpacity onPress={() => setModalVisible(false)}>
-              <Text style={styles.modalCancel}>ביטול</Text>
+              <Text style={styles.modalCancel}>{t.roles.cancel}</Text>
             </TouchableOpacity>
-            <Text style={styles.modalTitle}>עריכת תפקידים</Text>
+            <Text style={styles.modalTitle}>{t.roles.editRoles}</Text>
             <TouchableOpacity onPress={saveRoles} disabled={saving}>
               {saving ? (
                 <ActivityIndicator size="small" color="#007AFF" />
               ) : (
-                <Text style={styles.modalSave}>שמור</Text>
+                <Text style={styles.modalSave}>{t.roles.save}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -290,12 +300,12 @@ export function RolesManagementScreen() {
             <View style={styles.modalContent}>
               <View style={styles.selectedUserInfo}>
                 <Text style={styles.selectedUserName}>
-                  {selectedUser.displayName || 'משתמש ללא שם'}
+                  {selectedUser.displayName || t.roles.userWithoutName}
                 </Text>
                 <Text style={styles.selectedUserEmail}>{selectedUser.email}</Text>
               </View>
 
-              <Text style={styles.rolesTitle}>בחר תפקידים:</Text>
+              <Text style={styles.rolesTitle}>{t.roles.selectRoles}</Text>
 
               <View style={styles.rolesList}>
                 {(Object.keys(ROLES) as UserRole[]).map(renderRoleOption)}
@@ -308,36 +318,39 @@ export function RolesManagementScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+// Dynamic styles based on theme
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    paddingVertical: 14,
+    backgroundColor: theme.headerGradient,
   },
-  title: {
-    fontSize: 24,
+  headerTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
-    textAlign: 'right',
+    color: '#fff',
   },
   searchContainer: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: theme.border,
   },
   searchInputContainer: {
     flex: 1,
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: theme.inputBackground,
     borderRadius: 8,
     paddingHorizontal: 12,
     marginLeft: 12,
@@ -348,9 +361,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     fontSize: 16,
     textAlign: 'right',
+    color: theme.text,
   },
   searchButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: theme.buttonPrimary,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 8,
@@ -367,13 +381,13 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   userCard: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -387,14 +401,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     marginBottom: 4,
+    color: theme.text,
   },
   userEmail: {
     fontSize: 14,
-    color: '#666',
+    color: theme.textSecondary,
     marginBottom: 8,
   },
   rolesContainer: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 6,
   },
@@ -409,7 +424,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   noRoles: {
-    color: '#999',
+    color: theme.textSecondary,
     fontSize: 12,
     fontStyle: 'italic',
   },
@@ -419,7 +434,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
+    color: theme.textSecondary,
     marginTop: 12,
   },
   accessDenied: {
@@ -429,34 +444,35 @@ const styles = StyleSheet.create({
   },
   accessDeniedText: {
     fontSize: 18,
-    color: '#999',
+    color: theme.textSecondary,
     marginTop: 16,
   },
   // Modal styles
   modalContainer: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.background,
   },
   modalHeader: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: theme.border,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
+    color: theme.text,
   },
   modalCancel: {
-    color: '#666',
+    color: theme.textSecondary,
     fontSize: 16,
   },
   modalSave: {
-    color: '#007AFF',
+    color: theme.primary,
     fontSize: 16,
     fontWeight: '600',
   },
@@ -464,7 +480,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   selectedUserInfo: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     padding: 16,
     borderRadius: 12,
     alignItems: 'center',
@@ -474,29 +490,31 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 4,
+    color: theme.text,
   },
   selectedUserEmail: {
     fontSize: 14,
-    color: '#666',
+    color: theme.textSecondary,
   },
   rolesTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
     textAlign: 'right',
+    color: theme.text,
   },
   rolesList: {
     gap: 8,
   },
   roleOption: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: theme.border,
   },
   roleOptionContent: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     alignItems: 'center',
   },
   roleCheckbox: {
@@ -504,7 +522,7 @@ const styles = StyleSheet.create({
     height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#ccc',
+    borderColor: theme.border,
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 12,
@@ -517,9 +535,10 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 2,
+    color: theme.text,
   },
   roleOptionDesc: {
     fontSize: 13,
-    color: '#666',
+    color: theme.textSecondary,
   },
 });

@@ -94,28 +94,44 @@ export function OpenRegistrationBanner({
 
   // If user is registered and approved, show a "registered successfully" banner
   const isApprovedParticipant = isRegistered && registrationStatus === 'approved';
+  const isPendingApproval = isRegistered && registrationStatus === 'pending_approval';
+
+  // Handle press - only navigate if user is not registered or is approved
+  const handlePress = () => {
+    // If pending approval, don't navigate - just show the status
+    if (isPendingApproval) {
+      return;
+    }
+    // Otherwise, go to registration/details page
+    onRegisterPress?.();
+  };
 
   return (
     <TouchableOpacity
       style={[
         styles.container, 
-        isApprovedParticipant && styles.containerRegistered
+        isApprovedParticipant && styles.containerRegistered,
+        isPendingApproval && styles.containerPending
       ]}
-      onPress={onRegisterPress}
-      activeOpacity={0.8}
+      onPress={handlePress}
+      activeOpacity={isPendingApproval ? 1 : 0.8}
     >
       <View style={styles.header}>
         <View style={[
           styles.registrationBadge,
-          isApprovedParticipant && styles.registrationBadgeApproved
+          isApprovedParticipant && styles.registrationBadgeApproved,
+          isPendingApproval && styles.registrationBadgePending
         ]}>
           <Ionicons 
-            name={isApprovedParticipant ? "checkmark-circle" : "person-add"} 
+            name={isApprovedParticipant ? "checkmark-circle" : isPendingApproval ? "time" : "person-add"} 
             size={16} 
-            color="#27ae60" 
+            color={isPendingApproval ? "#f39c12" : "#27ae60"} 
           />
-          <Text style={styles.registrationText}>
-            {isApprovedParticipant ? 'נרשמת בהצלחה!' : 'הרשמה פתוחה!'}
+          <Text style={[
+            styles.registrationText,
+            isPendingApproval && styles.registrationTextPending
+          ]}>
+            {isApprovedParticipant ? 'נרשמת בהצלחה!' : isPendingApproval ? 'ממתין לאישור' : 'הרשמה פתוחה!'}
           </Text>
         </View>
         <View style={styles.startDateContainer}>
@@ -148,17 +164,32 @@ export function OpenRegistrationBanner({
         ) : isApprovedParticipant ? (
           <View style={styles.approvedContainer}>
             <View style={styles.approvedMessage}>
-              <Ionicons name="time-outline" size={18} color={theme.textSecondary} />
+              <Ionicons name="checkmark-circle" size={18} color="#27ae60" />
               <Text style={styles.approvedMessageText}>
-                התחרות עדיין לא התחילה - נודיע לך כשתתחיל!
+                ההרשמה אושרה! התחרות עדיין לא התחילה - נודיע לך כשתתחיל
               </Text>
             </View>
           </View>
-        ) : isRegistered ? (
-          <View style={styles.registeredContainer}>
-            {getStatusBadge()}
-            <TouchableOpacity style={styles.viewDetailsButton} onPress={onRegisterPress}>
-              <Text style={styles.viewDetailsButtonText}>צפה בפרטים</Text>
+        ) : isPendingApproval ? (
+          <View style={styles.pendingContainer}>
+            <View style={styles.pendingMessage}>
+              <Ionicons name="time" size={20} color="#f39c12" />
+              <Text style={styles.pendingMessageText}>
+                הבקשה נשלחה וממתינה לאישור שופט
+              </Text>
+            </View>
+          </View>
+        ) : isRegistered && registrationStatus === 'rejected' ? (
+          <View style={styles.rejectedContainer}>
+            <View style={styles.rejectedMessage}>
+              <Ionicons name="close-circle" size={18} color="#e74c3c" />
+              <Text style={styles.rejectedMessageText}>
+                הבקשה נדחתה
+              </Text>
+            </View>
+            <TouchableOpacity style={styles.registerButton} onPress={onRegisterPress}>
+              <Ionicons name="refresh" size={18} color="#fff" />
+              <Text style={styles.registerButtonText}>נסה שוב</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -274,7 +305,7 @@ const createStyles = (theme: any) =>
       fontWeight: 'bold',
     },
     viewDetailsButton: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingVertical: 10,
       paddingHorizontal: 16,
       borderRadius: 10,
@@ -320,7 +351,57 @@ const createStyles = (theme: any) =>
     },
     approvedMessageText: {
       fontSize: 13,
-      color: theme.textSecondary,
+      color: '#27ae60',
       textAlign: 'center',
+      fontWeight: '500',
+    },
+    containerPending: {
+      backgroundColor: theme.isDark ? '#3d3a1a' : '#fef9e7',
+      borderColor: '#f39c12',
+    },
+    pendingContainer: {
+      alignItems: 'center',
+    },
+    pendingMessage: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      backgroundColor: theme.isDark ? 'rgba(243, 156, 18, 0.2)' : 'rgba(243, 156, 18, 0.15)',
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: '#f39c12',
+    },
+    pendingMessageText: {
+      fontSize: 14,
+      color: '#d68910',
+      textAlign: 'center',
+      fontWeight: '600',
+    },
+    rejectedContainer: {
+      alignItems: 'center',
+      gap: 10,
+    },
+    rejectedMessage: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: theme.isDark ? 'rgba(231, 76, 60, 0.2)' : 'rgba(231, 76, 60, 0.1)',
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 10,
+    },
+    rejectedMessageText: {
+      fontSize: 13,
+      color: '#e74c3c',
+      textAlign: 'center',
+      fontWeight: '500',
+    },
+    registrationBadgePending: {
+      backgroundColor: theme.isDark ? 'rgba(243, 156, 18, 0.3)' : 'rgba(243, 156, 18, 0.2)',
+    },
+    registrationTextPending: {
+      color: '#d68910',
     },
   });

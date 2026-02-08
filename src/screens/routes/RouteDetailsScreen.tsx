@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,7 @@ import {
   StatusBar,
   TextInput,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
@@ -17,11 +18,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
 import WallMap from '@/components/WallMap/WallMap';
 import { RouteDoc } from '@/features/routes-map/types/route';
+import { SwipeableRouteContainer } from '@/components/routes/SwipeableRouteContainer';
+import { useRouteNavigationStore } from '@/store/useRouteNavigationStore';
 import { Route } from '../../types/routes';
 import { useAuth } from '@/context/AuthContext';
 import { FeedbackService } from '@/features/routes-map/services/FeedbackService';
+import { RoutesService } from '@/features/routes-map/services/RoutesService';
 import { useLanguage } from '@/features/language';
 import { VideoLinkInput, VideoLinkButton } from '@/components/feedback';
+import { RouteStatsSection } from '@/components/feedback/RouteStatsSection';
+import { CachedAvatar } from '@/components/ui/CachedAvatar';
+import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
+import { usePublishedRooms } from '@/features/wall-editor';
 
 // V-Scale grades for selector
 const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12'];
@@ -58,6 +66,7 @@ interface RouteFeedback {
   userId?: string;
   userName?: string;
   userDisplayName?: string;
+  userPhotoURL?: string;
   starRating: number;
   suggestedGrade: string;
   comment?: string;
@@ -99,11 +108,28 @@ export default function RouteDetailsScreen() {
   const { t, language } = useLanguage();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const layout = useResponsiveLayout();
+  const { isLandscape, isTablet, width, height } = layout;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  
+  // Published rooms (dynamic wall maps)
+  const { rooms: publishedRooms } = usePublishedRooms();
+  const selectedRoom = useMemo(() => {
+    if (publishedRooms.length > 0) return publishedRooms[0];
+    return null;
+  }, [publishedRooms]);
+  
+  // Wall dimensions from selected room
+  const wallWidth = selectedRoom?.width || 2560;
+  const wallHeight = selectedRoom?.height || 1600;
   
   // Create dynamic styles based on theme
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
   
-  const routeData = route.params?.route;
+  // Active route data — starts from nav params, updates on swipe
+  const initialRouteData = route.params?.route;
+  const [activeRouteData, setActiveRouteData] = useState(initialRouteData);
+  const routeData = activeRouteData;
   
   // Guard clause - אם אין routeId
   if (!routeData) {
@@ -126,6 +152,19 @@ export default function RouteDetailsScreen() {
   const [allFeedbacks, setAllFeedbacks] = useState<RouteFeedback[]>([]);
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(true);
   
+  // State for real-time route stats
+  const [liveRouteStats, setLiveRouteStats] = useState<{
+    averageStarRating: number;
+    calculatedGrade: string | null;
+    feedbackCount: number;
+    completionCount: number;
+  }>({
+    averageStarRating: (routeData as any).averageStarRating || 0,
+    calculatedGrade: (routeData as any).calculatedGrade || null,
+    feedbackCount: (routeData as any).feedbackCount || 0,
+    completionCount: (routeData as any).completionCount || 0,
+  });
+  
   // Sent! form state
   const [showSentForm, setShowSentForm] = useState(false);
   const [sentStarRating, setSentStarRating] = useState(0);
@@ -140,6 +179,25 @@ export default function RouteDetailsScreen() {
   useEffect(() => {
     loadAllFeedbacks();
     loadUserSentFeedback();
+    
+    // Subscribe to real-time route updates for stats
+    const unsubscribeRoute = RoutesService.subscribeToRoute(
+      routeData.id,
+      (updatedRoute) => {
+        if (updatedRoute) {
+          setLiveRouteStats({
+            averageStarRating: updatedRoute.averageStarRating || 0,
+            calculatedGrade: updatedRoute.calculatedGrade || null,
+            feedbackCount: updatedRoute.feedbackCount || 0,
+            completionCount: updatedRoute.completionCount || 0,
+          });
+        }
+      }
+    );
+    
+    return () => {
+      unsubscribeRoute();
+    };
   }, [routeData.id]);
 
   // Load all feedbacks for this route (people who completed it)
@@ -213,6 +271,7 @@ export default function RouteDetailsScreen() {
       const feedbackData = {
         userId: user.uid,
         userDisplayName: user.displayName || user.email || 'Anonymous',
+        userPhotoURL: user.photoURL || undefined,
         starRating: sentStarRating,
         suggestedGrade: sentSuggestedGrade,
         comment: sentComment.trim(),
@@ -222,10 +281,8 @@ export default function RouteDetailsScreen() {
       
       if (userSentFeedback) {
         await FeedbackService.updateFeedback(userSentFeedback.id, feedbackData);
-        Alert.alert('הצלחה! 🎉', 'הפידבק שלך עודכן בהצלחה');
       } else {
         await FeedbackService.addFeedbackToRoute(routeData.id, feedbackData);
-        Alert.alert('כל הכבוד! 🏆', 'סגרת את המסלול בהצלחה!\nהדירוג שלך נוסף.');
       }
       
       setShowSentForm(false);
@@ -245,11 +302,41 @@ export default function RouteDetailsScreen() {
   // Get original grade from builder
   const originalGrade = routeData.grade || '';
   
-  // Get community stats
-  const communityGrade = (routeData as any).calculatedGrade || null;
-  const averageStarRating = (routeData as any).averageStarRating || 0;
+  // Get community stats from live state (real-time updates)
+  const communityGrade = liveRouteStats.calculatedGrade;
+  const averageStarRating = liveRouteStats.averageStarRating;
+
+  // Swipe navigation between routes — update local state instead of navigation.replace
+  const routeDataMap = useRouteNavigationStore((s) => s.routeDataMap);
+  const handleSwipeNavigate = useCallback((nextRouteId: string) => {
+    const nextRouteData = routeDataMap[nextRouteId];
+    if (nextRouteData) {
+      // Update route data in-place (no remount)
+      setActiveRouteData(nextRouteData);
+      // Reset live stats to next route's initial values
+      setLiveRouteStats({
+        averageStarRating: nextRouteData.averageStarRating || 0,
+        calculatedGrade: nextRouteData.calculatedGrade || null,
+        feedbackCount: nextRouteData.feedbackCount || 0,
+        completionCount: nextRouteData.completionCount || 0,
+      });
+      // Reset feedback/form state
+      setAllFeedbacks([]);
+      setLoadingFeedbacks(true);
+      setUserSentFeedback(null);
+      setShowSentForm(false);
+      setSentStarRating(0);
+      setSentSuggestedGrade('');
+      setSentComment('');
+      setSentVideoUrl('');
+    }
+  }, [routeDataMap]);
 
   return (
+    <SwipeableRouteContainer
+      currentRouteId={routeData.id}
+      onNavigateToRoute={handleSwipeNavigate}
+    >
     <View style={styles.container}>
       <StatusBar barStyle={textColor === '#FFFFFF' ? 'light-content' : 'dark-content'} />
       
@@ -291,25 +378,26 @@ export default function RouteDetailsScreen() {
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>📍 {t.routes?.locationOnWall || 'מיקום על הקיר'}</Text>
           </View>
-          <View style={styles.wallMapContainer}>
+          <View style={[styles.wallMapContainer, { aspectRatio: wallWidth / wallHeight }]}>
             <WallMap
               routes={[{
                 id: routeData.id,
                 name: routeData.name,
                 grade: routeData.grade,
                 color: routeData.color || '#3B82F6',
-                xNorm: routeData.coordinates?.x || 0.5,
-                yNorm: routeData.coordinates?.y || 0.5,
+                xNorm: routeData.coordinates?.x ?? 0.5,
+                yNorm: routeData.coordinates?.y ?? 0.5,
                 status: 'active' as const,
                 rating: 0,
                 tops: 0,
                 comments: 0,
                 createdAt: routeData.createdAt,
               } as RouteDoc]}
-              wallWidth={2560}
-              wallHeight={1600}
+              wallWidth={wallWidth}
+              wallHeight={wallHeight}
               selectedRouteId={routeData.id}
               gesturesEnabled={true}
+              room={selectedRoom || undefined}
             />
           </View>
         </View>
@@ -495,6 +583,17 @@ export default function RouteDetailsScreen() {
           )}
         </View>
 
+        {/* 📊 Route Statistics Section */}
+        <View style={styles.section}>
+          <RouteStatsSection
+            climbedCount={liveRouteStats.completionCount}
+            feedbacks={allFeedbacks.map(fb => ({ starRating: fb.starRating, suggestedGrade: fb.suggestedGrade }))}
+            averageStarRating={averageStarRating}
+            originalGrade={originalGrade}
+            calculatedGrade={communityGrade}
+          />
+        </View>
+
         {/* All Feedbacks Section - People who completed the route */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -520,11 +619,12 @@ export default function RouteDetailsScreen() {
                 <View key={feedback.id} style={styles.feedbackCard}>
                   {/* User info row */}
                   <View style={styles.feedbackUserRow}>
-                    <View style={styles.feedbackAvatar}>
-                      <Text style={styles.feedbackAvatarText}>
-                        {(feedback.userDisplayName || feedback.userName || 'A').charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
+                    <CachedAvatar
+                      photoURL={feedback.userPhotoURL}
+                      displayName={feedback.userDisplayName || feedback.userName}
+                      size={36}
+                      showBorder={true}
+                    />
                     <Text style={styles.feedbackUserName}>
                       {feedback.userDisplayName || feedback.userName || 'Anonymous'}
                     </Text>
@@ -569,21 +669,31 @@ export default function RouteDetailsScreen() {
         <View style={{ height: 32 }} />
       </ScrollView>
     </View>
+    </SwipeableRouteContainer>
   );
 }
 
 // Dynamic styles factory - uses theme for dark/light mode support
-const createStyles = (theme: any) => StyleSheet.create({
+const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout>, insets?: { left: number; right: number; top: number; bottom: number }) => {
+  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const isLandscape = layout?.isLandscape ?? screenWidth > screenHeight;
+  const isTablet = layout?.isTablet ?? false;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  const horizontalPadding = isLandscape ? Math.max(insets?.left ?? 0, insets?.right ?? 0, 16) : 12;
+  const contentMaxWidth = isLandscape ? Math.min((layout?.width ?? screenWidth) * 0.6, 600) : undefined;
+  
+  return StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.background,
+    flexDirection: isLandscape ? 'row' : 'column',
   },
   // Colored Header
   coloredHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 16,
+    paddingHorizontal: horizontalPadding,
+    paddingVertical: isPhoneLandscape ? 10 : 16,
     paddingTop: 8,
   },
   backButton: {
@@ -600,7 +710,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     width: 44,
   },
   routeName: {
-    fontSize: 22,
+    fontSize: isPhoneLandscape ? 18 : 22,
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -738,7 +848,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   sentStarDisplay: {
     fontSize: 20,
-    color: theme.isDark ? '#4b5563' : '#D1D5DB',
+    color: theme.border,
   },
   sentStarFilled: {
     color: theme.starColor,
@@ -785,7 +895,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   sentStarText: {
     fontSize: 40,
-    color: theme.isDark ? '#4b5563' : '#D1D5DB',
+    color: theme.border,
   },
   gradeScrollView: {
     flexGrow: 0,
@@ -837,7 +947,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: theme.isDark ? '#374151' : '#F3F4F6',
+    backgroundColor: theme.surface,
     alignItems: 'center',
   },
   sentCancelButtonText: {
@@ -932,7 +1042,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   feedbackStar: {
     fontSize: 18,
-    color: theme.isDark ? '#4b5563' : '#D1D5DB',
+    color: theme.border,
   },
   feedbackStarFilled: {
     color: theme.starColor,
@@ -961,7 +1071,6 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 8,
   },
   wallMapContainer: {
-    height: 200,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: theme.mapBackground,
@@ -990,3 +1099,4 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontWeight: '600',
   },
 });
+};

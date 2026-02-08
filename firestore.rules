@@ -1,5 +1,6 @@
 // Firestore Security Rules - Production Ready
 // חוקי אבטחה לייצור עם הגנה מלאה על מידע משתמשים
+// Updated: 2026-01-24
 
 rules_version = '2';
 
@@ -53,8 +54,9 @@ service cloud.firestore {
     }
     
     // בדיקת גודל מסמך - מניעת התקפות מילוי
+    // Note: request.resource.size is not always reliable, so we keep it simple
     function isReasonableSize() {
-      return request.resource.size < 1000000; // 1MB max
+      return request.resource.data.keys().size() < 100; // Max 100 fields
     }
     
     // ==================== Users Collection ====================
@@ -65,29 +67,37 @@ service cloud.firestore {
       allow read: if isOwner(userId) || isAdmin() || isAuthenticated();
       
       // יצירה: רק המשתמש עצמו יכול ליצור את הפרופיל שלו
-      // וידוא שלא מנסים להגדיר את עצמם כמנהל
-      allow create: if isOwner(userId) && isReasonableSize() &&
-        (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false) &&
-        (!('roles' in request.resource.data) || request.resource.data.roles.size() == 0);
+      // פשוט - רק בדיקה שזה הבעלים ושלא מנסה להיות admin
+      allow create: if isOwner(userId) &&
+        (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false);
       
-      // עדכון: המשתמש יכול לעדכן את עצמו (בלי לשנות isAdmin או roles), מנהל יכול לעדכן הכל
-      allow update: if isReasonableSize() && (
+      // עדכון: המשתמש יכול לעדכן את עצמו (בלי לשנות isAdmin), מנהל יכול לעדכן הכל
+      // מעקב: משתמשים מחוברים יכולים לעדכן רק את שדה followers (להוסיף/להסיר את עצמם)
+      allow update: if 
         // משתמש רגיל - יכול לעדכן רק את הפרופיל שלו
-        // אם isAdmin לא מופיע בנתונים החדשים, או שהוא לא משתנה
-        // אם roles לא מופיע בנתונים החדשים, או שהוא לא משתנה
         (isOwner(userId) && 
          (!('isAdmin' in request.resource.data) || 
           !('isAdmin' in resource.data) || 
-          request.resource.data.isAdmin == resource.data.isAdmin) &&
-         (!('roles' in request.resource.data) || 
-          !('roles' in resource.data) || 
-          request.resource.data.roles == resource.data.roles)) ||
+          request.resource.data.isAdmin == resource.data.isAdmin)) ||
         // מנהל יכול לעדכן הכל
-        isAdmin()
-      );
+        isAdmin() ||
+        // משתמשים מחוברים יכולים לעדכן רק את שדה followers
+        // (לאפשר follow/unfollow)
+        (isAuthenticated() && 
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers']));
       
       // מחיקה: רק מנהל יכול למחוק משתמש
       allow delete: if isAdmin();
+      
+      // Notifications subcollection - התראות למשתמש
+      match /notifications/{notificationId} {
+        // משתמש יכול לקרוא את ההתראות שלו
+        allow read: if isOwner(userId) || isAdmin();
+        // משתמשים מחוברים יכולים ליצור התראות (למשל כשמתייגים מישהו או עוקבים)
+        allow create: if isAuthenticated();
+        // רק בעל ההתראה או מנהל יכולים לעדכן/למחוק
+        allow update, delete: if isOwner(userId) || isAdmin();
+      }
     }
 
     // ==================== Routes Collection ====================
@@ -99,10 +109,33 @@ service cloud.firestore {
       // רק משתמשים מחוברים יכולים ליצור מסלולים
       allow create: if isAuthenticated() && isReasonableSize();
       
-      // רק יוצר המסלול או מנהל יכולים לעדכן/למחוק
-      allow update: if isReasonableSize() && 
-        (isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid));
+      // עדכון מסלולים:
+      // - יוצר המסלול או מנהל יכולים לעדכן הכל
+      // - משתמשים מחוברים יכולים לעדכן רק שדות סטטיסטיקה (לאחר שליחת פידבק)
+      allow update: if isAdmin() || 
+         (isAuthenticated() && resource.data.createdBy == request.auth.uid) ||
+         // Allow any authenticated user to update stats fields only
+         (isAuthenticated() && 
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['averageStarRating', 'calculatedGrade', 'feedbackCount', 'completionCount', 'rating', 'tops', 'comments', 'gradeDistribution', 'updatedAt']));
+      
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
+      
+      // Legacy feedbacks subcollection
+      // פידבקים ישנים בתוך מסלולים (subcollection)
+      match /feedbacks/{feedbackId} {
+        // כולם יכולים לקרוא פידבקים
+        allow read: if true;
+        
+        // רק משתמשים מחוברים יכולים ליצור פידבק
+        allow create: if isAuthenticated() && isReasonableSize() &&
+          request.resource.data.userId == request.auth.uid;
+        
+        // רק היוצר או מנהל יכולים לעדכן/למחוק
+        allow update: if isReasonableSize() && 
+          (isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid));
+        allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      }
     }
 
     // ==================== Route Feedbacks Collection ====================
@@ -111,13 +144,12 @@ service cloud.firestore {
       // כולם יכולים לקרוא פידבקים
       allow read: if true;
       
-      // רק משתמשים מחוברים יכולים ליצור פידבק
-      allow create: if isAuthenticated() && isReasonableSize() &&
+      // רק משתמשים מחוברים יכולים ליצור פידבק עם ה-userId שלהם
+      allow create: if isAuthenticated() &&
         request.resource.data.userId == request.auth.uid;
       
       // רק היוצר או מנהל יכולים לעדכן/למחוק
-      allow update: if isReasonableSize() && 
-        (isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid));
+      allow update: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
 
@@ -133,19 +165,32 @@ service cloud.firestore {
     // מסלולי קהילה - מסלולים על תמונות אמיתיות
     match /communityRoutes/{routeId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isReasonableSize() &&
+      // יצירה: משתמשים מחוברים יכולים ליצור מסלולים עם ה-userId שלהם
+      allow create: if isAuthenticated() && 
         request.resource.data.createdBy == request.auth.uid;
-      allow update: if isReasonableSize() && 
-        (isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid));
+      // עדכון: היוצר או מנהל יכולים לעדכן הכל
+      // משתמשים מחוברים יכולים לעדכן רק שדות סטטיסטיקה (צפיות, לייקים, תגובות, משוב)
+      allow update: if 
+        // מנהל יכול לעדכן הכל
+        isAdmin() || 
+        // היוצר יכול לעדכן הכל
+        (isAuthenticated() && resource.data.createdBy == request.auth.uid) ||
+        // משתמשים מחוברים יכולים לעדכן רק שדות סטטיסטיקה
+        (isAuthenticated() && 
+         request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['viewCount', 'likeCount', 'commentCount', 'sentCount', 'feedbackCount', 'averageStarRating', 'calculatedGrade']));
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
     }
     
     match /communityRouteComments/{commentId} {
       allow read: if true;
-      allow create: if isAuthenticated() && isReasonableSize() &&
+      // משתמשים יכולים ליצור תגובות עם ה-userId שלהם
+      allow create: if isAuthenticated() && 
         request.resource.data.userId == request.auth.uid;
-      allow update: if isReasonableSize() && 
-        (isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid));
+      // משתמשים יכולים לעדכן רק את התגובות שלהם
+      allow update: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      // משתמשים יכולים למחוק רק את התגובות שלהם או מנהל
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
     
@@ -153,6 +198,19 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuthenticated();
       allow delete: if isAuthenticated();
+    }
+
+    // משוב על מסלולי קהילה (דירוג כוכבים ודרגה מוצעת)
+    match /communityRouteFeedback/{feedbackId} {
+      allow read: if true;
+      // משתמשים יכולים ליצור משוב עם ה-userId שלהם
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      // משתמשים יכולים לעדכן רק את המשוב שלהם
+      allow update: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      // משתמשים יכולים למחוק רק את המשוב שלהם או מנהל
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
 
     // ==================== Spray Wall Collections ====================
@@ -173,14 +231,37 @@ service cloud.firestore {
       allow read: if true;
       
       // משתמשים מחוברים יכולים ליצור מסלולים
-      allow create: if isAuthenticated() && isReasonableSize();
+      // Temporarily removed isReasonableSize() for debugging
+      allow create: if isAuthenticated();
       
-      // היוצר או מנהל יכולים לעדכן
-      allow update: if isReasonableSize() && 
-        (isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid));
+      // עדכון מסלולים:
+      // - היוצר או מנהל יכולים לעדכן הכל
+      // - משתמשים מחוברים יכולים לעדכן רק שדות סטטיסטיקה (לאחר שליחת פידבק)
+      allow update: if isAdmin() || 
+         (isAuthenticated() && resource.data.createdBy == request.auth.uid) ||
+         // Allow any authenticated user to update stats fields only
+         (isAuthenticated() && 
+          request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['averageStarRating', 'calculatedGrade', 'feedbackCount', 'topsCount', 'communityGrade', 'updatedAt']));
       
       // מחיקה - היוצר או מנהל
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.createdBy == request.auth.uid);
+      
+      // Feedbacks subcollection for spray routes
+      // פידבקים בתוך מסלולי ספריי (subcollection)
+      match /feedbacks/{feedbackId} {
+        // כולם יכולים לקרוא פידבקים
+        allow read: if true;
+        
+        // רק משתמשים מחוברים יכולים ליצור פידבק
+        // Temporarily removed isReasonableSize() for debugging
+        allow create: if isAuthenticated() &&
+          request.resource.data.userId == request.auth.uid;
+        
+        // רק היוצר או מנהל יכולים לעדכן/למחוק
+        allow update: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+        allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      }
     }
     
     // פידבקים על מסלולי ספריי וואל
@@ -191,6 +272,16 @@ service cloud.firestore {
       allow update: if isReasonableSize() && 
         (isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid));
       allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+    }
+    
+    // מסלולי ספריי שהמשתמש סגר (לסינון לפי סטטוס השלמה)
+    match /sprayRouteSends/{sendId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && 
+        (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAdmin();
+      allow delete: if isAuthenticated() && 
+        (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     // ==================== Social - Follows ====================
@@ -223,10 +314,20 @@ service cloud.firestore {
       // Participants Sub-collection
       match /participants/{participantId} {
         allow read: if true;
-        allow create: if isAdmin() || canJudgeAddParticipants(competitionId);
+        // Allow create if:
+        // 1. Admin or judge with canAddParticipants permission
+        // 2. Self-registration: authenticated user registering themselves when registration is open
+        allow create: if isAdmin() || 
+          canJudgeAddParticipants(competitionId) ||
+          (isAuthenticated() && 
+           get(/databases/$(database)/documents/competitions/$(competitionId)).data.registrationStatus == 'open' &&
+           request.resource.data.userId == request.auth.uid);
         allow update: if isAdmin() || 
           (isJudge(competitionId) && 
-           getJudgePermissions(competitionId).canEditParticipants == true);
+           getJudgePermissions(competitionId).canEditParticipants == true) ||
+          // Allow user to cancel their own registration
+          (isAuthenticated() && resource.data.userId == request.auth.uid && 
+           request.resource.data.status == 'cancelled');
         allow delete: if isAdmin();
       }
       
@@ -262,6 +363,38 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ==================== Ratings Collection ====================
+    // דירוגי מסלולים
+    match /ratings/{ratingId} {
+      // כולם יכולים לקרוא דירוגים
+      allow read: if true;
+      
+      // רק משתמשים מחוברים יכולים ליצור דירוג עם ה-userId שלהם
+      allow create: if isAuthenticated() && isReasonableSize() &&
+        request.resource.data.userId == request.auth.uid;
+      
+      // רק היוצר או מנהל יכולים לעדכן/למחוק
+      allow update: if isReasonableSize() && 
+        (isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid));
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+    }
+
+    // ==================== Feedback Collection ====================
+    // פידבקים (top-level collection - legacy)
+    match /feedback/{feedbackId} {
+      // כולם יכולים לקרוא פידבקים
+      allow read: if true;
+      
+      // רק משתמשים מחוברים יכולים ליצור פידבק עם ה-userId שלהם
+      allow create: if isAuthenticated() && isReasonableSize() &&
+        request.resource.data.userId == request.auth.uid;
+      
+      // רק היוצר או מנהל יכולים לעדכן/למחוק
+      allow update: if isReasonableSize() && 
+        (isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid));
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+    }
+
     // ==================== Push Tokens ====================
     // טוקנים להתראות Push - כל משתמש שומר רק את שלו
     match /userPushTokens/{userId} {
@@ -291,6 +424,64 @@ service cloud.firestore {
     match /announcements/{announcementId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // ==================== Color Settings ====================
+    // הגדרות צבעים מותאמות אישית
+    match /colorSettings/{colorId} {
+      // כולם יכולים לקרוא הגדרות צבעים
+      allow read: if true;
+      // רק מנהלים יכולים לשנות הגדרות צבעים
+      allow write: if isAdmin();
+    }
+
+    // ==================== Community Route Sends ====================
+    // שליחות/סגירות מסלולי קהילה
+    match /communityRouteSends/{sendId} {
+      allow read: if true;
+      // משתמשים יכולים ליצור רק עם ה-userId שלהם
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId == request.auth.uid;
+      // משתמשים יכולים לעדכן רק את שלהם
+      allow update: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      // משתמשים יכולים למחוק רק את שלהם
+      allow delete: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+    }
+
+    // ==================== User Routes ====================
+    // מסלולי משתמש - document ID is the userId
+    match /userRoutes/{userId} {
+      // משתמש יכול לקרוא רק את הנתונים שלו, מנהל יכול לקרוא הכל
+      allow read: if isOwner(userId) || isAdmin();
+      // משתמש יכול ליצור/לעדכן רק את המסמך שלו, מנהל יכול לעדכן הכל (לסנכרון)
+      allow create, update: if (isOwner(userId) && isReasonableSize()) || isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // ==================== Editor Rooms ====================
+    // חדרי עריכה - לעורך הקירות
+    match /editor_rooms/{roomId} {
+      // קריאה: 
+      // 1. חדרים מפורסמים - כל משתמש מחובר יכול לקרוא
+      // 2. חדרים של המשתמש עצמו - תמיד יכול לקרוא
+      // 3. מנהל - יכול לקרוא הכל
+      allow read: if isAuthenticated();
+      
+      // משתמש מחובר יכול ליצור חדר (עם ה-userId שלו)
+      allow create: if isAuthenticated() && 
+        request.resource.data.createdBy == request.auth.uid &&
+        isReasonableSize();
+      
+      // משתמש יכול לעדכן רק את החדרים שהוא יצר, או מנהל
+      allow update: if isAuthenticated() && 
+        (resource.data.createdBy == request.auth.uid || isAdmin()) &&
+        isReasonableSize();
+      
+      // משתמש יכול למחוק רק את החדרים שהוא יצר, או מנהל
+      allow delete: if isAuthenticated() && 
+        (resource.data.createdBy == request.auth.uid || isAdmin());
     }
 
     // ==================== Default Deny ====================

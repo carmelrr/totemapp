@@ -33,10 +33,16 @@ function safeNumber(value: number, fallback: number = 0, min?: number, max?: num
 
 /**
  * Convert image coordinates to screen coordinates
+ * 
+ * Transform model: screenPos = (imagePos - imgCenter) * scale + imgCenter + translate
+ * 
+ * Note: The simple formula (screenPos = imagePos * scale + translate) is preserved
+ * as a legacy fallback when image dimensions are not provided.
  */
 export function toScreen(
     { xImg, yImg }: ImageCoords,
-    { translateX, translateY, scale }: MapTransforms
+    { translateX, translateY, scale }: MapTransforms,
+    imageDimensions?: ImageDimensions
 ): ScreenCoords {
     const safeScale = safeNumber(scale, 1, 0.1, 10);
     const safeTranslateX = safeNumber(translateX, 0);
@@ -44,6 +50,17 @@ export function toScreen(
     const safeXImg = safeNumber(xImg, 0);
     const safeYImg = safeNumber(yImg, 0);
 
+    // If image dimensions are provided, use the correct center-based formula
+    if (imageDimensions && imageDimensions.imgW > 0 && imageDimensions.imgH > 0) {
+        const imgCenterX = imageDimensions.imgW / 2;
+        const imgCenterY = imageDimensions.imgH / 2;
+        return {
+            xS: (safeXImg - imgCenterX) * safeScale + imgCenterX + safeTranslateX,
+            yS: (safeYImg - imgCenterY) * safeScale + imgCenterY + safeTranslateY,
+        };
+    }
+
+    // Legacy fallback
     return {
         xS: safeTranslateX + safeXImg * safeScale,
         yS: safeTranslateY + safeYImg * safeScale,
@@ -52,10 +69,17 @@ export function toScreen(
 
 /**
  * Convert screen coordinates to image coordinates
+ * 
+ * Transform model: screenPos = (imagePos - imgCenter) * scale + imgCenter + translate
+ * To invert: imagePos = (screenPos - imgCenter - translate) / scale + imgCenter
+ * 
+ * Note: The simple formula is preserved as a legacy fallback when image dimensions
+ * are not provided.
  */
 export function toImg(
     { xS, yS }: ScreenCoords,
-    { translateX, translateY, scale }: MapTransforms
+    { translateX, translateY, scale }: MapTransforms,
+    imageDimensions?: ImageDimensions
 ): ImageCoords {
     const safeScale = safeNumber(scale, 1, 0.1, 10);
     const safeTranslateX = safeNumber(translateX, 0);
@@ -63,6 +87,17 @@ export function toImg(
     const safeXS = safeNumber(xS, 0);
     const safeYS = safeNumber(yS, 0);
 
+    // If image dimensions are provided, use the correct center-based formula
+    if (imageDimensions && imageDimensions.imgW > 0 && imageDimensions.imgH > 0) {
+        const imgCenterX = imageDimensions.imgW / 2;
+        const imgCenterY = imageDimensions.imgH / 2;
+        return {
+            xImg: (safeXS - imgCenterX - safeTranslateX) / safeScale + imgCenterX,
+            yImg: (safeYS - imgCenterY - safeTranslateY) / safeScale + imgCenterY,
+        };
+    }
+
+    // Legacy fallback
     return {
         xImg: (safeXS - safeTranslateX) / safeScale,
         yImg: (safeYS - safeTranslateY) / safeScale,
@@ -199,6 +234,12 @@ export function toRelativeCoords(
 
 /**
  * Clamp viewport transforms to keep image in view
+ * With transform order [translate, scale]: scale happens from image center
+ * Screen position = (imagePos - imgCenter) * scale + imgCenter + translate
+ * 
+ * For left edge (imagePos = 0): screenPos = -imgW/2 * scale + imgW/2 + translate
+ * For right edge (imagePos = imgW): screenPos = imgW/2 * scale + imgW/2 + translate
+ * 
  * Marked as worklet to allow usage in gesture handlers on UI thread
  */
 export function clampViewport(
@@ -208,7 +249,8 @@ export function clampViewport(
     imgW: number,
     imgH: number,
     minScale: number = 0.5,
-    maxScale: number = 4
+    maxScale: number = 4,
+    allowPanAtMinZoom: boolean = true // Allow panning even when not zoomed for better UX
 ): MapTransforms {
     'worklet';
     // Ensure all inputs are finite and positive
@@ -220,31 +262,59 @@ export function clampViewport(
     const safeImgW = safeNumber(imgW, 1, 1);
     const safeImgH = safeNumber(imgH, 1, 1);
 
-    // Calculate bounds
-    const scaledImgW = safeImgW * safeScale;
-    const scaledImgH = safeImgH * safeScale;
+    // Image center
+    const imgCenterX = safeImgW / 2;
+    const imgCenterY = safeImgH / 2;
+    
+    // Calculate where image edges appear on screen:
+    // Left edge (imageX=0): screenX = (0 - imgCenterX) * scale + imgCenterX + translateX
+    //                      = imgCenterX * (1 - scale) + translateX
+    // Right edge (imageX=imgW): screenX = (imgW - imgCenterX) * scale + imgCenterX + translateX
+    //                          = imgCenterX * (1 + scale) + translateX
+    
+    const scaledWidth = safeImgW * safeScale;
+    const scaledHeight = safeImgH * safeScale;
 
-    // Calculate translation limits
     let clampedTranslateX = safeTranslateX;
     let clampedTranslateY = safeTranslateY;
 
-    // If image is larger than screen, prevent over-panning
-    if (scaledImgW > safeScreenW) {
-        const maxTranslateX = 0;
-        const minTranslateX = safeScreenW - scaledImgW;
+    // If scaled image is larger than screen, keep edges within bounds
+    if (scaledWidth > safeScreenW) {
+        // Don't let left edge go past screen left (leftEdge <= 0)
+        // leftEdge = imgCenterX * (1 - scale) + translateX <= 0
+        // translateX <= imgCenterX * (scale - 1)
+        const maxTranslateX = imgCenterX * (safeScale - 1);
+        
+        // Don't let right edge go before screen right (rightEdge >= screenW)
+        // rightEdge = imgCenterX * (1 + scale) + translateX >= screenW
+        // translateX >= screenW - imgCenterX * (1 + scale)
+        const minTranslateX = safeScreenW - imgCenterX * (1 + safeScale);
+        
+        clampedTranslateX = Math.max(minTranslateX, Math.min(maxTranslateX, safeTranslateX));
+    } else if (allowPanAtMinZoom) {
+        // Allow panning, but keep image at least partially visible (25% on each side)
+        const margin = scaledWidth * 0.25;
+        const maxTranslateX = safeScreenW - margin - imgCenterX * (1 - safeScale);
+        const minTranslateX = margin - imgCenterX * (1 + safeScale);
         clampedTranslateX = Math.max(minTranslateX, Math.min(maxTranslateX, safeTranslateX));
     } else {
-        // If image is smaller than screen, center it
-        clampedTranslateX = (safeScreenW - scaledImgW) / 2;
+        // Center the image horizontally (legacy behavior)
+        clampedTranslateX = (safeScreenW - safeImgW) / 2;
     }
 
-    if (scaledImgH > safeScreenH) {
-        const maxTranslateY = 0;
-        const minTranslateY = safeScreenH - scaledImgH;
+    if (scaledHeight > safeScreenH) {
+        const maxTranslateY = imgCenterY * (safeScale - 1);
+        const minTranslateY = safeScreenH - imgCenterY * (1 + safeScale);
+        clampedTranslateY = Math.max(minTranslateY, Math.min(maxTranslateY, safeTranslateY));
+    } else if (allowPanAtMinZoom) {
+        // Allow vertical panning too, keep at least 25% visible on each side
+        const margin = scaledHeight * 0.25;
+        const maxTranslateY = safeScreenH - margin - imgCenterY * (1 - safeScale);
+        const minTranslateY = margin - imgCenterY * (1 + safeScale);
         clampedTranslateY = Math.max(minTranslateY, Math.min(maxTranslateY, safeTranslateY));
     } else {
-        // If image is smaller than screen, center it
-        clampedTranslateY = (safeScreenH - scaledImgH) / 2;
+        // Center the image vertically (legacy behavior)
+        clampedTranslateY = (safeScreenH - safeImgH) / 2;
     }
 
     return {
@@ -257,11 +327,16 @@ export function clampViewport(
 /**
  * חישוב גבולות נקודת התצוגה הנוכחית במערכת קואורדינטות התמונה
  * Calculate current viewport bounds in image coordinate system
+ * 
+ * Transform model: screenPos = (imagePos - imgCenter) * scale + imgCenter + translate
+ * To invert: imagePos = (screenPos - imgCenter - translate) / scale + imgCenter
  */
 export function getViewportBounds(
     { translateX, translateY, scale }: MapTransforms,
     screenW: number,
-    screenH: number
+    screenH: number,
+    imageW?: number,
+    imageH?: number
 ) {
     // ✅ Safety: מוודא שכל הערכים תקינים לפני חלוקה
     const safeScale = Math.max(0.1, Math.min(10, isFinite(scale) ? scale : 1));
@@ -269,7 +344,22 @@ export function getViewportBounds(
     const safeTranslateY = isFinite(translateY) ? translateY : 0;
     const safeScreenW = Math.max(1, isFinite(screenW) ? screenW : 1);
     const safeScreenH = Math.max(1, isFinite(screenH) ? screenH : 1);
+    
+    // If image dimensions are provided, use the correct center-based formula
+    // Otherwise fall back to the simple formula for backwards compatibility
+    if (imageW !== undefined && imageH !== undefined && imageW > 0 && imageH > 0) {
+        const imgCenterX = imageW / 2;
+        const imgCenterY = imageH / 2;
+        
+        return {
+            xMinImg: (0 - imgCenterX - safeTranslateX) / safeScale + imgCenterX,
+            yMinImg: (0 - imgCenterY - safeTranslateY) / safeScale + imgCenterY,
+            xMaxImg: (safeScreenW - imgCenterX - safeTranslateX) / safeScale + imgCenterX,
+            yMaxImg: (safeScreenH - imgCenterY - safeTranslateY) / safeScale + imgCenterY,
+        };
+    }
 
+    // Legacy fallback (simple formula)
     return {
         xMinImg: -safeTranslateX / safeScale,
         yMinImg: -safeTranslateY / safeScale,

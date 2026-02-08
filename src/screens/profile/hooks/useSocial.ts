@@ -89,7 +89,7 @@ export function useSocial() {
     // Use nested navigation to navigate to UserProfile inside ProfileStack
     (navigation as any).navigate("ProfileTab", {
       screen: "UserProfile",
-      params: { userId: userToShow.id },
+      params: { userId: userToShow.id, displayName: userToShow.displayName },
     });
   };
 

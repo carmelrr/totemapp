@@ -6,7 +6,7 @@ import { useLanguage } from "@/features/language";
 import { auth } from "@/features/data/firebase";
 import { createStyles } from "../styles";
 import { searchUsers, getAllUsers, getUserFollowing } from "@/features/social/socialService";
-import { UserAvatar } from "@/components/ui/UserAvatar";
+import { UserAvatar, prefetchAvatars } from "@/components/ui/UserAvatar";
 import type { SocialUser } from "../types";
 
 interface SocialListProps {
@@ -90,6 +90,10 @@ export const SocialList: React.FC<SocialListProps> = ({
       setFilteredUsers(filteredResult);
       setLastDoc(result.lastDoc);
       setHasMore(result.hasMore);
+      
+      // Prefetch avatars for visible users
+      const avatarUrls = filteredResult.slice(0, 15).map((u: SocialUser) => u.avatar || u.photoURL);
+      prefetchAvatars(avatarUrls);
     } catch (error) {
       console.error("Error loading users:", error);
     } finally {
@@ -103,8 +107,10 @@ export const SocialList: React.FC<SocialListProps> = ({
     setLoadingMore(true);
     try {
       const result = await getAllUsers(20, lastDoc);
-      setAllUsers((prev) => [...prev, ...result.users]);
-      setFilteredUsers((prev) => [...prev, ...result.users]);
+      // Filter out current user from additional results
+      const filteredResult = result.users.filter((u: any) => u.id !== currentUserId);
+      setAllUsers((prev) => [...prev, ...filteredResult]);
+      setFilteredUsers((prev) => [...prev, ...filteredResult]);
       setLastDoc(result.lastDoc);
       setHasMore(result.hasMore);
     } catch (error) {
@@ -114,11 +120,11 @@ export const SocialList: React.FC<SocialListProps> = ({
     }
   };
 
-  const navigateToUserProfile = (userId: string) => {
+  const navigateToUserProfile = (userId: string, displayName?: string) => {
     // Use nested navigation to navigate to UserProfile inside ProfileStack
     (navigation as any).navigate("ProfileTab", {
       screen: "UserProfile",
-      params: { userId },
+      params: { userId, displayName },
     });
   };
 
@@ -211,7 +217,7 @@ export const SocialList: React.FC<SocialListProps> = ({
       <TouchableOpacity 
         key={item.id}
         style={styles.userItem}
-        onPress={() => navigateToUserProfile(item.id)}
+        onPress={() => navigateToUserProfile(item.id, item.displayName)}
         activeOpacity={0.7}
       >
         <View style={styles.userInfo}>

@@ -1,10 +1,11 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFiltersStore } from '@/store/useFiltersStore';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
 
-export type SortOption = 'grade-asc' | 'grade-desc' | 'popularity';
+export type SortOption = 'grade-asc' | 'grade-desc' | 'popularity' | 'most-repeats';
 
 interface FiltersBarProps {
   routeCount?: number;
@@ -28,9 +29,10 @@ const FiltersBar = React.memo(function FiltersBar({
   
   // Dynamic sort options based on current language
   const sortOptions = useMemo(() => [
-    { value: 'grade-asc' as SortOption, label: t.common.gradeEasyToHard, icon: '📈' },
-    { value: 'grade-desc' as SortOption, label: t.common.gradeHardToEasy, icon: '📉' },
-    { value: 'popularity' as SortOption, label: t.common.mostPopular, icon: '⭐' },
+    { value: 'grade-asc' as SortOption, label: t.common.gradeEasyToHard, icon: 'trending-up-outline' },
+    { value: 'grade-desc' as SortOption, label: t.common.gradeHardToEasy, icon: 'trending-down-outline' },
+    { value: 'popularity' as SortOption, label: t.common.mostPopular, icon: 'trophy-outline' },
+    { value: 'most-repeats' as SortOption, label: t.common.mostRepeats, icon: 'repeat-outline' },
   ], [t]);
   
   const {
@@ -69,7 +71,7 @@ const FiltersBar = React.memo(function FiltersBar({
           style={styles.sortButton}
           onPress={handleOpenSort}
         >
-          <Text style={styles.sortIcon}>↕️</Text>
+          <Ionicons name="swap-vertical-outline" size={18} color={theme.primary} />
           <Text style={styles.sortButtonText}>{t.common.sort}</Text>
         </TouchableOpacity>
 
@@ -81,7 +83,11 @@ const FiltersBar = React.memo(function FiltersBar({
           ]}
           onPress={handleOpenFilters}
         >
-          <Text style={styles.filterIcon}>⚙️</Text>
+          <Ionicons 
+            name={activeFiltersCount > 0 ? "funnel" : "funnel-outline"} 
+            size={18} 
+            color={activeFiltersCount > 0 ? theme.primary : theme.textSecondary} 
+          />
           <Text style={[
             styles.filterButtonText, 
             activeFiltersCount > 0 && styles.filterButtonTextActive
@@ -94,13 +100,6 @@ const FiltersBar = React.memo(function FiltersBar({
             </View>
           )}
         </TouchableOpacity>
-
-        {/* Clear button - only show when filters active */}
-        {activeFiltersCount > 0 && (
-          <TouchableOpacity onPress={resetFilters} style={styles.clearButton}>
-            <Text style={styles.clearButtonText}>✕</Text>
-          </TouchableOpacity>
-        )}
       </View>
 
       {/* Sort Modal */}
@@ -126,7 +125,11 @@ const FiltersBar = React.memo(function FiltersBar({
                 ]}
                 onPress={() => handleSortSelect(option.value)}
               >
-                <Text style={styles.sortOptionIcon}>{option.icon}</Text>
+                <Ionicons
+                  name={option.icon as any}
+                  size={20}
+                  color={sortBy === option.value ? theme.primary : theme.textSecondary}
+                />
                 <Text style={[
                   styles.sortOptionText,
                   sortBy === option.value && styles.sortOptionTextActive,
@@ -134,7 +137,7 @@ const FiltersBar = React.memo(function FiltersBar({
                   {option.label}
                 </Text>
                 {sortBy === option.value && (
-                  <Text style={styles.checkmark}>✓</Text>
+                  <Ionicons name="checkmark" size={20} color={theme.primary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -169,61 +172,55 @@ const createStyles = (theme: any) => StyleSheet.create({
   sortButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: theme.border,
     backgroundColor: theme.surface,
-    gap: 4,
-  },
-  sortIcon: {
-    fontSize: 12,
+    gap: 6,
   },
   sortButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.text,
   },
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    borderWidth: 1.5,
+    borderWidth: 1,
     borderColor: theme.border,
     backgroundColor: theme.surface,
-    gap: 4,
+    gap: 6,
   },
   filterButtonActive: {
-    backgroundColor: theme.primary,
     borderColor: theme.primary,
-  },
-  filterIcon: {
-    fontSize: 12,
+    borderWidth: 2,
   },
   filterButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.textSecondary,
+    fontSize: 14,
+    fontWeight: '500',
+    color: theme.text,
   },
   filterButtonTextActive: {
-    color: '#ffffff',
+    color: theme.primary,
   },
   badge: {
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.primary,
     borderRadius: 10,
-    minWidth: 18,
-    height: 18,
+    minWidth: 20,
+    height: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 5,
+    marginLeft: 4,
   },
   badgeText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: theme.primary,
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   clearButton: {
     width: 28,
@@ -241,26 +238,21 @@ const createStyles = (theme: any) => StyleSheet.create({
   // Sort Modal styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: theme.overlay,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   sortModal: {
     backgroundColor: theme.surface,
-    borderRadius: 20,
+    borderRadius: 16,
     padding: 20,
-    width: '100%',
-    maxWidth: 320,
-    shadowColor: theme.shadow,
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.2,
-    shadowRadius: 20,
-    elevation: 10,
+    width: '90%',
+    maxWidth: 400,
   },
   sortModalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: 'bold',
     color: theme.text,
     textAlign: 'center',
     marginBottom: 16,
@@ -270,31 +262,18 @@ const createStyles = (theme: any) => StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 14,
     paddingHorizontal: 12,
-    borderRadius: 12,
-    marginBottom: 4,
+    borderRadius: 10,
+    gap: 12,
   },
   sortOptionActive: {
-    backgroundColor: theme.isDark ? 'rgba(59, 130, 246, 0.2)' : '#eff6ff',
-  },
-  sortOptionIcon: {
-    fontSize: 18,
-    marginRight: 12,
-    width: 28,
-    textAlign: 'center',
+    backgroundColor: theme.primary + '20',
   },
   sortOptionText: {
     flex: 1,
-    fontSize: 15,
+    fontSize: 16,
     color: theme.text,
-    fontWeight: '500',
   },
   sortOptionTextActive: {
     color: theme.primary,
-    fontWeight: '600',
-  },
-  checkmark: {
-    fontSize: 16,
-    color: theme.primary,
-    fontWeight: '700',
   },
 });

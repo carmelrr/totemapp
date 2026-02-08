@@ -30,8 +30,14 @@ import {
 } from '../services/ColorSettingsService';
 import { MapTransforms, RouteDoc } from '../types/route';
 import { useLanguage } from '@/features/language';
+import { useTheme, lightTheme } from '@/features/theme/ThemeContext';
 import { useResponsiveLayout, ResponsiveLayout } from '@/hooks/useResponsiveLayout';
-import { useFirebaseRoutes } from '../hooks/useFirebaseRoutes';
+import { useActiveRoutes } from '../hooks/useFirebaseRoutes';
+import { usePublishedRooms } from '@/features/wall-editor';
+import ZoomSlider from '@/components/WallMap/ZoomSlider';
+import { snapToNearestWall } from '@/utils/snapToWall';
+
+type Theme = typeof lightTheme;
 
 type RootStackParamList = {
   RoutesMap: undefined;
@@ -54,6 +60,7 @@ const WALL_HEIGHT = 1600;
 export default function AddRouteMapScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { t, language, isLoading: languageLoading } = useLanguage();
+  const { theme } = useTheme();
   
   // Responsive layout - automatically updates on rotation
   const layout = useResponsiveLayout();
@@ -62,11 +69,30 @@ export default function AddRouteMapScreen() {
   // Safe area insets for handling Android navigation bar
   const insets = useSafeAreaInsets();
   
-  // Load existing routes to show on map
-  const { routes: existingRoutes } = useFirebaseRoutes();
+  // Load existing routes to show on map (only active routes, not archived)
+  const { routes: existingRoutes } = useActiveRoutes();
+  
+  // Published rooms (dynamic wall maps)
+  const { rooms: publishedRooms } = usePublishedRooms();
+  
+  // Get first published room or create a default
+  const selectedRoom = useMemo(() => {
+    if (publishedRooms.length > 0) {
+      return publishedRooms[0];
+    }
+    return null;
+  }, [publishedRooms]);
+  
+  // Wall dimensions from selected room
+  const wallWidth = selectedRoom?.width || 2560;
+  const wallHeight = selectedRoom?.height || 1600;
   
   // Store scale shared value for marker size compensation
   const [scaleSharedValue, setScaleSharedValue] = useState<SharedValue<number> | null>(null);
+  
+  // Zoom control state
+  const [currentZoom, setCurrentZoom] = useState(1);
+  const mapTransformsRef = React.useRef<any>(null);
 
   // Form state
   const [grade, setGrade] = useState('V0');
@@ -144,8 +170,8 @@ export default function AddRouteMapScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Create styles based on layout
-  const styles = useMemo(() => createStyles(layout, insets), [layout, insets]);
+  // Create styles based on layout and theme
+  const styles = useMemo(() => createStyles(layout, insets, theme), [layout, insets, theme]);
 
   const handleMapMeasured = useCallback((dimensions: { imgW: number; imgH: number }) => {
     setImageDimensions(dimensions);
@@ -156,6 +182,21 @@ export default function AddRouteMapScreen() {
     if (transforms?.scale) {
       setScaleSharedValue(transforms.scale);
     }
+    // Store transforms ref for zoom control
+    mapTransformsRef.current = transforms;
+  }, []);
+  
+  // Handle transform changes to update zoom level display
+  const handleTransformChange = useCallback((transforms: MapTransforms) => {
+    setCurrentTransforms(transforms);
+    setCurrentZoom(transforms.scale);
+  }, []);
+  
+  // Handle zoom slider change
+  const handleZoomSliderChange = useCallback((newScale: number) => {
+    if (mapTransformsRef.current?.setZoomToCenter) {
+      mapTransformsRef.current.setZoomToCenter(newScale);
+    }
   }, []);
 
   // Handle tap on map to place marker - receives IMAGE coordinates directly from MapViewport
@@ -165,19 +206,32 @@ export default function AddRouteMapScreen() {
       return;
     }
 
-    const { xImg, yImg } = coordinates;
+    let { xImg, yImg } = coordinates;
 
     // Clamp to image bounds
-    const clampedXImg = Math.max(0, Math.min(imageDimensions.imgW, xImg));
-    const clampedYImg = Math.max(0, Math.min(imageDimensions.imgH, yImg));
+    xImg = Math.max(0, Math.min(imageDimensions.imgW, xImg));
+    yImg = Math.max(0, Math.min(imageDimensions.imgH, yImg));
+
+    // Snap to nearest wall point so routes align on wall edges
+    if (selectedRoom) {
+      const snapped = snapToNearestWall(
+        xImg, yImg,
+        imageDimensions.imgW, imageDimensions.imgH,
+        selectedRoom,
+      );
+      if (snapped.snapped) {
+        xImg = snapped.xImg;
+        yImg = snapped.yImg;
+      }
+    }
 
     // Convert to normalized coordinates (0-1 range)
-    const xNorm = clampedXImg / imageDimensions.imgW;
-    const yNorm = clampedYImg / imageDimensions.imgH;
+    const xNorm = xImg / imageDimensions.imgW;
+    const yNorm = yImg / imageDimensions.imgH;
 
     setPreview({
-      xImg: clampedXImg,
-      yImg: clampedYImg,
+      xImg,
+      yImg,
       xNorm,
       yNorm,
     });
@@ -186,7 +240,7 @@ export default function AddRouteMapScreen() {
     if (errors.position) {
       setErrors(prev => ({ ...prev, position: '' }));
     }
-  }, [imageDimensions, errors.position]);
+  }, [imageDimensions, errors.position, selectedRoom]);
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
@@ -493,9 +547,15 @@ export default function AddRouteMapScreen() {
   // Main layout - responsive to orientation
   const isHorizontalLayout = mapLayoutMode === 'horizontal' || mapLayoutMode === 'phone-landscape';
 
-  // Show nothing while language is loading to prevent undefined translation errors
-  if (languageLoading) {
-    return null;
+  // Show nothing while language is loading or no room available
+  if (languageLoading || !selectedRoom) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={{ color: theme.text }}>טוען מפה...</Text>
+        </View>
+      </View>
+    );
   }
 
   return (
@@ -505,8 +565,9 @@ export default function AddRouteMapScreen() {
         {/* Map Section */}
         <View style={[styles.mapSection, isHorizontalLayout && styles.mapSectionHorizontal]}>
           <MapViewport
+            room={selectedRoom}
             onMeasured={handleMapMeasured}
-            onTransformChange={setCurrentTransforms}
+            onTransformChange={handleTransformChange}
             onTransformsReady={handleTransformsReady}
             onTap={handleMapTap}
           >
@@ -523,6 +584,19 @@ export default function AddRouteMapScreen() {
             <Text style={styles.errorText}>{errors.position}</Text>
           )}
         </View>
+        
+        {/* Zoom Slider - outside mapSection so it doesn't get cut off by fixed height */}
+        {!isHorizontalLayout && (
+          <View style={styles.zoomSliderContainer}>
+            <ZoomSlider
+              currentScale={currentZoom}
+              minScale={mapTransformsRef.current?.minScale ?? 1}
+              maxScale={mapTransformsRef.current?.maxScale ?? 8}
+              onZoomChange={handleZoomSliderChange}
+              forceShow={true}
+            />
+          </View>
+        )}
 
         {/* Form Section */}
         <ScrollView style={[styles.formSection, isHorizontalLayout && styles.formSectionHorizontal]}>
@@ -907,8 +981,8 @@ export default function AddRouteMapScreen() {
   );
 }
 
-// Dynamic styles based on layout and safe area insets
-const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: number; left: number; right: number }) => {
+// Dynamic styles based on layout, safe area insets, and theme
+const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: number; left: number; right: number }, theme: Theme) => {
   const { isLandscape, mapLayoutMode, height, width } = layout;
   const isHorizontalLayout = mapLayoutMode === 'horizontal' || mapLayoutMode === 'phone-landscape';
   
@@ -920,7 +994,7 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
   return StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: '#ffffff',
+      backgroundColor: theme.background,
     },
     // Main content container - horizontal in landscape, vertical in portrait
     mainContent: {
@@ -942,6 +1016,11 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
       width: isLandscape ? '55%' : undefined,
       flex: isLandscape ? undefined : 1,
     },
+    zoomSliderContainer: {
+      paddingVertical: 4,
+      paddingHorizontal: 8,
+      backgroundColor: theme.isDark ? 'rgba(45, 45, 45, 0.9)' : 'rgba(245, 245, 245, 0.9)',
+    },
     formSection: {
       flex: 1,
       paddingHorizontal: 16,
@@ -958,24 +1037,25 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
     fieldLabel: {
       fontSize: 16,
       fontWeight: '600',
-      color: '#1f2937',
+      color: theme.text,
       marginBottom: 8,
     },
     textInput: {
       borderWidth: 1,
-      borderColor: '#d1d5db',
+      borderColor: theme.border,
       borderRadius: 8,
       paddingHorizontal: 12,
       paddingVertical: 10,
       fontSize: 16,
-      color: '#1f2937',
+      color: theme.text,
+      backgroundColor: theme.inputBackground,
     },
     errorInput: {
-      borderColor: '#ef4444',
+      borderColor: theme.error,
     },
     errorText: {
       fontSize: 12,
-      color: '#ef4444',
+      color: theme.error,
       marginTop: 4,
     },
     gradeContainer: {
@@ -987,18 +1067,18 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
       paddingHorizontal: 16,
       paddingVertical: 8,
       borderRadius: 16,
-      backgroundColor: '#f3f4f6',
+      backgroundColor: theme.card,
       borderWidth: 1,
-      borderColor: '#d1d5db',
+      borderColor: theme.border,
     },
     selectedGradeChip: {
-      backgroundColor: '#3b82f6',
-      borderColor: '#3b82f6',
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
     },
     gradeChipText: {
       fontSize: 14,
       fontWeight: '600',
-      color: '#4b5563',
+      color: theme.textSecondary,
     },
     selectedGradeChipText: {
       color: '#ffffff',
@@ -1018,15 +1098,15 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
       borderColor: 'transparent',
     },
     selectedColorChip: {
-      borderColor: '#1f2937',
+      borderColor: theme.text,
     },
     colorCheckmark: {
       fontSize: 18,
       fontWeight: '600',
     },
     customColorChip: {
-      backgroundColor: '#f3f4f6',
-      borderColor: '#d1d5db',
+      backgroundColor: theme.card,
+      borderColor: theme.border,
       borderStyle: 'dashed',
     } as ViewStyle,
     customColorPreview: {
@@ -1036,12 +1116,12 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
     },
     customColorPlus: {
       fontSize: 24,
-      color: '#9ca3af',
+      color: theme.textSecondary,
       fontWeight: '300',
     },
     helpText: {
       fontSize: 12,
-      color: '#6b7280',
+      color: theme.textSecondary,
       marginTop: 4,
     },
     bottomPadding: {
@@ -1051,12 +1131,12 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
     namePreview: {
       flexDirection: 'row',
       alignItems: 'center',
-      backgroundColor: '#f9fafb',
+      backgroundColor: theme.card,
       borderRadius: 8,
       paddingHorizontal: 12,
       paddingVertical: 10,
       borderWidth: 1,
-      borderColor: '#e5e7eb',
+      borderColor: theme.border,
     },
     nameColorDot: {
       width: 24,
@@ -1069,12 +1149,12 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
     namePreviewText: {
       fontSize: 16,
       fontWeight: '600',
-      color: '#1f2937',
+      color: theme.text,
     },
     // Color Picker Modal styles
     colorPickerModal: {
       flex: 1,
-      backgroundColor: '#ffffff',
+      backgroundColor: theme.modalBackground,
     },
     colorPickerHeader: {
       flexDirection: 'row',
@@ -1084,21 +1164,21 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
       paddingVertical: 14,
       paddingTop: insets.top + 14,
       borderBottomWidth: 1,
-      borderBottomColor: '#e5e7eb',
+      borderBottomColor: theme.border,
     },
     colorPickerCancel: {
       fontSize: 16,
-      color: '#6b7280',
+      color: theme.textSecondary,
     },
     colorPickerTitle: {
       fontSize: 18,
       fontWeight: '600',
-      color: '#1f2937',
+      color: theme.text,
     },
     colorPickerSave: {
       fontSize: 16,
       fontWeight: '600',
-      color: '#3b82f6',
+      color: theme.primary,
     },
     colorPickerContent: {
       flex: 1,
@@ -1106,7 +1186,7 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
     },
     editColorDescription: {
       fontSize: 14,
-      color: '#6b7280',
+      color: theme.textSecondary,
       textAlign: 'center',
       marginBottom: 20,
       paddingHorizontal: 10,
@@ -1120,12 +1200,12 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
       height: 100,
       borderRadius: 16,
       borderWidth: 2,
-      borderColor: '#e5e7eb',
+      borderColor: theme.border,
     },
     colorPreviewLabel: {
       marginTop: 8,
       fontSize: 14,
-      color: '#6b7280',
+      color: theme.textSecondary,
     },
     hexInputSection: {
       marginBottom: 30,
@@ -1133,25 +1213,25 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
     hexInputLabel: {
       fontSize: 16,
       fontWeight: '600',
-      color: '#1f2937',
+      color: theme.text,
       marginBottom: 8,
     },
     hexInput: {
       borderWidth: 1,
-      borderColor: '#d1d5db',
+      borderColor: theme.border,
       borderRadius: 8,
       paddingHorizontal: 16,
       paddingVertical: 12,
       fontSize: 20,
       fontWeight: '600',
-      color: '#1f2937',
+      color: theme.text,
       textAlign: 'center',
-      backgroundColor: '#f9fafb',
+      backgroundColor: theme.inputBackground,
     },
     hexInputHint: {
       marginTop: 8,
       fontSize: 12,
-      color: '#9ca3af',
+      color: theme.textSecondary,
       textAlign: 'center',
     },
     quickColorsSection: {
@@ -1160,7 +1240,7 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
     quickColorsLabel: {
       fontSize: 16,
       fontWeight: '600',
-      color: '#1f2937',
+      color: theme.text,
       marginBottom: 12,
     },
     quickColorsGrid: {
@@ -1197,14 +1277,14 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
     },
     sliderValue: {
       fontSize: 14,
-      color: '#6b7280',
+      color: theme.textSecondary,
       width: 40,
       textAlign: 'right',
     },
     hexCodeDisplay: {
       fontSize: 16,
       fontWeight: '600',
-      color: '#1f2937',
+      color: theme.text,
       textAlign: 'center',
       marginTop: 8,
       fontFamily: 'monospace',

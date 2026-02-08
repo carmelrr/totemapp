@@ -22,7 +22,7 @@ export interface UseMapTransformsConfig {
 
 export function useMapTransforms({
   minScale = 1, // Set minimum scale to 1 (initial view size)
-  maxScale = 4,
+  maxScale = 8,
   screenWidth,
   screenHeight,
   imageWidth,
@@ -108,8 +108,9 @@ export function useMapTransforms({
   const baseScale = useSharedValue(1);
   const baseTranslateX = useSharedValue(0);
   const baseTranslateY = useSharedValue(0);
-  const focalX = useSharedValue(0);
-  const focalY = useSharedValue(0);
+  // Store IMAGE coordinates of focal point (not screen coordinates)
+  const focalImageX = useSharedValue(0);
+  const focalImageY = useSharedValue(0);
 
   // Helper to safely clamp and apply transforms
   const clampAndApply = (newScale: number, newTranslateX: number, newTranslateY: number) => {
@@ -146,10 +147,10 @@ export function useMapTransforms({
     }
   };
 
-  // Pan gesture using new Gesture API
+  // Pan gesture using new Gesture API - low minDistance for responsive movement
   const panGesture = useMemo(() => 
     Gesture.Pan()
-      .minDistance(5) // Require minimum movement before starting pan
+      .minDistance(2) // Low threshold for responsive start
       .onStart(() => {
         baseTranslateX.value = translateX.value;
         baseTranslateY.value = translateY.value;
@@ -173,9 +174,9 @@ export function useMapTransforms({
         translateY.value = clamped.translateY;
       })
       .onEnd((event) => {
-        // Apply velocity for momentum scrolling
-        const velocityX = event.velocityX * 0.1;
-        const velocityY = event.velocityY * 0.1;
+        // Apply velocity for smoother momentum scrolling
+        const velocityX = event.velocityX * 0.12;
+        const velocityY = event.velocityY * 0.12;
         
         const projectedX = translateX.value + velocityX;
         const projectedY = translateY.value + velocityY;
@@ -190,8 +191,8 @@ export function useMapTransforms({
           safeMaxScale
         );
 
-        // Use spring animation for smoother deceleration
-        const springConfig = { damping: 20, stiffness: 200 };
+        // Smoother spring - higher damping reduces bounce
+        const springConfig = { damping: 28, stiffness: 120, mass: 0.6 };
         translateX.value = withSpring(clamped.translateX, springConfig);
         translateY.value = withSpring(clamped.translateY, springConfig);
 
@@ -202,30 +203,39 @@ export function useMapTransforms({
     [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale]
   );
 
-  // Pinch gesture using new Gesture API
+  // Pinch gesture - zoom centered on the point between your fingers
+  // With transform order [scale, translateX/scale, translateY/scale]:
+  // Screen position = (imagePos - imgCenter) * scale + imgCenter + translate
   const pinchGesture = useMemo(() =>
     Gesture.Pinch()
       .onStart((event) => {
         baseScale.value = scale.value;
-        baseTranslateX.value = translateX.value;
-        baseTranslateY.value = translateY.value;
-        focalX.value = event.focalX;
-        focalY.value = event.focalY;
       })
       .onUpdate((event) => {
         const rawScale = baseScale.value * (event.scale ?? 1);
-        const clampedScale = Math.max(safeMinScale, Math.min(safeMaxScale, rawScale));
+        const newScale = Math.max(safeMinScale, Math.min(safeMaxScale, rawScale));
+        const oldScale = scale.value;
 
-        // Use base values for focal point calculation, not current animated values
-        const fxImg = (focalX.value - baseTranslateX.value) / baseScale.value;
-        const fyImg = (focalY.value - baseTranslateY.value) / baseScale.value;
-
-        const newTranslateX = focalX.value - fxImg * clampedScale;
-        const newTranslateY = focalY.value - fyImg * clampedScale;
+        // Focal point on screen
+        const focalX = event.focalX;
+        const focalY = event.focalY;
+        
+        // Image dimensions
+        const imgCenterX = safeImageWidth / 2;
+        const imgCenterY = safeImageHeight / 2;
+        
+        // Current transform: screenPos = (imagePos - imgCenter) * oldScale + imgCenter + translate
+        // Find image position under focal point:
+        const imageX = (focalX - imgCenterX - translateX.value) / oldScale + imgCenterX;
+        const imageY = (focalY - imgCenterY - translateY.value) / oldScale + imgCenterY;
+        
+        // New transform should put same image point at same screen position:
+        const newTranslateX = focalX - (imageX - imgCenterX) * newScale - imgCenterX;
+        const newTranslateY = focalY - (imageY - imgCenterY) * newScale - imgCenterY;
         
         // Clamp translation during pinch to stay within bounds
         const clamped = clampViewport(
-          { scale: clampedScale, translateX: newTranslateX, translateY: newTranslateY },
+          { scale: newScale, translateX: newTranslateX, translateY: newTranslateY },
           safeScreenWidth,
           safeScreenHeight,
           safeImageWidth,
@@ -249,8 +259,8 @@ export function useMapTransforms({
           safeMaxScale
         );
 
-        // Use spring animation for smoother feel
-        const springConfig = { damping: 15, stiffness: 150 };
+        // Smoother spring - higher damping reduces bounce
+        const springConfig = { damping: 28, stiffness: 100, mass: 0.6 };
         scale.value = withSpring(clamped.scale, springConfig);
         translateX.value = withSpring(clamped.translateX, springConfig);
         translateY.value = withSpring(clamped.translateY, springConfig);
@@ -262,14 +272,15 @@ export function useMapTransforms({
     [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale]
   );
 
-  // Double tap gesture using new Gesture API
+  // Double tap gesture - zooms to 3x for better detail with higher max zoom
   const doubleTapGesture = useMemo(() =>
     Gesture.Tap()
       .numberOfTaps(2)
       .onEnd((event) => {
         const currentScale = scale.value;
-        const targetScale = currentScale < 2 ? 2 : 1;
-        const springConfig = { damping: 15, stiffness: 150 };
+        // Zoom to 3x for better detail, reset if already zoomed
+        const targetScale = currentScale < 2.5 ? 3 : 1;
+        const springConfig = { damping: 24, stiffness: 110, mass: 0.7 };
 
         if (targetScale === 1) {
           // Reset to initial centered position
@@ -333,29 +344,17 @@ export function useMapTransforms({
   );
 
   // Animated style for the map container
-  // We use scale-first transform order. The translation values represent where the 
-  // image's top-left corner should be in screen coordinates. After scaling from center,
-  // we compensate to position the image correctly.
+  // Transform order [translate, scale]: translate moves the image, then scale from center
+  // This means screen position = (imagePos - imgCenter) * scale + imgCenter + translate
   const mapContainerStyle = useAnimatedStyle(() => {
-    const s = scale.value;
-    const imgW = safeImageWidth;
-    const imgH = safeImageHeight;
-    
-    // When scaling from center, the center stays in place.
-    // Original center: (imgW/2, imgH/2)
-    // After scale: center is still at (imgW/2, imgH/2) but image extends from:
-    //   left: imgW/2 - (imgW*s)/2 = imgW*(1-s)/2
-    //   top: imgH/2 - (imgH*s)/2 = imgH*(1-s)/2
-    // We want top-left to be at (translateX, translateY), so we need to add compensation
-    const scaleCompensationX = imgW * (1 - s) / 2;
-    const scaleCompensationY = imgH * (1 - s) / 2;
-    
     return {
       transform: [
-        { scale: s },
-        { translateX: (translateX.value - scaleCompensationX) / s },
-        { translateY: (translateY.value - scaleCompensationY) / s },
+        { translateX: translateX.value },
+        { translateY: translateY.value },
+        { scale: scale.value },
       ],
+    } as any;
+  });
     } as any;
   });
 

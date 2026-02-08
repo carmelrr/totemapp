@@ -1,9 +1,9 @@
 /**
  * @fileoverview Manage Competition Routes Screen
- * @description Add and manage routes for a competition
+ * @description Add and manage routes for a competition, with wall map for positioning
  */
 
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   ActivityIndicator,
   Modal,
   TextInput,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -21,6 +22,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useRolesContext } from '@/features/roles/RolesContext';
+import { useLanguage } from '@/features/language/LanguageContext';
+import { ROUTE_COLORS, getColorTranslationKey, getContrastTextColor } from '@/features/routes-map/utils/colors';
 import {
   useCompetition,
   useCompetitionRoutes,
@@ -28,6 +31,15 @@ import {
 import { CompetitionRoutesService } from '@/features/competitions/services/CompetitionRoutesService';
 import { CompetitionRoute } from '@/features/competitions/types';
 import { NATIONAL_LEAGUE_GRADE_POINTS, TOTEMTITION_SETTINGS } from '@/features/competitions/constants';
+import CompetitionWallMap from '@/features/competitions/components/CompetitionWallMap';
+import { usePublishedRooms } from '@/features/wall-editor/hooks/usePublishedRooms';
+import { useEditorMap } from '@/features/wall-editor/hooks/useEditorMap';
+
+// Wall dimensions (should match your actual wall)
+const WALL_WIDTH = 1000;
+const WALL_HEIGHT = 667;
+
+type ViewMode = 'list' | 'map';
 
 const AVAILABLE_GRADES = [
   'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10',
@@ -37,6 +49,7 @@ const AVAILABLE_GRADES = [
 
 export default function ManageCompetitionRoutesScreen() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { competitionId } = route.params;
@@ -46,6 +59,14 @@ export default function ManageCompetitionRoutesScreen() {
   const { competition, loading: compLoading } = useCompetition(competitionId);
   const { routes, loading: routesLoading, refresh } = useCompetitionRoutes(competitionId);
 
+  // Load room data for the dynamic wall map
+  const { rooms: publishedRooms } = usePublishedRooms();
+  const { room: specificRoom } = useEditorMap({ roomId: competition?.roomId });
+  const mapRoom = useMemo(() => {
+    if (competition?.roomId && specificRoom) return specificRoom;
+    return publishedRooms.length > 0 ? publishedRooms[0] : null;
+  }, [competition?.roomId, specificRoom, publishedRooms]);
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [newRouteNumber, setNewRouteNumber] = useState('');
 
@@ -53,6 +74,17 @@ export default function ManageCompetitionRoutesScreen() {
   const isTotemtition = competition?.format === 'totemtition';
   const [selectedGrade, setSelectedGrade] = useState('V3');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // View mode: list or map
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  
+  // Selected route for map placement
+  const [selectedRouteForPlacement, setSelectedRouteForPlacement] = useState<CompetitionRoute | null>(null);
+  const [isPlacingRoute, setIsPlacingRoute] = useState(false);
+  
+  // Color picker modal
+  const [showColorModal, setShowColorModal] = useState(false);
+  const [selectedRouteForColor, setSelectedRouteForColor] = useState<CompetitionRoute | null>(null);
 
   const styles = createStyles(theme);
 
@@ -211,6 +243,96 @@ export default function ManageCompetitionRoutesScreen() {
     );
   };
 
+  // Handle placing route on map
+  const handleMapTap = useCallback(async (coordinates: { xNorm: number; yNorm: number }) => {
+    if (!selectedRouteForPlacement) return;
+    
+    setIsSubmitting(true);
+    try {
+      await CompetitionRoutesService.updateRoute(
+        competitionId,
+        selectedRouteForPlacement.id,
+        {
+          xNorm: coordinates.xNorm,
+          yNorm: coordinates.yNorm,
+        }
+      );
+      
+      // Move to next unplaced route or exit placement mode
+      const nextUnplaced = routes.find(r => 
+        r.id !== selectedRouteForPlacement.id && 
+        (!r.xNorm || !r.yNorm || r.xNorm === 0 || r.yNorm === 0)
+      );
+      
+      if (nextUnplaced) {
+        setSelectedRouteForPlacement(nextUnplaced);
+      } else {
+        setSelectedRouteForPlacement(null);
+        setIsPlacingRoute(false);
+        Alert.alert('הצלחה', 'כל המסלולים מוקמו על המפה');
+      }
+      
+      refresh();
+    } catch (error) {
+      console.error('Error placing route:', error);
+      Alert.alert('שגיאה', 'לא ניתן למקם את המסלול');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [competitionId, selectedRouteForPlacement, routes, refresh]);
+
+  // Start placing routes on map
+  const handleStartPlacingRoutes = () => {
+    const unplacedRoutes = routes.filter(r => !r.xNorm || !r.yNorm || r.xNorm === 0 || r.yNorm === 0);
+    if (unplacedRoutes.length === 0) {
+      Alert.alert('שים לב', 'כל המסלולים כבר ממוקמים על המפה');
+      setViewMode('map');
+      return;
+    }
+    
+    setSelectedRouteForPlacement(unplacedRoutes[0]);
+    setIsPlacingRoute(true);
+    setViewMode('map');
+  };
+
+  // Handle route press on map (for repositioning)
+  const handleRoutePress = useCallback((route: CompetitionRoute) => {
+    if (isPlacingRoute) {
+      setSelectedRouteForPlacement(route);
+    }
+  }, [isPlacingRoute]);
+
+  // Handle color change for a route
+  const handleOpenColorPicker = (route: CompetitionRoute) => {
+    setSelectedRouteForColor(route);
+    setShowColorModal(true);
+  };
+
+  const handleColorSelect = async (colorHex: string) => {
+    if (!selectedRouteForColor) return;
+    
+    setIsSubmitting(true);
+    try {
+      await CompetitionRoutesService.updateRoute(
+        competitionId,
+        selectedRouteForColor.id,
+        { color: colorHex }
+      );
+      setShowColorModal(false);
+      setSelectedRouteForColor(null);
+      refresh();
+    } catch (error) {
+      console.error('Error updating route color:', error);
+      Alert.alert('שגיאה', 'לא ניתן לעדכן את צבע המסלול');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Get routes positioned on map
+  const positionedRoutes = routes.filter(r => r.xNorm && r.yNorm && r.xNorm > 0 && r.yNorm > 0);
+  const unpositionedRoutes = routes.filter(r => !r.xNorm || !r.yNorm || r.xNorm === 0 || r.yNorm === 0);
+
   const handleDeleteAllRoutes = () => {
     Alert.alert(
       'מחיקת כל המסלולים',
@@ -244,16 +366,28 @@ export default function ManageCompetitionRoutesScreen() {
     const points = isTotemRoute ? 1000 : (NATIONAL_LEAGUE_GRADE_POINTS[item.grade] || 100);
     const displayGrade = isTotemRoute ? '🎯' : item.grade;
     const pointsLabel = isTotemRoute ? '1000÷N נק\'' : `${points} נקודות`;
+    const routeColor = item.color || '#3b82f6'; // Default blue if no color set
     
     return (
       <View style={styles.routeItem}>
-        <View style={styles.routeNumber}>
-          <Text style={styles.routeNumberText}>{item.routeNumber}</Text>
+        <View style={[styles.routeNumber, { backgroundColor: routeColor }]}>
+          <Text style={[styles.routeNumberText, { color: getContrastTextColor(routeColor) }]}>
+            {item.routeNumber}
+          </Text>
         </View>
         <View style={styles.routeInfo}>
           <Text style={styles.routeGrade}>{displayGrade}</Text>
           <Text style={styles.routePoints}>{pointsLabel}</Text>
         </View>
+        {/* Color picker button - only for head judges and admins */}
+        {(rolesContext.isHeadJudge || rolesContext.isAdmin) && (
+          <TouchableOpacity
+            style={[styles.colorBtn, { backgroundColor: routeColor }]}
+            onPress={() => handleOpenColorPicker(item)}
+          >
+            <Ionicons name="color-palette" size={16} color={getContrastTextColor(routeColor)} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={styles.deleteBtn}
           onPress={() => handleDeleteRoute(item)}
@@ -280,12 +414,55 @@ export default function ManageCompetitionRoutesScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (isPlacingRoute) {
+              setIsPlacingRoute(false);
+              setSelectedRouteForPlacement(null);
+            } else {
+              navigation.goBack();
+            }
+          }}
         >
           <Ionicons name="arrow-forward" size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>🗺️ מסלולי תחרות</Text>
+        <Text style={styles.headerTitle}>
+          {isPlacingRoute ? `מיקום מסלול ${selectedRouteForPlacement?.routeNumber}` : '🗺️ מסלולי תחרות'}
+        </Text>
         <View style={styles.placeholder} />
+      </View>
+
+      {/* View Mode Toggle */}
+      <View style={styles.viewModeToggle}>
+        <TouchableOpacity
+          style={[styles.viewModeBtn, viewMode === 'list' && styles.viewModeBtnActive]}
+          onPress={() => {
+            setViewMode('list');
+            setIsPlacingRoute(false);
+            setSelectedRouteForPlacement(null);
+          }}
+        >
+          <Ionicons 
+            name="list" 
+            size={18} 
+            color={viewMode === 'list' ? '#fff' : theme.primary} 
+          />
+          <Text style={[styles.viewModeBtnText, viewMode === 'list' && styles.viewModeBtnTextActive]}>
+            רשימה
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.viewModeBtn, viewMode === 'map' && styles.viewModeBtnActive]}
+          onPress={() => setViewMode('map')}
+        >
+          <Ionicons 
+            name="map" 
+            size={18} 
+            color={viewMode === 'map' ? '#fff' : theme.primary} 
+          />
+          <Text style={[styles.viewModeBtnText, viewMode === 'map' && styles.viewModeBtnTextActive]}>
+            מפה
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Stats */}
@@ -295,6 +472,10 @@ export default function ManageCompetitionRoutesScreen() {
           <Text style={styles.statLabel}>מסלולים</Text>
         </View>
         <View style={styles.statItem}>
+          <Text style={styles.statValue}>{positionedRoutes.length}</Text>
+          <Text style={styles.statLabel}>על המפה</Text>
+        </View>
+        <View style={styles.statItem}>
           <Text style={styles.statValue}>
             {competition?.settings.maxRoutes || 30}
           </Text>
@@ -302,51 +483,146 @@ export default function ManageCompetitionRoutesScreen() {
         </View>
       </View>
 
-      {/* Actions */}
-      <View style={styles.actionsRow}>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => setShowAddModal(true)}
-        >
-          <Ionicons name="add" size={20} color="#fff" />
-          <Text style={styles.addBtnText}>הוסף מסלול</Text>
-        </TouchableOpacity>
+      {/* List View */}
+      {viewMode === 'list' && (
+        <>
+          {/* Actions */}
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={styles.addBtn}
+              onPress={() => setShowAddModal(true)}
+            >
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={styles.addBtnText}>הוסף מסלול</Text>
+            </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.bulkBtn}
-          onPress={handleAddMultipleRoutes}
-        >
-          <Ionicons name="copy" size={18} color={theme.primary} />
-          <Text style={styles.bulkBtnText}>הוסף מרובים</Text>
-        </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.bulkBtn}
+              onPress={handleAddMultipleRoutes}
+            >
+              <Ionicons name="copy" size={18} color={theme.primary} />
+              <Text style={styles.bulkBtnText}>הוסף מרובים</Text>
+            </TouchableOpacity>
 
-        {routes.length > 0 && (
-          <TouchableOpacity
-            style={styles.deleteAllBtn}
-            onPress={handleDeleteAllRoutes}
-          >
-            <Ionicons name="trash" size={18} color="#e74c3c" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Routes List */}
-      <FlatList
-        data={routes.sort((a, b) => a.routeNumber - b.routeNumber)}
-        keyExtractor={(item) => item.id}
-        renderItem={renderRouteItem}
-        contentContainerStyle={styles.listContent}
-        numColumns={2}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="map-outline" size={64} color={theme.textSecondary} />
-            <Text style={styles.emptyText}>אין מסלולים עדיין</Text>
-            <Text style={styles.emptySubtext}>
-              הוסף מסלולים לתחרות
-            </Text>
+            {routes.length > 0 && (
+              <TouchableOpacity
+                style={styles.deleteAllBtn}
+                onPress={handleDeleteAllRoutes}
+              >
+                <Ionicons name="trash" size={18} color="#e74c3c" />
+              </TouchableOpacity>
+            )}
           </View>
-        }
-      />
+
+          {/* Map placement button */}
+          {routes.length > 0 && (
+            <TouchableOpacity
+              style={styles.mapPlacementBtn}
+              onPress={handleStartPlacingRoutes}
+            >
+              <Ionicons name="location" size={20} color="#fff" />
+              <Text style={styles.mapPlacementBtnText}>
+                מקם מסלולים על המפה ({unpositionedRoutes.length} לא ממוקמים)
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Routes List */}
+          <FlatList
+            data={routes.sort((a, b) => a.routeNumber - b.routeNumber)}
+            keyExtractor={(item) => item.id}
+            renderItem={renderRouteItem}
+            extraData={routes.map(r => `${r.id}-${r.color}`).join(',')}
+            contentContainerStyle={styles.listContent}
+            numColumns={2}
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Ionicons name="map-outline" size={64} color={theme.textSecondary} />
+                <Text style={styles.emptyText}>אין מסלולים עדיין</Text>
+                <Text style={styles.emptySubtext}>
+                  הוסף מסלולים לתחרות
+                </Text>
+              </View>
+            }
+          />
+        </>
+      )}
+
+      {/* Map View */}
+      {viewMode === 'map' && (
+        <View style={styles.mapContainer}>
+          {routes.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="map-outline" size={64} color={theme.textSecondary} />
+              <Text style={styles.emptyText}>אין מסלולים</Text>
+              <Text style={styles.emptySubtext}>
+                הוסף מסלולים קודם ברשימה
+              </Text>
+            </View>
+          ) : (
+            <>
+              <CompetitionWallMap
+                routes={positionedRoutes}
+                wallWidth={mapRoom?.width || WALL_WIDTH}
+                wallHeight={mapRoom?.height || WALL_HEIGHT}
+                format={competition?.format || 'national_league'}
+                isEditing={isPlacingRoute}
+                onMapTap={isPlacingRoute ? handleMapTap : undefined}
+                onRoutePress={handleRoutePress}
+                selectedRouteId={selectedRouteForPlacement?.id}
+                room={mapRoom}
+              />
+              
+              {/* Placement mode controls */}
+              {isPlacingRoute && (
+                <View style={styles.placementControls}>
+                  <Text style={styles.placementText}>
+                    לחץ על המפה למיקום מסלול {selectedRouteForPlacement?.routeNumber}
+                  </Text>
+                  <View style={styles.placementButtons}>
+                    {unpositionedRoutes.length > 0 && (
+                      <TouchableOpacity
+                        style={styles.skipBtn}
+                        onPress={() => {
+                          const currentIndex = unpositionedRoutes.findIndex(
+                            r => r.id === selectedRouteForPlacement?.id
+                          );
+                          const nextIndex = (currentIndex + 1) % unpositionedRoutes.length;
+                          setSelectedRouteForPlacement(unpositionedRoutes[nextIndex]);
+                        }}
+                      >
+                        <Text style={styles.skipBtnText}>דלג</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={styles.cancelPlacementBtn}
+                      onPress={() => {
+                        setIsPlacingRoute(false);
+                        setSelectedRouteForPlacement(null);
+                      }}
+                    >
+                      <Text style={styles.cancelPlacementBtnText}>סיום</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+
+              {/* Start placement button when not in placement mode */}
+              {!isPlacingRoute && unpositionedRoutes.length > 0 && (
+                <TouchableOpacity
+                  style={styles.startPlacementBtn}
+                  onPress={handleStartPlacingRoutes}
+                >
+                  <Ionicons name="location" size={20} color="#fff" />
+                  <Text style={styles.startPlacementBtnText}>
+                    מקם {unpositionedRoutes.length} מסלולים
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
+          )}
+        </View>
+      )}
 
       {/* Loading overlay */}
       {isSubmitting && (
@@ -437,6 +713,61 @@ export default function ManageCompetitionRoutesScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Color Picker Modal */}
+      <Modal
+        visible={showColorModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowColorModal(false);
+          setSelectedRouteForColor(null);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                בחר צבע למסלול {selectedRouteForColor?.routeNumber}
+              </Text>
+              <TouchableOpacity 
+                onPress={() => {
+                  setShowColorModal(false);
+                  setSelectedRouteForColor(null);
+                }}
+              >
+                <Ionicons name="close" size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.colorGrid}>
+              {ROUTE_COLORS.map((colorHex) => {
+                const colorKey = getColorTranslationKey(colorHex);
+                const colorName = t.colors[colorKey as keyof typeof t.colors] || colorKey;
+                
+                return (
+                  <TouchableOpacity
+                    key={colorHex}
+                    style={[
+                      styles.colorOption,
+                      { backgroundColor: colorHex },
+                      selectedRouteForColor?.color === colorHex && styles.colorOptionSelected,
+                    ]}
+                    onPress={() => handleColorSelect(colorHex)}
+                  >
+                    <Text style={[styles.colorOptionText, { color: getContrastTextColor(colorHex) }]}>
+                      {colorName}
+                    </Text>
+                    {selectedRouteForColor?.color === colorHex && (
+                      <Ionicons name="checkmark" size={18} color={getContrastTextColor(colorHex)} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -505,7 +836,7 @@ const createStyles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingVertical: 12,
       borderRadius: 10,
       gap: 6,
@@ -681,7 +1012,7 @@ const createStyles = (theme: any) =>
       marginTop: 2,
     },
     submitBtn: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingVertical: 16,
       borderRadius: 12,
       alignItems: 'center',
@@ -717,7 +1048,7 @@ const createStyles = (theme: any) =>
       marginTop: 24,
       paddingVertical: 12,
       paddingHorizontal: 24,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       borderRadius: 8,
     },
     backBtnText: {
@@ -739,5 +1070,156 @@ const createStyles = (theme: any) =>
       color: theme.text,
       textAlign: 'center',
       lineHeight: 22,
+    },
+    // View mode toggle
+    viewModeToggle: {
+      flexDirection: 'row',
+      marginHorizontal: 16,
+      marginTop: 12,
+      backgroundColor: theme.card,
+      borderRadius: 12,
+      padding: 4,
+    },
+    viewModeBtn: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 10,
+      borderRadius: 10,
+      gap: 6,
+    },
+    viewModeBtnActive: {
+      backgroundColor: theme.primary,
+    },
+    viewModeBtnText: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.primary,
+    },
+    viewModeBtnTextActive: {
+      color: '#fff',
+    },
+    // Map container
+    mapContainer: {
+      flex: 1,
+      marginTop: 8,
+    },
+    // Map placement button
+    mapPlacementBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#3b82f6',
+      marginHorizontal: 16,
+      marginBottom: 8,
+      paddingVertical: 12,
+      borderRadius: 10,
+      gap: 8,
+    },
+    mapPlacementBtnText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    // Placement controls
+    placementControls: {
+      position: 'absolute',
+      bottom: 20,
+      left: 16,
+      right: 16,
+      backgroundColor: 'rgba(59, 130, 246, 0.95)',
+      borderRadius: 16,
+      padding: 16,
+      alignItems: 'center',
+    },
+    placementText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+      marginBottom: 12,
+      textAlign: 'center',
+    },
+    placementButtons: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    skipBtn: {
+      paddingVertical: 10,
+      paddingHorizontal: 24,
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      borderRadius: 10,
+    },
+    skipBtnText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    cancelPlacementBtn: {
+      paddingVertical: 10,
+      paddingHorizontal: 24,
+      backgroundColor: '#fff',
+      borderRadius: 10,
+    },
+    cancelPlacementBtnText: {
+      color: '#3b82f6',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    startPlacementBtn: {
+      position: 'absolute',
+      bottom: 20,
+      left: 16,
+      right: 16,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: '#3b82f6',
+      paddingVertical: 14,
+      borderRadius: 12,
+      gap: 8,
+    },
+    startPlacementBtnText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+    // Color picker styles
+    colorBtn: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 8,
+      borderWidth: 2,
+      borderColor: 'rgba(0,0,0,0.1)',
+    },
+    colorGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 10,
+      justifyContent: 'center',
+      paddingVertical: 10,
+    },
+    colorOption: {
+      width: '30%',
+      paddingVertical: 12,
+      paddingHorizontal: 8,
+      borderRadius: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      borderWidth: 2,
+      borderColor: 'transparent',
+    },
+    colorOptionSelected: {
+      borderColor: theme.primary,
+      borderWidth: 3,
+    },
+    colorOptionText: {
+      fontSize: 13,
+      fontWeight: '600',
     },
   });

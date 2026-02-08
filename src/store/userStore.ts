@@ -180,11 +180,15 @@ export const useUserLoading = () => useUserStore((state) => state.isLoading);
 export const useUserStats = () => useUserStore((state) => state.userProfile?.stats);
 export const useIsAdmin = () => useUserStore((state) => state.userProfile?.isAdmin || false);
 
-// Actions
-export const useUserActions = () => useUserStore((state) => ({
-    setCurrentUser: state.setCurrentUser,
-    loadUserProfile: state.loadUserProfile,
-    updateUserProfile: state.updateUserProfile,
-    refreshUserStats: state.refreshUserStats,
-    clearUser: state.clearUser,
-}));
+// Stable actions object - actions never change, so create once at module level
+// This prevents re-renders when using actions
+const userActions = {
+    setCurrentUser: (user: User | null) => useUserStore.getState().setCurrentUser(user),
+    loadUserProfile: (userId: string) => useUserStore.getState().loadUserProfile(userId),
+    updateUserProfile: (updates: Partial<UserProfile>) => useUserStore.getState().updateUserProfile(updates),
+    refreshUserStats: (userId: string) => useUserStore.getState().refreshUserStats(userId),
+    clearUser: () => useUserStore.getState().clearUser(),
+};
+
+// Return stable reference to actions (no re-renders when store updates)
+export const useUserActions = () => userActions;

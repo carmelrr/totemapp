@@ -1,7 +1,7 @@
 // src/screens/SprayWall/RouteDetailsScreen.tsx
 // Screen for entering route name and grade after marking holds
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -13,16 +13,28 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Dimensions,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GradePicker } from "@/components/spray/GradePicker";
 import { useAddRoute } from "@/features/spraywall/hooks";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/features/language";
 import { Hold } from "@/features/spraywall/types";
 import { getNewRandomRouteName } from "@/utils/randomRouteNames";
+import { useTheme, lightTheme } from "@/features/theme/ThemeContext";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+
+type Theme = typeof lightTheme;
 
 export const RouteDetailsScreen: React.FC = () => {
+  const { theme } = useTheme();
+  const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
+  const { isLandscape, isTablet, width } = layout;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { addRoute, loading: addingRoute } = useAddRoute();
@@ -47,28 +59,36 @@ export const RouteDetailsScreen: React.FC = () => {
       return;
     }
 
+    // Check if user is logged in
+    if (!user?.uid) {
+      Alert.alert(t.common.error, t.spray.loginToAddRoute || "יש להתחבר כדי להוסיף מסלול");
+      return;
+    }
+
     try {
+      console.log('🔵 [RouteDetailsScreen] Adding route with:', {
+        wallId,
+        name: routeName.trim(),
+        grade: routeGrade,
+        holdsCount: holds.length,
+        createdBy: user.uid,
+        creatorName: user.displayName || user.email,
+      });
+      
       await addRoute({
         wallId,
         name: routeName.trim(),
         grade: routeGrade,
         holds,
-        createdBy: user?.uid || null,
-        creatorName: user?.displayName || user?.email || undefined,
+        createdBy: user.uid,
+        creatorName: user.displayName || user.email || undefined,
       });
 
-      Alert.alert(t.common.success, t.spray.routeAddedSuccess, [
-        {
-          text: t.common.ok,
-          onPress: () => {
-            // Reset navigation stack to SprayHome to prevent back button issues
-            navigation.reset({
-              index: 0,
-              routes: [{ name: "SprayHome" }],
-            });
-          },
-        },
-      ]);
+      // Reset navigation stack to SprayHome to prevent back button issues
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "SprayHome" }],
+      });
     } catch (error: any) {
       Alert.alert(t.common.error, error.message || t.spray.failedToAddRoute);
     }
@@ -168,23 +188,34 @@ export const RouteDetailsScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayout>, insets?: { left: number; right: number }) => {
+  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const isLandscape = layout?.isLandscape ?? screenWidth > screenHeight;
+  const isTablet = layout?.isTablet ?? false;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  const horizontalPadding = isLandscape ? Math.max(insets?.left ?? 0, insets?.right ?? 0, 16) : 16;
+  const contentMaxWidth = isLandscape ? Math.min((layout?.width ?? screenWidth) * 0.6, 500) : undefined;
+  
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: theme.background,
   },
   scrollView: {
     flex: 1,
   },
   summarySection: {
-    backgroundColor: "#2a2a2a",
-    padding: 16,
-    margin: 16,
+    backgroundColor: theme.surface,
+    padding: isPhoneLandscape ? 12 : 16,
+    margin: horizontalPadding,
     borderRadius: 12,
+    maxWidth: contentMaxWidth,
+    alignSelf: isLandscape ? 'center' : undefined,
+    width: isLandscape ? '100%' : undefined,
   },
   summaryTitle: {
-    color: "#fff",
-    fontSize: 16,
+    color: theme.text,
+    fontSize: isPhoneLandscape ? 14 : 16,
     fontWeight: "bold",
     marginBottom: 12,
     textAlign: "center",
@@ -205,20 +236,23 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   summaryText: {
-    color: "#ccc",
+    color: theme.textSecondary,
     fontSize: 12,
   },
   totalText: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 14,
     fontWeight: "600",
     textAlign: "center",
   },
   inputSection: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#2a2a2a",
+    paddingHorizontal: horizontalPadding,
+    paddingVertical: isPhoneLandscape ? 8 : 12,
+    backgroundColor: theme.surface,
     marginTop: 8,
+    maxWidth: contentMaxWidth,
+    alignSelf: isLandscape ? 'center' : undefined,
+    width: isLandscape ? '100%' : undefined,
   },
   labelRow: {
     flexDirection: "row",
@@ -227,12 +261,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   label: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 14,
     fontWeight: "600",
   },
   randomButton: {
-    backgroundColor: "#8E4EC6",
+    backgroundColor: theme.secondary,
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
@@ -243,17 +277,17 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   input: {
-    backgroundColor: "#3a3a3a",
+    backgroundColor: theme.inputBackground,
     borderRadius: 8,
     padding: 14,
-    color: "#fff",
+    color: theme.text,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: theme.border,
     textAlign: "right",
   },
   saveButton: {
-    backgroundColor: "#8E4EC6",
+    backgroundColor: theme.secondary,
     margin: 16,
     marginBottom: 8,
     padding: 16,
@@ -265,19 +299,23 @@ const styles = StyleSheet.create({
   },
   saveButtonText: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: isPhoneLandscape ? 16 : 18,
     fontWeight: "bold",
   },
   backButton: {
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginHorizontal: horizontalPadding,
+    marginBottom: isPhoneLandscape ? 12 : 16,
     padding: 12,
     alignItems: "center",
+    maxWidth: contentMaxWidth,
+    alignSelf: isLandscape ? 'center' : undefined,
+    width: isLandscape ? '100%' : undefined,
   },
   backButtonText: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 14,
   },
 });
+};
 
 export default RouteDetailsScreen;

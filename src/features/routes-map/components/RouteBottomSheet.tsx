@@ -161,11 +161,9 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
       if (userFeedback) {
         // Update existing feedback
         await FeedbackService.updateFeedback(userFeedback.id, feedbackData);
-        Alert.alert(t.feedback.successTitle, t.feedback.feedbackUpdated);
       } else {
         // Add new feedback
         await FeedbackService.addFeedbackToRoute(route.id, feedbackData);
-        Alert.alert(t.feedback.congratsTitle, t.feedback.routeCompleted);
       }
       
       setShowFeedbackForm(false);

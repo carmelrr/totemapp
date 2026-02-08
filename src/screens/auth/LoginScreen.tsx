@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Platform,
   ScrollView,
   RefreshControl,
+  Image,
 } from "react-native";
 import {
   signInWithEmailAndPassword,
@@ -22,55 +23,95 @@ import { auth, db } from "@/features/data/firebase";
 import GoogleLoginButton from "@/features/auth/GoogleAuth";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
+import { BrandLogo } from "@/components/ui/BrandLogo";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const createStyles = (theme) =>
-  StyleSheet.create({
+const createStyles = (theme, layout, insets) => {
+  const { isLandscape, isTablet, width, height, scaleFactor } = layout;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  
+  // In landscape, make the form narrower and centered
+  const formMaxWidth = isLandscape ? Math.min(450, width * 0.5) : undefined;
+  
+  return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.background,
       justifyContent: "center",
     },
+    scrollContent: {
+      flexGrow: 1,
+      justifyContent: "center",
+      paddingLeft: isLandscape ? Math.max(20, insets.left) : 0,
+      paddingRight: isLandscape ? Math.max(20, insets.right) : 0,
+    },
     formContainer: {
-      padding: 20,
-      margin: 20,
+      padding: isPhoneLandscape ? 16 : 24,
+      margin: isPhoneLandscape ? 10 : 20,
       backgroundColor: theme.surface,
-      borderRadius: 10,
+      borderRadius: 16,
       shadowColor: theme.shadow,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.25,
-      shadowRadius: 3.84,
-      elevation: 5,
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.15,
+      shadowRadius: 12,
+      elevation: 8,
+      maxWidth: formMaxWidth,
+      alignSelf: isLandscape ? 'center' : undefined,
+      width: isLandscape ? formMaxWidth : undefined,
+    },
+    logoContainer: {
+      alignItems: "center",
+      marginBottom: isPhoneLandscape ? 8 : 16,
+    },
+    logoImage: {
+      width: isPhoneLandscape ? 80 : 120,
+      height: isPhoneLandscape ? 80 : 120,
     },
     title: {
-      fontSize: 32,
+      fontSize: isPhoneLandscape ? 22 : 28,
       fontWeight: "bold",
       textAlign: "center",
-      marginBottom: 10,
+      marginBottom: isPhoneLandscape ? 4 : 8,
       color: theme.text,
     },
     subtitle: {
-      fontSize: 18,
+      fontSize: isPhoneLandscape ? 14 : 16,
       textAlign: "center",
-      marginBottom: 30,
+      marginBottom: isPhoneLandscape ? 16 : 24,
       color: theme.textSecondary,
+    },
+    inputContainer: {
+      marginBottom: isPhoneLandscape ? 10 : 16,
+    },
+    inputLabel: {
+      fontSize: 14,
+      fontWeight: "600",
+      color: theme.text,
+      marginBottom: 6,
+      textAlign: "right",
     },
     input: {
       borderWidth: 1,
       borderColor: theme.border,
-      padding: 15,
-      borderRadius: 8,
-      marginBottom: 15,
+      padding: isPhoneLandscape ? 10 : 14,
+      borderRadius: 10,
       fontSize: 16,
       backgroundColor: theme.inputBackground,
       textAlign: "right",
       color: theme.text,
     },
+    inputFocused: {
+      borderColor: theme.primary,
+      borderWidth: 2,
+    },
     button: {
-      backgroundColor: theme.primary,
-      padding: 15,
-      borderRadius: 8,
+      backgroundColor: theme.buttonPrimary,
+      padding: isPhoneLandscape ? 12 : 16,
+      borderRadius: 10,
       alignItems: "center",
-      marginBottom: 15,
+      marginBottom: isPhoneLandscape ? 8 : 12,
+      marginTop: isPhoneLandscape ? 4 : 8,
     },
     buttonDisabled: {
       backgroundColor: theme.border,
@@ -80,34 +121,50 @@ const createStyles = (theme) =>
       fontSize: 16,
       fontWeight: "bold",
     },
+    dividerContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginVertical: isPhoneLandscape ? 10 : 16,
+    },
+    dividerLine: {
+      flex: 1,
+      height: 1,
+      backgroundColor: theme.border,
+    },
+    dividerText: {
+      marginHorizontal: 12,
+      color: theme.textSecondary,
+      fontSize: 14,
+    },
     switchButton: {
       alignItems: "center",
-      padding: 10,
+      padding: isPhoneLandscape ? 8 : 12,
+      marginTop: isPhoneLandscape ? 4 : 8,
     },
     switchText: {
       color: theme.primary,
-      fontSize: 14,
+      fontSize: 15,
+      fontWeight: "500",
     },
     forgotPasswordButton: {
       alignItems: "center",
-      padding: 10,
-      marginTop: 5,
+      padding: isPhoneLandscape ? 6 : 10,
+      marginTop: 4,
     },
     forgotPasswordText: {
       color: theme.textSecondary,
       fontSize: 14,
       textDecorationLine: "underline",
     },
-    scrollContent: {
-      flexGrow: 1,
-      justifyContent: "center",
-    },
   });
+};
 
 export default function LoginScreen() {
   const { theme } = useTheme();
   const { t } = useLanguage();
-  const styles = createStyles(theme);
+  const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
@@ -211,8 +268,6 @@ export default function LoginScreen() {
             averageStarRating: 0,
           },
         });
-        
-        Alert.alert(t.common.success, t.common.success);
       } else {
         // Try to sign in
         try {
@@ -346,6 +401,27 @@ export default function LoginScreen() {
       return;
     }
 
+    // First check if email exists in our system before sending reset email
+    const emailExists = await checkEmailExistsInFirestore(email);
+    if (!emailExists) {
+      // Double check via auth
+      const authCheck = await checkEmailExistsViaAuth(email);
+      if (authCheck === false) {
+        Alert.alert(
+          t.auth.userNotFound,
+          t.auth.userNotFoundMessage,
+          [
+            { text: t.common.no, style: "cancel" },
+            { 
+              text: t.auth.createAccount, 
+              onPress: () => setIsSignUp(true) 
+            },
+          ]
+        );
+        return;
+      }
+    }
+
     setLoading(true);
     try {
       await sendPasswordResetEmail(auth, email);
@@ -401,43 +477,55 @@ export default function LoginScreen() {
         }
       >
         <View style={styles.formContainer}>
-          <Text style={styles.title}>🧗‍♂️ Climbing Gym</Text>
+          <View style={styles.logoContainer}>
+            <BrandLogo variant="icon" color={theme.isDark ? "white" : "dark"} size={120} />
+          </View>
+          <Text style={styles.title}>ברוכים הבאים לטוטם</Text>
           <Text style={styles.subtitle}>
-            {isSignUp ? t.auth.signUp : t.home.welcomeBack}
+            {isSignUp ? t.auth.signUp : t.auth.login}
           </Text>
 
           {isSignUp && (
-            <TextInput
-              style={styles.input}
-              placeholder={t.auth.displayName}
-              placeholderTextColor={theme.textSecondary}
-              value={displayName}
-              onChangeText={setDisplayName}
-              autoCapitalize="words"
-              autoCorrect={false}
-            />
+            <View style={styles.inputContainer}>
+              <Text style={styles.inputLabel}>{t.auth.displayName}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={t.auth.displayName}
+                placeholderTextColor={theme.textSecondary}
+                value={displayName}
+                onChangeText={setDisplayName}
+                autoCapitalize="words"
+                autoCorrect={false}
+              />
+            </View>
           )}
 
-          <TextInput
-            style={styles.input}
-            placeholder={t.auth.email}
-            placeholderTextColor={theme.textSecondary}
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>{t.auth.email}</Text>
+            <TextInput
+              style={styles.input}
+              placeholder={t.auth.email}
+              placeholderTextColor={theme.textSecondary}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
 
-          <TextInput
-            style={styles.input}
-            placeholder={t.auth.password}
-            placeholderTextColor={theme.textSecondary}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            autoCapitalize="none"
-          />
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>{t.auth.password}</Text>
+            <TextInput
+              style={styles.input}
+              placeholder={t.auth.password}
+              placeholderTextColor={theme.textSecondary}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              autoCapitalize="none"
+            />
+          </View>
 
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
@@ -448,6 +536,12 @@ export default function LoginScreen() {
               {loading ? t.common.loading : isSignUp ? t.auth.signUp : t.auth.login}
             </Text>
           </TouchableOpacity>
+
+          <View style={styles.dividerContainer}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>או</Text>
+            <View style={styles.dividerLine} />
+          </View>
 
           <GoogleLoginButton />
 

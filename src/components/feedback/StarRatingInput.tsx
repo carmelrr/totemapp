@@ -12,7 +12,7 @@ interface StarRatingInputProps {
 
 const STAR_LABELS = ['גרוע', 'בסדר', 'טוב', 'מעולה', 'מושלם'];
 
-export const StarRatingInput: React.FC<StarRatingInputProps> = ({
+export const StarRatingInput = React.memo<StarRatingInputProps>(({
     rating,
     onRatingChange,
     disabled = false,
@@ -55,7 +55,7 @@ export const StarRatingInput: React.FC<StarRatingInputProps> = ({
             )}
         </View>
     );
-};
+});
 
 const styles = StyleSheet.create({
     container: {

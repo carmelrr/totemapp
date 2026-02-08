@@ -1,7 +1,7 @@
-// src/screens/CommunityRoutes/AddCommunityRouteScreen.tsx
+﻿// src/screens/CommunityRoutes/AddCommunityRouteScreen.tsx
 // Screen for creating a new community route on a real wall photo
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -15,17 +15,21 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
-import { useTheme } from '@/features/theme/ThemeContext';
+import { useTheme, lightTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
+import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { WallImageWithHolds } from '@/components/spray/WallImageWithHolds';
 import { HoldTypePicker } from '@/components/spray/HoldTypePicker';
 import { GradePicker } from '@/components/spray/GradePicker';
 import { useCreateCommunityRoute, Hold, HoldType, HOLD_TYPES } from '@/features/community-routes';
 import { getNewRandomRouteName } from '@/utils/randomRouteNames';
+
+type Theme = typeof lightTheme;
 
 // Generate unique ID
 const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -37,6 +41,11 @@ export const AddCommunityRouteScreen: React.FC = () => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { create, saving } = useCreateCommunityRoute();
+  const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
+  const { isLandscape, isTablet } = layout;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
 
   // Current step
   const [step, setStep] = useState<Step>('image');
@@ -56,7 +65,6 @@ export const AddCommunityRouteScreen: React.FC = () => {
   // Route details
   const [routeName, setRouteName] = useState('');
   const [routeGrade, setRouteGrade] = useState('V3');
-  const [gymName, setGymName] = useState('');
   const [description, setDescription] = useState('');
 
   // Pick image from gallery
@@ -189,17 +197,11 @@ export const AddCommunityRouteScreen: React.FC = () => {
         routeGrade,
         lockedHolds,
         {
-          gymName: gymName.trim() || undefined,
           description: description.trim() || undefined,
         }
       );
 
-      Alert.alert(t.community.successCreated, t.community.routeCreatedMessage, [
-        {
-          text: t.community.ok,
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+      navigation.goBack();
     } catch (error: any) {
       Alert.alert(t.common.error, error.message || t.community.failedToSaveRoute);
     }
@@ -217,7 +219,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
 
       <View style={styles.imageOptions}>
         <TouchableOpacity
-          style={[styles.imageOptionButton, { backgroundColor: theme.primary }]}
+          style={[styles.imageOptionButton, { backgroundColor: theme.buttonPrimary }]}
           onPress={takePhoto}
         >
           <Ionicons name="camera" size={48} color="#fff" />
@@ -340,7 +342,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
             <Text style={[styles.inputLabel, { color: theme.text }]}>
               {t.community.routeName}
             </Text>
-            <TouchableOpacity onPress={handleRandomName} style={[styles.randomButton, { backgroundColor: theme.primary }]}>
+            <TouchableOpacity onPress={handleRandomName} style={[styles.randomButton, { backgroundColor: theme.buttonPrimary }]}>
               <Text style={styles.randomButtonText}>{t.community.randomName}</Text>
             </TouchableOpacity>
           </View>
@@ -363,24 +365,6 @@ export const AddCommunityRouteScreen: React.FC = () => {
           <GradePicker
             selectedGrade={routeGrade}
             onSelectGrade={setRouteGrade}
-          />
-        </View>
-
-        {/* Gym name */}
-        <View style={styles.inputGroup}>
-          <Text style={[styles.inputLabel, { color: theme.text }]}>
-            {t.community.gymNameOptional}
-          </Text>
-          <TextInput
-            style={[
-              styles.textInput,
-              { backgroundColor: theme.surface, color: theme.text },
-            ]}
-            value={gymName}
-            onChangeText={setGymName}
-            placeholder={t.community.gymNamePlaceholder}
-            placeholderTextColor={theme.textSecondary}
-            textAlign="right"
           />
         </View>
 
@@ -416,7 +400,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
       {/* Save button */}
       <View style={[styles.saveButtonContainer, { backgroundColor: theme.background }]}>
         <TouchableOpacity
-          style={[styles.saveButton, { backgroundColor: theme.primary }]}
+          style={[styles.saveButton, { backgroundColor: theme.buttonPrimary }]}
           onPress={handleSave}
           disabled={saving || !routeName.trim()}
         >
@@ -452,17 +436,20 @@ export const AddCommunityRouteScreen: React.FC = () => {
       >
         <Ionicons name="arrow-forward" size={24} color="#fff" />
       </TouchableOpacity>
-      <Text style={styles.headerTitle}>
-        {step === 'image' && t.community.selectImage}
-        {step === 'holds' && t.community.markHolds}
-        {step === 'details' && t.community.routeDetails}
-      </Text>
+      <View style={styles.headerTitleRow}>
+        <BrandLogo variant="icon" color="white" size={24} />
+        <Text style={styles.headerTitle}>
+          {step === 'image' && t.community.selectImage}
+          {step === 'holds' && t.community.markHolds}
+          {step === 'details' && t.community.routeDetails}
+        </Text>
+      </View>
       <View style={styles.headerButton} />
     </View>
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       {renderHeader()}
       {step === 'image' && renderImageStep()}
       {step === 'holds' && renderHoldsStep()}
@@ -471,47 +458,64 @@ export const AddCommunityRouteScreen: React.FC = () => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  stepContainer: {
-    flex: 1,
-    paddingHorizontal: 20,
-    justifyContent: 'center',
-  },
-  stepHeader: {
-    marginBottom: 40,
-  },
-  stepTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  stepSubtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 22,
-  },
+const createStyles = (theme: Theme, layout: any, insets: any) => {
+  const { isLandscape, isTablet, width, height } = layout;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 16,
+      paddingVertical: isPhoneLandscape ? 10 : 14,
+      paddingLeft: isLandscape ? Math.max(16, insets.left) : 16,
+      paddingRight: isLandscape ? Math.max(16, insets.right) : 16,
+      backgroundColor: theme.headerGradient,
+    },
+    headerButton: {
+      width: 40,
+      height: 40,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    headerTitle: {
+      fontSize: isPhoneLandscape ? 18 : 20,
+      fontWeight: 'bold',
+      color: '#fff',
+    },
+    headerTitleRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    stepContainer: {
+      flex: 1,
+      paddingHorizontal: 20,
+      paddingLeft: isLandscape ? Math.max(20, insets.left) : 20,
+      paddingRight: isLandscape ? Math.max(20, insets.right) : 20,
+      justifyContent: 'center',
+    },
+    stepHeader: {
+      marginBottom: isPhoneLandscape ? 20 : 40,
+    },
+    stepTitle: {
+      fontSize: isPhoneLandscape ? 20 : 24,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      marginBottom: 8,
+      color: theme.text,
+    },
+    stepSubtitle: {
+      fontSize: isPhoneLandscape ? 12 : 14,
+      textAlign: 'center',
+      lineHeight: 22,
+      color: theme.textSecondary,
+    },
   imageOptions: {
     flexDirection: 'row',
     gap: 16,
@@ -524,7 +528,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 3,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -556,19 +560,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
   },
   cancelButton: {
-    backgroundColor: '#FF6B6B',
+    backgroundColor: theme.error,
   },
   confirmButton: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: theme.success,
   },
   holdTypeSection: {
     paddingVertical: 12,
+    backgroundColor: theme.surface,
   },
   bottomActions: {
     flexDirection: 'row',
@@ -576,6 +581,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
     paddingVertical: 12,
+    backgroundColor: theme.surface,
   },
   holdsCount: {
     flexDirection: 'row',
@@ -585,10 +591,11 @@ const styles = StyleSheet.create({
   holdsCountText: {
     fontSize: 16,
     fontWeight: '600',
+    color: theme.text,
   },
   clearText: {
     fontSize: 14,
-    color: '#FF6B6B',
+    color: theme.error,
   },
   continueButton: {
     flexDirection: 'row',
@@ -597,6 +604,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 25,
     gap: 8,
+    backgroundColor: theme.buttonPrimary,
   },
   continueButtonText: {
     color: '#fff',
@@ -646,9 +654,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'right',
+    color: theme.text,
   },
   labelRow: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
@@ -657,6 +666,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
+    backgroundColor: theme.secondary,
   },
   randomButtonText: {
     color: '#fff',
@@ -668,6 +678,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
+    backgroundColor: theme.inputBackground,
+    color: theme.text,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
   textAreaInput: {
     borderRadius: 12,
@@ -676,20 +690,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minHeight: 80,
     textAlignVertical: 'top',
+    backgroundColor: theme.inputBackground,
+    color: theme.text,
+    borderWidth: 1,
+    borderColor: theme.border,
   },
   expirationNotice: {
-    flexDirection: 'row-reverse',
+    flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
     borderRadius: 12,
     gap: 12,
-    marginTop: 12,
+    backgroundColor: theme.isDark ? 'rgba(251, 191, 36, 0.15)' : '#FEF3C7',
   },
   expirationNoticeText: {
     flex: 1,
     fontSize: 13,
     textAlign: 'right',
     lineHeight: 20,
+    color: theme.warning,
   },
   saveButtonContainer: {
     position: 'absolute',
@@ -698,14 +717,18 @@ const styles = StyleSheet.create({
     right: 0,
     padding: 16,
     paddingBottom: 32,
+    paddingLeft: isLandscape ? Math.max(16, insets.left) : 16,
+    paddingRight: isLandscape ? Math.max(16, insets.right) : 16,
+    backgroundColor: theme.background,
   },
   saveButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: isPhoneLandscape ? 12 : 16,
     borderRadius: 30,
     gap: 8,
+    backgroundColor: theme.buttonPrimary,
   },
   saveButtonText: {
     color: '#fff',
@@ -713,5 +736,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+};
 
 export default AddCommunityRouteScreen;

@@ -3,7 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AccessibilityInfo } from "react-native";
+import { AccessibilityInfo, I18nManager } from "react-native";
 import { enableScreens } from "react-native-screens";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -23,10 +23,22 @@ import {
   AnnouncementsManagementScreen, 
   AnnouncementEditorScreen 
 } from "@/features/announcements";
+import { WallEditorScreen } from "@/features/wall-editor";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 
 if (__DEV__) {
   console.log("🚀 App.tsx starting to load...");
+}
+
+// Force LTR layout for the entire app regardless of device language settings
+// This ensures consistent left-to-right layout throughout the app
+if (I18nManager.isRTL) {
+  I18nManager.allowRTL(false);
+  I18nManager.forceRTL(false);
+  // Note: forceRTL requires app restart to take effect
+  if (__DEV__) {
+    console.log("📐 LTR mode forced - app may need restart for full effect");
+  }
 }
 
 // Enable React Native Screens for better performance and native feel
@@ -98,6 +110,14 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
               presentation: 'modal',
             }}
           />
+          <RootStack.Screen 
+            name="WallEditor" 
+            component={WallEditorScreen}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
         </RootStack.Group>
       </RootStack.Navigator>
     </NavigationContainer>
@@ -118,12 +138,23 @@ export default function App() {
 
       if (firebaseUser) {
         try {
-          const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          // Try to get user document, with retries for new users
+          let userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          
+          // If document doesn't exist, wait a bit and retry (for new Google sign-ins)
+          if (!userDoc.exists()) {
+            if (__DEV__) console.log("🔧 User document not found, waiting for creation...");
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
+          }
+          
           if (userDoc.exists()) {
             const data = userDoc.data();
             if (__DEV__) console.log("🔧 User document found, isAdmin:", data.isAdmin);
             setIsAdmin(data.isAdmin === true);
             (globalThis as any).__isAdmin = data.isAdmin === true;
+          } else {
+            if (__DEV__) console.log("🔧 User document still not found after retry");
           }
         } catch (e) {
           console.error("שגיאה בטעינת משתמש:", e);

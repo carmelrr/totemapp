@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,27 +10,34 @@ import {
   Modal
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
 
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 // Theme
 import { useTheme } from '@/features/theme/ThemeContext';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 
 // Responsive Layout Hook
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
 // New Architecture Components
-import WallMap from '../../../components/WallMap/WallMap';
+import WallMap, { WallMapRef } from '../../../components/WallMap/WallMap';
+import ZoomSlider from '../../../components/WallMap/ZoomSlider';
 import { FiltersBar, FiltersSheet } from '../../../components/Filters';
 import { RoutesList } from '../../../components/Lists';
 import type { SortOption } from '../../../components/Filters/FiltersBar';
 
 import RouteBottomSheet from '../components/RouteBottomSheet';
 import RouteEditModal from '../components/RouteEditModal';
+import DraggableRoutesPanel from '../components/DraggableRoutesPanel';
+import InlineAddRoutePanel from '../components/InlineAddRoutePanel';
 
 // Store and Hooks
-import { useFiltersStore } from '../../../store/useFiltersStore';
+import { useFiltersStore, filterRoutes } from '../../../store/useFiltersStore';
+import { useRouteNavigationStore } from '../../../store/useRouteNavigationStore';
 import { useFirebaseRoutes } from '../hooks/useFirebaseRoutes';
 
 // Language
@@ -40,9 +47,16 @@ import { useLanguage } from '@/features/language';
 import { useAdmin } from '../../../context/AdminContext';
 import { useRolesContext } from '../../../features/roles';
 
+import { useUserRouteStatus } from '@/hooks/useUserRouteStatus';
+
+// Wall Editor - Dynamic walls
+import { usePublishedRooms, WallSelector } from '@/features/wall-editor';
+import type { Sector } from '@/features/wall-editor/types';
+
 // Types
 import { RouteDoc, MapTransforms } from '../types/route';
 import { RoutesService } from '../services/RoutesService';
+import { snapNormToNearestWall } from '@/utils/snapToWall';
 
 type RootStackParamList = {
   RoutesMap: undefined;
@@ -77,9 +91,6 @@ export default function RoutesMapScreen() {
   const layout = useResponsiveLayout();
   const { isLandscape, isTablet, isPhoneLandscape, mapLayoutMode, width, height, scaleFactor } = layout;
   
-  // Create styles with theme, layout, and insets
-  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
-  
   // Admin Mode (for full admins)
   const { isAdmin, adminModeEnabled, setAdminModeEnabled } = useAdmin();
   
@@ -113,28 +124,116 @@ export default function RoutesMapScreen() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingRoute, setEditingRoute] = useState<RouteDoc | null>(null);
   const [movingRoute, setMovingRoute] = useState<RouteDoc | null>(null); // Route being moved
+  const [addingRoute, setAddingRoute] = useState(false); // Inline add route mode
+  const [addingPhase, setAddingPhase] = useState<'placing' | 'details'>('placing');
+  const [addingCoordinates, setAddingCoordinates] = useState<{ xNorm: number; yNorm: number } | null>(null);
   const [viewMode, setViewMode] = useState<'map' | 'list' | 'split'>('split');
   const [mapFrameSize, setMapFrameSize] = useState<{ width: number; height: number }>({ width: 0, height: 0 });
   const [sortBy, setSortBy] = useState<SortOption>('grade-asc');
   const [showSortModal, setShowSortModal] = useState(false);
+  const [currentZoom, setCurrentZoom] = useState(1); // For zoom slider
+  const currentZoomRef = useRef(1); // Ref to avoid re-renders during gesture
+  const [headerHeight, setHeaderHeight] = useState(insets.top + 46); // Dynamic header height
+
+  // Shared value for panel height — used to constrain the map container above the panel
+  const panelHeightSV = useSharedValue(height * 0.65);
+
+  // Animated style: map container's bottom edge tracks the panel height
+  const mapAnimatedStyle = useAnimatedStyle(() => ({
+    bottom: panelHeightSV.value,
+  }));
+
+  // Active sector filtering - when a sector label is pressed
+  const [activeSectorId, setActiveSectorId] = useState<string | null>(null);
+  
+  // Ref for WallMap zoom control
+  const wallMapRef = useRef<WallMapRef>(null);
   
   // Sort options for modal
   const sortOptions = useMemo(() => [
-    { value: 'grade-asc' as SortOption, label: t.common.gradeEasyToHard, icon: '📈' },
-    { value: 'grade-desc' as SortOption, label: t.common.gradeHardToEasy, icon: '📉' },
-    { value: 'popularity' as SortOption, label: t.common.mostPopular, icon: '⭐' },
+    { value: 'grade-asc' as SortOption, label: t.common.gradeEasyToHard, icon: 'trending-up-outline' },
+    { value: 'grade-desc' as SortOption, label: t.common.gradeHardToEasy, icon: 'trending-down-outline' },
+    { value: 'popularity' as SortOption, label: t.common.mostPopular, icon: 'trophy-outline' },
+    { value: 'most-repeats' as SortOption, label: t.common.mostRepeats, icon: 'repeat-outline' },
   ], [t]);
   
   // Data
   const { routes, isLoading, error } = useFirebaseRoutes();
   
-  // Filters Store
-  const { getFilteredRoutes, isFilterSheetOpen, filters } = useFiltersStore();
+  // Published rooms (dynamic wall maps)
+  const { rooms: publishedRooms, loading: roomsLoading, refresh: refreshRooms } = usePublishedRooms({
+    includeHidden: isAdmin && adminModeEnabled,
+  });
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  
+  // Auto-select first published room
+  useEffect(() => {
+    if (publishedRooms.length > 0 && !selectedRoomId) {
+      setSelectedRoomId(publishedRooms[0].id);
+    }
+  }, [publishedRooms, selectedRoomId]);
 
-  // Filtered routes based on current filters
+  // Reset sector filter when changing rooms
+  useEffect(() => {
+    setActiveSectorId(null);
+  }, [selectedRoomId]);
+  
+  // Get currently selected room
+  const selectedRoom = useMemo(() => {
+    return publishedRooms.find(r => r.id === selectedRoomId) || null;
+  }, [publishedRooms, selectedRoomId]);
+  
+  // Create styles with theme, layout, insets, and room background color
+  const styles = useMemo(() => createStyles(theme, layout, insets, selectedRoom?.backgroundColor), [theme, layout, insets, selectedRoom?.backgroundColor]);
+  
+  // User's route status for completion filtering
+  const { userRouteData } = useUserRouteStatus();
+  
+  // Create a set of completed route IDs for filtering
+  const completedRouteIds = useMemo(() => {
+    const completedIds = new Set<string>();
+    Object.entries(userRouteData).forEach(([routeId, data]) => {
+      if (data.status === 'sent' || data.status === 'flashed') {
+        completedIds.add(routeId);
+      }
+    });
+    return completedIds;
+  }, [userRouteData]);
+  
+  // Filters Store — use selectors for stable references
+  const filters = useFiltersStore(state => state.filters);
+  const sorting = useFiltersStore(state => state.sorting);
+  const searchQuery = useFiltersStore(state => state.searchQuery);
+
+  // Filtered routes based on current filters (uses standalone filterRoutes for stable deps)
   const filteredRoutes = useMemo(() => {
-    return getFilteredRoutes(routes);
-  }, [routes, getFilteredRoutes, filters]);
+    return filterRoutes(routes, filters, sorting, searchQuery, undefined, completedRouteIds);
+  }, [routes, filters, sorting, searchQuery, completedRouteIds]);
+
+  // Get the currently active sector object
+  const activeSector = useMemo(() => {
+    if (!activeSectorId || !selectedRoom?.sectors) return null;
+    return selectedRoom.sectors.find(s => s.id === activeSectorId) || null;
+  }, [activeSectorId, selectedRoom?.sectors]);
+
+  // Routes filtered by active sector bounds (if a sector is selected)
+  const sectorFilteredRoutes = useMemo(() => {
+    if (!activeSector || !selectedRoom) return filteredRoutes;
+    
+    const { bounds } = activeSector;
+    // Convert sector bounds (room coordinates) to normalized coordinates (0-1)
+    const leftN = bounds.x / selectedRoom.width;
+    const rightN = (bounds.x + bounds.width) / selectedRoom.width;
+    const topN = bounds.y / selectedRoom.height;
+    const bottomN = (bounds.y + bounds.height) / selectedRoom.height;
+    
+    return filteredRoutes.filter(route => 
+      route.xNorm >= leftN &&
+      route.xNorm <= rightN &&
+      route.yNorm >= topN &&
+      route.yNorm <= bottomN
+    );
+  }, [filteredRoutes, activeSector, selectedRoom]);
 
   // Helper function to extract numeric grade value for sorting
   // Uses calculatedGrade (community consensus) if available, otherwise original grade
@@ -158,6 +257,9 @@ export default function RoutesMapScreen() {
         case 'popularity':
           // Sort by average star rating (highest first)
           return (b.averageStarRating || 0) - (a.averageStarRating || 0);
+        case 'most-repeats':
+          // Sort by completion count (most repeats first)
+          return (b.completionCount || 0) - (a.completionCount || 0);
         default:
           return 0;
       }
@@ -173,15 +275,19 @@ export default function RoutesMapScreen() {
   });
 
   // Routes visible in the current viewport (sorted)
+  // Uses filteredRoutes (not sector-filtered) so panning reveals routes from other sectors
   const visibleRoutes = useMemo(() => {
     let routesToShow: RouteDoc[];
     
+    // Use all filtered routes as the base (sector selection only zooms, doesn't filter)
+    const baseRoutes = filteredRoutes;
+    
     if (viewMode === 'list') {
       // In list mode, show all filtered routes
-      routesToShow = filteredRoutes;
+      routesToShow = baseRoutes;
     } else {
       // Filter routes by viewport bounds
-      routesToShow = filteredRoutes.filter(route => (
+      routesToShow = baseRoutes.filter(route => (
         route.xNorm >= viewportBounds.leftN &&
         route.xNorm <= viewportBounds.rightN &&
         route.yNorm >= viewportBounds.topN &&
@@ -193,6 +299,52 @@ export default function RoutesMapScreen() {
     return sortRoutes(routesToShow);
   }, [filteredRoutes, viewportBounds, viewMode, sortRoutes]);
 
+  // Stable ID list for the routes panel (avoids new array reference on every render)
+  const visibleRouteIds = useMemo(
+    () => visibleRoutes.map(r => r.id),
+    [visibleRoutes]
+  );
+
+  // Routes for the MAP layer — pass all filtered routes so circles don't "pop in"
+  // when panning. RouteCircle components are already React.memo'd with custom
+  // comparison, so rendering off-screen circles has negligible cost compared to
+  // the visual glitch of delayed viewport filtering.
+  const mapVisibleRoutes = filteredRoutes;
+
+  // Keep a ref to visibleRoutes so handleRoutePress doesn't need it as a dependency
+  const visibleRoutesRef = useRef(visibleRoutes);
+  visibleRoutesRef.current = visibleRoutes;
+
+  // Route data map builder for swipe navigation
+  const buildRouteDataMap = useCallback((routes: RouteDoc[]): Record<string, any> => {
+    const map: Record<string, any> = {};
+    for (const r of routes) {
+      map[r.id] = {
+        id: r.id,
+        name: r.name,
+        nameHe: r.nameHe,
+        nameEn: r.nameEn,
+        grade: r.grade,
+        color: r.color,
+        difficulty: r.grade,
+        description: `מסלול ${r.name} ברמת קושי ${r.grade}`,
+        coordinates: { x: r.xNorm, y: r.yNorm },
+        createdAt: r.createdAt?.toDate ? r.createdAt.toDate().toISOString() :
+                   r.createdAt instanceof Date ? r.createdAt.toISOString() :
+                   new Date().toISOString(),
+        createdBy: r.setter || 'system',
+        wallId: 'default-wall',
+        averageStarRating: r.averageStarRating || 0,
+        calculatedGrade: r.calculatedGrade || null,
+        feedbackCount: r.feedbackCount || 0,
+        completionCount: r.completionCount || 0,
+      };
+    }
+    return map;
+  }, []);
+
+  const setNavigationList = useRouteNavigationStore((s) => s.setNavigationList);
+
   // Handlers
   const handleRoutePress = useCallback((route: RouteDoc) => {
     // In edit mode, open edit modal instead of navigating
@@ -201,9 +353,14 @@ export default function RoutesMapScreen() {
       setShowEditModal(true);
       return;
     }
+
+    // Set route list for swipe navigation (use visibleRoutes which has filters+sort applied)
+    const currentVisibleRoutes = visibleRoutesRef.current;
+    const routeDataMap = buildRouteDataMap(currentVisibleRoutes);
+    setNavigationList(currentVisibleRoutes.map(r => r.id), routeDataMap);
     
     navigation.navigate('RouteDetails', { 
-      route: {
+      route: routeDataMap[route.id] || {
         id: route.id,
         name: route.name,
         nameHe: route.nameHe,
@@ -221,22 +378,22 @@ export default function RoutesMapScreen() {
                    new Date().toISOString(),
         createdBy: route.setter || 'system',
         wallId: 'default-wall',
-        // Community feedback stats
         averageStarRating: route.averageStarRating || 0,
         calculatedGrade: route.calculatedGrade || null,
         feedbackCount: route.feedbackCount || 0,
         completionCount: route.completionCount || 0,
       }
     });
-  }, [navigation, editModeEnabled]);
+  }, [navigation, editModeEnabled, buildRouteDataMap, setNavigationList]);
 
   const handleRouteLongPress = useCallback((route: RouteDoc) => {
-    // Long press opens edit modal if user has edit permissions (admin or route setter)
-    if (canAccessEditMode) {
+    // Long press opens edit modal only if edit mode is enabled
+    // User must have edit permissions AND have activated edit mode
+    if (editModeEnabled) {
       setEditingRoute(route);
       setShowEditModal(true);
     }
-  }, [canAccessEditMode]);
+  }, [editModeEnabled]);
 
   const handleEditModalClose = useCallback(() => {
     setShowEditModal(false);
@@ -269,48 +426,64 @@ export default function RoutesMapScreen() {
     }
   }, []);
 
-  // Handle tap on map to place moved route
+  // Handle tap on map to place moved route OR new route
   const handleMapTap = useCallback(async (coordinates: { xImg: number; yImg: number }) => {
-    if (!movingRoute) {
-      return;
-    }
-
     // Validate coordinates
     if (typeof coordinates.xImg !== 'number' || typeof coordinates.yImg !== 'number' ||
         isNaN(coordinates.xImg) || isNaN(coordinates.yImg)) {
       console.error('📍 Invalid coordinates received:', coordinates);
-      Alert.alert('שגיאה', 'קואורדינטות לא תקינות');
-      setMovingRoute(null);
       return;
     }
     
-    // Calculate normalized coordinates
-    const wallWidth = 2560;
-    const wallHeight = 1600;
+    // Wall dimensions for aspect ratio calculation
+    const wallWidth = selectedRoom?.width || 2560;
+    const wallHeight = selectedRoom?.height || 1600;
+    const wallAspectRatio = wallHeight / wallWidth;
     
-    // Convert image coordinates to normalized (0-1)
-    // xImg and yImg are in image coordinate space  
-    const imageWidth = mapFrameSize.width || 377;
-    const imageHeight = mapFrameSize.height || 236;
+    // Calculate actual image dimensions based on container and aspect ratio
+    const containerWidth = mapFrameSize.width || 377;
+    const containerHeight = mapFrameSize.height || 236;
     
-    // Make sure coordinates are within image bounds
+    let imageWidth = containerWidth;
+    let imageHeight = containerWidth * wallAspectRatio;
+    
+    if (imageHeight > containerHeight) {
+      imageHeight = containerHeight;
+      imageWidth = containerHeight / wallAspectRatio;
+    }
+    
     const clampedXImg = Math.max(0, Math.min(imageWidth, coordinates.xImg));
     const clampedYImg = Math.max(0, Math.min(imageHeight, coordinates.yImg));
     
     const xNorm = clampedXImg / imageWidth;
     const yNorm = clampedYImg / imageHeight;
 
-    // Validate normalized coordinates
     if (isNaN(xNorm) || isNaN(yNorm)) {
       console.error('📍 Invalid normalized coordinates:', { xNorm, yNorm });
-      Alert.alert('שגיאה', 'שגיאה בחישוב קואורדינטות');
-      setMovingRoute(null);
       return;
     }
 
-    // Clamp values to 0-1 range
-    const clampedX = Math.max(0, Math.min(1, xNorm));
-    const clampedY = Math.max(0, Math.min(1, yNorm));
+    let clampedX = Math.max(0, Math.min(1, xNorm));
+    let clampedY = Math.max(0, Math.min(1, yNorm));
+
+    // Snap to nearest wall point
+    if (selectedRoom) {
+      const snapped = snapNormToNearestWall(clampedX, clampedY, selectedRoom);
+      if (snapped.snapped) {
+        clampedX = snapped.xNorm;
+        clampedY = snapped.yNorm;
+      }
+    }
+
+    // Handle adding mode - capture coordinates and switch to details phase
+    if (addingRoute) {
+      setAddingCoordinates({ xNorm: clampedX, yNorm: clampedY });
+      setAddingPhase('details');
+      return;
+    }
+
+    // Handle moving mode
+    if (!movingRoute) return;
 
     try {
       await RoutesService.updateRoute(movingRoute.id, {
@@ -324,11 +497,25 @@ export default function RoutesMapScreen() {
     } finally {
       setMovingRoute(null);
     }
-  }, [movingRoute, mapFrameSize]);
+  }, [movingRoute, addingRoute, mapFrameSize, selectedRoom]);
 
   // Cancel moving route
   const handleCancelMove = useCallback(() => {
     setMovingRoute(null);
+  }, []);
+
+  // Cancel adding route
+  const handleCancelAdd = useCallback(() => {
+    setAddingRoute(false);
+    setAddingPhase('placing');
+    setAddingCoordinates(null);
+  }, []);
+
+  // Save added route - called from InlineAddRoutePanel
+  const handleAddRouteSaved = useCallback(() => {
+    setAddingRoute(false);
+    setAddingPhase('placing');
+    setAddingCoordinates(null);
   }, []);
 
   const handleCloseBottomSheet = useCallback(() => {
@@ -363,8 +550,10 @@ export default function RoutesMapScreen() {
   }, []);
 
   const handleAddRoute = useCallback(() => {
-    navigation.navigate('AddRoute');
-  }, [navigation]);
+    setAddingRoute(true);
+    setAddingPhase('placing');
+    setAddingCoordinates(null);
+  }, []);
 
   const handleOpenArchive = useCallback(() => {
     navigation.navigate('RoutesArchive' as any);
@@ -374,15 +563,21 @@ export default function RoutesMapScreen() {
     const containerWidth = mapFrameSize.width || 0;
     const containerHeight = mapFrameSize.height || 0;
     
+    // Update zoom slider state only when it changes meaningfully (avoids re-renders during gesture)
+    if (Math.abs(currentZoomRef.current - transform.scale) > 0.05) {
+      currentZoomRef.current = transform.scale;
+      setCurrentZoom(transform.scale);
+    }
+    
     if (containerWidth <= 0 || containerHeight <= 0) {
       return;
     }
 
     const { scale, translateX, translateY } = transform;
     
-    // Wall map dimensions
-    const wallWidth = 2560;
-    const wallHeight = 1600;
+    // Wall map dimensions - use selected room or default SVG dimensions
+    const wallWidth = selectedRoom?.width || 2560;
+    const wallHeight = selectedRoom?.height || 1600;
     const wallAspectRatio = wallHeight / wallWidth;
 
     // Calculate how the image fits within the container (object-fit: contain)
@@ -395,24 +590,24 @@ export default function RoutesMapScreen() {
       imageWidth = containerHeight / wallAspectRatio;
     }
 
-    // The scaled image dimensions
-    const scaledImgW = imageWidth * scale;
-    const scaledImgH = imageHeight * scale;
+    // Image center for transform calculations
+    const imgCenterX = imageWidth / 2;
+    const imgCenterY = imageHeight / 2;
     
-    // Calculate the offset from the image being centered
-    // When image is smaller than container, it's centered
-    // When image is larger, translateX/Y range from (container - scaledImg) to 0
+    // Transform model (matching useMapTransforms):
+    // With transform order [translate, scale], scale happens around the image center.
+    // screenPos = (imagePos - imgCenter) * scale + imgCenter + translate
+    // To invert: imagePos = (screenPos - imgCenter - translate) / scale + imgCenter
     
-    // The visible portion in image coordinates (unscaled)
-    // translateX is the position of the scaled image's left edge relative to container's left edge
-    // So the visible left edge of the image is at: -translateX / scale
-    // And the visible right edge is at: (-translateX + containerWidth) / scale
-    // But we need to clamp to actual image bounds
-    
-    const leftImg = Math.max(0, Math.min(imageWidth, -translateX / scale));
-    const topImg = Math.max(0, Math.min(imageHeight, -translateY / scale));
-    const rightImg = Math.max(0, Math.min(imageWidth, (-translateX + containerWidth) / scale));
-    const bottomImg = Math.max(0, Math.min(imageHeight, (-translateY + containerHeight) / scale));
+    // Calculate visible portion in image coordinates
+    // Left edge of viewport (screenX = 0):
+    const leftImg = Math.max(0, Math.min(imageWidth, (0 - imgCenterX - translateX) / scale + imgCenterX));
+    // Top edge of viewport (screenY = 0):
+    const topImg = Math.max(0, Math.min(imageHeight, (0 - imgCenterY - translateY) / scale + imgCenterY));
+    // Right edge of viewport (screenX = containerWidth):
+    const rightImg = Math.max(0, Math.min(imageWidth, (containerWidth - imgCenterX - translateX) / scale + imgCenterX));
+    // Bottom edge of viewport (screenY = containerHeight):
+    const bottomImg = Math.max(0, Math.min(imageHeight, (containerHeight - imgCenterY - translateY) / scale + imgCenterY));
     
     // Convert to normalized coordinates (0-1)
     let leftN = leftImg / imageWidth;
@@ -435,20 +630,6 @@ export default function RoutesMapScreen() {
       bottomN: Math.max(0, Math.min(1, bottomN + padYN))
     };
 
-    console.log('[RoutesMapScreen] Viewport bounds:', {
-      scale: scale.toFixed(2),
-      translate: { x: translateX.toFixed(1), y: translateY.toFixed(1) },
-      image: { w: imageWidth.toFixed(0), h: imageHeight.toFixed(0) },
-      container: { w: containerWidth.toFixed(0), h: containerHeight.toFixed(0) },
-      boundsImg: { left: leftImg.toFixed(0), right: rightImg.toFixed(0), top: topImg.toFixed(0), bottom: bottomImg.toFixed(0) },
-      bounds: {
-        left: newBounds.leftN.toFixed(3),
-        right: newBounds.rightN.toFixed(3),
-        top: newBounds.topN.toFixed(3),
-        bottom: newBounds.bottomN.toFixed(3)
-      }
-    });
-
     setViewportBounds(prev => {
       const changed =
         Math.abs(prev.leftN - newBounds.leftN) > 0.005 ||
@@ -457,7 +638,7 @@ export default function RoutesMapScreen() {
         Math.abs(prev.bottomN - newBounds.bottomN) > 0.005;
       return changed ? newBounds : prev;
     });
-  }, [mapFrameSize.width, mapFrameSize.height]);
+  }, [mapFrameSize.width, mapFrameSize.height, selectedRoom]);
 
   // Calculate initial viewport bounds when map frame size is available
   useEffect(() => {
@@ -466,6 +647,28 @@ export default function RoutesMapScreen() {
       handleTransformChange({ scale: 1, translateX: 0, translateY: 0 });
     }
   }, [mapFrameSize.width, mapFrameSize.height, handleTransformChange]);
+
+  // Stable WallMap callback props — prevent WallMap re-renders when unrelated state changes
+  const wallMapRoutePress = useMemo(
+    () => (movingRoute || addingRoute) ? undefined : handleRoutePress,
+    [movingRoute, addingRoute, handleRoutePress]
+  );
+  const wallMapRouteLongPress = useMemo(
+    () => (movingRoute || addingRoute) ? undefined : (editModeEnabled ? handleRouteLongPress : undefined),
+    [movingRoute, addingRoute, editModeEnabled, handleRouteLongPress]
+  );
+  const wallMapTap = useMemo(
+    () => (movingRoute || (addingRoute && addingPhase === 'placing')) ? handleMapTap : undefined,
+    [movingRoute, addingRoute, addingPhase, handleMapTap]
+  );
+  const wallMapSelectedRouteId = useMemo(
+    () => movingRoute?.id || selectedRoute?.id,
+    [movingRoute?.id, selectedRoute?.id]
+  );
+  const wallMapShowSectorLabels = useMemo(
+    () => currentZoom <= 1.8 && !addingRoute,
+    [currentZoom, addingRoute]
+  );
 
   const handleDebug = useCallback(() => {
     Alert.alert(
@@ -485,19 +688,25 @@ export default function RoutesMapScreen() {
   }, [routes, isLoading, error, filteredRoutes, visibleRoutes, viewportBounds]);
 
   const availableColors = useMemo(() => {
-    const colors = new Set(routes.map(route => route.color).filter(Boolean));
+    // Only consider active routes for available colors (exclude archived)
+    const activeRoutes = routes.filter(route => route.status !== 'archived');
+    const colors = new Set(activeRoutes.map(route => route.color).filter(Boolean));
     return Array.from(colors);
   }, [routes]);
 
   const availableGrades = useMemo(() => {
-    const grades = new Set(routes.map(route => route.grade).filter(Boolean));
+    // Only consider active routes for available grades (exclude archived)
+    const activeRoutes = routes.filter(route => route.status !== 'archived');
+    const grades = new Set(activeRoutes.map(route => route.grade).filter(Boolean));
     return Array.from(grades).sort();
   }, [routes]);
 
   // חילוץ תאריכים ייחודיים מהמסלולים בפורמט YYYY-MM-DD
   const availableDates = useMemo(() => {
     const dates = new Set<string>();
-    routes.forEach(route => {
+    // Only consider active routes for available dates (exclude archived)
+    const activeRoutes = routes.filter(route => route.status !== 'archived');
+    activeRoutes.forEach(route => {
       if (route.createdAt) {
         const date = route.createdAt.toDate ? route.createdAt.toDate() : new Date(route.createdAt);
         const dateStr = date.toISOString().split('T')[0]; // פורמט YYYY-MM-DD
@@ -536,23 +745,59 @@ export default function RoutesMapScreen() {
     );
   }
 
-  const renderMapView = () => (
-    <View style={{backgroundColor: '#01467D', width: '100%', height: '100%', aspectRatio: 2560/1600}}>
-      <WallMap
-        routes={filteredRoutes}
-        onRoutePress={movingRoute ? undefined : handleRoutePress}
-        onRouteLongPress={movingRoute ? undefined : handleRouteLongPress}
-        onMapTap={movingRoute ? handleMapTap : undefined}
-        selectedRouteId={movingRoute?.id || selectedRoute?.id}
-        wallWidth={2560}
-        wallHeight={1600}
-        onTransformChange={handleTransformChange}
-        gesturesEnabled={true}
-      />
-    </View>
-  );
+  const renderMapView = () => {
+    // If no room is available, show a message
+    if (!selectedRoom) {
+      return (
+        <View style={styles.loadingMapContainer}>
+          <Text style={{color: '#ffffff', fontSize: 16}}>טוען מפה...</Text>
+        </View>
+      );
+    }
+    
+    return (
+      <View style={[styles.mapViewContainer, {aspectRatio: selectedRoom.width / selectedRoom.height}]}>
+        <WallMap
+          ref={wallMapRef}
+          routes={mapVisibleRoutes}
+          onRoutePress={wallMapRoutePress}
+          onRouteLongPress={wallMapRouteLongPress}
+          onMapTap={wallMapTap}
+          selectedRouteId={wallMapSelectedRouteId}
+          wallWidth={selectedRoom.width}
+          wallHeight={selectedRoom.height}
+          onTransformChange={handleTransformChange}
+          gesturesEnabled={true}
+          room={selectedRoom}
+          showSectorLabels={wallMapShowSectorLabels}
+          onSectorPress={handleSectorPress}
+          activeSectorId={activeSectorId}
+        />
+      </View>
+    );
+  };
 
-  const renderFullMapView = () => (
+  // Handler for zoom slider changes
+  const handleZoomSliderChange = useCallback((newScale: number) => {
+    wallMapRef.current?.setZoom(newScale);
+  }, []);
+
+  // Handler for sector label press - toggle sector filtering and zoom
+  const handleSectorPress = useCallback((sector: Sector) => {
+    setActiveSectorId(prev => {
+      if (prev === sector.id) {
+        // Deselect - pressing the same sector again removes the filter
+        return null;
+      } else {
+        // Select this sector and zoom to it
+        wallMapRef.current?.zoomToSector(sector.bounds);
+        return sector.id;
+      }
+    });
+  }, []);
+
+  const renderFullMapView = () => {
+    return (
     <View style={styles.mapSectionContainer}>
       <View style={styles.mapFrame}>
         <View
@@ -560,12 +805,19 @@ export default function RoutesMapScreen() {
           onLayout={e => {
             const { width, height } = e.nativeEvent.layout;
             setMapFrameSize({ width, height });
-            console.log('[RoutesMapScreen] frame layout', { width, height });
           }}
         >
           {renderMapView()}
         </View>
       </View>
+      
+      {/* Zoom Slider - only shows if enabled in user preferences */}
+      <ZoomSlider
+        currentScale={currentZoom}
+        minScale={wallMapRef.current?.getMinScale() ?? 1}
+        maxScale={wallMapRef.current?.getMaxScale() ?? 8}
+        onZoomChange={handleZoomSliderChange}
+      />
       
       <View style={styles.filterBarContainer}>
         <FiltersBar
@@ -577,24 +829,15 @@ export default function RoutesMapScreen() {
       </View>
     </View>
   );
+  };
 
   const renderListView = () => {
-    console.log('[RoutesMapScreen] Rendering list with:', {
-      visibleRoutesCount: visibleRoutes.length,
-      visibleRouteIds: visibleRoutes.map(r => r.id.slice(-6)),
-      sampleVisibleRoute: visibleRoutes[0] ? {
-        id: visibleRoutes[0].id.slice(-6),
-        name: visibleRoutes[0].name,
-        grade: visibleRoutes[0].grade
-      } : null
-    });
-    
     return (
       <RoutesList
         routes={visibleRoutes}
-        visibleRouteIds={visibleRoutes.map(r => r.id)}
-        onRoutePress={handleRoutePress}
-        onRouteLongPress={handleRouteLongPress}
+        visibleRouteIds={visibleRouteIds}
+        onRoutePress={movingRoute ? undefined : handleRoutePress}
+        onRouteLongPress={movingRoute ? undefined : (editModeEnabled ? handleRouteLongPress : undefined)}
       />
     );
   };  
@@ -610,12 +853,22 @@ export default function RoutesMapScreen() {
             onLayout={e => {
               const { width, height } = e.nativeEvent.layout;
               setMapFrameSize({ width, height });
-              console.log('[RoutesMapScreen] landscape frame layout', { width, height });
             }}
           >
             {renderMapView()}
           </View>
         </View>
+      </View>
+      
+      {/* Vertical Zoom Slider - Between map and list */}
+      <View style={styles.landscapeZoomContainer}>
+        <ZoomSlider
+          currentScale={currentZoom}
+          minScale={wallMapRef.current?.getMinScale() ?? 1}
+          maxScale={wallMapRef.current?.getMaxScale() ?? 8}
+          onZoomChange={handleZoomSliderChange}
+          vertical={true}
+        />
       </View>
       
       {/* List Section - Right side */}
@@ -684,12 +937,22 @@ export default function RoutesMapScreen() {
             onLayout={e => {
               const { width, height } = e.nativeEvent.layout;
               setMapFrameSize({ width, height });
-              console.log('[RoutesMapScreen] phone landscape frame layout', { width, height });
             }}
           >
             {renderMapView()}
           </View>
         </View>
+      </View>
+      
+      {/* Vertical Zoom Slider - Between map and list */}
+      <View style={styles.phoneLandscapeZoomContainer}>
+        <ZoomSlider
+          currentScale={currentZoom}
+          minScale={wallMapRef.current?.getMinScale() ?? 1}
+          maxScale={wallMapRef.current?.getMaxScale() ?? 8}
+          onZoomChange={handleZoomSliderChange}
+          vertical={true}
+        />
       </View>
       
       {/* Compact List Section - Right panel */}
@@ -706,7 +969,7 @@ export default function RoutesMapScreen() {
               style={styles.phoneLandscapeActionButton}
               onPress={() => setShowSortModal(true)}
             >
-              <Text style={styles.phoneLandscapeActionIcon}>↕️</Text>
+              <Ionicons name="swap-vertical-outline" size={16} color={theme.primary} />
               <Text style={styles.phoneLandscapeButtonLabel}>{t.common.sort}</Text>
             </TouchableOpacity>
             {/* Filter button */}
@@ -714,7 +977,7 @@ export default function RoutesMapScreen() {
               style={styles.phoneLandscapeActionButton}
               onPress={() => useFiltersStore.getState().setFilterSheetOpen(true)}
             >
-              <Text style={styles.phoneLandscapeActionIcon}>⚙️</Text>
+              <Ionicons name="funnel-outline" size={16} color={theme.textSecondary} />
               <Text style={styles.phoneLandscapeButtonLabel}>{t.common.filter}</Text>
             </TouchableOpacity>
           </View>
@@ -755,9 +1018,9 @@ export default function RoutesMapScreen() {
         {/* Compact list for phone landscape */}
         <RoutesList
           routes={visibleRoutes}
-          visibleRouteIds={visibleRoutes.map(r => r.id)}
-          onRoutePress={handleRoutePress}
-          onRouteLongPress={handleRouteLongPress}
+          visibleRouteIds={visibleRouteIds}
+          onRoutePress={movingRoute ? undefined : handleRoutePress}
+          onRouteLongPress={movingRoute ? undefined : (editModeEnabled ? handleRouteLongPress : undefined)}
           compact={true}
         />
       </View>
@@ -788,7 +1051,11 @@ export default function RoutesMapScreen() {
                   setShowSortModal(false);
                 }}
               >
-                <Text style={styles.sortModalOptionIcon}>{option.icon}</Text>
+                <Ionicons
+                  name={option.icon as any}
+                  size={20}
+                  color={sortBy === option.value ? theme.primary : theme.textSecondary}
+                />
                 <Text style={[
                   styles.sortModalOptionText,
                   sortBy === option.value && styles.sortModalOptionTextActive,
@@ -796,7 +1063,7 @@ export default function RoutesMapScreen() {
                   {option.label}
                 </Text>
                 {sortBy === option.value && (
-                  <Text style={styles.sortModalCheckmark}>✓</Text>
+                  <Ionicons name="checkmark" size={20} color={theme.primary} />
                 )}
               </TouchableOpacity>
             ))}
@@ -819,12 +1086,19 @@ export default function RoutesMapScreen() {
             onLayout={e => {
               const { width, height } = e.nativeEvent.layout;
               setMapFrameSize({ width, height });
-              console.log('[RoutesMapScreen] portrait frame layout', { width, height });
             }}
           >
             {renderMapView()}
           </View>
         </View>
+        
+        {/* Zoom Slider - only shows if enabled in user preferences */}
+        <ZoomSlider
+          currentScale={currentZoom}
+          minScale={wallMapRef.current?.getMinScale() ?? 1}
+          maxScale={wallMapRef.current?.getMaxScale() ?? 8}
+          onZoomChange={handleZoomSliderChange}
+        />
         
         {/* FiltersBar positioned below the map with integrated action buttons */}
         <View style={styles.filterBarContainer}>
@@ -901,33 +1175,107 @@ export default function RoutesMapScreen() {
   const safeAreaEdges = isPhoneLandscape ? ['top', 'left', 'right', 'bottom'] as const : ['top'] as const;
 
   return (
-    <SafeAreaView style={styles.container} edges={safeAreaEdges}>
-      {/* Edit Mode Banner - now inside SafeAreaView and with simpler text */}
-      {editModeEnabled && !movingRoute && (
-        <View style={styles.editModeBanner}>
-          <Text style={styles.editModeBannerText}>
-            {isAdmin ? '🔧' : '🧗'} מצב עריכה פעיל - לחץ ארוך לעריכה
-          </Text>
-        </View>
-      )}
+    <View style={styles.fullScreenContainer}>
+      {/* Map Container — constrained between header and panel top */}
+      <Animated.View 
+        style={[styles.fullScreenMap, { top: headerHeight }, mapAnimatedStyle]}
+        onLayout={e => {
+          const { width, height } = e.nativeEvent.layout;
+          setMapFrameSize({ width, height });
+        }}
+      >
+        {selectedRoom ? (
+          <WallMap
+            ref={wallMapRef}
+            routes={mapVisibleRoutes}
+            onRoutePress={wallMapRoutePress}
+            onRouteLongPress={wallMapRouteLongPress}
+            onMapTap={wallMapTap}
+            selectedRouteId={wallMapSelectedRouteId}
+            wallWidth={selectedRoom.width}
+            wallHeight={selectedRoom.height}
+            onTransformChange={handleTransformChange}
+            gesturesEnabled={true}
+            room={selectedRoom}
+            showSectorLabels={wallMapShowSectorLabels}
+            onSectorPress={handleSectorPress}
+            activeSectorId={activeSectorId}
+          />
+        ) : (
+          <View style={styles.fullScreenLoadingContainer}>
+            <Text style={{color: '#ffffff', fontSize: 16}}>טוען מפה...</Text>
+          </View>
+        )}
+      </Animated.View>
 
-      {/* Moving Route Banner */}
-      {movingRoute && (
-        <View style={styles.movingBanner}>
-          <Text style={styles.movingBannerText}>📍 לחץ על המיקום החדש במפה</Text>
-          <TouchableOpacity onPress={handleCancelMove} style={styles.cancelMoveButton}>
-            <Text style={styles.cancelMoveButtonText}>ביטול</Text>
-          </TouchableOpacity>
+      {/* Floating Header */}
+      <SafeAreaView 
+        style={styles.floatingHeader} 
+        edges={['top']}
+        onLayout={e => {
+          const h = e.nativeEvent.layout.height;
+          if (h > 0) setHeaderHeight(h);
+        }}
+      >
+        <View style={styles.headerContent}>
+          <BrandLogo variant="icon" color="white" size={24} />
+          <Text style={styles.compactHeaderTitle}>מפת הקיר</Text>
+          
+          {/* Wall Selector - shows when there are published rooms */}
+          {publishedRooms.length > 0 && (
+            <WallSelector
+              rooms={publishedRooms}
+              selectedRoomId={selectedRoomId}
+              onSelectRoom={setSelectedRoomId}
+              isAdmin={isAdmin && adminModeEnabled}
+              onRefresh={refreshRooms}
+              onEditRoom={isAdmin ? (roomId) => {
+                navigation.navigate('WallEditor' as any, { roomId });
+              } : undefined}
+            />
+          )}
         </View>
-      )}
+      </SafeAreaView>
 
-      {/* Content Area */}
-      <View style={styles.contentArea}>
-        {viewMode === 'map' && renderFullMapView()}
-        {viewMode === 'list' && renderListView()}
-        {viewMode === 'split' && renderSplitView()}
-        {renderEmptyMessage()}
+      {/* Zoom Slider - Floating */}
+      <View style={[styles.floatingZoomSlider, { top: headerHeight + 12 }]}>
+        <ZoomSlider
+          currentScale={currentZoom}
+          minScale={wallMapRef.current?.getMinScale() ?? 1}
+          maxScale={wallMapRef.current?.getMaxScale() ?? 8}
+          onZoomChange={handleZoomSliderChange}
+        />
       </View>
+
+      {/* Draggable Routes Panel or Inline Add Route Panel */}
+      {addingRoute ? (
+        <InlineAddRoutePanel
+          phase={addingPhase}
+          coordinates={addingCoordinates}
+          onSave={handleAddRouteSaved}
+          onCancel={handleCancelAdd}
+        />
+      ) : (
+        <DraggableRoutesPanel
+          routes={visibleRoutes}
+          visibleRouteIds={visibleRouteIds}
+          totalRouteCount={filteredRoutes.length}
+          visibleRouteCount={visibleRoutes.length}
+          sortBy={sortBy}
+          onSortChange={setSortBy}
+          onRoutePress={movingRoute ? undefined : handleRoutePress}
+          onRouteLongPress={movingRoute ? undefined : handleRouteLongPress}
+          editModeEnabled={editModeEnabled}
+          canAccessEditMode={canAccessEditMode}
+          onToggleEditMode={toggleEditMode}
+          onAddRoute={handleAddRoute}
+          onOpenArchive={handleOpenArchive}
+          isLoading={isLoading}
+          movingRoute={!!movingRoute}
+          onCancelMove={handleCancelMove}
+          panelHeightSV={panelHeightSV}
+        />
+      )}
 
       {/* Filters Sheet */}
       <FiltersSheet
@@ -956,14 +1304,15 @@ export default function RoutesMapScreen() {
         onDelete={handleEditModalDelete}
         onMoveRoute={handleStartMoveRoute}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const createStyles = (
   theme: any, 
   layout: ReturnType<typeof useResponsiveLayout>,
-  insets: { top: number; bottom: number; left: number; right: number }
+  insets: { top: number; bottom: number; left: number; right: number },
+  roomBackgroundColor: string = '#1a1a2e' // Default room background
 ) => {
   const { isLandscape, isTablet, mapLayoutMode, width, height, scaleFactor } = layout;
   
@@ -972,9 +1321,69 @@ const createStyles = (
   const bottomInset = Math.max(insets.bottom, 8);
   
   return StyleSheet.create({
+    // New full-screen layout styles
+    fullScreenContainer: {
+      flex: 1,
+      backgroundColor: theme.background,
+    },
+    fullScreenMap: {
+      position: 'absolute',
+      // top is set dynamically via inline style
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: roomBackgroundColor,
+    },
+    fullScreenLoadingContainer: {
+      flex: 1,
+      backgroundColor: roomBackgroundColor,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    floatingHeader: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      zIndex: 10,
+      backgroundColor: theme.headerGradient || '#111',
+    },
+    headerContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: 'transparent',
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+    },
+    floatingZoomSlider: {
+      position: 'absolute',
+      // top is set dynamically via inline style
+      top: 0,
+      left: 12,
+      right: 12,
+      zIndex: 5,
+    },
+    // Original styles kept for backwards compatibility
     container: {
       flex: 1,
       backgroundColor: theme.background,
+    },
+    compactHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      backgroundColor: theme.headerGradient,
+      paddingVertical: layout.isLandscape && !isTablet ? 6 : 10,
+      paddingHorizontal: 12,
+    },
+    compactHeaderTitle: {
+      fontSize: layout.isLandscape && !isTablet ? 16 : 18,
+      fontWeight: 'bold',
+      color: '#fff',
     },
     contentArea: {
       flex: 1,
@@ -986,9 +1395,17 @@ const createStyles = (
       backgroundColor: theme.background,
     },
     landscapeMapSection: {
-      flex: 3,
+      flex: 4, // Map takes more space
       padding: 12,
       justifyContent: 'center',
+    },
+    landscapeZoomContainer: {
+      // Vertical zoom slider container between map and list
+      width: 50,
+      paddingVertical: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.background,
     },
     landscapeListSection: {
       flex: 2,
@@ -1007,14 +1424,22 @@ const createStyles = (
       backgroundColor: theme.background,
     },
     phoneLandscapeMapSection: {
-      // Map takes 55% of available width - balanced with list
+      // Map section - 60% of width to give list more room
       flex: 0,
-      width: '63%',
-      padding: 6,
-      paddingLeft: Math.max(insets.left, 6),
-      paddingRight: 4,
+      width: '60%',
+      padding: 4,
+      paddingLeft: Math.max(insets.left, 4),
+      paddingRight: 0,
       justifyContent: 'center',
       alignItems: 'center',
+    },
+    phoneLandscapeZoomContainer: {
+      // Very narrow vertical zoom slider container between map and list
+      width: 12,
+      paddingVertical: 4,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'transparent',
     },
     phoneLandscapeMapFrame: {
       flex: 1,
@@ -1025,19 +1450,20 @@ const createStyles = (
       borderWidth: 2,
       borderColor: theme.border,
       borderRadius: 10,
-      backgroundColor: '#01467D',
+      backgroundColor: roomBackgroundColor,
       overflow: 'hidden',
     },
     phoneLandscapeListSection: {
-      // List takes remaining 45% of width - more space for content
+      // List takes remaining width - no header, starts from top
       flex: 1,
-      minWidth: 140, // Ensure list is readable
+      minWidth: 120, // Ensure list is readable
       borderLeftWidth: 1,
       borderLeftColor: theme.border,
       backgroundColor: theme.background,
       // No extra padding - RoutesList handles its own compact padding
       // Safe area is handled by SafeAreaView edges
       paddingRight: 0,
+      paddingTop: 0, // List starts from very top
     },
     // Phone landscape action bar - replaces simple filter bar
     phoneLandscapeActionBar: {
@@ -1104,53 +1530,40 @@ const createStyles = (
       backgroundColor: 'rgba(0, 0, 0, 0.5)',
       justifyContent: 'center',
       alignItems: 'center',
+      padding: 20,
     },
     sortModalContent: {
       backgroundColor: theme.surface,
       borderRadius: 16,
-      padding: 16,
-      minWidth: 250,
-      shadowColor: theme.shadow,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 8,
+      padding: 20,
+      width: '90%',
+      maxWidth: 400,
     },
     sortModalTitle: {
-      fontSize: 16,
-      fontWeight: '700',
+      fontSize: 20,
+      fontWeight: 'bold',
       color: theme.text,
       textAlign: 'center',
-      marginBottom: 12,
+      marginBottom: 16,
     },
     sortModalOption: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingVertical: 12,
+      paddingVertical: 14,
       paddingHorizontal: 12,
       borderRadius: 10,
-      marginBottom: 4,
+      gap: 12,
     },
     sortModalOptionActive: {
-      backgroundColor: theme.primaryLight || `${theme.primary}20`,
-    },
-    sortModalOptionIcon: {
-      fontSize: 16,
-      marginRight: 10,
+      backgroundColor: theme.primary + '20',
     },
     sortModalOptionText: {
       flex: 1,
-      fontSize: 14,
+      fontSize: 16,
       color: theme.text,
     },
     sortModalOptionTextActive: {
-      fontWeight: '600',
       color: theme.primary,
-    },
-    sortModalCheckmark: {
-      fontSize: 16,
-      color: theme.primary,
-      fontWeight: '700',
     },
     phoneLandscapeFilterBar: {
       paddingHorizontal: 12,
@@ -1164,6 +1577,20 @@ const createStyles = (
       fontWeight: '600',
       color: theme.textSecondary,
       textAlign: 'center',
+    },
+    // Dynamic map view styles
+    loadingMapContainer: {
+      backgroundColor: roomBackgroundColor,
+      width: '100%',
+      height: '100%',
+      aspectRatio: 2560/1600,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    mapViewContainer: {
+      backgroundColor: roomBackgroundColor,
+      width: '100%',
+      height: '100%',
     },
     // Portrait layout: vertical stack
     mapSectionContainer: {
@@ -1183,7 +1610,7 @@ const createStyles = (
       borderWidth: 2,
       borderColor: theme.border,
       borderRadius: Math.round(20 * scaleFactor),
-      backgroundColor: '#01467D', // Match exact wall map background color
+      backgroundColor: roomBackgroundColor, // Match wall map background color
       shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.12,
@@ -1198,7 +1625,7 @@ const createStyles = (
       // Ensure clipping works on both iOS and Android
       overflow: 'hidden',
       borderRadius: Math.round(18 * scaleFactor), // Account for the border width (20-2)
-      backgroundColor: '#01467D', // Exact match for the wall map color
+      backgroundColor: roomBackgroundColor, // Match the wall map color
       width: '100%',
       height: '100%',
       aspectRatio: 2560/1600,
@@ -1420,12 +1847,6 @@ const createStyles = (
     alignItems: 'center',
     justifyContent: 'center',
   },
-  editModeBannerText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
   // Legacy admin banner styles (kept for reference)
   adminBanner: {
     position: 'absolute',
@@ -1477,7 +1898,7 @@ const createStyles = (
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: theme.primary,
+    backgroundColor: theme.buttonPrimary,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: theme.primary,
@@ -1488,33 +1909,6 @@ const createStyles = (
   },
   editModeButtonText: {
     fontSize: 24,
-  },
-  // Moving banner - now inside SafeAreaView flow, not absolute
-  movingBanner: {
-    backgroundColor: theme.primary,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  movingBannerText: {
-    color: '#ffffff',
-    fontSize: 14,
-    fontWeight: '600',
-    flex: 1,
-  },
-  cancelMoveButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 12,
-    marginLeft: 12,
-  },
-  cancelMoveButtonText: {
-    color: '#ffffff',
-    fontSize: 13,
-    fontWeight: '700',
   },
   });
 };

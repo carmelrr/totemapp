@@ -46,7 +46,7 @@ const createStyles = (theme: any) => StyleSheet.create({
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: theme.primary,
+        backgroundColor: theme.buttonPrimary,
         alignItems: 'center',
         justifyContent: 'center',
         elevation: 6,

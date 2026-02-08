@@ -13,6 +13,7 @@ import {
   query,
   orderBy,
   where,
+  getDocs,
   Timestamp,
   FirestoreDataConverter,
   QueryDocumentSnapshot,
@@ -21,6 +22,47 @@ import {
 import { db } from '@/features/data/firebase';
 import { RouteDoc } from '../types/route';
 import { triggerStatsRefresh } from '@/utils/events/statsRefreshEvent';
+
+// ========== ROUTES CACHE ==========
+// In-memory cache for routes data to avoid repeated fetches during stats calculations
+interface RoutesCache {
+  data: RouteDoc[] | null;
+  timestamp: number;
+}
+
+const routesCache: RoutesCache = {
+  data: null,
+  timestamp: 0,
+};
+
+const ROUTES_CACHE_TTL = 30000; // 30 seconds TTL
+
+/**
+ * Get cached routes or fetch from Firestore
+ * Used by stats services to avoid repeated queries
+ */
+export async function getCachedRoutes(): Promise<RouteDoc[]> {
+  if (routesCache.data && Date.now() - routesCache.timestamp < ROUTES_CACHE_TTL) {
+    return routesCache.data;
+  }
+  
+  const routesRef = collection(db, 'routes').withConverter(routeConverter);
+  const snapshot = await getDocs(routesRef);
+  const routes = snapshot.docs.map((doc) => doc.data());
+  
+  routesCache.data = routes;
+  routesCache.timestamp = Date.now();
+  
+  return routes;
+}
+
+/**
+ * Clear routes cache - call when routes are modified
+ */
+export function clearRoutesCache(): void {
+  routesCache.data = null;
+  routesCache.timestamp = 0;
+}
 
 /**
  * ממיר Firestore לבטיחות טיפוסים
@@ -52,7 +94,7 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
   fromFirestore(snapshot: QueryDocumentSnapshot, options): RouteDoc {
     const data = snapshot.data(options);
 
-    // מידות viewBox של WallMapSVG
+    // מידות viewBox היסטוריות - לתמיכה לאחור עם נתונים ישנים
     const VIEWBOX_W = 2560;
     const VIEWBOX_H = 1600;
 
@@ -125,17 +167,19 @@ export class RoutesService {
     onChange: (routes: RouteDoc[]) => void,
     onError?: (error: Error) => void
   ): () => void {
+    console.log('🔍 [RoutesService] Setting up listener for routes collection');
     const routesRef = collection(db, this.COLLECTION_NAME).withConverter(routeConverter);
     const q = query(routesRef, orderBy('createdAt', 'desc'));
 
     return onSnapshot(
       q,
       (snapshot) => {
+        console.log('✅ [RoutesService] Got routes snapshot, count:', snapshot.size);
         const routes = snapshot.docs.map((doc) => doc.data());
         onChange(routes);
       },
       (error) => {
-        console.error('Error subscribing to routes:', error);
+        console.error('❌ [RoutesService] Firebase Error on routes:', error.code, error.message);
         onError?.(error);
       }
     );
@@ -163,6 +207,32 @@ export class RoutesService {
       },
       (error) => {
         console.error('Error subscribing to active routes:', error);
+        onError?.(error);
+      }
+    );
+  }
+
+  /**
+   * Subscribe to a single route for real-time updates
+   */
+  static subscribeToRoute(
+    routeId: string,
+    onChange: (route: RouteDoc | null) => void,
+    onError?: (error: Error) => void
+  ): () => void {
+    const routeRef = doc(db, this.COLLECTION_NAME, routeId).withConverter(routeConverter);
+
+    return onSnapshot(
+      routeRef,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          onChange(snapshot.data());
+        } else {
+          onChange(null);
+        }
+      },
+      (error) => {
+        console.error('Error subscribing to route:', error);
         onError?.(error);
       }
     );

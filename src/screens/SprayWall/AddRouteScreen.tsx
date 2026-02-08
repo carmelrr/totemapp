@@ -1,7 +1,7 @@
 // src/screens/SprayWall/AddRouteScreen.tsx
 // Screen for users to mark holds on the wall - name and grade are set in the next screen
 
-import React, { useState, useCallback, useRef, useEffect } from "react";
+import React, { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -12,13 +12,18 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { WallPicker } from "@/components/spray/WallPicker";
 import { WallImageWithHolds } from "@/components/spray/WallImageWithHolds";
 import { HoldTypePicker } from "@/components/spray/HoldTypePicker";
 import { useWalls } from "@/features/walls/hooks";
 import { useLanguage } from "@/features/language";
+import { useTheme, lightTheme } from "@/features/theme/ThemeContext";
 import { Wall, Hold, HoldType, HOLD_TYPES } from "@/features/spraywall/types";
 import { updateRoute } from "@/features/spraywall/routesService";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+
+type Theme = typeof lightTheme;
 
 // Generate unique ID
 const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -28,6 +33,14 @@ export const AddRouteScreen: React.FC = () => {
   const route = useRoute<any>();
   const { walls, loading: wallsLoading } = useWalls();
   const { t } = useLanguage();
+  const { theme } = useTheme();
+  const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
+  const { isLandscape, isTablet } = layout;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  
+  // Create styles based on theme
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
 
   // Edit mode params
   const isEditMode = route.params?.editMode === true;
@@ -144,15 +157,8 @@ export const AddRouteScreen: React.FC = () => {
         await updateRoute(editRouteId, {
           holds: lockedHolds,
         });
-        Alert.alert(t.common.success, t.spray.holdsUpdatedSuccess, [
-          {
-            text: t.common.ok,
-            onPress: () => {
-              // Go back twice to return to SprayRouteDetail (skip past this screen)
-              navigation.pop(1);
-            },
-          },
-        ]);
+        // Go back to return to SprayRouteDetail
+        navigation.pop(1);
       } catch (error) {
         console.error("Error updating route holds:", error);
         Alert.alert(t.common.error, t.spray.failedToUpdateHolds);
@@ -173,45 +179,83 @@ export const AddRouteScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView} stickyHeaderIndices={selectedWall ? [] : [0]}>
-        {/* Wall Picker - only show when no wall selected */}
-        {!selectedWall && (
+      {/* Wall Picker - only show when no wall selected */}
+      {!selectedWall && (
+        <ScrollView style={styles.scrollView}>
           <WallPicker
             walls={walls}
             selectedWallId={selectedWall?.id || null}
             onSelectWall={handleSelectWall}
             loading={wallsLoading}
           />
-        )}
-
-        {/* Wall Image with Hold Rings */}
-        {selectedWall && (
-          <View style={styles.imageSection}>
-            {/* Wall name header */}
-            <View style={styles.wallHeader}>
-              <Text style={styles.wallName}>{selectedWall.name}</Text>
+          {/* Empty state when no wall selected */}
+          {!wallsLoading && (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyStateIcon}>👆</Text>
+              <Text style={styles.emptyStateText}>{t.spray.selectWallToStart}</Text>
             </View>
+          )}
+        </ScrollView>
+      )}
 
-            {/* Confirm/Cancel buttons for active hold */}
-            {activeHold && (
+      {/* Wall Image with Hold Rings - Full screen when wall selected */}
+      {selectedWall && (
+        <View style={styles.fullScreenImageSection}>
+          {/* Top bar with wall name and action buttons - only in portrait */}
+          {!isPhoneLandscape && (
+            <View style={styles.topBar}>
+              <View style={styles.topBarLeft}>
+                <Text style={styles.wallName}>{selectedWall.name}</Text>
+                <Text style={styles.holdCountBadge}>
+                  {lockedHolds.length} {t.spray.holdsMarked}
+                </Text>
+              </View>
+              <View style={styles.topBarRight}>
+                {lockedHolds.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.clearButton}
+                    onPress={handleClearHolds}
+                  >
+                    <Text style={styles.clearButtonText}>{t.spray.clearAll}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Main content - image and controls */}
+          <View style={styles.mainContentRow}>
+            {/* Active hold actions bar - only in portrait */}
+            {!isPhoneLandscape && (
               <View style={styles.activeHoldActions}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={handleCancelActiveHold}
-                >
-                  <Text style={styles.actionButtonText}>✕</Text>
-                </TouchableOpacity>
-                <Text style={styles.activeHoldHint}>{t.spray.dragToMove}</Text>
-                <TouchableOpacity
-                  style={styles.confirmButton}
-                  onPress={handleConfirmActiveHold}
-                >
-                  <Text style={styles.actionButtonText}>✔</Text>
-                </TouchableOpacity>
+                {activeHold ? (
+                  <TouchableOpacity
+                    style={styles.cancelButton}
+                    onPress={handleCancelActiveHold}
+                  >
+                    <Text style={styles.actionButtonText}>✕</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.placeholderButton} />
+                )}
+                <Text style={styles.activeHoldHint}>
+                  {activeHold ? t.spray.dragToMove : t.spray.tapToAddHold || 'לחץ על הקיר להוספת טבעת'}
+                </Text>
+                {activeHold ? (
+                  <TouchableOpacity
+                    style={styles.confirmButton}
+                    onPress={handleConfirmActiveHold}
+                  >
+                    <Text style={styles.actionButtonText}>✔</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.placeholderButton} />
+                )}
               </View>
             )}
 
-            <View style={styles.imageContainer}>
+            {/* Large image container - takes most of the screen */}
+            <View style={styles.largeImageContainer}>
               <WallImageWithHolds
                 imageUrl={selectedWall.imageUrl}
                 holds={lockedHolds}
@@ -224,85 +268,159 @@ export const AddRouteScreen: React.FC = () => {
               />
             </View>
 
-            {/* Hold Type Picker */}
-            <HoldTypePicker
-              selectedType={selectedHoldType}
-              onSelectType={setSelectedHoldType}
-            />
+            {/* Side controls - in landscape mode */}
+            {isPhoneLandscape && (
+              <View style={styles.sideControls}>
+                {/* Wall info */}
+                <View style={styles.sideControlsHeader}>
+                  <Text style={styles.sideWallName}>{selectedWall.name}</Text>
+                  <Text style={styles.sideHoldCount}>{lockedHolds.length}</Text>
+                </View>
+                
+                {/* Hold Type Picker - vertical */}
+                <HoldTypePicker
+                  selectedType={selectedHoldType}
+                  onSelectType={setSelectedHoldType}
+                  compact={true}
+                />
+                
+                {/* Action buttons */}
+                <View style={styles.sideActionButtons}>
+                  {activeHold && (
+                    <>
+                      <TouchableOpacity
+                        style={styles.sideCancelButton}
+                        onPress={handleCancelActiveHold}
+                      >
+                        <Text style={styles.sideActionButtonText}>✕</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.sideConfirmButton}
+                        onPress={handleConfirmActiveHold}
+                      >
+                        <Text style={styles.sideActionButtonText}>✔</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                  {lockedHolds.length > 0 && (
+                    <TouchableOpacity
+                      style={styles.sideClearButton}
+                      onPress={handleClearHolds}
+                    >
+                      <Text style={styles.sideClearButtonText}>{t.spray.clearAll}</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
 
-            {/* Hold count and actions */}
-            <View style={styles.holdActions}>
-              <Text style={styles.holdCount}>
-                {lockedHolds.length} {t.spray.holdsMarked}
-              </Text>
-              {lockedHolds.length > 0 && (
+                {/* Continue Button */}
                 <TouchableOpacity
-                  style={styles.clearButton}
-                  onPress={handleClearHolds}
+                  style={[
+                    styles.sideContinueButton,
+                    (lockedHolds.length === 0 || isSaving) && styles.continueButtonDisabled,
+                  ]}
+                  onPress={handleContinue}
+                  disabled={lockedHolds.length === 0 || isSaving}
                 >
-                  <Text style={styles.clearButtonText}>{t.spray.clearAll}</Text>
+                  {isSaving ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.sideContinueButtonText}>
+                      {isEditMode ? t.spray.saveChanges : '→'}
+                    </Text>
+                  )}
                 </TouchableOpacity>
-              )}
+              </View>
+            )}
+          </View>
+
+          {/* Bottom controls - only in portrait mode */}
+          {!isPhoneLandscape && (
+            <View style={styles.bottomControls}>
+              {/* Hold Type Picker */}
+              <HoldTypePicker
+                selectedType={selectedHoldType}
+                onSelectType={setSelectedHoldType}
+              />
+
+              {/* Continue Button */}
+              <TouchableOpacity
+                style={[
+                  styles.continueButton,
+                  (lockedHolds.length === 0 || isSaving) && styles.continueButtonDisabled,
+                ]}
+                onPress={handleContinue}
+                disabled={lockedHolds.length === 0 || isSaving}
+              >
+                {isSaving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.continueButtonText}>
+                    {isEditMode ? t.spray.saveChanges : t.spray.continueToDetails}
+                  </Text>
+                )}
+              </TouchableOpacity>
             </View>
-
-            {/* Continue Button */}
-            <TouchableOpacity
-              style={[
-                styles.continueButton,
-                (lockedHolds.length === 0 || isSaving) && styles.continueButtonDisabled,
-              ]}
-              onPress={handleContinue}
-              disabled={lockedHolds.length === 0 || isSaving}
-            >
-              {isSaving ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text style={styles.continueButtonText}>
-                  {isEditMode ? t.spray.saveChanges : t.spray.continueToDetails}
-                </Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
-
-        {/* Empty state when no wall selected */}
-        {!selectedWall && !wallsLoading && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateIcon}>👆</Text>
-            <Text style={styles.emptyStateText}>{t.spray.selectWallToStart}</Text>
-          </View>
-        )}
-      </ScrollView>
+          )}
+        </View>
+      )}
     </View>
   );
 };
 
-const styles = StyleSheet.create({
+// Dynamic styles based on theme
+const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayout>, insets?: { left: number; right: number; top: number; bottom: number }) => {
+  const isLandscape = layout?.isLandscape ?? false;
+  const isTablet = layout?.isTablet ?? false;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  const horizontalPadding = isLandscape ? Math.max(insets?.left ?? 0, insets?.right ?? 0, 16) : 16;
+  
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: theme.background,
   },
   scrollView: {
     flex: 1,
   },
-  imageSection: {
-    marginTop: 8,
+  // Full screen image section (when wall is selected)
+  fullScreenImageSection: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: isLandscape ? 'row' : 'column',
   },
-  wallHeader: {
+  // Top bar with wall name and actions
+  topBar: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#2a2a2a",
+    paddingHorizontal: horizontalPadding,
+    paddingVertical: isPhoneLandscape ? 6 : 10,
+    backgroundColor: theme.surface,
+  },
+  topBarLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  topBarRight: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   wallName: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 16,
     fontWeight: "bold",
   },
+  holdCountBadge: {
+    color: theme.textSecondary,
+    fontSize: 13,
+    backgroundColor: theme.card,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
   changeWallText: {
-    color: "#8E4EC6",
+    color: theme.secondary,
     fontSize: 14,
   },
   activeHoldActions: {
@@ -311,16 +429,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: "#333",
+    backgroundColor: theme.card,
   },
   activeHoldHint: {
-    color: "#aaa",
+    color: theme.textSecondary,
     fontSize: 12,
     flex: 1,
     textAlign: "center",
   },
   confirmButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: theme.success,
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -328,7 +446,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   cancelButton: {
-    backgroundColor: "#FF6B6B",
+    backgroundColor: theme.error,
     width: 44,
     height: 44,
     borderRadius: 22,
@@ -340,28 +458,109 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "bold",
   },
-  imageContainer: {
+  placeholderButton: {
+    width: 44,
+    height: 44,
+  },
+  // Main content row - horizontal in landscape
+  mainContentRow: {
     flex: 1,
-    minHeight: 250,
-    maxHeight: '60%', // Responsive height
-    marginHorizontal: 16,
+    flexDirection: isPhoneLandscape ? 'row' : 'column',
+  },
+  // Large image container - takes most of screen space
+  largeImageContainer: {
+    flex: 1,
+    marginHorizontal: isPhoneLandscape ? 4 : 8,
+    marginVertical: isPhoneLandscape ? 4 : 8,
     borderRadius: 12,
     overflow: "hidden",
+    minHeight: isPhoneLandscape ? undefined : 400,
   },
-  holdActions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  // Side controls for landscape mode
+  sideControls: {
+    width: 90,
+    backgroundColor: theme.surface,
+    padding: 8,
+    paddingRight: Math.max(insets?.right ?? 0, 8),
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: theme.border,
   },
-  holdCount: {
-    color: "#888",
-    fontSize: 14,
+  sideControlsHeader: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sideWallName: {
+    color: theme.text,
+    fontSize: 11,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  sideHoldCount: {
+    color: theme.primary,
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  sideActionButtons: {
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 8,
+  },
+  sideCancelButton: {
+    backgroundColor: theme.error,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sideConfirmButton: {
+    backgroundColor: theme.success,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sideActionButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  sideClearButton: {
+    backgroundColor: theme.error,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  sideClearButtonText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  sideContinueButton: {
+    backgroundColor: theme.secondary,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sideContinueButtonText: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  // Bottom controls area - fixed at bottom
+  bottomControls: {
+    backgroundColor: theme.background,
+    paddingBottom: isPhoneLandscape ? 8 : 16,
+    paddingHorizontal: horizontalPadding,
   },
   clearButton: {
-    backgroundColor: "#FF6B6B",
-    paddingHorizontal: 16,
+    backgroundColor: theme.error,
+    paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 16,
   },
@@ -371,9 +570,10 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   continueButton: {
-    backgroundColor: "#8E4EC6",
-    margin: 16,
-    padding: 16,
+    backgroundColor: theme.secondary,
+    marginHorizontal: horizontalPadding,
+    marginTop: isPhoneLandscape ? 8 : 12,
+    padding: isPhoneLandscape ? 10 : 14,
     borderRadius: 12,
     alignItems: "center",
   },
@@ -382,23 +582,24 @@ const styles = StyleSheet.create({
   },
   continueButtonText: {
     color: "#fff",
-    fontSize: 18,
+    fontSize: isPhoneLandscape ? 16 : 18,
     fontWeight: "bold",
   },
   emptyState: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 100,
+    paddingVertical: isPhoneLandscape ? 60 : 100,
   },
   emptyStateIcon: {
     fontSize: 48,
     marginBottom: 16,
   },
   emptyStateText: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 16,
   },
 });
+};
 
 export default AddRouteScreen;

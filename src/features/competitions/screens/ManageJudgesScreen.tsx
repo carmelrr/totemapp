@@ -28,6 +28,7 @@ import { Judge } from '@/features/competitions/types';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/features/data/firebase';
 import { useLanguage } from '@/features/language';
+import { CachedAvatar } from '@/components/ui/CachedAvatar';
 
 interface UserSearchResult {
   id: string;
@@ -194,11 +195,12 @@ export default function ManageJudgesScreen() {
   const renderSearchResult = ({ item }: { item: UserSearchResult }) => (
     <View style={styles.searchResultItem}>
       <View style={styles.userInfo}>
-        <View style={styles.userAvatar}>
-          <Text style={styles.userAvatarText}>
-            {item.displayName.charAt(0).toUpperCase()}
-          </Text>
-        </View>
+        <CachedAvatar
+          photoURL={item.photoURL}
+          displayName={item.displayName}
+          size={40}
+          showBorder={true}
+        />
         <View>
           <Text style={styles.userName}>{item.displayName}</Text>
           {item.email && (
@@ -488,7 +490,7 @@ const createStyles = (theme: any) =>
       borderRadius: 8,
     },
     addBtnPrimary: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
     },
     addBtnSecondary: {
       backgroundColor: 'transparent',
@@ -650,7 +652,7 @@ const createStyles = (theme: any) =>
       marginTop: 24,
       paddingVertical: 12,
       paddingHorizontal: 24,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       borderRadius: 8,
     },
     backBtnText: {

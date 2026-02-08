@@ -144,8 +144,6 @@ export async function removeProfileImage(userId: string, currentPhotoURL: string
                   );
                 }
               }
-
-              Alert.alert("הצלחה", "תמונת הפרופיל הוסרה בהצלחה");
               resolve();
             } catch (error) {
               console.error("Error removing profile image:", error);

@@ -977,32 +977,17 @@ export class ResultsService {
           // Next rank skips to the correct position (e.g., 1,1,1,4 not 1,1,1,2)
           leaderboardEntries.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
           
-          // Debug: Log entries before ranking
-          console.log('[Totemtition Leaderboard] Before ranking:', leaderboardEntries.map(e => ({
-            name: e.participantName,
-            totalPoints: e.totalPoints,
-            points: e.points,
-          })));
-          
           for (let i = 0; i < leaderboardEntries.length; i++) {
             if (i === 0) {
               leaderboardEntries[i].rank = 1;
             } else if ((leaderboardEntries[i].totalPoints || 0) === (leaderboardEntries[i - 1].totalPoints || 0)) {
               // Same points as previous - same rank (tie)
               leaderboardEntries[i].rank = leaderboardEntries[i - 1].rank;
-              console.log(`[Totemtition Leaderboard] TIE: ${leaderboardEntries[i].participantName} has same points (${leaderboardEntries[i].totalPoints}) as ${leaderboardEntries[i - 1].participantName}, both rank ${leaderboardEntries[i].rank}`);
             } else {
               // Different points - rank is position + 1 (to account for ties)
               leaderboardEntries[i].rank = i + 1;
             }
           }
-          
-          // Debug: Log final rankings
-          console.log('[Totemtition Leaderboard] Final rankings:', leaderboardEntries.map(e => ({
-            name: e.participantName,
-            points: e.totalPoints,
-            rank: e.rank,
-          })));
 
           callback(leaderboardEntries);
         } catch (error) {

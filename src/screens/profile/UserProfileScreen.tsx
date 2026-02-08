@@ -26,6 +26,8 @@ import {
   getDocs,
   deleteDoc,
   onSnapshot,
+  orderBy,
+  limit,
 } from "firebase/firestore";
 import {
   followUser,
@@ -39,7 +41,7 @@ import {
   subscribeToUserProfile,
   subscribeToUserSocial,
 } from "@/features/social/socialService";
-import defaultAvatar from "@/assets/splash.png";
+import { getCachedRoutes } from "@/features/routes-map/services/RoutesService";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
 import { useAdmin } from "@/context/AdminContext";
@@ -55,7 +57,7 @@ export default function UserProfileScreen({ route, navigation }) {
   const { userId, autoEdit = false } = route.params;
   const currentUserId = auth.currentUser?.uid;
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { isAdmin, adminModeEnabled } = useAdmin();
   const layout = useResponsiveLayout();
   const { width: screenWidth, isLandscape, scaleFactor } = layout;
@@ -264,19 +266,16 @@ export default function UserProfileScreen({ route, navigation }) {
 
   const calculateGradeStats = async () => {
     try {
-      // Get all routes
-      const routesSnapshot = await getDocs(collection(db, "routes"));
-      const routes = [];
-      routesSnapshot.forEach((doc) => {
-        routes.push({ id: doc.id, ...doc.data() });
-      });
+      // Use cached routes instead of fetching all routes
+      const routes = await getCachedRoutes();
 
-      setAllRoutes(routes);
-
-      // Only count active routes
+      // Only count active routes (on the wall right now)
       const activeRoutes = routes.filter(
         (route) => !route.status || route.status === "active"
       );
+      
+      // Store only active routes for display
+      setAllRoutes(activeRoutes);
 
       // Count routes by grade (active routes only)
       const routesByGrade = {};
@@ -288,11 +287,13 @@ export default function UserProfileScreen({ route, navigation }) {
       // Count completed routes by grade for this user
       const completedRouteIds = new Set<string>();
 
-      // 1. Query from main routeFeedbacks collection
+      // Query from main routeFeedbacks collection with optimization
       const mainFeedbacksRef = collection(db, "routeFeedbacks");
       const mainFeedbackQuery = query(
         mainFeedbacksRef,
-        where("userId", "==", userId)
+        where("userId", "==", userId),
+        orderBy("createdAt", "desc"),
+        limit(500) // Limit for performance
       );
       const mainFeedbackSnapshot = await getDocs(mainFeedbackQuery);
       
@@ -304,25 +305,6 @@ export default function UserProfileScreen({ route, navigation }) {
           completedRouteIds.add(data.routeId);
         }
       });
-
-      // 2. Also query from legacy subcollections for backwards compatibility
-      for (const route of activeRoutes) {
-        const feedbacksRef = collection(db, "routes", route.id, "feedbacks");
-        const userFeedbackQuery = query(
-          feedbacksRef,
-          where("userId", "==", userId)
-        );
-        const userFeedbackSnapshot = await getDocs(userFeedbackQuery);
-
-        userFeedbackSnapshot.forEach((doc) => {
-          const data = doc.data();
-          // Check both closedRoute and isCompleted for compatibility
-          const isCompleted = data.closedRoute === true || data.isCompleted === true;
-          if (isCompleted) {
-            completedRouteIds.add(route.id);
-          }
-        });
-      }
 
       // Count completed routes by grade (only for active routes)
       const completedByGrade = {};
@@ -528,7 +510,7 @@ export default function UserProfileScreen({ route, navigation }) {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#8e44ad" />
+        <ActivityIndicator size="large" color={theme.primary} />
         <Text style={styles.loadingText}>{t.common.loading}</Text>
       </View>
     );
@@ -548,10 +530,6 @@ export default function UserProfileScreen({ route, navigation }) {
     );
   }
 
-  const avatarSource = userProfile.photoURL
-    ? { uri: userProfile.photoURL }
-    : defaultAvatar;
-
   // Format date for history items
   const formatDate = (date: Date | string) => {
     const d = new Date(date);
@@ -566,7 +544,18 @@ export default function UserProfileScreen({ route, navigation }) {
     if (diffHours < 24) return t.common.hoursAgo(diffHours);
     if (diffDays < 7) return t.common.daysAgo(diffDays);
     
-    return d.toLocaleDateString("he-IL");
+    return d.toLocaleDateString(language === 'he' ? "he-IL" : "en-US");
+  };
+
+  // Get route name based on language
+  const getRouteDisplayName = (item: any): string => {
+    if (language === 'he' && item.routeNameHe) {
+      return item.routeNameHe;
+    }
+    if (language === 'en' && item.routeNameEn) {
+      return item.routeNameEn;
+    }
+    return item.routeName;
   };
 
   // Render history item
@@ -588,7 +577,7 @@ export default function UserProfileScreen({ route, navigation }) {
         <View style={[styles.historyGradeChip, { backgroundColor: item.routeColor }]}>
           <Text style={styles.historyGradeText}>{item.routeGrade}</Text>
         </View>
-        <Text style={styles.historyRouteName}>{item.routeName}</Text>
+        <Text style={styles.historyRouteName}>{getRouteDisplayName(item)}</Text>
       </View>
       
       {item.feedback.comment && (

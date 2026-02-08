@@ -1,15 +1,17 @@
 // screens/HomeScreen.tsx
 // Main Feed / Home Screen - Feed of followed users' closures and feedbacks
-import React, { useState, useEffect, useCallback } from "react";
-import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { View, Text, StyleSheet, FlatList, RefreshControl, TouchableOpacity, ActivityIndicator, Image } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { auth } from "@/features/data/firebase";
 import { getFollowingFeed } from "@/features/social/socialService";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { AnnouncementsList } from "@/features/announcements/components/AnnouncementsList";
+import { BrandLogo } from "@/components/ui/BrandLogo";
 
 interface FeedItem {
   id: string;
@@ -34,41 +36,56 @@ interface FeedItem {
   createdAt: Date | string;
 }
 
-const createStyles = (theme) =>
-  StyleSheet.create({
+const createStyles = (theme, layout, insets) => {
+  const { isLandscape, isTablet, width, scaleFactor } = layout;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  
+  // In landscape, use 2 columns for feed items
+  const itemWidth = isLandscape ? (width - 48 - insets.left - insets.right) / 2 : undefined;
+  
+  return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.background,
     },
     header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
       backgroundColor: theme.headerGradient,
-      paddingTop: 10,
-      paddingHorizontal: 20,
-      paddingBottom: 15,
-      borderBottomLeftRadius: 25,
-      borderBottomRightRadius: 25,
+      paddingVertical: isPhoneLandscape ? 10 : 14,
+      paddingHorizontal: 16,
+      paddingLeft: isLandscape ? Math.max(16, insets.left) : 16,
+      paddingRight: isLandscape ? Math.max(16, insets.right) : 16,
     },
     headerTitle: {
-      fontSize: 24,
+      fontSize: isPhoneLandscape ? 18 : 20,
       fontWeight: "bold",
       color: "#fff",
-      textAlign: "center",
     },
     listContent: {
       flexGrow: 1,
       padding: 16,
       paddingBottom: 100,
+      paddingLeft: isLandscape ? Math.max(16, insets.left) : 16,
+      paddingRight: isLandscape ? Math.max(16, insets.right) : 16,
+    },
+    // Wrapper for 2-column layout in landscape
+    columnWrapper: {
+      justifyContent: 'space-between',
     },
     feedItem: {
       backgroundColor: theme.surface,
       borderRadius: 16,
-      padding: 16,
+      padding: isPhoneLandscape ? 12 : 16,
       marginBottom: 12,
       shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.1,
       shadowRadius: 8,
       elevation: 3,
+      width: itemWidth,
     },
     feedHeader: {
       flexDirection: "row",
@@ -115,7 +132,7 @@ const createStyles = (theme) =>
       borderRadius: 12,
     },
     closureIndicator: {
-      backgroundColor: "#2ecc71",
+      backgroundColor: theme.success,
     },
     feedbackIndicator: {
       backgroundColor: theme.primary,
@@ -210,11 +227,15 @@ const createStyles = (theme) =>
       alignItems: "center",
     },
   });
+};
 
 export default function HomeScreen() {
   const { theme } = useTheme();
   const { t, language } = useLanguage();
-  const styles = createStyles(theme);
+  const layout = useResponsiveLayout();
+  const { isLandscape } = layout;
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
   const navigation = useNavigation();
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -283,7 +304,7 @@ export default function HomeScreen() {
     }
   }, [loadingMore, hasMore, loadFeed]);
 
-  const formatDate = (date: Date | string) => {
+  const formatDate = useCallback((date: Date | string) => {
     const d = new Date(date);
     const now = new Date();
     const diffMs = now.getTime() - d.getTime();
@@ -297,24 +318,24 @@ export default function HomeScreen() {
     if (diffDays < 7) return t.time.daysAgo(diffDays);
     
     return d.toLocaleDateString(language === "he" ? "he-IL" : "en-US");
-  };
+  }, [t.time, language]);
 
-  const renderStars = (rating: number) => {
+  const renderStars = useCallback((rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
       <Text key={i} style={styles.star}>
         {i < rating ? "⭐" : "☆"}
       </Text>
     ));
-  };
+  }, [styles.star]);
 
-  const navigateToUserProfile = (userId: string) => {
+  const navigateToUserProfile = useCallback((userId: string, displayName?: string) => {
     navigation.navigate("ProfileTab", {
       screen: "UserProfile",
-      params: { userId },
+      params: { userId, displayName },
     });
-  };
+  }, [navigation]);
 
-  const navigateToRouteDetails = (item: FeedItem) => {
+  const navigateToRouteDetails = useCallback((item: FeedItem) => {
     // Build route object for RouteDetailsScreen
     const routeForDetails = {
       id: item.routeId,
@@ -333,14 +354,15 @@ export default function HomeScreen() {
       screen: "RouteDetails",
       params: { route: routeForDetails },
     });
-  };
+  }, [navigation]);
 
-  const renderFeedItem = ({ item }: { item: FeedItem }) => (
+  // Memoized renderFeedItem to prevent re-creating on each render
+  const renderFeedItem = useCallback(({ item }: { item: FeedItem }) => (
     <View style={styles.feedItem}>
       {/* Feed Header - User info */}
       <TouchableOpacity 
         style={styles.feedHeader}
-        onPress={() => navigateToUserProfile(item.userId)}
+        onPress={() => navigateToUserProfile(item.userId, item.userDisplayName)}
       >
         <View style={[
           styles.feedTypeIndicator, 
@@ -398,7 +420,10 @@ export default function HomeScreen() {
         )}
       </View>
     </View>
-  );
+  ), [styles, t, formatDate, navigateToUserProfile, navigateToRouteDetails, getRouteDisplayName, renderStars]);
+
+  // Stable keyExtractor to prevent recreation
+  const keyExtractor = useCallback((item: FeedItem) => item.id, []);
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
@@ -423,6 +448,7 @@ export default function HomeScreen() {
     return (
       <SafeAreaView style={styles.container} edges={["top"]}>
         <View style={styles.header}>
+          <BrandLogo variant="icon" color="white" size={24} />
           <Text style={styles.headerTitle}>{t.home.title}</Text>
         </View>
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -435,14 +461,22 @@ export default function HomeScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
+        <BrandLogo variant="icon" color="white" size={24} />
         <Text style={styles.headerTitle}>{t.home.title}</Text>
       </View>
       
       <FlatList
         data={feedItems}
         renderItem={renderFeedItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={keyExtractor}
         contentContainerStyle={styles.listContent}
+        key={isLandscape ? 'landscape-2col' : 'portrait-1col'}
+        numColumns={isLandscape ? 2 : 1}
+        columnWrapperStyle={isLandscape ? styles.columnWrapper : undefined}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        initialNumToRender={8}
         refreshControl={
           <RefreshControl 
             refreshing={refreshing} 

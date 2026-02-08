@@ -106,6 +106,7 @@ export class CompetitionRoutesService {
       grade: string;
       xNorm: number;
       yNorm: number;
+      color: string;
       isActive: boolean;
     }>
   ): Promise<void> {
@@ -471,6 +472,7 @@ export class CompetitionRoutesService {
       basePoints: data.basePoints || getGradeBasePoints(data.grade),
       xNorm: data.xNorm || 0,
       yNorm: data.yNorm || 0,
+      color: data.color, // Custom color set by head judge
       isActive: data.isActive ?? true,
       createdAt: data.createdAt?.toDate() || new Date(),
       createdBy: data.createdBy,

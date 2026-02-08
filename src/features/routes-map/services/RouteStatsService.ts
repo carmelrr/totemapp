@@ -12,6 +12,8 @@ import {
     where,
     getDocs,
     serverTimestamp,
+    setDoc,
+    collectionGroup,
 } from 'firebase/firestore';
 
 import { db } from '@/features/data/firebase';
@@ -286,6 +288,164 @@ export class RouteStatsService {
             return { success, failed, skipped };
         } catch (error) {
             console.error("Error recalculating all route names:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Sync spray route sends - create records in sprayRouteSends collection
+     * for all existing feedbacks in sprayRoutes/{routeId}/feedbacks
+     * This is needed for the completion filter to work correctly
+     */
+    static async syncSprayRouteSends(): Promise<{ success: number; failed: number }> {
+        try {
+            console.log('🔄 [syncSprayRouteSends] Starting sync...');
+            
+            // Get all spray routes
+            const sprayRoutesRef = collection(db, 'sprayRoutes');
+            const sprayRoutesSnapshot = await getDocs(sprayRoutesRef);
+            
+            let success = 0;
+            let failed = 0;
+            
+            for (const routeDoc of sprayRoutesSnapshot.docs) {
+                try {
+                    const routeId = routeDoc.id;
+                    
+                    // Get all feedbacks for this route
+                    const feedbacksRef = collection(db, 'sprayRoutes', routeId, 'feedbacks');
+                    const feedbacksSnapshot = await getDocs(feedbacksRef);
+                    
+                    for (const feedbackDoc of feedbacksSnapshot.docs) {
+                        const feedbackData = feedbackDoc.data();
+                        const userId = feedbackData.userId;
+                        
+                        if (userId) {
+                            // Create send record
+                            const sendId = `${routeId}_${userId}`;
+                            const sendRef = doc(db, 'sprayRouteSends', sendId);
+                            
+                            await setDoc(sendRef, {
+                                routeId,
+                                userId,
+                                createdAt: feedbackData.createdAt || serverTimestamp(),
+                            }, { merge: true });
+                            
+                            success++;
+                        }
+                    }
+                    
+                    console.log(`✅ [syncSprayRouteSends] Synced route ${routeId}: ${feedbacksSnapshot.size} feedbacks`);
+                } catch (error) {
+                    failed++;
+                    console.error(`❌ [syncSprayRouteSends] Failed to sync route ${routeDoc.id}:`, error);
+                }
+            }
+            
+            console.log(`🔄 [syncSprayRouteSends] Complete: ${success} success, ${failed} failed`);
+            return { success, failed };
+        } catch (error) {
+            console.error('❌ [syncSprayRouteSends] Error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Sync community route sends - verify communityRouteSends collection
+     * is in sync with actual sent status
+     */
+    static async syncCommunityRouteSends(): Promise<{ success: number; failed: number }> {
+        try {
+            console.log('🔄 [syncCommunityRouteSends] Starting sync...');
+            
+            // Community routes sends are already stored correctly
+            // Just log the current count
+            const sendsRef = collection(db, 'communityRouteSends');
+            const sendsSnapshot = await getDocs(sendsRef);
+            
+            console.log(`✅ [syncCommunityRouteSends] Found ${sendsSnapshot.size} existing send records`);
+            
+            return { success: sendsSnapshot.size, failed: 0 };
+        } catch (error) {
+            console.error('❌ [syncCommunityRouteSends] Error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Sync route feedbacks to userRoutes collection
+     * Creates/updates entries in userRoutes for routes that have feedback with isCompleted=true
+     * This enables the completion filter on the Routes Map screen
+     */
+    static async syncRouteFeedbacksToUserRoutes(): Promise<{ success: number; failed: number }> {
+        try {
+            console.log('🔄 [syncRouteFeedbacksToUserRoutes] Starting sync...');
+            
+            // Get all feedbacks that are marked as completed
+            const feedbacksSnapshot = await getDocs(this.feedbacksRef);
+            
+            let success = 0;
+            let failed = 0;
+            
+            // Group feedbacks by userId
+            const userFeedbacks: Record<string, { routeId: string; createdAt: any }[]> = {};
+            
+            feedbacksSnapshot.docs.forEach((feedbackDoc) => {
+                const data = feedbackDoc.data();
+                // Check if feedback indicates completion
+                if (data.userId && data.routeId && data.isCompleted) {
+                    if (!userFeedbacks[data.userId]) {
+                        userFeedbacks[data.userId] = [];
+                    }
+                    userFeedbacks[data.userId].push({
+                        routeId: data.routeId,
+                        createdAt: data.createdAt,
+                    });
+                }
+            });
+            
+            console.log(`🔄 [syncRouteFeedbacksToUserRoutes] Found ${Object.keys(userFeedbacks).length} users with completed routes`);
+            
+            // Update userRoutes for each user
+            for (const [userId, feedbacks] of Object.entries(userFeedbacks)) {
+                try {
+                    const userRoutesRef = doc(db, 'userRoutes', userId);
+                    const userRoutesDoc = await getDoc(userRoutesRef);
+                    const existingRoutes = userRoutesDoc.exists() ? (userRoutesDoc.data().routes || {}) : {};
+                    
+                    let updated = false;
+                    const updatedRoutes = { ...existingRoutes };
+                    
+                    for (const feedback of feedbacks) {
+                        // Only add if not already marked as sent/flashed
+                        if (!existingRoutes[feedback.routeId] || 
+                            (existingRoutes[feedback.routeId].status !== 'sent' && 
+                             existingRoutes[feedback.routeId].status !== 'flashed')) {
+                            updatedRoutes[feedback.routeId] = {
+                                ...(existingRoutes[feedback.routeId] || {}),
+                                status: 'sent',
+                                attempts: (existingRoutes[feedback.routeId]?.attempts || 0) + 1,
+                                lastAttempt: feedback.createdAt || new Date(),
+                            };
+                            updated = true;
+                            success++;
+                        }
+                    }
+                    
+                    if (updated) {
+                        await setDoc(userRoutesRef, { routes: updatedRoutes }, { merge: true });
+                        console.log(`✅ [syncRouteFeedbacksToUserRoutes] Updated user ${userId}: ${feedbacks.length} routes`);
+                    }
+                } catch (error) {
+                    failed++;
+                    console.error(`❌ [syncRouteFeedbacksToUserRoutes] Failed to update user ${userId}:`, error);
+                }
+            }
+            
+            console.log(`🔄 [syncRouteFeedbacksToUserRoutes] Complete: ${success} routes synced, ${failed} failed`);
+            return { success, failed };
+        } catch (error) {
+            console.error('❌ [syncRouteFeedbacksToUserRoutes] Error:', error);
             throw error;
         }
     }

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,12 +14,16 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import MapViewport from '../components/MapViewport';
 import RouteMarker from '../components/RouteMarker';
+import ZoomSlider from '@/components/WallMap/ZoomSlider';
 
 import { toImg, toNorm } from '@/utils/coordinateUtils';
 import { GRADES } from '../utils/grades';
 import { ROUTE_COLORS, getRandomRouteColor } from '../utils/colors';
 import { RoutesService } from '../services/RoutesService';
 import { MapTransforms } from '../types/route';
+import { useTheme, lightTheme } from '@/features/theme/ThemeContext';
+
+type Theme = typeof lightTheme;
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -39,6 +43,7 @@ interface PreviewRoute {
 
 export default function AddRouteMapScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const { theme } = useTheme();
 
   // Form state
   const [name, setName] = useState('');
@@ -63,13 +68,38 @@ export default function AddRouteMapScreen() {
     scale: 1,
   });
   const [preview, setPreview] = useState<PreviewRoute | null>(null);
+  const [currentZoom, setCurrentZoom] = useState(1);
+  
+  // Reference to map transforms for zoom control
+  const mapTransformsRef = useRef<any>(null);
 
   // Validation
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Create styles based on theme
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
   const handleMapMeasured = useCallback((dimensions: { imgW: number; imgH: number }) => {
     setImageDimensions(dimensions);
+  }, []);
+
+  // Handle transforms ready callback from MapViewport
+  const handleTransformsReady = useCallback((transforms: any) => {
+    mapTransformsRef.current = transforms;
+  }, []);
+
+  // Handle transform changes to update zoom level
+  const handleTransformChange = useCallback((transforms: MapTransforms) => {
+    setCurrentTransforms(transforms);
+    setCurrentZoom(transforms.scale);
+  }, []);
+
+  // Handle zoom slider change
+  const handleZoomSliderChange = useCallback((newScale: number) => {
+    if (mapTransformsRef.current?.setZoomToCenter) {
+      mapTransformsRef.current.setZoomToCenter(newScale);
+    }
   }, []);
 
   const handleMapPress = useCallback((event: any) => {
@@ -77,10 +107,11 @@ export default function AddRouteMapScreen() {
 
     const { locationX, locationY } = event.nativeEvent;
 
-    // Convert screen coordinates to image coordinates
+    // Convert screen coordinates to image coordinates using updated toImg with image dimensions
     const { xImg, yImg } = toImg(
       { xS: locationX, yS: locationY },
-      currentTransforms
+      currentTransforms,
+      imageDimensions
     );
 
     // Clamp to image bounds
@@ -220,7 +251,8 @@ export default function AddRouteMapScreen() {
         <TouchableOpacity style={styles.mapTouchable} onPress={handleMapPress}>
           <MapViewport
             onMeasured={handleMapMeasured}
-            onTransformChange={setCurrentTransforms}
+            onTransformChange={handleTransformChange}
+            onTransformsReady={handleTransformsReady}
           >
             {previewRoute && imageDimensions.imgW > 0 && (
               <View
@@ -241,6 +273,17 @@ export default function AddRouteMapScreen() {
             )}
           </MapViewport>
         </TouchableOpacity>
+
+        {/* Zoom Slider - always shown on add route screen for precision */}
+        <View style={styles.zoomSliderContainer}>
+          <ZoomSlider
+            currentScale={currentZoom}
+            minScale={mapTransformsRef.current?.minScale ?? 1}
+            maxScale={mapTransformsRef.current?.maxScale ?? 8}
+            onZoomChange={handleZoomSliderChange}
+            forceShow={true}
+          />
+        </View>
 
         {errors.position && (
           <Text style={styles.errorText}>{errors.position}</Text>
@@ -346,10 +389,11 @@ export default function AddRouteMapScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+// Dynamic styles based on theme
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: 'row',
@@ -359,35 +403,36 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingTop: 48,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: theme.border,
+    backgroundColor: theme.surface,
   },
   cancelButton: {
     fontSize: 16,
-    color: '#6b7280',
+    color: theme.textSecondary,
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
+    color: theme.text,
   },
   saveButton: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3b82f6',
+    color: theme.primary,
   },
   disabledButton: {
-    color: '#9ca3af',
+    color: theme.textSecondary,
   },
   mapSection: {
-    height: 300,
     position: 'relative',
+    // Allow content to determine height instead of fixed minHeight
   },
   instructionBanner: {
     position: 'absolute',
     top: 12,
     left: 12,
     right: 12,
-    backgroundColor: 'rgba(59, 130, 246, 0.9)',
+    backgroundColor: theme.isDark ? 'rgba(102, 126, 234, 0.9)' : 'rgba(59, 130, 246, 0.9)',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -400,7 +445,13 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   mapTouchable: {
-    flex: 1,
+    height: 280, // Fixed height for map area
+  },
+  zoomSliderContainer: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: theme.isDark ? 'rgba(45, 45, 45, 0.9)' : 'rgba(245, 245, 245, 0.9)',
+    marginTop: 4,
   },
   previewMarkerContainer: {
     position: 'absolute',
@@ -417,24 +468,25 @@ const styles = StyleSheet.create({
   fieldLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: theme.text,
     marginBottom: 8,
   },
   textInput: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: theme.border,
     borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    color: '#1f2937',
+    color: theme.text,
+    backgroundColor: theme.inputBackground,
   },
   errorInput: {
-    borderColor: '#ef4444',
+    borderColor: theme.error,
   },
   errorText: {
     fontSize: 12,
-    color: '#ef4444',
+    color: theme.error,
     marginTop: 4,
   },
   gradeContainer: {
@@ -446,18 +498,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 16,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: theme.card,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: theme.border,
   },
   selectedGradeChip: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   gradeChipText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4b5563',
+    color: theme.textSecondary,
   },
   selectedGradeChipText: {
     color: '#ffffff',
@@ -477,7 +529,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   selectedColorChip: {
-    borderColor: '#1f2937',
+    borderColor: theme.text,
   },
   colorCheckmark: {
     fontSize: 18,
@@ -489,7 +541,7 @@ const styles = StyleSheet.create({
   },
   helpText: {
     fontSize: 12,
-    color: '#6b7280',
+    color: theme.textSecondary,
     marginTop: 4,
   },
   bottomPadding: {

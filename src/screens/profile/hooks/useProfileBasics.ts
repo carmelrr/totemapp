@@ -100,7 +100,6 @@ export function useProfileBasics() {
       setLoading(true);
       await saveProfile(user.uid, { displayName, photoURL });
       setEditing(false);
-      Alert.alert("הצלחה", "הפרופיל עודכן");
     } catch (e: any) {
       Alert.alert("שגיאה", "לא ניתן לעדכן פרופיל: " + (e.message || e));
     } finally {
@@ -133,8 +132,6 @@ export function useProfileBasics() {
           console.warn("Failed to delete old profile image:", deleteError);
         }
       }
-      
-      Alert.alert("הצלחה", "תמונת הפרופיל עודכנה בהצלחה!");
     } catch (e: any) {
       Alert.alert("שגיאה", e.message || "לא ניתן להעלות תמונה");
     } finally {

@@ -8,7 +8,10 @@ import {
   where, 
   getDocs,
   onSnapshot,
+  orderBy,
+  limit,
 } from "firebase/firestore";
+import { getCachedRoutes } from "@/features/routes-map/services/RoutesService";
 import type { UserStats, GradeStatsMap } from "../types";
 
 export async function fetchUserStats(userId: string): Promise<UserStats> {
@@ -87,6 +90,7 @@ export async function fetchOtherUserStats(userId: string): Promise<UserStats> {
 }
 
 // חישוב סטטיסטיקות מכל המסלולים שהמשתמש אי פעם סגר (כולל ארכיון)
+// OPTIMIZED: Uses cached routes
 async function calculateAllTimeStats(userId: string): Promise<{
   totalRoutesSent: number;
   highestGrade: string;
@@ -94,18 +98,20 @@ async function calculateAllTimeStats(userId: string): Promise<{
   averageStarRating: number;
 }> {
   try {
-    // קודם נקבל את כל המסלולים כדי לדעת את הגריידים שלהם
-    const routesSnapshot = await getDocs(collection(db, "routes"));
+    // Use cached routes instead of fetching all routes
+    const routes = await getCachedRoutes();
     const routesMap = new Map<string, any>();
-    routesSnapshot.docs.forEach(doc => {
-      routesMap.set(doc.id, doc.data());
+    routes.forEach(route => {
+      routesMap.set(route.id, route);
     });
     
     // מחפשים פידבקים באוסף routeFeedbacks (לא subcollection)
     const feedbacksRef = collection(db, "routeFeedbacks");
     const userFeedbackQuery = query(
       feedbacksRef,
-      where("userId", "==", userId)
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+      limit(500) // Limit for performance
     );
     const userFeedbackSnapshot = await getDocs(userFeedbackQuery);
     
@@ -177,16 +183,16 @@ async function calculateAllTimeStats(userId: string): Promise<{
 }
 
 // חישוב אחוז סגירה מהמסלולים שעל הקיר כרגע
+// OPTIMIZED: Uses cached routes
 // מסלול נחשב "על הקיר" אם status === 'active' או אם אין לו status (ברירת מחדל)
 async function calculateActiveRoutesCompletionPercentage(userId: string): Promise<number> {
   try {
-    // קבל את כל המסלולים ונסנן מקומית
-    const allRoutesSnapshot = await getDocs(collection(db, "routes"));
+    // Use cached routes instead of fetching all routes
+    const allRoutes = await getCachedRoutes();
     
     // סנן מסלולים פעילים (status === 'active' או status לא קיים/undefined)
-    const activeRoutes = allRoutesSnapshot.docs.filter(doc => {
-      const data = doc.data();
-      return !data.status || data.status === 'active';
+    const activeRoutes = allRoutes.filter(route => {
+      return !route.status || route.status === 'active';
     });
     
     if (activeRoutes.length === 0) {
@@ -200,7 +206,9 @@ async function calculateActiveRoutesCompletionPercentage(userId: string): Promis
     const feedbacksRef = collection(db, "routeFeedbacks");
     const userFeedbackQuery = query(
       feedbacksRef,
-      where("userId", "==", userId)
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+      limit(500) // Limit for performance
     );
     const userFeedbackSnapshot = await getDocs(userFeedbackQuery);
     
@@ -240,18 +248,20 @@ export async function initializeUserStats(userId: string): Promise<UserStats> {
   }
 
   try {
-    // קודם נקבל את כל המסלולים כדי לדעת את הגריידים שלהם
-    const routesSnapshot = await getDocs(collection(db, "routes"));
+    // Use cached routes instead of fetching all routes
+    const routes = await getCachedRoutes();
     const routesMap = new Map<string, any>();
-    routesSnapshot.docs.forEach(doc => {
-      routesMap.set(doc.id, doc.data());
+    routes.forEach(route => {
+      routesMap.set(route.id, route);
     });
 
     // מחפשים פידבקים באוסף routeFeedbacks (לא subcollection)
     const feedbacksRef = collection(db, "routeFeedbacks");
     const userFeedbackQuery = query(
       feedbacksRef,
-      where("userId", "==", userId)
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+      limit(500) // Limit for performance
     );
     const userFeedbackSnapshot = await getDocs(userFeedbackQuery);
 
@@ -344,12 +354,8 @@ export async function calculateGradeStats(userId: string): Promise<{ routes: any
   }
 
   try {
-    // Get all routes
-    const routesSnapshot = await getDocs(collection(db, "routes"));
-    const allRoutes: any[] = [];
-    routesSnapshot.forEach((doc) => {
-      allRoutes.push({ id: doc.id, ...doc.data() });
-    });
+    // Use cached routes instead of fetching all routes
+    const allRoutes = await getCachedRoutes();
 
     // סינון מסלולים פעילים בלבד (על הקיר כרגע)
     const activeRoutes = allRoutes.filter(route => !route.status || route.status === 'active');
@@ -365,7 +371,9 @@ export async function calculateGradeStats(userId: string): Promise<{ routes: any
     const feedbacksRef = collection(db, "routeFeedbacks");
     const userFeedbackQuery = query(
       feedbacksRef,
-      where("userId", "==", userId)
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+      limit(500) // Limit for performance
     );
     const userFeedbackSnapshot = await getDocs(userFeedbackQuery);
     

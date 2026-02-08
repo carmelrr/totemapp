@@ -4,7 +4,8 @@ import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { GestureDetector } from 'react-native-gesture-handler';
 import { useWallTransform } from '@/hooks/useWallTransform';
-import WallMapSVG from '@/assets/WallMapSVG';
+import { DynamicWallMap } from '@/features/wall-editor/components';
+import { Room } from '@/features/wall-editor/types';
 
 interface RoutePoint {
     id: string;
@@ -24,6 +25,8 @@ interface WallMapProps {
     onDoubleTap?: () => void;
     onLongPress?: (coordinates: { x: number; y: number }) => void;
     onLayout?: (viewW: number, viewH: number) => void;
+    /** Room data for rendering the dynamic wall map */
+    room: Room;
 }
 
 /**
@@ -40,6 +43,7 @@ export default function WallMap({
     onDoubleTap,
     onLongPress,
     onLayout,
+    room,
 }: WallMapProps) {
     const [containerDimensions, setContainerDimensions] = useState({
         width: 0,
@@ -114,8 +118,9 @@ export default function WallMap({
             <GestureDetector gesture={transforms.composedGestures}>
                 <Animated.View style={styles.gestureContainer}>
                     <Animated.View style={[styles.mapContainer, transforms.animatedStyle]}>
-                        {/* תמונת הקיר */}
-                        <WallMapSVG
+                        {/* תמונת הקיר - מפה דינמית מעורך הקירות */}
+                        <DynamicWallMap
+                            room={room}
                             width={imageDimensions.imgW}
                             height={imageDimensions.imgH}
                             preserveAspectRatio="xMidYMid meet"

@@ -3,7 +3,7 @@
  * @description Screen for Social Managers to create/edit/manage announcements
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -18,8 +18,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useRolesContext } from '@/features/roles/RolesContext';
-import { useTheme } from '@/features/theme/ThemeContext';
+import { useTheme, lightTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import { 
   Announcement, 
   AnnouncementStatus 
@@ -31,11 +32,14 @@ import {
   duplicateAnnouncement,
 } from '../announcementService';
 
+type Theme = typeof lightTheme;
+
 export function AnnouncementsManagementScreen() {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const navigation = useNavigation();
   const { canManageAnnouncements, loading: rolesLoading } = useRolesContext();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   // Status labels with translations
   const STATUS_LABELS: Record<AnnouncementStatus, { label: string; color: string }> = {
@@ -225,14 +229,17 @@ export function AnnouncementsManagementScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { backgroundColor: theme.headerGradient }]}>
+      <View style={styles.header}>
         <TouchableOpacity 
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
           <Ionicons name="arrow-forward" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{t.announcements.manageAnnouncements}</Text>
+        <View style={styles.headerCenter}>
+          <BrandLogo variant="icon" color="white" size={24} />
+          <Text style={styles.headerTitle}>{t.announcements.manageAnnouncements}</Text>
+        </View>
         <TouchableOpacity style={styles.addButton} onPress={handleCreateNew}>
           <Ionicons name="add" size={28} color="#FFFFFF" />
         </TouchableOpacity>
@@ -267,9 +274,10 @@ export function AnnouncementsManagementScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: theme.background,
   },
   loadingContainer: {
     flex: 1,
@@ -284,7 +292,7 @@ const styles = StyleSheet.create({
   },
   accessDeniedText: {
     fontSize: 18,
-    color: '#666',
+    color: theme.textSecondary,
     marginTop: 16,
     textAlign: 'center',
   },
@@ -293,12 +301,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    paddingVertical: 14,
+    backgroundColor: theme.headerGradient,
   },
   backButton: {
     padding: 8,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+  },
+  headerCenter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   headerTitle: {
     fontSize: 20,
@@ -316,7 +330,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    backgroundColor: theme.surface,
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -332,7 +347,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.card,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -354,21 +369,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'right',
     marginBottom: 4,
+    color: theme.text,
   },
   announcementText: {
     fontSize: 14,
     textAlign: 'right',
     lineHeight: 20,
+    color: theme.textSecondary,
   },
   dateRow: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: theme.border,
   },
   dateLabel: {
     fontSize: 12,
     textAlign: 'right',
+    color: theme.textSecondary,
   },
   actionsRow: {
     flexDirection: 'row',
@@ -385,16 +403,16 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   publishButton: {
-    backgroundColor: '#10B981',
+    backgroundColor: theme.success,
   },
   duplicateButton: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.card,
   },
   editButton: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: theme.isDark ? 'rgba(59, 130, 246, 0.2)' : '#EFF6FF',
   },
   deleteButton: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: theme.isDark ? 'rgba(239, 68, 68, 0.2)' : '#FEF2F2',
   },
   actionButtonText: {
     color: '#FFFFFF',
@@ -415,10 +433,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     marginBottom: 8,
+    color: theme.text,
   },
   emptyText: {
     fontSize: 14,
     textAlign: 'center',
+    color: theme.textSecondary,
   },
 });
 

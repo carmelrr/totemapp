@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   CommunityRoute,
   CommunityRouteComment,
+  CommunityRouteFeedback,
   CommunityRouteFilters,
 } from './types';
 import {
@@ -26,6 +27,14 @@ import {
   incrementViewCount,
   getDaysUntilExpiration,
   isExpiringSoon,
+  listenToUserSentRoutes,
+  // Feedback functions
+  getAllowedGrades,
+  addOrUpdateFeedback,
+  getUserFeedback,
+  getRouteFeedbacks,
+  listenToRouteFeedbacks,
+  deleteFeedback,
 } from './service';
 import { useAuth } from '@/context/AuthContext';
 
@@ -50,7 +59,7 @@ export function useCommunityRoutes(filters?: CommunityRouteFilters) {
     );
 
     return () => unsubscribe();
-  }, [filters?.sortBy, filters?.gymName]);
+  }, [filters?.sortBy, filters?.gymName, JSON.stringify(filters?.filterGrades), JSON.stringify(filters?.filterCreators)]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -419,4 +428,138 @@ export function useExpirationInfo(expiresAt: any) {
   }, [expiresAt]);
 
   return { daysLeft, expiringSoon };
+}
+
+/**
+ * Hook to get all routes the current user has sent (completed)
+ * Returns a Set of route IDs for efficient lookup
+ */
+export function useUserSentRoutes() {
+  const { user } = useAuth();
+  const [sentRouteIds, setSentRouteIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      console.log('🔍 [useUserSentRoutes] No user, returning empty set');
+      setSentRouteIds(new Set());
+      setLoading(false);
+      return;
+    }
+
+    console.log('🔍 [useUserSentRoutes] Setting up listener for user:', user.uid);
+    setLoading(true);
+    const unsubscribe = listenToUserSentRoutes(user.uid, (routeIds) => {
+      console.log('✅ [useUserSentRoutes] Got', routeIds.size, 'sent routes:', Array.from(routeIds));
+      setSentRouteIds(routeIds);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  return { sentRouteIds, loading };
+}
+
+/**
+ * Hook for managing community route feedback
+ */
+export function useCommunityRouteFeedback(routeId: string | null, originalGrade: string) {
+  const { user } = useAuth();
+  const [userFeedback, setUserFeedback] = useState<CommunityRouteFeedback | null>(null);
+  const [feedbacks, setFeedbacks] = useState<CommunityRouteFeedback[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Get allowed grades (±2 from original)
+  const allowedGrades = getAllowedGrades(originalGrade);
+
+  // Load user's existing feedback
+  useEffect(() => {
+    if (!routeId || !user?.uid) {
+      setUserFeedback(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    getUserFeedback(routeId, user.uid)
+      .then((feedback) => {
+        setUserFeedback(feedback);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error('Error loading user feedback:', err);
+        setLoading(false);
+      });
+  }, [routeId, user?.uid]);
+
+  // Listen to all feedbacks for this route
+  useEffect(() => {
+    if (!routeId) {
+      setFeedbacks([]);
+      return;
+    }
+
+    const unsubscribe = listenToRouteFeedbacks(routeId, (fetchedFeedbacks) => {
+      setFeedbacks(fetchedFeedbacks);
+    });
+
+    return () => unsubscribe();
+  }, [routeId]);
+
+  const submit = useCallback(
+    async (data: {
+      starRating: number;
+      suggestedGrade: string;
+      comment?: string;
+      videoUrl?: string;
+    }) => {
+      if (!routeId || !user?.uid) {
+        throw new Error('יש להתחבר כדי לשלוח משוב');
+      }
+
+      setSubmitting(true);
+      try {
+        await addOrUpdateFeedback(
+          routeId,
+          user.uid,
+          user.displayName || 'אנונימי',
+          data
+        );
+        
+        // Refresh user feedback
+        const updatedFeedback = await getUserFeedback(routeId, user.uid);
+        setUserFeedback(updatedFeedback);
+      } catch (err) {
+        console.error('Error submitting feedback:', err);
+        throw err;
+      } finally {
+        setSubmitting(false);
+      }
+    },
+    [routeId, user]
+  );
+
+  const remove = useCallback(async () => {
+    if (!routeId || !user?.uid) return;
+
+    try {
+      await deleteFeedback(routeId, user.uid);
+      setUserFeedback(null);
+    } catch (err) {
+      console.error('Error deleting feedback:', err);
+      throw err;
+    }
+  }, [routeId, user?.uid]);
+
+  return {
+    userFeedback,
+    feedbacks,
+    loading,
+    submitting,
+    allowedGrades,
+    submit,
+    remove,
+  };
 }

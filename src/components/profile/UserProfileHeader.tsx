@@ -1,8 +1,10 @@
 import React, { useMemo } from "react";
-import { View, Text, TouchableOpacity, Image, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { CachedAvatar } from "@/components/ui/CachedAvatar";
 
 interface UserProfileHeaderProps {
     userProfile: {
@@ -27,32 +29,34 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
     handleFollowToggle,
 }) => {
     const { theme } = useTheme();
+    const { t } = useLanguage();
     const layout = useResponsiveLayout();
     const { isLandscape, width: screenWidth } = layout;
     const insets = useSafeAreaInsets();
     
     const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
-    
-    const avatarSource = userProfile.photoURL
-        ? { uri: userProfile.photoURL }
-        : require("../../assets/splash.png");
 
     return (
         <View style={styles.profileHeader}>
             <View style={styles.headerContent}>
                 <View style={styles.avatarContainer}>
-                    <Image source={avatarSource} style={styles.avatar} />
+                    <CachedAvatar
+                        photoURL={userProfile.photoURL}
+                        displayName={userProfile.displayName}
+                        size={isLandscape ? 80 : 100}
+                        showBorder={true}
+                    />
                 </View>
 
                 <View style={styles.profileInfo}>
                     <Text style={styles.name}>
-                        {userProfile.displayName || "משתמש"}
+                        {userProfile.displayName || t.profile.user}
                     </Text>
 
                     <View style={styles.followStats}>
-                        <Text style={styles.followStat}>{followers.length} עוקבים</Text>
+                        <Text style={styles.followStat}>{followers.length} {t.profile.followers}</Text>
                         <Text style={styles.followStat}> • </Text>
-                        <Text style={styles.followStat}>{following.length} עוקב</Text>
+                        <Text style={styles.followStat}>{following.length} {t.profile.following}</Text>
                     </View>
 
                     {currentUserId !== userId && (
@@ -69,7 +73,7 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
                                     isFollowed && styles.unfollowButtonText,
                                 ]}
                             >
-                                {isFollowed ? "ביטול מעקב" : "מעקב"}
+                                {isFollowed ? t.profile.unfollow : t.profile.follow}
                             </Text>
                         </TouchableOpacity>
                     )}

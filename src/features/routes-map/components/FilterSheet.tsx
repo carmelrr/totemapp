@@ -4,12 +4,15 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  ScrollView,
   Modal,
 } from 'react-native';
-import { RouteFilters, RouteSortBy } from '../types/route';
+import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { RouteFilters, RouteSortBy, CompletionFilter } from '../types/route';
 import { GRADES } from '../utils/grades';
 import { ROUTE_COLORS } from '../utils/colors';
+import { useLanguage } from '@/features/language';
+import { useUserRouteStatus } from '@/hooks/useUserRouteStatus';
 
 interface FilterSheetProps {
   visible: boolean;
@@ -30,6 +33,12 @@ const SORT_OPTIONS: { key: RouteSortBy; label: string }[] = [
 
 const STATUS_OPTIONS: Array<'active' | 'archived' | 'draft'> = ['active', 'archived', 'draft'];
 
+const COMPLETION_OPTIONS: { key: CompletionFilter; labelKey: 'showAll' | 'showCompleted' | 'showNotCompleted' }[] = [
+  { key: 'all', labelKey: 'showAll' },
+  { key: 'completed', labelKey: 'showCompleted' },
+  { key: 'not-completed', labelKey: 'showNotCompleted' },
+];
+
 export default function FilterSheet({
   visible,
   onClose,
@@ -38,6 +47,7 @@ export default function FilterSheet({
   onFiltersChange,
   onSortChange,
 }: FilterSheetProps) {
+  const { t } = useLanguage();
   const [localFilters, setLocalFilters] = useState<RouteFilters>(filters);
   const [localSortBy, setLocalSortBy] = useState<RouteSortBy>(sortBy);
 
@@ -53,6 +63,7 @@ export default function FilterSheet({
       colors: [],
       status: ['active'],
       tags: [],
+      completionStatus: 'all',
     };
     setLocalFilters(resetFilters);
     setLocalSortBy('distance');
@@ -85,6 +96,13 @@ export default function FilterSheet({
     }));
   };
 
+  const setCompletionStatus = (status: CompletionFilter) => {
+    setLocalFilters(prev => ({
+      ...prev,
+      completionStatus: status,
+    }));
+  };
+
   return (
     <Modal
       visible={visible}
@@ -92,21 +110,55 @@ export default function FilterSheet({
       presentationStyle="pageSheet"
       onRequestClose={onClose}
     >
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose}>
-            <Text style={styles.cancelButton}>Cancel</Text>
-          </TouchableOpacity>
-          <Text style={styles.title}>Filter & Sort</Text>
-          <TouchableOpacity onPress={handleApply}>
-            <Text style={styles.applyButton}>Apply</Text>
-          </TouchableOpacity>
-        </View>
+      <GestureHandlerRootView style={styles.gestureRoot}>
+        <SafeAreaView style={styles.container} edges={['top']}>
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose}>
+              <Text style={styles.cancelButton}>{t.common.cancel}</Text>
+            </TouchableOpacity>
+            <Text style={styles.title}>{t.common.filter}</Text>
+            <TouchableOpacity onPress={handleApply}>
+              <Text style={styles.applyButton}>{t.common.apply}</Text>
+            </TouchableOpacity>
+          </View>
 
-        <ScrollView style={styles.content}>
+          <ScrollView 
+            style={styles.content}
+            contentContainerStyle={styles.contentContainer}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={true}
+            bounces={true}
+          >
+          {/* Completion Status Filter */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>{t.filters.completionStatus}</Text>
+            <View style={styles.chipContainer}>
+              {COMPLETION_OPTIONS.map(option => (
+                <TouchableOpacity
+                  key={option.key}
+                  style={[
+                    styles.chip,
+                    (localFilters.completionStatus || 'all') === option.key && styles.selectedChip,
+                  ]}
+                  onPress={() => setCompletionStatus(option.key)}
+                  delayPressIn={50}
+                >
+                  <Text
+                    style={[
+                      styles.chipText,
+                      (localFilters.completionStatus || 'all') === option.key && styles.selectedChipText,
+                    ]}
+                  >
+                    {t.filters[option.labelKey]}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+
           {/* Sort By Section */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Sort By</Text>
+            <Text style={styles.sectionTitle}>{t.common.sort}</Text>
             {SORT_OPTIONS.map(option => (
               <TouchableOpacity
                 key={option.key}
@@ -115,6 +167,7 @@ export default function FilterSheet({
                   localSortBy === option.key && styles.selectedOption,
                 ]}
                 onPress={() => setLocalSortBy(option.key)}
+                delayPressIn={50}
               >
                 <Text
                   style={[
@@ -143,6 +196,7 @@ export default function FilterSheet({
                     localFilters.status.includes(status) && styles.selectedChip,
                   ]}
                   onPress={() => toggleStatus(status)}
+                  delayPressIn={50}
                 >
                   <Text
                     style={[
@@ -169,6 +223,7 @@ export default function FilterSheet({
                     localFilters.grades.includes(grade) && styles.selectedChip,
                   ]}
                   onPress={() => toggleGrade(grade)}
+                  delayPressIn={50}
                 >
                   <Text
                     style={[
@@ -196,6 +251,7 @@ export default function FilterSheet({
                     localFilters.colors.includes(color) && styles.selectedColorChip,
                   ]}
                   onPress={() => toggleColor(color)}
+                  delayPressIn={50}
                 >
                   {localFilters.colors.includes(color) && (
                     <Text style={styles.colorCheckmark}>✓</Text>
@@ -207,15 +263,19 @@ export default function FilterSheet({
 
           {/* Reset Button */}
           <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-            <Text style={styles.resetButtonText}>Reset All Filters</Text>
+            <Text style={styles.resetButtonText}>{t.routes.clearFilters}</Text>
           </TouchableOpacity>
         </ScrollView>
-      </View>
+        </SafeAreaView>
+      </GestureHandlerRootView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
+  gestureRoot: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: '#ffffff',
@@ -245,7 +305,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  contentContainer: {
     paddingHorizontal: 16,
+    paddingBottom: 40,
+    flexGrow: 1,
   },
   section: {
     marginVertical: 16,

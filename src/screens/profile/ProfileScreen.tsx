@@ -1,11 +1,12 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import { View, ScrollView, Text, ActivityIndicator } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
 import { useAdmin } from "@/context/AdminContext";
 import { useRolesContext } from "@/features/roles";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import {
   createStyles,
   useProfileBasics,
@@ -24,7 +25,9 @@ import { pickImage, removeProfileImage } from "./services/imageService";
 const ProfileScreen: React.FC = () => {
   const { theme, isDarkMode, toggleTheme } = useTheme();
   const { t } = useLanguage();
-  const styles = createStyles(theme);
+  const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
   const navigation = useNavigation();
   const { isAdmin, adminModeEnabled, toggleAdminMode } = useAdmin();
   const { canManageRoles, canManageAnnouncements } = useRolesContext();
@@ -180,6 +183,11 @@ const ProfileScreen: React.FC = () => {
           sidePanelData.toggleSidePanel();
           // Navigate to AnnouncementsManagement in the root stack
           (navigation as any).getParent()?.getParent()?.navigate('AnnouncementsManagement');
+        }}
+        onWallEditor={() => {
+          sidePanelData.toggleSidePanel();
+          // Navigate to WallEditor in the root stack
+          (navigation as any).getParent()?.getParent()?.navigate('WallEditor');
         }}
         isAdmin={isAdmin}
         adminModeEnabled={adminModeEnabled}

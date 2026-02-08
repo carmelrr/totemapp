@@ -307,10 +307,18 @@ export async function updateAnnouncement(
 }
 
 /**
- * Delete an announcement (soft delete)
+ * Delete an announcement (soft delete) and its associated image
  */
 export async function deleteAnnouncement(announcementId: string): Promise<void> {
   await checkAnnouncementPermission();
+  
+  // First get the announcement to check for background image
+  const announcement = await getAnnouncement(announcementId);
+  
+  // Delete the background image from storage if it exists
+  if (announcement?.background?.imageUrl) {
+    await deleteAnnouncementImage(announcement.background.imageUrl);
+  }
   
   const user = auth.currentUser!;
   const announcementRef = doc(db, ANNOUNCEMENTS_COLLECTION, announcementId);
@@ -323,10 +331,18 @@ export async function deleteAnnouncement(announcementId: string): Promise<void> 
 }
 
 /**
- * Permanently delete an announcement
+ * Permanently delete an announcement and its associated image
  */
 export async function permanentlyDeleteAnnouncement(announcementId: string): Promise<void> {
   await checkAnnouncementPermission();
+  
+  // First get the announcement to check for background image
+  const announcement = await getAnnouncement(announcementId);
+  
+  // Delete the background image from storage if it exists
+  if (announcement?.background?.imageUrl) {
+    await deleteAnnouncementImage(announcement.background.imageUrl);
+  }
   
   const announcementRef = doc(db, ANNOUNCEMENTS_COLLECTION, announcementId);
   await deleteDoc(announcementRef);
@@ -498,13 +514,15 @@ export async function saveDraft(formData: AnnouncementFormData): Promise<string>
   const userDoc = await getDoc(doc(db, 'users', user.uid));
   const displayName = userDoc.data()?.displayName || user.email || 'Unknown';
   
-  const docRef = await addDoc(collection(db, ANNOUNCEMENTS_COLLECTION), {
+  // Process background (upload image if needed) and remove undefined values
+  const processedBackground = await processBackground(formData.background);
+  
+  // Build document data, only including defined fields
+  const docData: Record<string, any> = {
     title: formData.title,
     text: formData.text,
     icon: formData.icon || '📢',
-    background: formData.background,
-    textStyle: formData.textStyle,
-    cta: formData.cta,
+    background: processedBackground,
     startDate: Timestamp.fromDate(formData.startDate),
     endDate: Timestamp.fromDate(formData.endDate),
     priority: formData.priority || 0,
@@ -513,7 +531,17 @@ export async function saveDraft(formData: AnnouncementFormData): Promise<string>
     createdByName: displayName,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  };
+  
+  // Only add optional fields if they're defined
+  if (formData.textStyle) {
+    docData.textStyle = removeUndefinedValues(formData.textStyle);
+  }
+  if (formData.cta) {
+    docData.cta = removeUndefinedValues(formData.cta);
+  }
+  
+  const docRef = await addDoc(collection(db, ANNOUNCEMENTS_COLLECTION), docData);
   
   return docRef.id;
 }

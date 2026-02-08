@@ -19,6 +19,9 @@ interface HoldRingsOverlayProps {
   holds: Hold[];
   imageWidth: number;
   imageHeight: number;
+  // Offset for the image within the container (for resizeMode="contain" letterboxing)
+  imageOffsetX?: number;
+  imageOffsetY?: number;
   // Active hold (being edited) - optional
   activeHold?: Hold | null;
   // Shared values for active hold animation
@@ -32,14 +35,15 @@ const StaticRingView: React.FC<{
   hold: Hold;
   imageWidth: number;
   imageHeight: number;
+  offsetX: number;
+  offsetY: number;
   strokeWidth: number;
-}> = ({ hold, imageWidth, imageHeight, strokeWidth }) => {
-  const cx = hold.x * imageWidth;
-  const cy = hold.y * imageHeight;
+}> = ({ hold, imageWidth, imageHeight, offsetX, offsetY, strokeWidth }) => {
+  // Position is relative to the actual displayed image area (with offset for letterboxing)
+  const cx = hold.x * imageWidth + offsetX;
+  const cy = hold.y * imageHeight + offsetY;
   const r = hold.radius * imageWidth;
   const diameter = r * 2;
-
-  console.log('🟡 Rendering StaticRingView:', { cx, cy, r, diameter, color: hold.color });
 
   return (
     <View
@@ -65,14 +69,17 @@ const AnimatedRingView: React.FC<{
   hold: Hold;
   imageWidth: number;
   imageHeight: number;
+  offsetX: number;
+  offsetY: number;
   strokeWidth: number;
   sharedX: SharedValue<number>;
   sharedY: SharedValue<number>;
   sharedRadius: SharedValue<number>;
-}> = ({ hold, imageWidth, imageHeight, strokeWidth, sharedX, sharedY, sharedRadius }) => {
+}> = ({ hold, imageWidth, imageHeight, offsetX, offsetY, strokeWidth, sharedX, sharedY, sharedRadius }) => {
   const animatedStyle = useAnimatedStyle(() => {
-    const cx = sharedX.value * imageWidth;
-    const cy = sharedY.value * imageHeight;
+    // Position is relative to the actual displayed image area (with offset for letterboxing)
+    const cx = sharedX.value * imageWidth + offsetX;
+    const cy = sharedY.value * imageHeight + offsetY;
     const r = sharedRadius.value * imageWidth;
     const diameter = r * 2;
 
@@ -96,20 +103,14 @@ export const HoldRingsOverlay: React.FC<HoldRingsOverlayProps> = ({
   holds,
   imageWidth,
   imageHeight,
+  imageOffsetX = 0,
+  imageOffsetY = 0,
   activeHold = null,
   activeHoldX,
   activeHoldY,
   activeHoldRadius,
 }) => {
   if (!imageWidth || !imageHeight) return null;
-
-  // DEBUG: בדיקה שהקומפוננט החדש נטען
-  console.log('🔵 HoldRingsOverlay rendered with:', {
-    holdsCount: holds.length,
-    imageWidth,
-    imageHeight,
-    hasActiveHold: !!activeHold,
-  });
 
   const staticStrokeWidth = 2;  // Reduced from 4 to prevent thick fill look
   const activeStrokeWidth = 2;   // Reduced from 3
@@ -126,6 +127,8 @@ export const HoldRingsOverlay: React.FC<HoldRingsOverlayProps> = ({
           hold={hold}
           imageWidth={imageWidth}
           imageHeight={imageHeight}
+          offsetX={imageOffsetX}
+          offsetY={imageOffsetY}
           strokeWidth={staticStrokeWidth}
         />
       ))}
@@ -136,6 +139,8 @@ export const HoldRingsOverlay: React.FC<HoldRingsOverlayProps> = ({
           hold={activeHold}
           imageWidth={imageWidth}
           imageHeight={imageHeight}
+          offsetX={imageOffsetX}
+          offsetY={imageOffsetY}
           strokeWidth={activeStrokeWidth}
           sharedX={activeHoldX}
           sharedY={activeHoldY}

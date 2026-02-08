@@ -142,10 +142,7 @@ export const UnifiedStatsDashboard: React.FC<StatsDashboardProps> = ({
         <View style={[styles.statsContainer, { backgroundColor: theme.surface }]}>
             <View style={styles.statsHeader}>
                 <Text style={[styles.statsTitle, { color: theme.text }]}>
-                    📊{" "}
-                    {isOwner
-                        ? t.profile.myStats
-                        : `${t.profile.statistics} - ${userProfile?.displayName}`}
+                    📊 {t.profile.statistics}
                 </Text>
             </View>
 

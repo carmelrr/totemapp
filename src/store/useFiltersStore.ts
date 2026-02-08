@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { RouteDoc } from '@/features/routes-map/types/route';
 
+export type CompletionFilter = 'all' | 'completed' | 'not-completed';
+
 export interface RouteFilters {
   // סינון לפי מעגלים/צבעים
   circuits: string[];
@@ -25,6 +27,9 @@ export interface RouteFilters {
   
   // סינון לפי סטטוס אישי (טיקים)
   personalStatus: ('unsent' | 'project' | 'sent' | 'flashed')[];
+  
+  // סינון לפי סטטוס סגירה אישי
+  completionStatus: CompletionFilter;
   
   // סינון לפי תגיות
   tags: string[];
@@ -55,7 +60,7 @@ export interface FiltersState {
   setFilterSheetOpen: (open: boolean) => void;
   
   // פונקציות עזר
-  getFilteredRoutes: (routes: RouteDoc[], visibleRouteIds?: string[]) => RouteDoc[];
+  getFilteredRoutes: (routes: RouteDoc[], visibleRouteIds?: string[], completedRouteIds?: Set<string>) => RouteDoc[];
   getActiveFiltersCount: () => number;
 }
 
@@ -68,6 +73,7 @@ const defaultFilters: RouteFilters = {
   walls: [],
   sectors: [],
   personalStatus: [],
+  completionStatus: 'all',
   tags: [],
   showOnlyVisibleOnMap: true, // Default to true for map-list synchronization
 };
@@ -94,6 +100,107 @@ function compareGrades(gradeA: string, gradeB: string): number {
   return indexA - indexB;
 }
 
+/**
+ * Standalone pure filtering function — stable reference for useMemo consumers.
+ * Avoids re-compute when unrelated Zustand state (isFilterSheetOpen, etc.) changes.
+ */
+export function filterRoutes(
+  routes: RouteDoc[],
+  filters: RouteFilters,
+  sorting: RouteSorting,
+  searchQuery: string,
+  visibleRouteIds?: string[],
+  completedRouteIds?: Set<string>,
+): RouteDoc[] {
+  let filteredRoutes = routes;
+
+  if (filters.showOnlyVisibleOnMap && visibleRouteIds) {
+    filteredRoutes = filteredRoutes.filter(route => visibleRouteIds.includes(route.id));
+  }
+
+  if (filters.completionStatus && filters.completionStatus !== 'all' && completedRouteIds) {
+    if (filters.completionStatus === 'completed') {
+      filteredRoutes = filteredRoutes.filter(route => completedRouteIds.has(route.id));
+    } else if (filters.completionStatus === 'not-completed') {
+      filteredRoutes = filteredRoutes.filter(route => !completedRouteIds.has(route.id));
+    }
+  }
+
+  if (searchQuery.trim()) {
+    const query = searchQuery.toLowerCase();
+    filteredRoutes = filteredRoutes.filter(route =>
+      route.name?.toLowerCase().includes(query) ||
+      route.grade.toLowerCase().includes(query) ||
+      route.setter?.toLowerCase().includes(query)
+    );
+  }
+
+  if (filters.status.length > 0) {
+    filteredRoutes = filteredRoutes.filter(route =>
+      filters.status.includes(route.status || 'active')
+    );
+  }
+
+  if (filters.colors.length > 0) {
+    filteredRoutes = filteredRoutes.filter(route =>
+      filters.colors.includes(route.color)
+    );
+  }
+
+  if (filters.gradeRange.min || filters.gradeRange.max) {
+    const minIndex = filters.gradeRange.min ? GRADE_ORDER.indexOf(filters.gradeRange.min) : 0;
+    const maxIndex = filters.gradeRange.max ? GRADE_ORDER.indexOf(filters.gradeRange.max) : GRADE_ORDER.length - 1;
+    filteredRoutes = filteredRoutes.filter(route => {
+      const routeGradeIndex = GRADE_ORDER.indexOf(route.grade);
+      return routeGradeIndex >= minIndex && routeGradeIndex <= maxIndex;
+    });
+  }
+
+  if (filters.dateRange && filters.dateRange !== 'all') {
+    const selectedDate = new Date(filters.dateRange);
+    const startOfDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+    const endOfDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() + 1);
+    filteredRoutes = filteredRoutes.filter(route => {
+      if (!route.createdAt) return false;
+      const routeDate = route.createdAt.toDate ? route.createdAt.toDate() : new Date(route.createdAt);
+      return routeDate >= startOfDay && routeDate < endOfDay;
+    });
+  }
+
+  if (filters.tags.length > 0) {
+    filteredRoutes = filteredRoutes.filter(route =>
+      route.tags?.some(tag => filters.tags.includes(tag))
+    );
+  }
+
+  filteredRoutes = [...filteredRoutes].sort((a, b) => {
+    let comparison = 0;
+    switch (sorting.sortBy) {
+      case 'grade':
+        comparison = compareGrades(a.grade, b.grade);
+        break;
+      case 'name':
+        comparison = (a.name || '').localeCompare(b.name || '');
+        break;
+      case 'date':
+        const aTime = a.createdAt?.seconds || 0;
+        const bTime = b.createdAt?.seconds || 0;
+        comparison = aTime - bTime;
+        break;
+      case 'popularity':
+        comparison = (b.tops || 0) - (a.tops || 0);
+        break;
+      case 'distance':
+      default:
+        comparison = 0;
+        break;
+    }
+    return sorting.sortOrder === 'desc' ? -comparison : comparison;
+  });
+
+  return filteredRoutes;
+}
+
 export const useFiltersStore = create<FiltersState>((set, get) => ({
   filters: defaultFilters,
   sorting: defaultSorting,
@@ -101,9 +208,6 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
   searchQuery: '',
 
   setFilter: (key, value) => {
-    if (__DEV__) {
-      console.log('[FiltersStore] setFilter:', key, value);
-    }
     set((state) => ({
       filters: {
         ...state.filters,
@@ -136,106 +240,9 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
     set({ isFilterSheetOpen: open });
   },
 
-  getFilteredRoutes: (routes, visibleRouteIds) => {
+  getFilteredRoutes: (routes, visibleRouteIds, completedRouteIds) => {
     const { filters, sorting, searchQuery } = get();
-    
-    if (__DEV__) {
-      console.log('[FiltersStore] getFilteredRoutes:', routes.length, 'routes');
-    }
-    
-    let filteredRoutes = routes;
-
-    // סינון לפי מסלולים נראים במפה
-    if (filters.showOnlyVisibleOnMap && visibleRouteIds) {
-      filteredRoutes = filteredRoutes.filter(route => visibleRouteIds.includes(route.id));
-    }
-
-    // סינון לפי חיפוש טקסט
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filteredRoutes = filteredRoutes.filter(route => 
-        route.name?.toLowerCase().includes(query) ||
-        route.grade.toLowerCase().includes(query) ||
-        route.setter?.toLowerCase().includes(query)
-      );
-    }
-
-    // סינון לפי סטטוס
-    if (filters.status.length > 0) {
-      filteredRoutes = filteredRoutes.filter(route => 
-        filters.status.includes(route.status || 'active')
-      );
-    }
-
-    // סינון לפי צבעים
-    if (filters.colors.length > 0) {
-      filteredRoutes = filteredRoutes.filter(route => 
-        filters.colors.includes(route.color)
-      );
-    }
-
-    // סינון לפי דרגות
-    if (filters.gradeRange.min || filters.gradeRange.max) {
-      const minIndex = filters.gradeRange.min ? GRADE_ORDER.indexOf(filters.gradeRange.min) : 0;
-      const maxIndex = filters.gradeRange.max ? GRADE_ORDER.indexOf(filters.gradeRange.max) : GRADE_ORDER.length - 1;
-      
-      filteredRoutes = filteredRoutes.filter(route => {
-        const routeGradeIndex = GRADE_ORDER.indexOf(route.grade);
-        return routeGradeIndex >= minIndex && routeGradeIndex <= maxIndex;
-      });
-    }
-
-    // סינון לפי תאריך הוספה (תאריך ספציפי בפורמט YYYY-MM-DD)
-    if (filters.dateRange && filters.dateRange !== 'all') {
-      // תאריך ספציפי בפורמט YYYY-MM-DD
-      const selectedDate = new Date(filters.dateRange);
-      const startOfDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-      const endOfDay = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() + 1);
-      
-      filteredRoutes = filteredRoutes.filter(route => {
-        if (!route.createdAt) return false;
-        const routeDate = route.createdAt.toDate ? route.createdAt.toDate() : new Date(route.createdAt);
-        return routeDate >= startOfDay && routeDate < endOfDay;
-      });
-    }
-
-    // סינון לפי תגיות
-    if (filters.tags.length > 0) {
-      filteredRoutes = filteredRoutes.filter(route => 
-        route.tags?.some(tag => filters.tags.includes(tag))
-      );
-    }
-
-    // מיון
-    filteredRoutes.sort((a, b) => {
-      let comparison = 0;
-      
-      switch (sorting.sortBy) {
-        case 'grade':
-          comparison = compareGrades(a.grade, b.grade);
-          break;
-        case 'name':
-          comparison = (a.name || '').localeCompare(b.name || '');
-          break;
-        case 'date':
-          const aTime = a.createdAt?.seconds || 0;
-          const bTime = b.createdAt?.seconds || 0;
-          comparison = aTime - bTime;
-          break;
-        case 'popularity':
-          comparison = (b.tops || 0) - (a.tops || 0);
-          break;
-        case 'distance':
-        default:
-          // מיון לפי מרחק ממרכז המסך (יצוין בפונקציה קוראת)
-          comparison = 0;
-          break;
-      }
-      
-      return sorting.sortOrder === 'desc' ? -comparison : comparison;
-    });
-
-    return filteredRoutes;
+    return filterRoutes(routes, filters, sorting, searchQuery, visibleRouteIds, completedRouteIds);
   },
 
   getActiveFiltersCount: () => {
@@ -251,6 +258,7 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
     if (filters.walls.length > 0) count++;
     if (filters.sectors.length > 0) count++;
     if (filters.personalStatus.length > 0) count++;
+    if (filters.completionStatus && filters.completionStatus !== 'all') count++;
     if (filters.tags.length > 0) count++;
     if (!filters.showOnlyVisibleOnMap) count++;
     

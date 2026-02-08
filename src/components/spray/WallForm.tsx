@@ -1,7 +1,7 @@
 // src/components/spray/WallForm.tsx
 // Form component for adding a new wall
 
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -16,6 +16,9 @@ import {
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useLanguage } from "@/features/language";
+import { useTheme, lightTheme } from "@/features/theme/ThemeContext";
+
+type Theme = typeof lightTheme;
 
 interface WallFormProps {
   onSubmit: (data: {
@@ -33,6 +36,9 @@ export const WallForm: React.FC<WallFormProps> = ({
   loading = false,
 }) => {
   const { t } = useLanguage();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+  
   const [name, setName] = useState("");
   const [width, setWidth] = useState("");
   const [height, setHeight] = useState("");
@@ -149,8 +155,8 @@ export const WallForm: React.FC<WallFormProps> = ({
         <Switch
           value={isPublic}
           onValueChange={setIsPublic}
-          trackColor={{ false: "#444", true: "#8E4EC6" }}
-          thumbColor={isPublic ? "#fff" : "#888"}
+          trackColor={{ false: theme.border, true: theme.secondary }}
+          thumbColor={isPublic ? "#fff" : theme.textSecondary}
         />
       </View>
       <Text style={styles.hint}>
@@ -173,10 +179,11 @@ export const WallForm: React.FC<WallFormProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+// Dynamic styles based on theme
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: theme.background,
   },
   content: {
     padding: 16,
@@ -187,7 +194,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     overflow: "hidden",
     marginBottom: 20,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.surface,
   },
   previewImage: {
     width: "100%",
@@ -198,7 +205,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#444",
+    borderColor: theme.border,
     borderStyle: "dashed",
     borderRadius: 12,
   },
@@ -206,7 +213,7 @@ const styles = StyleSheet.create({
     fontSize: 48,
   },
   imagePlaceholderLabel: {
-    color: "#888",
+    color: theme.textSecondary,
     marginTop: 8,
     fontSize: 14,
   },
@@ -214,19 +221,19 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   label: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 8,
   },
   input: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.inputBackground,
     borderRadius: 8,
     padding: 12,
-    color: "#fff",
+    color: theme.text,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: theme.border,
   },
   row: {
     flexDirection: "row",
@@ -238,12 +245,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   hint: {
-    color: "#666",
+    color: theme.textSecondary,
     fontSize: 12,
     marginBottom: 24,
   },
   submitButton: {
-    backgroundColor: "#8E4EC6",
+    backgroundColor: theme.secondary,
     borderRadius: 12,
     padding: 16,
     alignItems: "center",

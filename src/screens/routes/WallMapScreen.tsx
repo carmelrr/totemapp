@@ -1,14 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { View, StyleSheet, Alert, useWindowDimensions, TouchableOpacity } from "react-native";
+import { View, StyleSheet, Alert, useWindowDimensions, TouchableOpacity, Text, Modal, ScrollView } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import InteractiveImage from "@/components/map/InteractiveImage";
-import WallMapSVG from "@/assets/WallMapSVG";
 import FilterSortBar from "@/components/routes/FilterSortBar";
 import RoutesList from "@/components/routes/RoutesList";
 import PlusFAB from "@/components/routes/PlusFAB";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { usePublishedRooms } from "@/features/wall-editor";
+import { DynamicWallMap } from "@/features/wall-editor/components";
 
 interface Route {
   id: string;
@@ -38,11 +40,19 @@ const toImageCoords = (
   screenY: number, 
   scale: number, 
   translateX: number, 
-  translateY: number
-): { x: number; y: number } => ({
-  x: (screenX - translateX) / scale,
-  y: (screenY - translateY) / scale,
-});
+  translateY: number,
+  imageW: number,
+  imageH: number
+): { x: number; y: number } => {
+  // Transform model: screenPos = (imagePos - imgCenter) * scale + imgCenter + translate
+  // To invert: imagePos = (screenPos - imgCenter - translate) / scale + imgCenter
+  const imgCenterX = imageW / 2;
+  const imgCenterY = imageH / 2;
+  return {
+    x: (screenX - imgCenterX - translateX) / scale + imgCenterX,
+    y: (screenY - imgCenterY - translateY) / scale + imgCenterY,
+  };
+};
 
 const calculateVisibleRect = (
   scale: number,
@@ -53,8 +63,8 @@ const calculateVisibleRect = (
   imageW: number,
   imageH: number
 ): ViewportRect => {
-  const { x: x0, y: y0 } = toImageCoords(0, 0, scale, translateX, translateY);
-  const { x: x1, y: y1 } = toImageCoords(viewportW, viewportH, scale, translateX, translateY);
+  const { x: x0, y: y0 } = toImageCoords(0, 0, scale, translateX, translateY, imageW, imageH);
+  const { x: x1, y: y1 } = toImageCoords(viewportW, viewportH, scale, translateX, translateY, imageW, imageH);
   
   return {
     x0: clamp(x0, 0, imageW),
@@ -91,6 +101,19 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
   const [routes, setRoutes] = useState<Route[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string | undefined>();
   const [refreshing, setRefreshing] = useState(false);
+  
+  // Map selection state
+  const [selectedMapId, setSelectedMapId] = useState<string>('legacy'); // 'legacy' for SVG map
+  const [showMapSelector, setShowMapSelector] = useState(false);
+  
+  // Load published rooms from Firebase
+  const { rooms: publishedRooms, isLoading: isLoadingRooms } = usePublishedRooms({});
+  
+  // Get selected room (if not legacy)
+  const selectedRoom = useMemo(() => {
+    if (selectedMapId === 'legacy') return null;
+    return publishedRooms.find(r => r.id === selectedMapId) || null;
+  }, [selectedMapId, publishedRooms]);
   
   // Responsive layout - automatically updates on rotation
   const layout = useResponsiveLayout();
@@ -269,87 +292,214 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
     Alert.alert(t.common.sort, t.map.sortDialogPlaceholder);
   }, [t]);
 
-  // Render the map section
-  const renderMapSection = () => (
-    <View style={styles.mapFrame}>
-      {/* שכבת קליפ שמבטיחה קליפינג אמיתי וגם משאירה את הגבול נראה */}
-      <View
-        style={styles.mapClip}
-        onLayout={e => {
-          const { width, height } = e.nativeEvent.layout;
-          handleMapFrameLayout(width, height);
-          console.log("[WallMap] mapClip layout", { width, height, isLandscape });
-        }}
+  // Get current map name for display
+  const currentMapName = useMemo(() => {
+    if (selectedMapId === 'legacy') return 'קיר ראשי (ישן)';
+    return selectedRoom?.name || 'בחר מפה';
+  }, [selectedMapId, selectedRoom]);
+
+  // Render map selector header
+  const renderMapHeader = () => (
+    <View style={styles.mapHeader}>
+      <TouchableOpacity
+        style={styles.mapSelectorButton}
+        onPress={() => setShowMapSelector(true)}
       >
-        <InteractiveImage
-          imageNaturalSize={{ width: WALL_WIDTH, height: WALL_HEIGHT }}
-          minScale={1}
-          maxScale={4}
-          debug={true}
-          onTransformChange={handleTransformChange}
-        >
-          {/* Visual debug border */}
-          <View style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            right: 0,
-            bottom: 0,
-            borderWidth: 2,
-            borderColor: 'red',
-            backgroundColor: 'transparent',
-          }} />
-          
-          {/* רקע המפה */}
-          <WallMapSVG
-            width="100%"
-            height="100%"
-            preserveAspectRatio="xMidYMid meet"
-          />
-          
-          {/* שכבת המסלולים */}
-          {routes.map((routeItem) => {
-            const { x, y } = getRoutePixels(routeItem);
-            const relativeX = x / WALL_WIDTH;
-            const relativeY = y / WALL_HEIGHT;
-            
-            return (
-              <TouchableOpacity
-                key={routeItem.id}
-                style={{
-                  position: 'absolute',
-                  left: relativeX * mapFrameDimensions.width - 15,
-                  top: relativeY * mapFrameDimensions.height - 15,
-                  width: 30,
-                  height: 30,
-                  borderRadius: 15,
-                  backgroundColor: routeItem.color || '#ff6b6b',
-                  borderWidth: selectedRouteId === routeItem.id ? 3 : 2,
-                  borderColor: selectedRouteId === routeItem.id ? '#ffffff' : 'rgba(255,255,255,0.9)',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 3 },
-                  shadowOpacity: 0.25,
-                  shadowRadius: 4,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                }}
-                onPress={() => handleRoutePress(routeItem)}
-                activeOpacity={0.7}
-              />
-            );
-          })}
-        </InteractiveImage>
-      </View>
-      
-      {/* Filters Bar positioned at bottom of map frame */}
-      <View style={styles.filtersContainer}>
-        <FilterSortBar
-          onFilterPress={handleFilterPress}
-          onSortPress={handleSortPress}
-        />
-      </View>
+        <Ionicons name="map" size={18} color={theme.primary} />
+        <Text style={styles.mapSelectorText} numberOfLines={1}>
+          {currentMapName}
+        </Text>
+        <Ionicons name="chevron-down" size={16} color={theme.textSecondary} />
+      </TouchableOpacity>
     </View>
   );
+
+  // Render map selector modal
+  const renderMapSelectorModal = () => (
+    <Modal
+      visible={showMapSelector}
+      transparent
+      animationType="fade"
+      onRequestClose={() => setShowMapSelector(false)}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={() => setShowMapSelector(false)}
+      >
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>בחר מפה</Text>
+            <TouchableOpacity onPress={() => setShowMapSelector(false)}>
+              <Ionicons name="close" size={24} color={theme.text} />
+            </TouchableOpacity>
+          </View>
+          
+          <ScrollView style={styles.mapList}>
+            {/* Legacy SVG Map */}
+            <TouchableOpacity
+              style={[
+                styles.mapOption,
+                selectedMapId === 'legacy' && styles.mapOptionSelected,
+              ]}
+              onPress={() => {
+                setSelectedMapId('legacy');
+                setShowMapSelector(false);
+              }}
+            >
+              <View style={styles.mapOptionContent}>
+                <Ionicons 
+                  name="image" 
+                  size={24} 
+                  color={selectedMapId === 'legacy' ? theme.primary : theme.textSecondary} 
+                />
+                <View style={styles.mapOptionTextContainer}>
+                  <Text style={[
+                    styles.mapOptionName,
+                    selectedMapId === 'legacy' && styles.mapOptionNameSelected,
+                  ]}>
+                    קיר ראשי (ישן)
+                  </Text>
+                  <Text style={styles.mapOptionSubtext}>המפה המקורית</Text>
+                </View>
+              </View>
+              {selectedMapId === 'legacy' && (
+                <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
+              )}
+            </TouchableOpacity>
+            
+            {/* Published rooms from editor */}
+            {publishedRooms.map(room => (
+              <TouchableOpacity
+                key={room.id}
+                style={[
+                  styles.mapOption,
+                  selectedMapId === room.id && styles.mapOptionSelected,
+                ]}
+                onPress={() => {
+                  setSelectedMapId(room.id);
+                  setShowMapSelector(false);
+                }}
+              >
+                <View style={styles.mapOptionContent}>
+                  <Ionicons 
+                    name="cube" 
+                    size={24} 
+                    color={selectedMapId === room.id ? theme.primary : theme.textSecondary} 
+                  />
+                  <View style={styles.mapOptionTextContainer}>
+                    <Text style={[
+                      styles.mapOptionName,
+                      selectedMapId === room.id && styles.mapOptionNameSelected,
+                    ]}>
+                      {room.name}
+                    </Text>
+                    <Text style={styles.mapOptionSubtext}>
+                      {room.width}x{room.height} • עורך קירות
+                    </Text>
+                  </View>
+                </View>
+                {selectedMapId === room.id && (
+                  <Ionicons name="checkmark-circle" size={20} color={theme.primary} />
+                )}
+              </TouchableOpacity>
+            ))}
+            
+            {publishedRooms.length === 0 && !isLoadingRooms && (
+              <View style={styles.emptyMapsMessage}>
+                <Text style={styles.emptyMapsText}>
+                  אין מפות מפורסמות מעורך הקירות
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+
+  // Render the map section
+  const renderMapSection = () => {
+    // Determine dimensions based on selected map
+    const mapWidth = selectedRoom?.width || WALL_WIDTH;
+    const mapHeight = selectedRoom?.height || WALL_HEIGHT;
+    
+    return (
+      <View style={styles.mapFrame}>
+        {/* שכבת קליפ שמבטיחה קליפינג אמיתי וגם משאירה את הגבול נראה */}
+        <View
+          style={styles.mapClip}
+          onLayout={e => {
+            const { width, height } = e.nativeEvent.layout;
+            handleMapFrameLayout(width, height);
+            console.log("[WallMap] mapClip layout", { width, height, isLandscape });
+          }}
+        >
+          {selectedRoom ? (
+            // Dynamic map from wall editor
+            <InteractiveImage
+              imageNaturalSize={{ width: mapWidth, height: mapHeight }}
+              minScale={1}
+              maxScale={4}
+              debug={true}
+              onTransformChange={handleTransformChange}
+            >
+              <DynamicWallMap
+                room={selectedRoom}
+                width={mapFrameDimensions.width}
+                height={mapFrameDimensions.height}
+              />
+              
+              {/* שכבת המסלולים */}
+              {routes.map((routeItem) => {
+                const { x, y } = getRoutePixels(routeItem);
+                const relativeX = x / mapWidth;
+                const relativeY = y / mapHeight;
+                
+                return (
+                  <TouchableOpacity
+                    key={routeItem.id}
+                    style={{
+                      position: 'absolute',
+                      left: relativeX * mapFrameDimensions.width - 15,
+                      top: relativeY * mapFrameDimensions.height - 15,
+                      width: 30,
+                      height: 30,
+                      borderRadius: 15,
+                      backgroundColor: routeItem.color || '#ff6b6b',
+                      borderWidth: selectedRouteId === routeItem.id ? 3 : 2,
+                      borderColor: selectedRouteId === routeItem.id ? '#ffffff' : 'rgba(255,255,255,0.9)',
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 3 },
+                      shadowOpacity: 0.25,
+                      shadowRadius: 4,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                    onPress={() => handleRoutePress(routeItem)}
+                    activeOpacity={0.7}
+                  />
+                );
+              })}
+            </InteractiveImage>
+          ) : (
+            // Loading or no map selected
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>טוען מפה...</Text>
+            </View>
+          )}
+        </View>
+        
+        {/* Filters Bar positioned at bottom of map frame */}
+        <View style={styles.filtersContainer}>
+          <FilterSortBar
+            onFilterPress={handleFilterPress}
+            onSortPress={handleSortPress}
+          />
+        </View>
+      </View>
+    );
+  };
 
   // Render the list section
   const renderListSection = () => (
@@ -368,11 +518,13 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
   if (!isLandscape) {
     return (
       <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+        {renderMapHeader()}
         {renderMapSection()}
         {renderListSection()}
         <View style={[styles.fab, { bottom: insets.bottom + 16 }]}>
           <PlusFAB onPress={handleAddRoute} />
         </View>
+        {renderMapSelectorModal()}
       </SafeAreaView>
     );
   }
@@ -380,6 +532,7 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
   // Landscape layout: side by side
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      {renderMapHeader()}
       <View style={styles.landscapeContainer}>
         {/* Map Section - Left side */}
         <View style={styles.landscapeMapSection}>
@@ -395,6 +548,7 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
       <View style={[styles.fab, { bottom: insets.bottom + 16 }]}>
         <PlusFAB onPress={handleAddRoute} />
       </View>
+      {renderMapSelectorModal()}
     </SafeAreaView>
   );
 };
@@ -504,6 +658,121 @@ const createStyles = (
       shadowOpacity: 0.15,
       shadowRadius: 8,
       elevation: 6,
+    },
+    // Map header styles
+    mapHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      backgroundColor: theme.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    mapSelectorButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)',
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    mapSelectorText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: theme.text,
+      maxWidth: 200,
+    },
+    // Modal styles
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    modalContent: {
+      backgroundColor: theme.surface,
+      borderRadius: 16,
+      width: '100%',
+      maxWidth: 400,
+      maxHeight: '80%',
+      overflow: 'hidden',
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.border,
+    },
+    modalTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: theme.text,
+    },
+    mapList: {
+      padding: 8,
+    },
+    mapOption: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: 14,
+      marginVertical: 4,
+      borderRadius: 12,
+      backgroundColor: theme.isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+    },
+    mapOptionSelected: {
+      backgroundColor: theme.isDark ? 'rgba(74, 144, 226, 0.15)' : 'rgba(74, 144, 226, 0.1)',
+      borderWidth: 1,
+      borderColor: theme.primary,
+    },
+    mapOptionContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 12,
+      flex: 1,
+    },
+    mapOptionTextContainer: {
+      flex: 1,
+    },
+    mapOptionName: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    mapOptionNameSelected: {
+      color: theme.primary,
+    },
+    mapOptionSubtext: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginTop: 2,
+    },
+    emptyMapsMessage: {
+      padding: 20,
+      alignItems: 'center',
+    },
+    emptyMapsText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      textAlign: 'center',
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.background,
+    },
+    loadingText: {
+      fontSize: 14,
+      color: theme.textSecondary,
     },
   });
 };

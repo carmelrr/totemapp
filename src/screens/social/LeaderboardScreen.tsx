@@ -10,14 +10,13 @@
  * are re-graded later.
  */
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, memo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   RefreshControl,
   useWindowDimensions,
   ScrollView,
@@ -25,10 +24,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { auth, db } from "@/features/data/firebase";
 import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
-import defaultAvatar from "@/assets/splash.png";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { CachedAvatar, prefetchAvatarImages } from "@/components/ui/CachedAvatar";
 
 export default function LeaderboardScreen() {
   const { theme } = useTheme();
@@ -212,12 +211,11 @@ export default function LeaderboardScreen() {
               <View style={styles.podiumStep2}>
                 <Text style={styles.podiumRank}>2</Text>
               </View>
-              <Image
-                source={
-                  topThree[1].photoURL
-                    ? { uri: topThree[1].photoURL }
-                    : defaultAvatar
-                }
+              <CachedAvatar
+                photoURL={topThree[1].photoURL}
+                displayName={topThree[1].displayName}
+                size={60}
+                showBorder={false}
                 style={styles.podiumAvatar}
               />
               <Text style={styles.podiumName}>{topThree[1].displayName}</Text>
@@ -232,12 +230,11 @@ export default function LeaderboardScreen() {
               <View style={styles.podiumStep1}>
                 <Text style={styles.podiumRank}>1</Text>
               </View>
-              <Image
-                source={
-                  topThree[0].photoURL
-                    ? { uri: topThree[0].photoURL }
-                    : defaultAvatar
-                }
+              <CachedAvatar
+                photoURL={topThree[0].photoURL}
+                displayName={topThree[0].displayName}
+                size={70}
+                showBorder={false}
                 style={styles.podiumAvatar}
               />
               <Text style={styles.podiumName}>{topThree[0].displayName}</Text>
@@ -252,12 +249,11 @@ export default function LeaderboardScreen() {
               <View style={styles.podiumStep3}>
                 <Text style={styles.podiumRank}>3</Text>
               </View>
-              <Image
-                source={
-                  topThree[2].photoURL
-                    ? { uri: topThree[2].photoURL }
-                    : defaultAvatar
-                }
+              <CachedAvatar
+                photoURL={topThree[2].photoURL}
+                displayName={topThree[2].displayName}
+                size={55}
+                showBorder={false}
                 style={styles.podiumAvatar}
               />
               <Text style={styles.podiumName}>{topThree[2].displayName}</Text>
@@ -271,7 +267,6 @@ export default function LeaderboardScreen() {
   };
 
   const renderLeaderboardItem = ({ item, index }) => {
-    const avatarSource = item.photoURL ? { uri: item.photoURL } : defaultAvatar;
     const isCurrentUser = item.id === currentUserId;
 
     // Check if this is the current user shown at the bottom with their real rank
@@ -288,7 +283,13 @@ export default function LeaderboardScreen() {
           <Text style={styles.rankNumber}>{displayRank}</Text>
         </View>
 
-        <Image source={avatarSource} style={styles.userAvatar} />
+        <CachedAvatar
+          photoURL={item.photoURL}
+          displayName={item.displayName}
+          size={45}
+          showBorder={false}
+          style={styles.userAvatar}
+        />
         <View style={styles.userInfo}>
           <Text
             style={[styles.userName, isCurrentUser && styles.currentUserName]}

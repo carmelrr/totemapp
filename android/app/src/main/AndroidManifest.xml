@@ -36,12 +36,12 @@
         <action android:name="android.intent.action.VIEW"/>
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
-        <data android:scheme="climbing-gym-app"/>
-        <data android:scheme="exp+climbing-gym-app"/>
+        <data android:scheme="totem-app"/>
+        <data android:scheme="exp+totem-app"/>
       </intent-filter>
       <intent-filter android:autoVerify="true" data-generated="true">
         <action android:name="android.intent.action.VIEW"/>
-        <data android:scheme="climbing-gym-app" android:host="auth"/>
+        <data android:scheme="totem-app" android:host="auth"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <category android:name="android.intent.category.DEFAULT"/>
       </intent-filter>

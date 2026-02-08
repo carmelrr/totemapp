@@ -158,39 +158,20 @@ export default React.memo(function RouteCircle({
   isMovingRoute = false,
   onMoveComplete, // יקרא רק כשמסיימים הזזה
 }) {
-  // EARLY RETURNS FIRST - before any hooks
-  if (!route) {
-    return null;
-  }
-
-  // בדוק שהקואורדינטות תקינות
-  if (
-    typeof route.x !== "number" ||
-    typeof route.y !== "number" ||
-    isNaN(route.x) ||
-    isNaN(route.y) ||
-    route.x < 0 ||
-    route.y < 0
-  ) {
-    return null;
-  }
-
+  // ALL HOOKS MUST BE DEFINED FIRST - before any conditional returns
   const { circleSize } = useUser();
-
-  // State רגיל לשמירת ערך הscale עבור gesture handler - מוסר כי אין צורך יותר
-
-  // Shared value לשמירת ה-scale עבור animations - מוסר כי אין צורך יותר
-
-  const CIRCLE_RADIUS = circleSize;
-  const fontSize = getFontSize(circleSize);
-
-  // ALL HOOKS MUST BE DEFINED FIRST - לפני כל return statement
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const isDragging = useSharedValue(0);
 
-  // עכשיו scale הוא number רגיל - לא צריך useAnimatedReaction
+  const CIRCLE_RADIUS = circleSize;
+  const fontSize = getFontSize(circleSize);
+
+  // עכשיו scale הוא number רגיל
   const currentScale = scale || 1;
+
+  // Calculate text color outside the worklet
+  const textColor = route ? getTextColor(route.color) : "#FFFFFF";
 
   // Pan gesture for dragging when in moving mode
   const panGesture = useMemo(() =>
@@ -206,7 +187,6 @@ export default React.memo(function RouteCircle({
       })
       .onUpdate((event) => {
         if (!isMovingRoute) return;
-        // שמור את התזוזה הגולמית מהgesture
         translateX.value = event.translationX;
         translateY.value = event.translationY;
       })
@@ -214,80 +194,48 @@ export default React.memo(function RouteCircle({
         if (!isMovingRoute) return;
         isDragging.value = 0;
 
-        // Calculate final position and save immediately
-        // השתמש ב-scale ישירות
         const scaleValue = currentScale;
+        if (!scaleValue || scaleValue <= 0) return;
 
-        // ודא שהערך תקין
-        if (!scaleValue || scaleValue <= 0) {
-          return;
-        }
-
-        // התזוזה בפיקסלים על המפה הווירטואלית
-        // כאשר יש זום, התזוזה הפיזית של האצבע מתורגמת לתזוזה קטנה יותר על המפה
         const actualMoveX = translateX.value / scaleValue;
         const actualMoveY = translateY.value / scaleValue;
-
-        // המר את התזוזה לקואורדינטות נורמליזה (0-1)
         const deltaXNorm = actualMoveX / mapWidth;
         const deltaYNorm = actualMoveY / mapHeight;
 
-        // Current route position (normalized 0-1 or pixel coordinates)
-        const currentX = route.x > 2 ? route.x / ORIGINAL_MAP_WIDTH : route.x;
-        const currentY = route.y > 2 ? route.y / ORIGINAL_MAP_HEIGHT : route.y;
+        const currentX = route && route.x > 2 ? route.x / ORIGINAL_MAP_WIDTH : (route?.x ?? 0);
+        const currentY = route && route.y > 2 ? route.y / ORIGINAL_MAP_HEIGHT : (route?.y ?? 0);
 
-        // Calculate new normalized position
         const newXNorm = currentX + deltaXNorm;
         const newYNorm = currentY + deltaYNorm;
-
-        // Clamp to valid range (0-1 for normalized coordinates)
         const clampedX = Math.max(0, Math.min(1, newXNorm));
         const clampedY = Math.max(0, Math.min(1, newYNorm));
-
-        // Convert back to original format (pixel coordinates)
         const newX = clampedX * ORIGINAL_MAP_WIDTH;
         const newY = clampedY * ORIGINAL_MAP_HEIGHT;
 
-        // Reset values with smooth animation
         translateX.value = withSpring(0, { damping: 20, stiffness: 300 });
         translateY.value = withSpring(0, { damping: 20, stiffness: 300 });
 
-        // Save the move
         if (onMoveComplete) {
           runOnJS(onMoveComplete)(newX, newY);
         }
       }),
-    [isMovingRoute, currentScale, mapWidth, mapHeight, route.x, route.y, onMoveComplete]
+    [isMovingRoute, currentScale, mapWidth, mapHeight, route?.x, route?.y, onMoveComplete]
   );
 
   // Animation style for dragging
   const dragStyle = useAnimatedStyle(() => {
     "worklet";
     if (!isMovingRoute) {
-      return {
-        transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 1 }],
-      };
+      return { transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 1 }] };
     }
-
-    // השתמש ב-scale ישירות
     const scaleValue = currentScale;
-
-    // ודא שהערך תקין
     if (!scaleValue || scaleValue <= 0) {
-      return {
-        transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 1 }],
-      };
+      return { transform: [{ translateX: 0 }, { translateY: 0 }, { scale: 1 }] };
     }
-
-    // כאשר יש זום, התזוזה הויזואלית צריכה להיות מותאמת
-    // כדי שהעיגול יזוז בדיוק לאן שהאצבע מזיזה אותו
     const visualMoveX = translateX.value / scaleValue;
     const visualMoveY = translateY.value / scaleValue;
-
-    // הוסף אפקט קנה מידה קל במהלך הגרירה - מותאם לגודל החדש
     const isDraggingActive = isDragging.value === 1;
-    const scaleEffect = isDraggingActive ? 1.05 : 1; // פחות אגרסיבי מ-1.1
-
+    const scaleEffect = isDraggingActive ? 1.05 : 1;
     return {
       transform: [
         { translateX: visualMoveX },
@@ -297,91 +245,55 @@ export default React.memo(function RouteCircle({
     };
   }, [isMovingRoute, isDragging, currentScale]);
 
-  // Calculate text color outside the worklet
-  const textColor = getTextColor(route.color);
-
-  // Animated style for text to ensure it responds to scale changes
+  // Animated style for text
   const textStyle = useAnimatedStyle(() => {
     "worklet";
-    const scaleValue = currentScale;
-    if (!scaleValue || scaleValue <= 0) {
-      return {
-        color: textColor,
-        fontWeight: "bold",
-        fontSize: fontSize,
-      };
-    }
-
-    // חישוב גודל פונט מותאם שנשאר קריא ויחסי
-    // ככל שמקרבים (zoom גדל), הפונט צריך להקטן באופן מבוקר
-    const adjustedFontSize = fontSize / Math.pow(scaleValue, 0.3); // חזקה קטנה יותר לשינוי עדין
-
-    // גבולות לגודל הפונט
-    const minFontSize = fontSize * 0.5; // לא יותר קטן מחצי מהגודל המקורי
-    const maxFontSize = fontSize * 1.5; // לא יותר גדול מפי 1.5 מהגודל המקורי
-
-    const finalFontSize = Math.max(
-      minFontSize,
-      Math.min(maxFontSize, adjustedFontSize),
-    );
-
     return {
       color: textColor,
       fontWeight: "bold",
-      fontSize: finalFontSize,
+      fontSize: fontSize,
     };
-  }, [currentScale, fontSize, textColor]);
+  }, [fontSize, textColor]);
 
   const animatedStyle = useAnimatedStyle(() => {
     "worklet";
-
-    // השתמש ב-scale ישירות
     const scaleValue = currentScale;
-
-    // בדיקת תקינות
-    if (!scaleValue || scaleValue <= 0 || isNaN(scaleValue)) {
-      return {
-        opacity: 0.1,
-        transform: [{ scale: 1 }],
-      };
+    if (!scaleValue || scaleValue <= 0 || isNaN(scaleValue) || !route) {
+      return { opacity: 0.1, transform: [{ scale: 1 }] };
     }
 
-    // במקום inverseScale, נחשב את הגודל הנדרש באופן ישיר
     const baseSize = CIRCLE_RADIUS * 2;
-    const optimalSize = baseSize / scaleValue;
-
-    // גבול מינימלי וגדול מקסימלי לגודל
-    const minSize = baseSize * 0.3; // לא יותר קטן מ-30% מהגודל המקורי
-    const maxSize = baseSize * 2.5; // לא יותר גדול מפי 2.5 מהגודל המקורי
-    const finalSize = Math.max(minSize, Math.min(maxSize, optimalSize));
+    const radius = baseSize / 2;
+    const minScale = 0.3;
+    const maxScale = 2.5;
+    const inverseScale = Math.max(minScale, Math.min(maxScale, 1 / scaleValue));
 
     try {
       // תמיכה אוטומטית בשני פורמטים: יחס (0-1) או פיקסלים
       const xNorm = route.x > 2 ? route.x / ORIGINAL_MAP_WIDTH : route.x;
       const yNorm = route.y > 2 ? route.y / ORIGINAL_MAP_HEIGHT : route.y;
 
-      // הקואורדינטות יחסית למפה
+      // הקואורדינטות יחסית למפה - מיקום קבוע
       const x = xNorm * mapWidth;
       const y = yNorm * mapHeight;
 
-      // חשב את הגבולות של הגדלה מדי (פיקסל מדויק)
-      const borderWidth = isSelected
-        ? Math.max(2, 4 / scaleValue)
-        : Math.max(1, 2 / scaleValue);
-      const radius = finalSize / 2;
+      // גבול קבוע
+      const baseBorderWidth = isSelected ? 3 : 2;
 
       return {
         position: "absolute",
+        // מיקום קבוע - לא משתנה עם הזום
         left: x - radius,
         top: y - radius,
-        width: finalSize,
-        height: finalSize,
+        width: baseSize,
+        height: baseSize,
         borderRadius: radius,
         backgroundColor: route.color || "red",
         justifyContent: "center",
         alignItems: "center",
-        // ללא transform scale - גודל ישיר
-        borderWidth: borderWidth,
+        // שימוש ב-transform scale במקום שינוי width/height - מונע ריצוד
+        transform: [{ scale: inverseScale }],
+        borderWidth: baseBorderWidth,
         borderColor: isSelected
           ? isMovingRoute
             ? "#f39c12"
@@ -405,6 +317,21 @@ export default React.memo(function RouteCircle({
       };
     }
   }, [route, mapWidth, mapHeight, isSelected, isMovingRoute, currentScale]);
+
+  // EARLY RETURNS - after all hooks
+  if (!route) {
+    return null;
+  }
+  if (
+    typeof route.x !== "number" ||
+    typeof route.y !== "number" ||
+    isNaN(route.x) ||
+    isNaN(route.y) ||
+    route.x < 0 ||
+    route.y < 0
+  ) {
+    return null;
+  }
 
   return (
     <GestureDetector gesture={panGesture}>

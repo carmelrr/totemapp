@@ -10,7 +10,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   ActivityIndicator,
   ScrollView,
 } from 'react-native';
@@ -29,9 +28,7 @@ import {
 import { ParticipantService } from '@/features/competitions/services/ParticipantService';
 import { ResultsService } from '@/features/competitions/services/ResultsService';
 import { formatPoints } from '@/features/competitions/constants';
-
-// Default avatar
-import defaultAvatar from '@/assets/splash.png';
+import { CachedAvatar } from '@/components/ui/CachedAvatar';
 
 interface CompetitionLeaderboardProps {
   competition: Competition;
@@ -48,77 +45,89 @@ interface CategoryLeaderboardData {
 }
 
 /**
- * Hook to subscribe to leaderboard for a specific category
+ * Hook to subscribe to ALL leaderboard entries once (for all categories)
+ * This prevents N+1 queries when rendering multiple category sections
  */
-function useCategoryLeaderboard(
-  competitionId: string,
-  categoryId: string,
+function useAllLeaderboardEntries(
+  competitionId: string | null,
   format: 'national_league' | 'totemtition' | 'custom'
 ) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!competitionId) {
+      setEntries([]);
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     
+    // Fetch ALL entries without category filter - filter later on client side
     const unsubscribe = format === 'totemtition'
       ? ResultsService.subscribeToTotemtitionLeaderboard(
           competitionId,
           (leaderboard) => {
             setEntries(leaderboard);
             setLoading(false);
-          },
-          categoryId
+          }
+          // No category filter - get all
         )
       : ResultsService.subscribeToLeaderboard(
           competitionId,
           (leaderboard) => {
             setEntries(leaderboard);
             setLoading(false);
-          },
-          categoryId
+          }
+          // No category filter - get all
         );
 
     return () => unsubscribe();
-  }, [competitionId, categoryId, format]);
+  }, [competitionId, format]);
 
   return { entries, loading };
 }
 
 /**
- * Hook to get participants for a specific category
+ * Hook to subscribe to ALL participants once
+ * This prevents N+1 queries when rendering multiple category sections
  */
-function useCategoryParticipants(competitionId: string, categoryId: string) {
+function useAllParticipants(competitionId: string | null) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!competitionId) {
+      setParticipants([]);
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     
     const unsubscribe = ParticipantService.subscribeToParticipants(
       competitionId,
       (allParticipants) => {
-        // Filter by category
-        const filtered = allParticipants.filter(p => p.category === categoryId);
-        console.log(`[useCategoryParticipants] Category ${categoryId}: ${filtered.length} participants (from ${allParticipants.length} total)`);
-        setParticipants(filtered);
+        setParticipants(allParticipants);
         setLoading(false);
       }
     );
 
     return () => unsubscribe();
-  }, [competitionId, categoryId]);
+  }, [competitionId]);
 
   return { participants, loading };
 }
 
 /**
  * Component to render a single category section
+ * Now receives pre-filtered data from parent to avoid N+1 queries
  */
 function CategorySection({
   category,
-  competitionId,
-  format,
+  categoryEntries,
+  categoryParticipants,
   currentUserId,
   onParticipantPress,
   theme,
@@ -126,42 +135,26 @@ function CategorySection({
   styles,
 }: {
   category: Category;
-  competitionId: string;
-  format: 'national_league' | 'totemtition' | 'custom';
+  categoryEntries: LeaderboardEntry[];
+  categoryParticipants: Participant[];
   currentUserId?: string;
   onParticipantPress?: (participantId: string) => void;
   theme: any;
   t: any;
   styles: any;
 }) {
-  const { entries, loading: leaderboardLoading } = useCategoryLeaderboard(
-    competitionId,
-    category.id,
-    format
-  );
-  const { participants, loading: participantsLoading } = useCategoryParticipants(
-    competitionId,
-    category.id
-  );
-
-  const loading = leaderboardLoading || participantsLoading;
-
   // Merge leaderboard entries with participants who don't have scores yet
   const allEntries = useMemo(() => {
-    console.log(`[CategorySection ${category.name}] entries: ${entries.length}, participants: ${participants.length}`);
-    
     const leaderboardMap = new Map<string, LeaderboardEntry>();
-    entries.forEach(entry => {
+    categoryEntries.forEach(entry => {
       leaderboardMap.set(entry.userId || entry.participantId, entry);
     });
 
-    const merged: LeaderboardEntry[] = [...entries];
-    let addedCount = 0;
+    const merged: LeaderboardEntry[] = [...categoryEntries];
 
-    participants.forEach(participant => {
+    categoryParticipants.forEach(participant => {
       const participantKey = participant.userId || participant.id;
       if (!leaderboardMap.has(participantKey)) {
-        addedCount++;
         merged.push({
           rank: 0,
           participantId: participant.id,
@@ -177,8 +170,6 @@ function CategorySection({
         });
       }
     });
-    
-    console.log(`[CategorySection ${category.name}] Added ${addedCount} participants without scores, total: ${merged.length}`);
 
     // Sort by points (descending), then assign ranks
     merged.sort((a, b) => (b.points || 0) - (a.points || 0));
@@ -198,7 +189,7 @@ function CategorySection({
     }
 
     return merged;
-  }, [entries, participants]);
+  }, [categoryEntries, categoryParticipants]);
 
   // Top 3 for podium (only those with scores)
   const topThree = useMemo(() => allEntries.filter(e => e.points > 0).slice(0, 3), [allEntries]);
@@ -241,18 +232,13 @@ function CategorySection({
                 <View style={stepStyle}>
                   <Text style={styles.podiumRank}>{entry.rank}</Text>
                 </View>
-                {entry.photoURL ? (
-                  <Image
-                    source={{ uri: entry.photoURL }}
-                    style={styles.podiumAvatarImage}
-                  />
-                ) : (
-                  <View style={styles.podiumAvatar}>
-                    <Text style={styles.podiumAvatarText}>
-                      {(entry.participantName || 'U').charAt(0)}
-                    </Text>
-                  </View>
-                )}
+                <CachedAvatar
+                  photoURL={entry.photoURL}
+                  displayName={entry.participantName || 'U'}
+                  size={60}
+                  
+                  showBorder={false}
+                />
                 <Text style={styles.podiumName} numberOfLines={1}>
                   {entry.participantName || entry.userName || 'Unknown'}
                 </Text>
@@ -290,18 +276,13 @@ function CategorySection({
           </Text>
         </View>
 
-        {item.photoURL ? (
-          <Image
-            source={{ uri: item.photoURL }}
-            style={styles.avatarImage}
-          />
-        ) : (
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatarText}>
-              {displayName.charAt(0)}
-            </Text>
-          </View>
-        )}
+        <CachedAvatar
+          photoURL={item.photoURL}
+          displayName={displayName}
+          size={45}
+          
+          showBorder={false}
+        />
 
         <View style={styles.infoContainer}>
           <Text
@@ -322,18 +303,6 @@ function CategorySection({
     );
   };
 
-  if (loading) {
-    return (
-      <View style={styles.categorySectionContainer}>
-        <View style={styles.categorySectionHeader}>
-          <Text style={styles.categorySectionTitle}>{category.name}</Text>
-          <View style={styles.categoryParticipantCount}>
-            <ActivityIndicator size="small" color={theme.primary} />
-          </View>
-        </View>
-      </View>
-    );
-  }
 
   return (
     <View style={styles.categorySectionContainer}>
@@ -399,12 +368,19 @@ export function CompetitionLeaderboard({
   // Check both the setting AND if we actually have categories
   const hasCategories = competition.settings?.enableCategories && categories.length > 0;
   
-  console.log('[CompetitionLeaderboard] hasCategories:', hasCategories, 
-    'enableCategories:', competition.settings?.enableCategories,
-    'categories.length:', categories.length,
-    'categoriesLoading:', categoriesLoading);
-
   const styles = createStyles(theme);
+
+  // OPTIMIZATION: Fetch ALL data ONCE at parent level to avoid N+1 queries
+  // When hasCategories is true, we fetch all entries and participants here,
+  // then filter per category in useMemo (no separate subscriptions per category)
+  const { entries: allEntries, loading: allEntriesLoading } = useAllLeaderboardEntries(
+    hasCategories ? competition.id : null,
+    competition.format as 'national_league' | 'totemtition' | 'custom'
+  );
+  
+  const { participants: allParticipantsForCategories, loading: allParticipantsLoading } = useAllParticipants(
+    hasCategories ? competition.id : null
+  );
 
   // For competitions without categories, use the original single-category view
   const { entries, loading: leaderboardLoading, error } = useCompetitionLeaderboard(
@@ -418,7 +394,23 @@ export function CompetitionLeaderboard({
     undefined // Get all participants for count
   );
 
-  const loading = categoriesLoading || (!hasCategories && (leaderboardLoading || participantsLoading));
+  const loading = categoriesLoading || 
+    (hasCategories ? (allEntriesLoading || allParticipantsLoading) : (leaderboardLoading || participantsLoading));
+
+  // Pre-filter entries and participants per category (memoized for performance)
+  const categoryDataMap = useMemo(() => {
+    if (!hasCategories) return new Map<string, { entries: LeaderboardEntry[]; participants: Participant[] }>();
+    
+    const map = new Map<string, { entries: LeaderboardEntry[]; participants: Participant[] }>();
+    
+    categories.forEach(category => {
+      const categoryEntries = allEntries.filter(e => e.category === category.id);
+      const categoryParticipants = allParticipantsForCategories.filter(p => p.category === category.id);
+      map.set(category.id, { entries: categoryEntries, participants: categoryParticipants });
+    });
+    
+    return map;
+  }, [hasCategories, categories, allEntries, allParticipantsForCategories]);
 
   // Sync missing categories when leaderboard loads (for per-category scoring)
   // This runs more aggressively to catch category changes and new registrations
@@ -530,18 +522,13 @@ export function CompetitionLeaderboard({
                 <View style={stepStyle}>
                   <Text style={styles.podiumRank}>{entry.rank}</Text>
                 </View>
-                {entry.photoURL ? (
-                  <Image
-                    source={{ uri: entry.photoURL }}
-                    style={styles.podiumAvatarImage}
-                  />
-                ) : (
-                  <View style={styles.podiumAvatar}>
-                    <Text style={styles.podiumAvatarText}>
-                      {(entry.participantName || 'U').charAt(0)}
-                    </Text>
-                  </View>
-                )}
+                <CachedAvatar
+                  photoURL={entry.photoURL}
+                  displayName={entry.participantName || 'U'}
+                  size={60}
+                  
+                  showBorder={false}
+                />
                 <Text style={styles.podiumName} numberOfLines={1}>
                   {entry.participantName || entry.userName || 'Unknown'}
                 </Text>
@@ -578,18 +565,13 @@ export function CompetitionLeaderboard({
           </Text>
         </View>
 
-        {item.photoURL ? (
-          <Image
-            source={{ uri: item.photoURL }}
-            style={styles.avatarImage}
-          />
-        ) : (
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatarText}>
-              {displayName.charAt(0)}
-            </Text>
-          </View>
-        )}
+        <CachedAvatar
+          photoURL={item.photoURL}
+          displayName={displayName}
+          size={45}
+          
+          showBorder={false}
+        />
 
         <View style={styles.infoContainer}>
           <Text
@@ -650,19 +632,22 @@ export function CompetitionLeaderboard({
 
       {/* If has categories - show each category as a section */}
       {hasCategories ? (
-        categories.map((category) => (
-          <CategorySection
-            key={category.id}
-            category={category}
-            competitionId={competition.id}
-            format={competition.format as 'national_league' | 'totemtition' | 'custom'}
-            currentUserId={currentUserId}
-            onParticipantPress={onParticipantPress}
-            theme={theme}
-            t={t}
-            styles={styles}
-          />
-        ))
+        categories.map((category) => {
+          const categoryData = categoryDataMap.get(category.id) || { entries: [], participants: [] };
+          return (
+            <CategorySection
+              key={category.id}
+              category={category}
+              categoryEntries={categoryData.entries}
+              categoryParticipants={categoryData.participants}
+              currentUserId={currentUserId}
+              onParticipantPress={onParticipantPress}
+              theme={theme}
+              t={t}
+              styles={styles}
+            />
+          );
+        })
       ) : (
         /* No categories - show single leaderboard */
         <>

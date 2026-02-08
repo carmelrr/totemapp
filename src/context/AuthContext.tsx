@@ -1,5 +1,5 @@
 // context/AuthContext.tsx
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { auth, db } from '@/features/data/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { User, onAuthStateChanged } from 'firebase/auth';
@@ -60,11 +60,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return () => unsubscribe();
     }, []);
 
-    const value: AuthContextType = {
+    // Memoize context value to prevent unnecessary re-renders of consumers
+    const value = useMemo<AuthContextType>(() => ({
         user,
         isAdmin,
         loading,
-    };
+    }), [user, isAdmin, loading]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

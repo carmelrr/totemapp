@@ -31,7 +31,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 }
 expoAutolinking.useExpoModules()
 
-rootProject.name = 'Climbing Gym App'
+rootProject.name = 'Totem'
 
 expoAutolinking.useExpoVersionCatalog()
 

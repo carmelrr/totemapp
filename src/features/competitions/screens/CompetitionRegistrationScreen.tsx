@@ -77,22 +77,20 @@ export default function CompetitionRegistrationScreen() {
 
     if (!competition) return;
 
-    // Validate required fields when categories are enabled
-    if (competition.settings?.enableCategories) {
-      if (!selectedGender) {
-        Alert.alert(t.common.error, t.competitionExt.mustSelectGender);
-        return;
-      }
-      if (!birthYear) {
-        Alert.alert(t.common.error, t.competitionExt.mustEnterBirthYear);
-        return;
-      }
-      const birthYearNum = parseInt(birthYear, 10);
-      const currentYear = new Date().getFullYear();
-      if (isNaN(birthYearNum) || birthYearNum < 1920 || birthYearNum > currentYear) {
-        Alert.alert(t.common.error, t.competitionExt.invalidBirthYear);
-        return;
-      }
+    // Gender and birth year are always required for category assignment
+    if (!selectedGender) {
+      Alert.alert(t.common.error, t.competitionExt.mustSelectGender);
+      return;
+    }
+    if (!birthYear) {
+      Alert.alert(t.common.error, t.competitionExt.mustEnterBirthYear);
+      return;
+    }
+    const birthYearNum = parseInt(birthYear, 10);
+    const currentYear = new Date().getFullYear();
+    if (isNaN(birthYearNum) || birthYearNum < 1920 || birthYearNum > currentYear) {
+      Alert.alert(t.common.error, t.competitionExt.invalidBirthYear);
+      return;
     }
 
     setIsSubmitting(true);
@@ -313,9 +311,8 @@ export default function CompetitionRegistrationScreen() {
         </View>
 
         {/* Gender Selection (required for category assignment) */}
-        {competition.settings?.enableCategories && (
-          <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>{t.competitionExt.gender}</Text>
+        <View style={styles.inputSection}>
+          <Text style={styles.inputLabel}>{t.competitionExt.gender} *</Text>
             <View style={styles.genderContainer}>
               <TouchableOpacity
                 style={[
@@ -357,12 +354,10 @@ export default function CompetitionRegistrationScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        )}
 
         {/* Birth Year (required for category assignment) */}
-        {competition.settings?.enableCategories && (
-          <View style={styles.inputSection}>
-            <Text style={styles.inputLabel}>{t.competitionExt.birthYear}</Text>
+        <View style={styles.inputSection}>
+          <Text style={styles.inputLabel}>{t.competitionExt.birthYear} *</Text>
             <TextInput
               style={styles.input}
               value={birthYear}
@@ -374,7 +369,6 @@ export default function CompetitionRegistrationScreen() {
               maxLength={4}
             />
           </View>
-        )}
 
         {/* Skill Level Selection (optional) */}
         {competition.settings?.enableCategories && (
@@ -440,7 +434,7 @@ export default function CompetitionRegistrationScreen() {
         <View style={styles.infoBox}>
           <Ionicons name="information-circle" size={20} color={theme.primary} />
           <Text style={styles.infoText}>
-            לאחר ההרשמה, הבקשה תישלח לאישור ראש השופטים. תוכל להזין תוצאות רק לאחר קבלת אישור.
+            לאחר ההרשמה, הבקשה תישלח לאישור. תוכל להזין תוצאות רק לאחר תחילת התחרות.
           </Text>
         </View>
 
@@ -665,7 +659,7 @@ const createStyles = (theme: any) =>
       textAlign: 'right',
     },
     submitBtn: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingVertical: 16,
       borderRadius: 12,
       flexDirection: 'row',
@@ -693,7 +687,7 @@ const createStyles = (theme: any) =>
     },
     primaryBtn: {
       marginTop: 24,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingVertical: 14,
       paddingHorizontal: 32,
       borderRadius: 10,
@@ -707,7 +701,7 @@ const createStyles = (theme: any) =>
       marginTop: 24,
       paddingVertical: 12,
       paddingHorizontal: 24,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       borderRadius: 8,
     },
     backBtnText: {

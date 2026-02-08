@@ -32,6 +32,7 @@ export interface Competition {
   rounds?: Round[];
   settings: CompetitionSettings;
   wallImageUrl?: string;
+  roomId?: string;                           // Wall editor room ID for the dynamic map
   categories?: Category[];
   createdBy: string;
   createdAt: Date;
@@ -81,6 +82,7 @@ export interface CompetitionRoute {
   basePoints: number;                   // 100-900 for national league
   xNorm?: number;                       // normalized X coordinate (0-1)
   yNorm?: number;                       // normalized Y coordinate (0-1)
+  color?: string;                       // route color (hex, e.g., '#FF0000')
   isActive: boolean;
   setBy?: string;                       // who set the route
   createdAt: Date;

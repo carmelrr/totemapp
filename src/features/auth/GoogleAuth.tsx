@@ -56,15 +56,23 @@ export default function GoogleLoginButton() {
         
         try {
           console.log("📝 Creating/updating user document...");
+          console.log("📝 User UID:", result.user.uid);
+          console.log("📝 User Email:", result.user.email);
+          console.log("📝 db instance:", db ? "exists" : "null");
+          console.log("📝 userDocRef path:", userDocRef.path);
           
-          // Use setDoc with merge:true - this will create if not exists, or update if exists
-          // Only sets the base fields that should always exist
-          await setDoc(userDocRef, {
+          const dataToWrite = {
             email: result.user.email?.toLowerCase().trim() || "",
             displayName: result.user.displayName || "",
             photoURL: result.user.photoURL || null,
             lastLogin: serverTimestamp(),
-          }, { merge: true });
+          };
+          console.log("📝 Data to write:", JSON.stringify(dataToWrite, null, 2));
+          
+          // Use setDoc with merge:true - this will create if not exists, or update if exists
+          // Only sets the base fields that should always exist
+          await setDoc(userDocRef, dataToWrite, { merge: true });
+          console.log("✅ setDoc completed successfully!");
           
           // Now try to read and set default fields if they don't exist
           const userDoc = await getDoc(userDocRef);
@@ -115,8 +123,6 @@ export default function GoogleLoginButton() {
             [{ text: "אישור" }]
           );
         }
-        
-        Alert.alert("הצלחה", `ברוך הבא ${result.user.displayName}!`);
       }
     } catch (error: any) {
       if (isErrorWithCode(error)) {

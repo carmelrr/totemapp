@@ -160,11 +160,9 @@ export default function RouteDialog({ visible, route, onClose }) {
       if (userFeedback) {
         // Update existing feedback
         await FeedbackService.updateFeedback(userFeedback.id, feedbackData);
-        Alert.alert("הצלחה", "הפידבק עודכן בהצלחה");
       } else {
         // Add new feedback
         await FeedbackService.addFeedbackToRoute(route.id, feedbackData);
-        Alert.alert("הצלחה", "הפידבק נשלח בהצלחה");
       }
 
       resetForm();
@@ -184,7 +182,6 @@ export default function RouteDialog({ visible, route, onClose }) {
         onPress: async () => {
           try {
             await FeedbackService.deleteFeedback(feedbackId);
-            Alert.alert("הצלחה", "הפידבק נמחק בהצלחה");
           } catch (error) {
             Alert.alert("שגיאה", "נכשל במחיקת הפידבק");
           }

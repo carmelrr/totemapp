@@ -48,13 +48,19 @@ export type RoutesMapStackParamList = {
 
 export type ProfileStackParamList = {
   Profile: undefined;
-  UserProfile: { userId: string };
+  UserProfile: { userId: string; displayName?: string };
+};
+
+export type LeaderboardStackParamList = {
+  Leaderboard: undefined;
+  UserProfile: { userId: string; displayName?: string };
 };
 
 // ===== Stack Navigators for each Tab =====
 
 const RoutesMapStack = createNativeStackNavigator<RoutesMapStackParamList>();
 const ProfileStack = createNativeStackNavigator<ProfileStackParamList>();
+const LeaderboardStack = createNativeStackNavigator<LeaderboardStackParamList>();
 
 // Routes Map Stack Navigator
 function RoutesMapStackNavigator() {
@@ -143,9 +149,47 @@ function ProfileStackNavigator() {
       <ProfileStack.Screen
         name="UserProfile"
         component={UserProfileScreen}
-        options={{ title: "פרופיל משתמש" }}
+        options={({ route }) => ({
+          title: (route.params as any)?.displayName || "",
+        })}
       />
     </ProfileStack.Navigator>
+  );
+}
+
+// Leaderboard Stack Navigator
+function LeaderboardStackNavigator() {
+  const { theme } = useTheme();
+
+  return (
+    <LeaderboardStack.Navigator
+      id={undefined}
+      screenOptions={{
+        headerStyle: {
+          backgroundColor: theme.headerGradient,
+        },
+        headerTitleStyle: {
+          fontWeight: "bold",
+          fontSize: 20,
+          color: "#fff",
+        },
+        headerTintColor: "#fff",
+        headerTitleAlign: "center",
+      }}
+    >
+      <LeaderboardStack.Screen
+        name="Leaderboard"
+        component={LeaderboardScreen}
+        options={{ headerShown: false }}
+      />
+      <LeaderboardStack.Screen
+        name="UserProfile"
+        component={UserProfileScreen}
+        options={({ route }) => ({
+          title: (route.params as any)?.displayName || "",
+        })}
+      />
+    </LeaderboardStack.Navigator>
   );
 }
 
@@ -263,10 +307,22 @@ export function MainTabNavigator() {
       />
       <Tab.Screen
         name="LeaderboardTab"
-        component={LeaderboardScreen}
+        component={LeaderboardStackNavigator}
         options={{
           tabBarLabel: t.nav.leaderboard,
         }}
+        listeners={({ navigation, route }) => ({
+          tabPress: (e) => {
+            const routeName = getFocusedRouteNameFromRoute(route);
+            if (routeName && routeName !== 'Leaderboard') {
+              e.preventDefault();
+              navigation.reset({
+                index: 0,
+                routes: [{ name: 'LeaderboardTab' }],
+              });
+            }
+          },
+        })}
       />
       <Tab.Screen
         name="SprayWallTab"

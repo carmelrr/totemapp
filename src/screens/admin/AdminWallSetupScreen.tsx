@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Image,
   Alert,
-  Dimensions,
   SafeAreaView,
   ScrollView,
 } from "react-native";
@@ -20,13 +19,17 @@ import Animated, {
 } from "react-native-reanimated";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
-
-const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function AdminWallSetupScreen() {
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { t } = useLanguage();
+  const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth, height: screenHeight, isLandscape, isTablet } = layout;
+  const isPhoneLandscape = !isTablet && isLandscape;
 
   const [selectedImage, setSelectedImage] = useState(null);
   const [holds, setHolds] = useState([]);
@@ -44,7 +47,7 @@ export default function AdminWallSetupScreen() {
   const imageWidth = useSharedValue(0);
   const imageHeight = useSharedValue(0);
 
-  const styles = createStyles(theme);
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
 
   const selectImage = async () => {
     // TODO: Implement image picker
@@ -301,8 +304,11 @@ export default function AdminWallSetupScreen() {
   );
 }
 
-const createStyles = (theme) =>
-  StyleSheet.create({
+const createStyles = (theme, layout, insets) => {
+  const { isLandscape, isTablet, width, height } = layout;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  
+  return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.background,
@@ -312,7 +318,9 @@ const createStyles = (theme) =>
       justifyContent: "space-between",
       alignItems: "center",
       paddingHorizontal: 20,
-      paddingVertical: 16,
+      paddingVertical: isPhoneLandscape ? 10 : 16,
+      paddingLeft: isLandscape ? Math.max(20, insets.left) : 20,
+      paddingRight: isLandscape ? Math.max(20, insets.right) : 20,
       backgroundColor: theme.surface,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
@@ -349,23 +357,25 @@ const createStyles = (theme) =>
     },
     content: {
       flex: 1,
+      paddingLeft: isLandscape ? Math.max(0, insets.left) : 0,
+      paddingRight: isLandscape ? Math.max(0, insets.right) : 0,
     },
     instructions: {
       paddingHorizontal: 20,
-      paddingVertical: 12,
+      paddingVertical: isPhoneLandscape ? 8 : 12,
       backgroundColor: theme.card,
       margin: 10,
       borderRadius: 8,
     },
     instructionText: {
-      fontSize: 14,
+      fontSize: isPhoneLandscape ? 12 : 14,
       color: theme.textSecondary,
       textAlign: "center",
       lineHeight: 18,
     },
     imageSelector: {
-      margin: 20,
-      padding: 40,
+      margin: isPhoneLandscape ? 10 : 20,
+      padding: isPhoneLandscape ? 20 : 40,
       borderRadius: 12,
       borderWidth: 2,
       borderColor: theme.border,
@@ -374,7 +384,7 @@ const createStyles = (theme) =>
       backgroundColor: theme.surface,
     },
     imageSelectorText: {
-      fontSize: 48,
+      fontSize: isPhoneLandscape ? 36 : 48,
       marginBottom: 10,
     },
     imageSelectorLabel: {
@@ -383,8 +393,9 @@ const createStyles = (theme) =>
       fontWeight: "600",
     },
     imageContainer: {
-      margin: 20,
+      margin: isPhoneLandscape ? 10 : 20,
       alignItems: "center",
+      maxHeight: isPhoneLandscape ? height * 0.5 : undefined,
     },
     imageWrapper: {
       position: "relative",
@@ -412,8 +423,8 @@ const createStyles = (theme) =>
     },
     stats: {
       backgroundColor: theme.surface,
-      margin: 20,
-      padding: 16,
+      margin: isPhoneLandscape ? 10 : 20,
+      padding: isPhoneLandscape ? 12 : 16,
       borderRadius: 8,
       alignItems: "center",
     },
@@ -439,3 +450,4 @@ const createStyles = (theme) =>
       fontWeight: "600",
     },
   });
+};

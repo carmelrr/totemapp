@@ -7,7 +7,7 @@ import type { CompositeNavigationProp } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 // Import types from features
-import type { SprayRoute, Hold } from '@/features/spraywall/types';
+import type { Hold } from '@/features/spraywall/types';
 
 // ===== Root Stack (App.tsx) =====
 export type RootStackParamList = {
@@ -37,7 +37,7 @@ export type RoutesMapStackParamList = {
 // ===== Profile Stack =====
 export type ProfileStackParamList = {
   Profile: undefined;
-  UserProfile: { userId: string };
+  UserProfile: { userId: string; displayName?: string };
 };
 
 // ===== Spray Wall Stack =====
@@ -46,7 +46,7 @@ export type SprayStackParamList = {
   AddWall: undefined;
   AddRoute: { wallId?: string } | undefined;
   RouteDetails: { wallId: string; holds: Hold[] };
-  SprayRouteDetail: { sprayRoute: SprayRoute; wallId: string };
+  SprayRouteDetail: { routeId: string; wallId: string };
 };
 
 // ===== Community Stack =====

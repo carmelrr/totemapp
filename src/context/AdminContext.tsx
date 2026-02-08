@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/features/data/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -64,22 +64,23 @@ export function AdminProvider({ children }: AdminProviderProps) {
     return () => unsubscribe();
   }, []);
 
-  const toggleAdminMode = () => {
+  const toggleAdminMode = useCallback(() => {
     if (isAdmin) {
       setAdminModeEnabled((prev) => !prev);
     }
-  };
+  }, [isAdmin]);
+
+  // Memoize context value to prevent unnecessary re-renders of consumers
+  const value = useMemo(() => ({
+    isAdmin,
+    adminModeEnabled,
+    setAdminModeEnabled,
+    toggleAdminMode,
+    loading,
+  }), [isAdmin, adminModeEnabled, toggleAdminMode, loading]);
 
   return (
-    <AdminContext.Provider
-      value={{
-        isAdmin,
-        adminModeEnabled,
-        setAdminModeEnabled,
-        toggleAdminMode,
-        loading,
-      }}
-    >
+    <AdminContext.Provider value={value}>
       {children}
     </AdminContext.Provider>
   );

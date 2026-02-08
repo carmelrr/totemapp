@@ -52,10 +52,13 @@ service firebase.storage {
       allow read: if true;
       
       // רק המשתמש עצמו יכול להעלות לתיקייה שלו
-      allow write: if isOwner(userId) && 
+      allow create, update: if isOwner(userId) && 
         isImage() && 
         isAllowedImageType() && 
         isUnderMaxSize(10 * 1024 * 1024); // 10MB max
+      
+      // רק המשתמש עצמו יכול למחוק מהתיקייה שלו
+      allow delete: if isOwner(userId);
     }
     
     // ==================== Route Images ====================
@@ -65,10 +68,13 @@ service firebase.storage {
       allow read: if true;
       
       // רק משתמשים מחוברים יכולים להעלות
-      allow write: if isAuthenticated() && 
+      allow create, update: if isAuthenticated() && 
         isImage() && 
         isAllowedImageType() && 
         isUnderMaxSize(10 * 1024 * 1024); // 10MB max
+      
+      // משתמשים מחוברים יכולים למחוק
+      allow delete: if isAuthenticated();
     }
     
     // ==================== Competition Images ====================
@@ -84,10 +90,29 @@ service firebase.storage {
     match /sprayWalls/{wallPath=**} {
       allow read: if true;
       // רק משתמשים מחוברים יכולים להעלות (הגבלה נוספת מצד הקוד)
-      allow write: if isAuthenticated() && 
+      allow create, update: if isAuthenticated() && 
         isImage() && 
         isAllowedImageType() && 
         isUnderMaxSize(15 * 1024 * 1024); // 15MB max for wall images
+      
+      // משתמשים מחוברים יכולים למחוק
+      allow delete: if isAuthenticated();
+    }
+
+    // ==================== Announcement Images ====================
+    // תמונות הודעות - משתמשים מחוברים יכולים להעלות (הגבלה נוספת בקוד לתפקידים מורשים)
+    match /announcements/images/{fileName} {
+      // כולם יכולים לקרוא תמונות הודעות
+      allow read: if true;
+      
+      // משתמשים מחוברים יכולים להעלות (הרשאות נוספות נבדקות בקוד)
+      allow create, update: if isAuthenticated() && 
+        isImage() && 
+        isAllowedImageType() && 
+        isUnderMaxSize(10 * 1024 * 1024); // 10MB max
+      
+      // משתמשים מחוברים יכולים למחוק
+      allow delete: if isAuthenticated();
     }
 
     // ==================== Default Deny ====================

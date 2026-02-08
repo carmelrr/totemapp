@@ -17,7 +17,128 @@ import {
   limit,
   startAfter,
   DocumentSnapshot,
+  documentId,
+  Timestamp,
 } from "firebase/firestore";
+import { getCachedRoutes } from "@/features/routes-map/services/RoutesService";
+
+// ========== CACHE CONSTANTS ==========
+const USER_CACHE_TTL = 60000; // 1 minute TTL
+const FEED_CACHE_TTL = 30000; // 30 seconds TTL for feed
+const ROUTES_MAP_CACHE_TTL = 60000; // 1 minute for routes map
+
+// ========== USER CACHE ==========
+// Simple in-memory cache for user data to avoid repeated fetches
+const userCache = new Map<string, { data: any; timestamp: number }>();
+
+// ========== FEED CACHE ==========
+// Cache for feed data to avoid repeated fetches on navigation
+interface FeedCacheEntry {
+  data: { items: any[]; hasMore: boolean; lastTimestamp: any };
+  timestamp: number;
+}
+const feedCache = new Map<string, FeedCacheEntry>();
+
+// ========== ROUTES MAP CACHE ==========
+// Cached routes map for quick lookups
+let routesMapCache: { data: Map<string, any> | null; timestamp: number } = {
+  data: null,
+  timestamp: 0,
+};
+
+/**
+ * Get cached routes map for quick lookups
+ * Uses the RoutesService cache internally
+ */
+async function getCachedRoutesMap(): Promise<Map<string, any>> {
+  if (routesMapCache.data && Date.now() - routesMapCache.timestamp < ROUTES_MAP_CACHE_TTL) {
+    return routesMapCache.data;
+  }
+  
+  try {
+    const routes = await getCachedRoutes();
+    const map = new Map<string, any>();
+    routes.forEach(route => {
+      map.set(route.id, route);
+    });
+    routesMapCache.data = map;
+    routesMapCache.timestamp = Date.now();
+    return map;
+  } catch (error) {
+    console.error("Error getting cached routes map:", error);
+    return new Map();
+  }
+}
+
+/**
+ * Clear feed cache - call when new feedback is submitted
+ */
+export function clearFeedCache(): void {
+  feedCache.clear();
+}
+
+/**
+ * Clear routes map cache
+ */
+export function clearRoutesMapCache(): void {
+  routesMapCache.data = null;
+  routesMapCache.timestamp = 0;
+}
+
+function getCachedUser(userId: string) {
+  const cached = userCache.get(userId);
+  if (cached && Date.now() - cached.timestamp < USER_CACHE_TTL) {
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedUser(userId: string, data: any) {
+  userCache.set(userId, { data, timestamp: Date.now() });
+}
+
+/**
+ * Batch fetch users by IDs - prevents N+1 queries
+ * Firestore 'in' query supports max 10 items, so we chunk the requests
+ */
+async function batchFetchUsers(userIds: string[]): Promise<Map<string, any>> {
+  const result = new Map<string, any>();
+  
+  if (!userIds || userIds.length === 0) return result;
+  
+  // Check cache first
+  const uncachedIds: string[] = [];
+  for (const userId of userIds) {
+    const cached = getCachedUser(userId);
+    if (cached) {
+      result.set(userId, cached);
+    } else {
+      uncachedIds.push(userId);
+    }
+  }
+  
+  // Fetch uncached users in batches of 10 (Firestore limit)
+  const chunks: string[][] = [];
+  for (let i = 0; i < uncachedIds.length; i += 10) {
+    chunks.push(uncachedIds.slice(i, i + 10));
+  }
+  
+  for (const chunk of chunks) {
+    try {
+      const q = query(collection(db, "users"), where(documentId(), "in", chunk));
+      const snapshot = await getDocs(q);
+      snapshot.forEach((doc) => {
+        const userData = { id: doc.id, ...doc.data() };
+        result.set(doc.id, userData);
+        setCachedUser(doc.id, userData);
+      });
+    } catch (error) {
+      console.error("Error batch fetching users:", error);
+    }
+  }
+  
+  return result;
+}
 
 // Follow/Unfollow users
 export async function followUser(currentUserId, targetUserId) {
@@ -74,26 +195,18 @@ export async function unfollowUser(currentUserId, targetUserId) {
   }
 }
 
-// Get user's followers/following
+// Get user's followers/following - OPTIMIZED with batch fetching
 export async function getUserFollowers(userId) {
   try {
     const userDoc = await getDoc(doc(db, "users", userId));
     if (!userDoc.exists()) return [];
 
     const followers = userDoc.data().followers || [];
-    const followersData = [];
+    if (followers.length === 0) return [];
 
-    for (const followerId of followers) {
-      const followerDoc = await getDoc(doc(db, "users", followerId));
-      if (followerDoc.exists()) {
-        followersData.push({
-          id: followerId,
-          ...followerDoc.data(),
-        });
-      }
-    }
-
-    return followersData;
+    // Use batch fetch instead of N+1 individual queries
+    const usersMap = await batchFetchUsers(followers);
+    return Array.from(usersMap.values());
   } catch (error) {
     console.error("Error getting followers:", error);
     return [];
@@ -106,19 +219,11 @@ export async function getUserFollowing(userId) {
     if (!userDoc.exists()) return [];
 
     const following = userDoc.data().following || [];
-    const followingData = [];
+    if (following.length === 0) return [];
 
-    for (const followingId of following) {
-      const followingDoc = await getDoc(doc(db, "users", followingId));
-      if (followingDoc.exists()) {
-        followingData.push({
-          id: followingId,
-          ...followingDoc.data(),
-        });
-      }
-    }
-
-    return followingData;
+    // Use batch fetch instead of N+1 individual queries
+    const usersMap = await batchFetchUsers(following);
+    return Array.from(usersMap.values());
   } catch (error) {
     console.error("Error getting following:", error);
     return [];
@@ -214,239 +319,136 @@ export async function getAllUsers(pageSize = 50, lastDoc = null) {
 }
 
 // Activity Feed - Get feed of followed users' closures and feedbacks
+// OPTIMIZED VERSION: Uses caching and efficient queries
 // If user doesn't follow anyone, returns top recent feedbacks from all users
-export async function getFollowingFeed(userId, pageSize = 20, lastTimestamp = null) {
+export async function getFollowingFeed(userId: string, pageSize = 20, lastTimestamp: string | null = null) {
   try {
-    const userDoc = await getDoc(doc(db, "users", userId));
-    if (!userDoc.exists()) return { items: [], hasMore: false };
+    // Check cache for refresh (first page only)
+    const cacheKey = `feed_${userId}`;
+    if (!lastTimestamp) {
+      const cached = feedCache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < FEED_CACHE_TTL) {
+        return cached.data;
+      }
+    }
 
-    const following = userDoc.data().following || [];
-    
-    // If user doesn't follow anyone, show top recent feedbacks from all users
+    const userDoc = await getDoc(doc(db, "users", userId));
+    if (!userDoc.exists()) return { items: [], hasMore: false, lastTimestamp: null };
+
+    const following: string[] = userDoc.data().following || [];
     const showAllUsers = following.length === 0;
 
-    const feedItems = [];
-    const seenIds = new Set<string>();
+    // Time limit: Only show activity from the last week
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const oneWeekAgoTimestamp = Timestamp.fromDate(oneWeekAgo);
 
-    // Build a map of route data for quick lookup
-    const routesRef = collection(db, "routes");
-    const routesSnapshot = await getDocs(routesRef);
-    const routesMap = new Map();
-    routesSnapshot.docs.forEach(doc => {
-      routesMap.set(doc.id, { id: doc.id, ...doc.data() });
-    });
-
-    // Build a map of user data for photo URL lookup
-    const usersRef = collection(db, "users");
-    const usersSnapshot = await getDocs(usersRef);
-    const usersMap = new Map();
-    usersSnapshot.docs.forEach(doc => {
-      usersMap.set(doc.id, { id: doc.id, ...doc.data() });
-    });
+    // Use cached routes map instead of fetching all routes
+    const routesMap = await getCachedRoutesMap();
+    
+    // Build users map from batch fetch (only for users we need)
+    const userIdsToFetch = showAllUsers ? [] : [...following];
+    const usersMap = userIdsToFetch.length > 0 ? await batchFetchUsers(userIdsToFetch) : new Map();
 
     // Helper function to get user photo URL
     const getUserPhotoURL = (feedbackUserId: string, feedbackPhotoURL: string | null): string | null => {
-      // First try to get from feedback
       if (feedbackPhotoURL) return feedbackPhotoURL;
-      // Then try to get from users collection
       const userData = usersMap.get(feedbackUserId);
       return userData?.photoURL || null;
     };
 
+    const feedItems: any[] = [];
+    const seenIds = new Set<string>();
+
+    // Helper to create feed item
+    const createFeedItem = (feedbackDoc: any, feedback: any, routeData: any, feedbackUserId: string) => {
+      const uniqueId = `main_${feedbackDoc.id}`;
+      if (seenIds.has(uniqueId)) return null;
+      seenIds.add(uniqueId);
+      
+      const createdAt = feedback.createdAt?.toDate?.() || feedback.updatedAt?.toDate?.() || feedback.submittedAt?.toDate?.() || new Date();
+      const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
+      
+      return {
+        id: uniqueId,
+        type: isCompleted ? "closure" : "feedback",
+        userId: feedbackUserId,
+        userDisplayName: feedback.userDisplayName || "משתמש",
+        userPhotoURL: getUserPhotoURL(feedbackUserId, feedback.userPhotoURL),
+        routeId: feedback.routeId,
+        routeName: routeData.name || "מסלול ללא שם",
+        routeNameHe: routeData.nameHe,
+        routeNameEn: routeData.nameEn,
+        routeGrade: routeData.grade || "N/A",
+        routeColor: routeData.color || "#8e44ad",
+        routeX: routeData.xNorm,
+        routeY: routeData.yNorm,
+        feedback: {
+          starRating: feedback.starRating,
+          suggestedGrade: feedback.suggestedGrade,
+          comment: feedback.comment,
+          closedRoute: isCompleted,
+        },
+        createdAt,
+      };
+    };
+
+    const mainFeedbacksRef = collection(db, "routeFeedbacks");
+
     if (showAllUsers) {
-      // Get recent feedbacks from ALL users
-      const mainFeedbacksRef = collection(db, "routeFeedbacks");
-      const allFeedbacksSnapshot = await getDocs(mainFeedbacksRef);
+      // OPTIMIZED: Query with orderBy and limit at Firestore level
+      const feedbackQuery = query(
+        mainFeedbacksRef,
+        where("createdAt", ">=", oneWeekAgoTimestamp),
+        orderBy("createdAt", "desc"),
+        limit(100) // Fetch more than needed to filter out current user
+      );
+      const feedbackSnapshot = await getDocs(feedbackQuery);
 
-      allFeedbacksSnapshot.forEach((feedbackDoc) => {
+      feedbackSnapshot.forEach((feedbackDoc) => {
         const feedback = feedbackDoc.data();
+        if (feedback.userId === userId) return; // Skip current user
+        
         const routeData = routesMap.get(feedback.routeId);
+        if (!routeData) return;
         
-        // Skip if route doesn't exist or if it's the current user
-        if (!routeData || feedback.userId === userId) return;
-        
-        const uniqueId = `main_${feedbackDoc.id}`;
-        if (seenIds.has(uniqueId)) return;
-        seenIds.add(uniqueId);
-        
-        const createdAt = feedback.createdAt?.toDate?.() || feedback.updatedAt?.toDate?.() || feedback.submittedAt?.toDate?.() || new Date();
-        
-        // Check both closedRoute and isCompleted for compatibility
-        const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
-        
-        feedItems.push({
-          id: uniqueId,
-          type: isCompleted ? "closure" : "feedback",
-          userId: feedback.userId,
-          userDisplayName: feedback.userDisplayName || "משתמש",
-          userPhotoURL: getUserPhotoURL(feedback.userId, feedback.userPhotoURL),
-          routeId: feedback.routeId,
-          routeName: routeData.name || "מסלול ללא שם",
-          routeNameHe: routeData.nameHe,
-          routeNameEn: routeData.nameEn,
-          routeGrade: routeData.grade || "N/A",
-          routeColor: routeData.color || "#8e44ad",
-          routeX: routeData.xNorm,
-          routeY: routeData.yNorm,
-          feedback: {
-            starRating: feedback.starRating,
-            suggestedGrade: feedback.suggestedGrade,
-            comment: feedback.comment,
-            closedRoute: isCompleted,
-          },
-          createdAt: createdAt,
-        });
+        const item = createFeedItem(feedbackDoc, feedback, routeData, feedback.userId);
+        if (item) feedItems.push(item);
       });
-
-      // Also query from subcollections for all users
-      for (const routeDoc of routesSnapshot.docs) {
-        const routeData = routeDoc.data();
-        const feedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
-        const feedbackSnapshot = await getDocs(feedbacksRef);
-
-        feedbackSnapshot.forEach((feedbackDoc) => {
-          const feedback = feedbackDoc.data();
-          const uniqueId = `sub_${routeDoc.id}_${feedbackDoc.id}`;
-          
-          // Skip if already seen or if it's the current user
-          if (seenIds.has(uniqueId) || feedback.userId === userId) return;
-          seenIds.add(uniqueId);
-          
-          const createdAt = feedback.submittedAt?.toDate?.() || feedback.createdAt?.toDate?.() || feedback.submittedAt || new Date();
-          
-          // Check both closedRoute and isCompleted for compatibility
-          const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
-          
-          feedItems.push({
-            id: uniqueId,
-            type: isCompleted ? "closure" : "feedback",
-            userId: feedback.userId,
-            userDisplayName: feedback.userDisplayName || "משתמש",
-            userPhotoURL: getUserPhotoURL(feedback.userId, feedback.userPhotoURL),
-            routeId: routeDoc.id,
-            routeName: routeData.name || "מסלול ללא שם",
-            routeNameHe: routeData.nameHe,
-            routeNameEn: routeData.nameEn,
-            routeGrade: routeData.grade || "N/A",
-            routeColor: routeData.color || "#8e44ad",
-            routeX: routeData.xNorm,
-            routeY: routeData.yNorm,
-            feedback: {
-              starRating: feedback.starRating,
-              suggestedGrade: feedback.suggestedGrade,
-              comment: feedback.comment,
-              closedRoute: isCompleted,
-            },
-            createdAt: createdAt,
-          });
-        });
-      }
     } else {
-      // Original logic - get feedbacks from followed users only
-      // 1. Query from main routeFeedbacks collection (current method)
-      for (const followedUserId of following) {
-        const mainFeedbacksRef = collection(db, "routeFeedbacks");
+      // OPTIMIZED: Use 'in' query to fetch for multiple users at once (max 30 per query)
+      const chunks: string[][] = [];
+      for (let i = 0; i < following.length; i += 30) {
+        chunks.push(following.slice(i, i + 30));
+      }
+
+      // Execute queries in parallel
+      const queryPromises = chunks.map(async (chunk) => {
         const feedbackQuery = query(
           mainFeedbacksRef,
-          where("userId", "==", followedUserId)
+          where("userId", "in", chunk),
+          where("createdAt", ">=", oneWeekAgoTimestamp),
+          orderBy("createdAt", "desc"),
+          limit(50)
         );
-        const feedbackSnapshot = await getDocs(feedbackQuery);
+        return getDocs(feedbackQuery);
+      });
 
-        feedbackSnapshot.forEach((feedbackDoc) => {
+      const snapshots = await Promise.all(queryPromises);
+      
+      snapshots.forEach((snapshot) => {
+        snapshot.forEach((feedbackDoc) => {
           const feedback = feedbackDoc.data();
           const routeData = routesMap.get(feedback.routeId);
-          
-          // Skip if route doesn't exist
           if (!routeData) return;
           
-          const uniqueId = `main_${feedbackDoc.id}`;
-          if (seenIds.has(uniqueId)) return;
-          seenIds.add(uniqueId);
-          
-          const createdAt = feedback.createdAt?.toDate?.() || feedback.updatedAt?.toDate?.() || feedback.submittedAt?.toDate?.() || new Date();
-          
-          // Check both closedRoute and isCompleted for compatibility
-          const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
-          
-          feedItems.push({
-            id: uniqueId,
-            type: isCompleted ? "closure" : "feedback",
-            userId: followedUserId,
-            userDisplayName: feedback.userDisplayName || "משתמש",
-            userPhotoURL: getUserPhotoURL(followedUserId, feedback.userPhotoURL),
-            routeId: feedback.routeId,
-            routeName: routeData.name || "מסלול ללא שם",
-            routeNameHe: routeData.nameHe,
-            routeNameEn: routeData.nameEn,
-            routeGrade: routeData.grade || "N/A",
-            routeColor: routeData.color || "#8e44ad",
-            routeX: routeData.xNorm,
-            routeY: routeData.yNorm,
-            feedback: {
-              starRating: feedback.starRating,
-              suggestedGrade: feedback.suggestedGrade,
-              comment: feedback.comment,
-              closedRoute: isCompleted,
-            },
-            createdAt: createdAt,
-          });
+          const item = createFeedItem(feedbackDoc, feedback, routeData, feedback.userId);
+          if (item) feedItems.push(item);
         });
-      }
-
-      // 2. Also query from subcollections (legacy way) for backwards compatibility
-      for (const routeDoc of routesSnapshot.docs) {
-        const routeData = routeDoc.data();
-        const feedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
-        
-        // Query feedbacks for all followed users
-        for (const followedUserId of following) {
-          const userFeedbackQuery = query(
-            feedbacksRef,
-            where("userId", "==", followedUserId),
-          );
-          const feedbackSnapshot = await getDocs(userFeedbackQuery);
-
-          feedbackSnapshot.forEach((feedbackDoc) => {
-            const feedback = feedbackDoc.data();
-            const uniqueId = `sub_${routeDoc.id}_${feedbackDoc.id}`;
-            
-            // Skip if already seen
-            if (seenIds.has(uniqueId)) return;
-            seenIds.add(uniqueId);
-            
-            const createdAt = feedback.submittedAt?.toDate?.() || feedback.createdAt?.toDate?.() || feedback.submittedAt || new Date();
-            
-            // Check both closedRoute and isCompleted for compatibility
-            const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
-            
-            feedItems.push({
-              id: uniqueId,
-              type: isCompleted ? "closure" : "feedback",
-              userId: followedUserId,
-              userDisplayName: feedback.userDisplayName || "משתמש",
-              userPhotoURL: getUserPhotoURL(followedUserId, feedback.userPhotoURL),
-              routeId: routeDoc.id,
-              routeName: routeData.name || "מסלול ללא שם",
-              routeNameHe: routeData.nameHe,
-              routeNameEn: routeData.nameEn,
-              routeGrade: routeData.grade || "N/A",
-              routeColor: routeData.color || "#8e44ad",
-              routeX: routeData.xNorm,
-              routeY: routeData.yNorm,
-              feedback: {
-                starRating: feedback.starRating,
-                suggestedGrade: feedback.suggestedGrade,
-                comment: feedback.comment,
-                closedRoute: isCompleted,
-              },
-              createdAt: createdAt,
-            });
-          });
-        }
-      }
+      });
     }
 
-    // Sort by date (newest first)
+    // Sort by date (newest first) - items should already be sorted, but ensure consistency
     feedItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     // Apply pagination
@@ -460,39 +462,57 @@ export async function getFollowingFeed(userId, pageSize = 20, lastTimestamp = nu
     const paginatedItems = filteredItems.slice(0, pageSize);
     const hasMore = filteredItems.length > pageSize;
 
-    return {
+    const result = {
       items: paginatedItems,
       hasMore,
       lastTimestamp: paginatedItems.length > 0 ? paginatedItems[paginatedItems.length - 1].createdAt : null,
     };
+
+    // Cache first page results
+    if (!lastTimestamp) {
+      feedCache.set(cacheKey, { data: result, timestamp: Date.now() });
+    }
+
+    return result;
   } catch (error) {
     console.error("Error getting following feed:", error);
-    return { items: [], hasMore: false };
+    return { items: [], hasMore: false, lastTimestamp: null };
   }
 }
 
 // Get user's activity history (closures and feedbacks)
+// OPTIMIZED VERSION: Uses caching and efficient Firestore queries
 // onlyActiveRoutes: if true, only show feedbacks for active routes (on the wall now)
-export async function getUserHistory(userId, pageSize = 20, lastTimestamp = null, onlyActiveRoutes = false) {
+export async function getUserHistory(userId: string, pageSize = 20, lastTimestamp: string | null = null, onlyActiveRoutes = false) {
   try {
-    const historyItems = [];
-    const seenFeedbackIds = new Set<string>(); // Avoid duplicates
+    // Time limit: Only show activity from the last month
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const oneMonthAgoTimestamp = Timestamp.fromDate(oneMonthAgo);
 
-    // Get all routes first to have route data for lookups
-    const routesRef = collection(db, "routes");
-    const routesSnapshot = await getDocs(routesRef);
-    
-    // Build a map of route data for quick lookup
-    const routesMap = new Map();
-    routesSnapshot.docs.forEach(doc => {
-      routesMap.set(doc.id, { id: doc.id, ...doc.data() });
-    });
+    // Use cached routes map instead of fetching all routes
+    const routesMap = await getCachedRoutesMap();
 
-    // 1. Query from the main routeFeedbacks collection (new way)
+    // Build active routes set for quick lookup if needed
+    const activeRouteIds = new Set<string>();
+    if (onlyActiveRoutes) {
+      routesMap.forEach((route, id) => {
+        const isActive = !route.status || route.status === 'active';
+        if (isActive) activeRouteIds.add(id);
+      });
+    }
+
+    const historyItems: any[] = [];
+    const seenFeedbackIds = new Set<string>();
+
+    // Query from the main routeFeedbacks collection with optimized query
     const mainFeedbacksRef = collection(db, "routeFeedbacks");
     const mainFeedbackQuery = query(
       mainFeedbacksRef,
-      where("userId", "==", userId)
+      where("userId", "==", userId),
+      where("createdAt", ">=", oneMonthAgoTimestamp),
+      orderBy("createdAt", "desc"),
+      limit(100) // Fetch enough for pagination
     );
     const mainFeedbackSnapshot = await getDocs(mainFeedbackQuery);
 
@@ -505,10 +525,7 @@ export async function getUserHistory(userId, pageSize = 20, lastTimestamp = null
       if (!routeData) return;
       
       // If onlyActiveRoutes is true, skip inactive/archived routes
-      if (onlyActiveRoutes) {
-        const isActive = !routeData.status || routeData.status === 'active';
-        if (!isActive) return;
-      }
+      if (onlyActiveRoutes && !activeRouteIds.has(routeId)) return;
       
       const uniqueId = `main_${feedbackDoc.id}`;
       seenFeedbackIds.add(uniqueId);
@@ -537,58 +554,7 @@ export async function getUserHistory(userId, pageSize = 20, lastTimestamp = null
       });
     });
 
-    // 2. Also query from subcollections (legacy way) for backwards compatibility
-    for (const routeDoc of routesSnapshot.docs) {
-      const routeData = routeDoc.data();
-      
-      // If onlyActiveRoutes is true, skip inactive/archived routes
-      if (onlyActiveRoutes) {
-        const isActive = !routeData.status || routeData.status === 'active';
-        if (!isActive) continue;
-      }
-      
-      const subcollectionFeedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
-      const userFeedbackQuery = query(
-        subcollectionFeedbacksRef,
-        where("userId", "==", userId),
-      );
-      const feedbackSnapshot = await getDocs(userFeedbackQuery);
-
-      feedbackSnapshot.forEach((feedbackDoc) => {
-        const uniqueId = `sub_${routeDoc.id}_${feedbackDoc.id}`;
-        
-        // Skip if we already have this from main collection
-        if (seenFeedbackIds.has(uniqueId)) return;
-        seenFeedbackIds.add(uniqueId);
-        
-        const feedback = feedbackDoc.data();
-        const createdAt = feedback.submittedAt?.toDate?.() || feedback.submittedAt || new Date();
-        
-        historyItems.push({
-          id: uniqueId,
-          type: feedback.closedRoute ? "closure" : "feedback",
-          routeId: routeDoc.id,
-          routeName: routeData.name || "מסלול ללא שם",
-          routeNameHe: routeData.nameHe,
-          routeNameEn: routeData.nameEn,
-          routeGrade: routeData.grade || "N/A",
-          routeColor: routeData.color || "#8e44ad",
-          feedback: {
-            starRating: feedback.starRating,
-            suggestedGrade: feedback.suggestedGrade,
-            comment: feedback.comment,
-            closedRoute: feedback.closedRoute,
-          },
-          createdAt: createdAt,
-          feedbackId: feedbackDoc.id,
-          isActiveRoute: !routeData.status || routeData.status === 'active',
-        });
-      });
-    }
-
-    // Sort by date (newest first)
-    historyItems.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-
+    // Items are already sorted from Firestore query
     // Apply pagination
     let filteredItems = historyItems;
     if (lastTimestamp) {
@@ -607,41 +573,54 @@ export async function getUserHistory(userId, pageSize = 20, lastTimestamp = null
     };
   } catch (error) {
     console.error("Error getting user history:", error);
-    return { items: [], hasMore: false };
+    return { items: [], hasMore: false, lastTimestamp: null };
   }
 }
 
 // Activity Feed (legacy - keeping for backwards compatibility)
-// Updated to query from both main routeFeedbacks collection and legacy subcollections
-export async function getUserActivityFeed(userId) {
+// OPTIMIZED VERSION: Uses caching and batch queries
+export async function getUserActivityFeed(userId: string) {
   try {
     const userDoc = await getDoc(doc(db, "users", userId));
     if (!userDoc.exists()) return [];
 
-    const following = userDoc.data().following || [];
-    following.push(userId); // Include own activities
+    const following: string[] = userDoc.data().following || [];
+    const allUserIds = [...following, userId]; // Include own activities
 
-    const activities = [];
+    // Use cached routes map
+    const routesMap = await getCachedRoutesMap();
+
+    // Time limit for efficiency
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const oneWeekAgoTimestamp = Timestamp.fromDate(oneWeekAgo);
+
+    const activities: any[] = [];
     const seenIds = new Set<string>();
 
-    // Build a map of route data for quick lookup
-    const routesRef = collection(db, "routes");
-    const routesSnapshot = await getDocs(routesRef);
-    const routesMap = new Map();
-    routesSnapshot.docs.forEach(doc => {
-      routesMap.set(doc.id, { id: doc.id, ...doc.data() });
-    });
+    // Batch query users in chunks of 30 (Firestore 'in' limit)
+    const mainFeedbacksRef = collection(db, "routeFeedbacks");
+    const chunks: string[][] = [];
+    for (let i = 0; i < allUserIds.length; i += 30) {
+      chunks.push(allUserIds.slice(i, i + 30));
+    }
 
-    // 1. Query from main routeFeedbacks collection (new way)
-    for (const followedUserId of following) {
-      const mainFeedbacksRef = collection(db, "routeFeedbacks");
+    // Execute queries in parallel
+    const queryPromises = chunks.map(async (chunk) => {
       const feedbackQuery = query(
         mainFeedbacksRef,
-        where("userId", "==", followedUserId)
+        where("userId", "in", chunk),
+        where("createdAt", ">=", oneWeekAgoTimestamp),
+        orderBy("createdAt", "desc"),
+        limit(50)
       );
-      const feedbackSnapshot = await getDocs(feedbackQuery);
+      return getDocs(feedbackQuery);
+    });
 
-      feedbackSnapshot.forEach((feedbackDoc) => {
+    const snapshots = await Promise.all(queryPromises);
+
+    snapshots.forEach((snapshot) => {
+      snapshot.forEach((feedbackDoc) => {
         const feedback = feedbackDoc.data();
         const routeId = feedback.routeId;
         const routeData = routesMap.get(routeId);
@@ -657,7 +636,7 @@ export async function getUserActivityFeed(userId) {
         activities.push({
           id: uniqueId,
           type: isCompleted ? "route_closure" : "route_feedback",
-          userId: followedUserId,
+          userId: feedback.userId,
           userDisplayName: feedback.userDisplayName,
           routeId: routeId,
           routeGrade: routeData.grade,
@@ -672,44 +651,9 @@ export async function getUserActivityFeed(userId) {
           createdAt: feedback.createdAt?.toDate?.() || feedback.updatedAt?.toDate?.() || new Date(),
         });
       });
-    }
+    });
 
-    // 2. Query from legacy subcollections for backwards compatibility
-    for (const followedUserId of following) {
-      for (const routeDoc of routesSnapshot.docs) {
-        const feedbacksRef = collection(db, "routes", routeDoc.id, "feedbacks");
-        const userFeedbackQuery = query(
-          feedbacksRef,
-          where("userId", "==", followedUserId),
-        );
-        const feedbackSnapshot = await getDocs(userFeedbackQuery);
-
-        feedbackSnapshot.forEach((feedbackDoc) => {
-          const uniqueId = `sub_${routeDoc.id}_${feedbackDoc.id}`;
-          if (seenIds.has(uniqueId)) return;
-          seenIds.add(uniqueId);
-          
-          const feedback = feedbackDoc.data();
-          const routeData = routeDoc.data();
-          activities.push({
-            id: uniqueId,
-            type: feedback.closedRoute ? "route_closure" : "route_feedback",
-            userId: followedUserId,
-            userDisplayName: feedback.userDisplayName,
-            routeId: routeDoc.id,
-            routeGrade: routeData.grade,
-            routeName: routeData.name,
-            routeNameHe: routeData.nameHe,
-            routeNameEn: routeData.nameEn,
-            routeColor: routeData.color,
-            feedback: feedback,
-            createdAt: feedback.submittedAt?.toDate?.() || feedback.submittedAt || new Date(),
-          });
-        });
-      }
-    }
-
-    // Sort by date (newest first)
+    // Sort by date (newest first) - should already be sorted
     activities.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     return activities.slice(0, 50); // Return latest 50 activities

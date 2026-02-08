@@ -140,12 +140,16 @@ export const useSelectedRoute = () => useRoutesStore((state) => state.selectedRo
 export const useRoutesLoading = () => useRoutesStore((state) => state.isLoading);
 export const useRoutesError = () => useRoutesStore((state) => state.error);
 
-// Actions
-export const useRoutesActions = () => useRoutesStore((state) => ({
-    initializeRoutes: state.initializeRoutes,
-    selectRoute: state.selectRoute,
-    addRoute: state.addRoute,
-    updateRoute: state.updateRoute,
-    deleteRoute: state.deleteRoute,
-    cleanup: state.cleanup,
-}));
+// Stable actions object - actions never change, so create once at module level
+// This prevents re-renders when using actions
+const routesActions = {
+    initializeRoutes: () => useRoutesStore.getState().initializeRoutes(),
+    selectRoute: (route: RouteDoc | null) => useRoutesStore.getState().selectRoute(route),
+    addRoute: (route: Omit<RouteDoc, 'id'>) => useRoutesStore.getState().addRoute(route),
+    updateRoute: (id: string, updates: Partial<RouteDoc>) => useRoutesStore.getState().updateRoute(id, updates),
+    deleteRoute: (id: string) => useRoutesStore.getState().deleteRoute(id),
+    cleanup: () => useRoutesStore.getState().cleanup(),
+};
+
+// Return stable reference to actions (no re-renders when store updates)
+export const useRoutesActions = () => routesActions;

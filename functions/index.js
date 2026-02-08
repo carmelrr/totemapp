@@ -113,14 +113,34 @@ exports.cleanupExpiredCommunityRoutes = onSchedule(
             batch.delete(likeDoc.ref);
           });
           
-          // 4. Delete the route document
+          // 4. Delete all feedback for this route
+          const feedbackSnapshot = await db
+            .collection("communityRouteFeedback")
+            .where("routeId", "==", routeId)
+            .get();
+          
+          feedbackSnapshot.forEach((feedbackDoc) => {
+            batch.delete(feedbackDoc.ref);
+          });
+          
+          // 5. Delete all sends for this route
+          const sendsSnapshot = await db
+            .collection("communityRouteSends")
+            .where("routeId", "==", routeId)
+            .get();
+          
+          sendsSnapshot.forEach((sendDoc) => {
+            batch.delete(sendDoc.ref);
+          });
+          
+          // 6. Delete the route document
           batch.delete(routeDoc.ref);
           
           // Commit the batch
           await batch.commit();
           
           deletedCount++;
-          logger.info(`Successfully deleted route ${routeId} and ${commentsSnapshot.size} comments, ${likesSnapshot.size} likes`);
+          logger.info(`Successfully deleted route ${routeId} and ${commentsSnapshot.size} comments, ${likesSnapshot.size} likes, ${feedbackSnapshot.size} feedbacks, ${sendsSnapshot.size} sends`);
           
         } catch (routeError) {
           errorCount++;
@@ -183,7 +203,7 @@ exports.manualCleanupExpiredRoutes = onRequest(
             }
           }
           
-          // Delete comments and likes
+          // Delete comments, likes, feedback, and sends
           const batch = db.batch();
           
           const commentsSnapshot = await db
@@ -197,6 +217,18 @@ exports.manualCleanupExpiredRoutes = onRequest(
             .where("routeId", "==", routeId)
             .get();
           likesSnapshot.forEach((doc) => batch.delete(doc.ref));
+          
+          const feedbackSnapshot = await db
+            .collection("communityRouteFeedback")
+            .where("routeId", "==", routeId)
+            .get();
+          feedbackSnapshot.forEach((doc) => batch.delete(doc.ref));
+          
+          const sendsSnapshot = await db
+            .collection("communityRouteSends")
+            .where("routeId", "==", routeId)
+            .get();
+          sendsSnapshot.forEach((doc) => batch.delete(doc.ref));
           
           batch.delete(routeDoc.ref);
           await batch.commit();
@@ -224,6 +256,10 @@ exports.manualCleanupExpiredRoutes = onRequest(
     }
   }
 );
+
+// ==================== OBJ to Top View ====================
+const objToTopView = require("./objToTopView");
+exports.objToTopView = objToTopView.objToTopView;
 
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started

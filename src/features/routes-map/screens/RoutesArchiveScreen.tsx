@@ -19,7 +19,10 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 
 // Theme
-import { useTheme } from '@/features/theme/ThemeContext';
+import { useTheme, lightTheme } from '@/features/theme/ThemeContext';
+import { BrandLogo } from '@/components/ui/BrandLogo';
+
+type Theme = typeof lightTheme;
 
 // Language
 import { useLanguage } from '@/features/language';
@@ -31,6 +34,9 @@ import WallMap from '@/components/WallMap/WallMap';
 import { RouteDoc } from '../types/route';
 import { RoutesService } from '../services/RoutesService';
 
+// Hooks
+import { usePublishedRooms } from '@/features/wall-editor/hooks/usePublishedRooms';
+
 // Colors
 import { getColorHex } from '@/constants/colors';
 
@@ -39,6 +45,11 @@ export default function RoutesArchiveScreen() {
   const { theme } = useTheme();
   const { t } = useLanguage() as { t: any };
   const insets = useSafeAreaInsets();
+  const styles = useMemo(() => createStyles(theme), [theme]);
+
+  // Published rooms for map background
+  const { rooms: publishedRooms } = usePublishedRooms();
+  const room = publishedRooms.length > 0 ? publishedRooms[0] : undefined;
 
   // State
   const [archivedRoutes, setArchivedRoutes] = useState<RouteDoc[]>([]);
@@ -176,13 +187,13 @@ export default function RoutesArchiveScreen() {
 
         {/* Route Stats */}
         <View style={styles.routeStats}>
-          {route.averageStarRating && route.averageStarRating > 0 && (
+          {route.averageStarRating != null && route.averageStarRating > 0 && (
             <View style={styles.statItem}>
               <Text style={styles.statIcon}>⭐</Text>
               <Text style={styles.statValue}>{route.averageStarRating.toFixed(1)}</Text>
             </View>
           )}
-          {route.completionCount && route.completionCount > 0 && (
+          {route.completionCount != null && route.completionCount > 0 && (
             <View style={styles.statItem}>
               <Text style={styles.statIcon}>🏆</Text>
               <Text style={styles.statValue}>{route.completionCount}</Text>
@@ -224,9 +235,9 @@ export default function RoutesArchiveScreen() {
   }, [archivedRoutes, selectedRouteId]);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background }]}>
+    <View style={styles.container}>
       {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 8, backgroundColor: '#374151' }]}>
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => navigation.goBack()}
@@ -235,6 +246,7 @@ export default function RoutesArchiveScreen() {
         </TouchableOpacity>
         
         <View style={styles.headerCenter}>
+          <BrandLogo variant="icon" color="white" size={24} />
           <Ionicons name="trash-bin" size={24} color="#fff" />
           <Text style={styles.headerTitle}>
             {t.archive?.title || 'ארכיון מסלולים'}
@@ -264,11 +276,11 @@ export default function RoutesArchiveScreen() {
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : archivedRoutes.length === 0 ? (
         <View style={styles.emptyState}>
-          <Ionicons name="checkmark-circle" size={64} color="#10B981" />
+          <Ionicons name="checkmark-circle" size={64} color={theme.success} />
           <Text style={styles.emptyTitle}>
             {t.archive?.emptyTitle || 'הארכיון ריק'}
           </Text>
@@ -281,11 +293,12 @@ export default function RoutesArchiveScreen() {
         <View style={styles.mapContainer}>
           <WallMap
             routes={archivedRoutes}
-            wallWidth={2560}
-            wallHeight={1600}
+            wallWidth={room?.width || 2560}
+            wallHeight={room?.height || 1600}
             selectedRouteId={selectedRouteId || undefined}
             onRoutePress={handleRoutePress}
             gesturesEnabled={true}
+            room={room}
           />
           
           {/* Selected route info overlay */}
@@ -330,21 +343,23 @@ export default function RoutesArchiveScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingVertical: 14,
+    backgroundColor: theme.headerGradient,
   },
   backButton: {
     padding: 8,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
   headerCenter: {
     flexDirection: 'row',
@@ -359,12 +374,12 @@ const styles = StyleSheet.create({
   viewModeButton: {
     padding: 8,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
   },
   infoBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EFF6FF',
+    backgroundColor: theme.isDark ? 'rgba(59, 130, 246, 0.15)' : '#EFF6FF',
     paddingHorizontal: 16,
     paddingVertical: 10,
     gap: 8,
@@ -372,7 +387,7 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 14,
-    color: '#3B82F6',
+    color: theme.primary,
   },
   loadingContainer: {
     flex: 1,
@@ -388,12 +403,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#374151',
+    color: theme.text,
     marginTop: 16,
   },
   emptySubtitle: {
     fontSize: 16,
-    color: '#6B7280',
+    color: theme.textSecondary,
     marginTop: 8,
   },
   listContent: {
@@ -401,18 +416,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   routeCard: {
-    backgroundColor: '#fff',
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
   routeCardSelected: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.card,
   },
   routeHeader: {
     flexDirection: 'row',
@@ -425,7 +440,7 @@ const styles = StyleSheet.create({
   routeName: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
+    color: theme.text,
     marginBottom: 6,
   },
   routeMeta: {
@@ -445,24 +460,24 @@ const styles = StyleSheet.create({
   },
   setterText: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
   },
   daysRemaining: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: theme.card,
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
   },
   daysText: {
     fontSize: 13,
-    color: '#6B7280',
+    color: theme.textSecondary,
     fontWeight: '500',
   },
   daysTextUrgent: {
-    color: '#EF4444',
+    color: theme.error,
     fontWeight: '700',
   },
   routeStats: {
@@ -471,7 +486,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: theme.border,
   },
   statItem: {
     flexDirection: 'row',
@@ -483,7 +498,7 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     fontWeight: '500',
   },
   actionButtons: {
@@ -497,7 +512,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#10B981',
+    backgroundColor: theme.success,
     paddingVertical: 12,
     borderRadius: 10,
   },
@@ -512,7 +527,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: '#EF4444',
+    backgroundColor: theme.error,
     paddingVertical: 12,
     borderRadius: 10,
   },
@@ -531,7 +546,7 @@ const styles = StyleSheet.create({
     right: 16,
   },
   overlayContent: {
-    backgroundColor: 'rgba(0,0,0,0.85)',
+    backgroundColor: theme.isDark ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.85)',
     borderRadius: 16,
     padding: 16,
   },
@@ -547,7 +562,7 @@ const styles = StyleSheet.create({
   },
   overlayDays: {
     fontSize: 14,
-    color: '#F59E0B',
+    color: theme.warning,
     marginTop: 8,
   },
   overlayButtons: {
@@ -562,10 +577,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   restoreButtonSmall: {
-    backgroundColor: '#10B981',
+    backgroundColor: theme.success,
   },
   deleteButtonSmall: {
-    backgroundColor: '#EF4444',
+    backgroundColor: theme.error,
   },
   overlayButtonText: {
     color: '#fff',

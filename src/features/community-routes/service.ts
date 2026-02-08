@@ -34,13 +34,17 @@ import {
   CommunityRoute,
   CommunityRouteComment,
   CommunityRouteLike,
+  CommunityRouteFeedback,
   CommunityRouteFilters,
   ROUTE_EXPIRATION_DAYS,
+  V_GRADES,
 } from './types';
 
 const COLLECTION_NAME = 'communityRoutes';
 const COMMENTS_COLLECTION = 'communityRouteComments';
 const LIKES_COLLECTION = 'communityRouteLikes';
+const FEEDBACK_COLLECTION = 'communityRouteFeedback';
+const SENDS_COLLECTION = 'communityRouteSends';
 
 // ==================== Image Upload ====================
 
@@ -256,20 +260,93 @@ export function listenToCommunityRoutes(
   callback: (routes: CommunityRoute[]) => void,
   filters: CommunityRouteFilters = { sortBy: 'newest' }
 ) {
-  let q = query(
+  console.log('🔍 [communityRoutes] Setting up listener for communityRoutes, sortBy:', filters.sortBy);
+  
+  // Base query - only get non-expired routes
+  const q = query(
     collection(db, COLLECTION_NAME),
     where('expiresAt', '>', Timestamp.now()),
-    orderBy('expiresAt', 'asc'), // Need this for the inequality filter
-    orderBy('createdAt', 'desc'),
+    orderBy('expiresAt', 'asc'), // Required for the inequality filter
     limit(50)
   );
   
   return onSnapshot(q, (snapshot: QuerySnapshot) => {
-    const routes: CommunityRoute[] = [];
+    console.log('✅ [communityRoutes] Got communityRoutes snapshot, count:', snapshot.size);
+    let routes: CommunityRoute[] = [];
     snapshot.forEach((d) => {
       routes.push({ id: d.id, ...d.data() } as CommunityRoute);
     });
-    callback(routes);
+    
+    // Apply filters
+    if (filters.filterGrades && filters.filterGrades.length > 0) {
+      routes = routes.filter(r => filters.filterGrades!.includes(r.grade));
+    }
+    if (filters.filterCreators && filters.filterCreators.length > 0) {
+      routes = routes.filter(r => filters.filterCreators!.includes(r.createdBy));
+    }
+    
+    // Helper to get grade index for sorting
+    const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12'];
+    const getGradeIndex = (grade: string) => {
+      const idx = V_GRADES.indexOf(grade);
+      return idx >= 0 ? idx : 0;
+    };
+    
+    // Sort on client side based on filter
+    const sortedRoutes = [...routes];
+    switch (filters.sortBy) {
+      case 'top-rated':
+        // Sort by average star rating (descending)
+        sortedRoutes.sort((a, b) => (b.averageStarRating || 0) - (a.averageStarRating || 0));
+        break;
+      case 'most-sends':
+        // Sort by sent count (descending)
+        sortedRoutes.sort((a, b) => (b.sentCount || 0) - (a.sentCount || 0));
+        break;
+      case 'most-repeats':
+        // Sort by sent count (descending) - same as most-sends but with different UI label
+        sortedRoutes.sort((a, b) => (b.sentCount || 0) - (a.sentCount || 0));
+        break;
+      case 'oldest':
+        // Sort by creation date (ascending - oldest first)
+        sortedRoutes.sort((a, b) => {
+          const aTime = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0;
+          const bTime = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0;
+          return aTime - bTime;
+        });
+        break;
+      case 'easy-to-hard':
+        // Sort by grade (ascending) then by sent count (descending for same grade)
+        sortedRoutes.sort((a, b) => {
+          const gradeA = getGradeIndex(a.grade);
+          const gradeB = getGradeIndex(b.grade);
+          if (gradeA !== gradeB) return gradeA - gradeB;
+          return (b.sentCount || 0) - (a.sentCount || 0);
+        });
+        break;
+      case 'hard-to-easy':
+        // Sort by grade (descending) then by sent count (ascending for same grade)
+        sortedRoutes.sort((a, b) => {
+          const gradeA = getGradeIndex(a.grade);
+          const gradeB = getGradeIndex(b.grade);
+          if (gradeA !== gradeB) return gradeB - gradeA;
+          return (a.sentCount || 0) - (b.sentCount || 0);
+        });
+        break;
+      case 'newest':
+      default:
+        // Sort by creation date (descending - newest first)
+        sortedRoutes.sort((a, b) => {
+          const aTime = a.createdAt instanceof Timestamp ? a.createdAt.toMillis() : 0;
+          const bTime = b.createdAt instanceof Timestamp ? b.createdAt.toMillis() : 0;
+          return bTime - aTime;
+        });
+        break;
+    }
+    
+    callback(sortedRoutes);
+  }, (err) => {
+    console.error('❌ [communityRoutes] Firebase Error on communityRoutes:', err.code, err.message);
   });
 }
 
@@ -283,14 +360,18 @@ export function listenToCommunityRoute(
   routeId: string,
   callback: (route: CommunityRoute | null) => void
 ) {
+  console.log('🔍 [communityRoutes] Setting up listener for single route:', routeId);
   const docRef = doc(db, COLLECTION_NAME, routeId);
   
   return onSnapshot(docRef, (docSnap) => {
+    console.log('✅ [communityRoutes] Got single route doc, exists:', docSnap.exists());
     if (docSnap.exists()) {
       callback({ id: docSnap.id, ...docSnap.data() } as CommunityRoute);
     } else {
       callback(null);
     }
+  }, (err) => {
+    console.error('❌ [communityRoutes] Firebase Error on single route:', err.code, err.message);
   });
 }
 
@@ -343,6 +424,26 @@ export async function deleteCommunityRoute(routeId: string): Promise<void> {
     batch.delete(d.ref);
   });
   
+  // Delete all feedback
+  const feedbackQuery = query(
+    collection(db, FEEDBACK_COLLECTION),
+    where('routeId', '==', routeId)
+  );
+  const feedbackSnapshot = await getDocs(feedbackQuery);
+  feedbackSnapshot.forEach((d) => {
+    batch.delete(d.ref);
+  });
+  
+  // Delete all sends
+  const sendsQuery = query(
+    collection(db, SENDS_COLLECTION),
+    where('routeId', '==', routeId)
+  );
+  const sendsSnapshot = await getDocs(sendsQuery);
+  sendsSnapshot.forEach((d) => {
+    batch.delete(d.ref);
+  });
+  
   // Delete the route document
   batch.delete(doc(db, COLLECTION_NAME, routeId));
   
@@ -354,10 +455,17 @@ export async function deleteCommunityRoute(routeId: string): Promise<void> {
  * Increment view count for a route
  */
 export async function incrementViewCount(routeId: string): Promise<void> {
-  const docRef = doc(db, COLLECTION_NAME, routeId);
-  await updateDoc(docRef, {
-    viewCount: increment(1),
-  });
+  console.log('🔍 [communityRoutes] incrementViewCount for route:', routeId);
+  try {
+    const docRef = doc(db, COLLECTION_NAME, routeId);
+    await updateDoc(docRef, {
+      viewCount: increment(1),
+    });
+    console.log('✅ [communityRoutes] viewCount incremented successfully');
+  } catch (err: any) {
+    console.error('❌ [communityRoutes] Firebase Error on incrementViewCount:', err.code, err.message);
+    throw err;
+  }
 }
 
 // ==================== Likes ====================
@@ -482,7 +590,6 @@ export function isExpiringSoon(expiresAt: any): boolean {
 }
 
 // ==================== Sent (Completed) ====================
-const SENDS_COLLECTION = 'communityRouteSends';
 
 /**
  * Toggle sent status on a route
@@ -491,26 +598,37 @@ export async function toggleSent(
   routeId: string,
   userId: string
 ): Promise<boolean> {
+  console.log('🔍 [communityRoutes] toggleSent for route:', routeId, 'user:', userId);
   const sendId = `${routeId}_${userId}`;
   const sendRef = doc(db, SENDS_COLLECTION, sendId);
   const routeRef = doc(db, COLLECTION_NAME, routeId);
   
-  const sendDoc = await getDoc(sendRef);
-  
-  if (sendDoc.exists()) {
-    // Remove sent
-    await deleteDoc(sendRef);
-    await updateDoc(routeRef, { sentCount: increment(-1) });
-    return false;
-  } else {
-    // Mark as sent
-    await setDoc(sendRef, {
-      routeId,
-      userId,
-      createdAt: serverTimestamp(),
-    });
-    await updateDoc(routeRef, { sentCount: increment(1) });
-    return true;
+  try {
+    const sendDoc = await getDoc(sendRef);
+    
+    if (sendDoc.exists()) {
+      // Remove sent
+      console.log('🔍 [communityRoutes] Removing send document');
+      await deleteDoc(sendRef);
+      await updateDoc(routeRef, { sentCount: increment(-1) });
+      console.log('✅ [communityRoutes] Send removed successfully');
+      return false;
+    } else {
+      // Mark as sent
+      console.log('🔍 [communityRoutes] Creating send document');
+      await setDoc(sendRef, {
+        routeId,
+        userId,
+        createdAt: serverTimestamp(),
+      });
+      console.log('✅ [communityRoutes] Send document created, updating sentCount');
+      await updateDoc(routeRef, { sentCount: increment(1) });
+      console.log('✅ [communityRoutes] sentCount updated successfully');
+      return true;
+    }
+  } catch (err: any) {
+    console.error('❌ [communityRoutes] Firebase Error on toggleSent:', err.code, err.message);
+    throw err;
   }
 }
 
@@ -522,4 +640,246 @@ export async function hasUserSent(routeId: string, userId: string): Promise<bool
   const sendRef = doc(db, SENDS_COLLECTION, sendId);
   const sendDoc = await getDoc(sendRef);
   return sendDoc.exists();
+}
+
+/**
+ * Get all route IDs that a user has sent (completed)
+ */
+export function listenToUserSentRoutes(
+  userId: string,
+  callback: (routeIds: Set<string>) => void
+): () => void {
+  console.log('🔍 [listenToUserSentRoutes] Setting up listener for userId:', userId);
+  
+  const sendsQuery = query(
+    collection(db, SENDS_COLLECTION),
+    where('userId', '==', userId)
+  );
+  
+  return onSnapshot(
+    sendsQuery,
+    (snapshot) => {
+      console.log('✅ [listenToUserSentRoutes] Got snapshot, docs count:', snapshot.size);
+      const routeIds = new Set<string>();
+      snapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        if (data.routeId) {
+          routeIds.add(data.routeId);
+        }
+      });
+      console.log('✅ [listenToUserSentRoutes] Route IDs:', Array.from(routeIds));
+      callback(routeIds);
+    },
+    (error) => {
+      console.error('❌ [communityRoutes] Error listening to user sends:', error.code, error.message);
+      callback(new Set<string>());
+    }
+  );
+}
+
+// ==================== Feedback ====================
+
+/**
+ * Get allowed grades for community rating (±2 from builder's original)
+ */
+export function getAllowedGrades(originalGrade: string): string[] {
+  const originalIndex = V_GRADES.indexOf(originalGrade);
+  if (originalIndex < 0) {
+    return [...V_GRADES];
+  }
+  
+  const minIndex = Math.max(0, originalIndex - 2);
+  const maxIndex = Math.min(V_GRADES.length - 1, originalIndex + 2);
+  
+  return V_GRADES.slice(minIndex, maxIndex + 1);
+}
+
+/**
+ * Add or update feedback for a community route
+ */
+export async function addOrUpdateFeedback(
+  routeId: string,
+  userId: string,
+  userName: string,
+  data: {
+    starRating: number;
+    suggestedGrade: string;
+    comment?: string;
+    videoUrl?: string;
+  }
+): Promise<string> {
+  const feedbackId = `${routeId}_${userId}`;
+  const feedbackRef = doc(db, FEEDBACK_COLLECTION, feedbackId);
+  const existingDoc = await getDoc(feedbackRef);
+  
+  const feedbackData = {
+    routeId,
+    userId,
+    userName,
+    starRating: data.starRating,
+    suggestedGrade: data.suggestedGrade,
+    comment: data.comment || '',
+    videoUrl: data.videoUrl || '',
+    updatedAt: serverTimestamp(),
+  };
+  
+  if (existingDoc.exists()) {
+    // Update existing feedback
+    await updateDoc(feedbackRef, feedbackData);
+    console.log('✅ Community route feedback updated:', feedbackId);
+  } else {
+    // Create new feedback
+    await setDoc(feedbackRef, {
+      ...feedbackData,
+      createdAt: serverTimestamp(),
+    });
+    console.log('✅ Community route feedback created:', feedbackId);
+    
+    // Increment feedback count on route
+    const routeRef = doc(db, COLLECTION_NAME, routeId);
+    await updateDoc(routeRef, { feedbackCount: increment(1) });
+    
+    // Also mark route as sent if not already (giving feedback implies completion)
+    const sendId = `${routeId}_${userId}`;
+    const sendRef = doc(db, SENDS_COLLECTION, sendId);
+    const sendDoc = await getDoc(sendRef);
+    
+    if (!sendDoc.exists()) {
+      await setDoc(sendRef, {
+        routeId,
+        userId,
+        createdAt: serverTimestamp(),
+      });
+      await updateDoc(routeRef, { sentCount: increment(1) });
+      console.log('✅ Route also marked as sent with feedback');
+    }
+  }
+  
+  // Recalculate route stats
+  await recalculateFeedbackStats(routeId);
+  
+  return feedbackId;
+}
+
+/**
+ * Get user's feedback for a specific route
+ */
+export async function getUserFeedback(
+  routeId: string,
+  userId: string
+): Promise<CommunityRouteFeedback | null> {
+  const feedbackId = `${routeId}_${userId}`;
+  const feedbackRef = doc(db, FEEDBACK_COLLECTION, feedbackId);
+  const feedbackDoc = await getDoc(feedbackRef);
+  
+  if (!feedbackDoc.exists()) {
+    return null;
+  }
+  
+  return { id: feedbackDoc.id, ...feedbackDoc.data() } as CommunityRouteFeedback;
+}
+
+/**
+ * Get all feedbacks for a route
+ */
+export async function getRouteFeedbacks(routeId: string): Promise<CommunityRouteFeedback[]> {
+  const q = query(
+    collection(db, FEEDBACK_COLLECTION),
+    where('routeId', '==', routeId),
+    orderBy('createdAt', 'desc')
+  );
+  
+  const snapshot = await getDocs(q);
+  const feedbacks: CommunityRouteFeedback[] = [];
+  snapshot.forEach((d) => {
+    feedbacks.push({ id: d.id, ...d.data() } as CommunityRouteFeedback);
+  });
+  
+  return feedbacks;
+}
+
+/**
+ * Listen to feedbacks for a route in real-time
+ */
+export function listenToRouteFeedbacks(
+  routeId: string,
+  callback: (feedbacks: CommunityRouteFeedback[]) => void
+): () => void {
+  const q = query(
+    collection(db, FEEDBACK_COLLECTION),
+    where('routeId', '==', routeId),
+    orderBy('createdAt', 'desc')
+  );
+  
+  return onSnapshot(q, (snapshot) => {
+    const feedbacks: CommunityRouteFeedback[] = [];
+    snapshot.forEach((d) => {
+      feedbacks.push({ id: d.id, ...d.data() } as CommunityRouteFeedback);
+    });
+    callback(feedbacks);
+  });
+}
+
+/**
+ * Delete user's feedback
+ */
+export async function deleteFeedback(routeId: string, userId: string): Promise<void> {
+  const feedbackId = `${routeId}_${userId}`;
+  const feedbackRef = doc(db, FEEDBACK_COLLECTION, feedbackId);
+  const existingDoc = await getDoc(feedbackRef);
+  
+  if (existingDoc.exists()) {
+    await deleteDoc(feedbackRef);
+    
+    // Decrement feedback count on route
+    const routeRef = doc(db, COLLECTION_NAME, routeId);
+    await updateDoc(routeRef, { feedbackCount: increment(-1) });
+    
+    // Recalculate route stats
+    await recalculateFeedbackStats(routeId);
+    
+    console.log('✅ Community route feedback deleted:', feedbackId);
+  }
+}
+
+/**
+ * Recalculate average star rating and calculated grade for a route
+ */
+async function recalculateFeedbackStats(routeId: string): Promise<void> {
+  const feedbacks = await getRouteFeedbacks(routeId);
+  
+  if (feedbacks.length === 0) {
+    // No feedbacks, reset stats
+    const routeRef = doc(db, COLLECTION_NAME, routeId);
+    await updateDoc(routeRef, {
+      averageStarRating: 0,
+      calculatedGrade: null,
+    });
+    return;
+  }
+  
+  // Calculate average star rating
+  const totalStars = feedbacks.reduce((sum, f) => sum + f.starRating, 0);
+  const averageStarRating = Math.round((totalStars / feedbacks.length) * 10) / 10;
+  
+  // Calculate consensus grade using median
+  const gradeIndices = feedbacks
+    .map(f => V_GRADES.indexOf(f.suggestedGrade))
+    .filter(i => i >= 0)
+    .sort((a, b) => a - b);
+  
+  let calculatedGrade: string | null = null;
+  if (gradeIndices.length > 0) {
+    const medianIndex = Math.floor(gradeIndices.length / 2);
+    calculatedGrade = V_GRADES[gradeIndices[medianIndex]];
+  }
+  
+  // Update route document
+  const routeRef = doc(db, COLLECTION_NAME, routeId);
+  await updateDoc(routeRef, {
+    averageStarRating,
+    calculatedGrade,
+  });
+  
+  console.log('✅ Community route feedback stats recalculated:', routeId, { averageStarRating, calculatedGrade });
 }

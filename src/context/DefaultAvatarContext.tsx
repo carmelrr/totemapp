@@ -1,7 +1,7 @@
 // src/context/DefaultAvatarContext.tsx
 // Context for managing the default avatar image that admins can set
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useMemo, useCallback } from 'react';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { db, storage } from '@/features/data/firebase';
@@ -37,9 +37,11 @@ export function DefaultAvatarProvider({ children }: DefaultAvatarProviderProps) 
 
   // Listen to changes in the default avatar setting
   useEffect(() => {
+    console.log('🔍 [DefaultAvatarContext] Setting up listener for settings/app');
     const unsubscribe = onSnapshot(
       doc(db, SETTINGS_DOC),
       (docSnapshot) => {
+        console.log('✅ [DefaultAvatarContext] Got settings/app doc, exists:', docSnapshot.exists());
         if (docSnapshot.exists()) {
           const data = docSnapshot.data();
           setDefaultAvatarUrl(data?.defaultAvatarUrl || null);
@@ -49,7 +51,7 @@ export function DefaultAvatarProvider({ children }: DefaultAvatarProviderProps) 
         setLoading(false);
       },
       (error) => {
-        console.error('Error listening to default avatar:', error);
+        console.error('❌ [DefaultAvatarContext] Firebase Error on settings/app:', error.code, error.message);
         setLoading(false);
       }
     );
@@ -115,8 +117,6 @@ export function DefaultAvatarProvider({ children }: DefaultAvatarProviderProps) 
         { defaultAvatarUrl: downloadUrl },
         { merge: true }
       );
-
-      Alert.alert('הצלחה', 'תמונת ברירת המחדל עודכנה בהצלחה');
     } catch (error) {
       console.error('Error uploading default avatar:', error);
       Alert.alert('שגיאה', 'אירעה שגיאה בהעלאת התמונה');
@@ -142,23 +142,22 @@ export function DefaultAvatarProvider({ children }: DefaultAvatarProviderProps) 
         { defaultAvatarUrl: null },
         { merge: true }
       );
-
-      Alert.alert('הצלחה', 'תמונת ברירת המחדל הוסרה');
     } catch (error) {
       console.error('Error removing default avatar:', error);
       Alert.alert('שגיאה', 'אירעה שגיאה בהסרת התמונה');
     }
   };
 
+  // Memoize context value to prevent unnecessary re-renders of consumers
+  const value = useMemo(() => ({
+    defaultAvatarUrl,
+    loading,
+    uploadDefaultAvatar,
+    removeDefaultAvatar,
+  }), [defaultAvatarUrl, loading]);
+
   return (
-    <DefaultAvatarContext.Provider
-      value={{
-        defaultAvatarUrl,
-        loading,
-        uploadDefaultAvatar,
-        removeDefaultAvatar,
-      }}
-    >
+    <DefaultAvatarContext.Provider value={value}>
       {children}
     </DefaultAvatarContext.Provider>
   );

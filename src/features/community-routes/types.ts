@@ -41,6 +41,9 @@ export interface CommunityRoute {
   likeCount?: number;         // Number of likes
   commentCount?: number;      // Number of comments
   sentCount?: number;         // Number of users who sent this route
+  feedbackCount?: number;     // Number of feedback submissions
+  averageStarRating?: number; // Average star rating from feedback
+  calculatedGrade?: string;   // Community calculated grade from feedback
   
   // Tags for filtering
   tags?: string[];            // e.g., ["overhang", "crimpy", "slab"]
@@ -68,6 +71,24 @@ export interface CommunityRouteLike {
 }
 
 /**
+ * Community Route Feedback - user rating and grade suggestion
+ */
+export interface CommunityRouteFeedback {
+  id?: string;
+  routeId: string;
+  userId: string;
+  userName: string;
+  starRating: number;           // 1-5 stars
+  suggestedGrade: string;       // V-grade suggestion
+  comment?: string;
+  videoUrl?: string;
+  createdAt: any;
+  updatedAt?: any;
+}
+
+export type CompletionFilter = 'all' | 'completed' | 'not-completed';
+
+/**
  * Filter options for community routes list
  */
 export interface CommunityRouteFilters {
@@ -75,8 +96,11 @@ export interface CommunityRouteFilters {
   minGrade?: string;
   maxGrade?: string;
   tags?: string[];
-  sortBy: 'newest' | 'popular' | 'expiring-soon';
+  sortBy: 'newest' | 'oldest' | 'top-rated' | 'most-sends' | 'easy-to-hard' | 'hard-to-easy';
   createdByMe?: boolean;
+  filterGrades?: string[];
+  filterCreators?: string[];
+  completionStatus?: CompletionFilter;
 }
 
 /**

@@ -38,6 +38,7 @@ import { NATIONAL_LEAGUE_GRADE_POINTS } from '@/features/competitions/constants'
 import { ParticipantService } from '@/features/competitions/services/ParticipantService';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/features/data/firebase';
+import { CachedAvatar } from '@/components/ui/CachedAvatar';
 
 export default function JudgeEntryScreen() {
   const { theme } = useTheme();
@@ -419,11 +420,12 @@ export default function JudgeEntryScreen() {
         ]}
         onPress={() => setSelectedParticipant(item)}
       >
-        <View style={styles.participantAvatar}>
-          <Text style={styles.participantAvatarText}>
-            {item.userName.charAt(0).toUpperCase()}
-          </Text>
-        </View>
+        <CachedAvatar
+          photoURL={item.photoURL}
+          displayName={item.userName}
+          size={32}
+          showBorder={true}
+        />
         <Text style={[
           styles.participantName,
           isSelected && styles.participantNameSelected,
@@ -733,7 +735,7 @@ const createStyles = (theme: any) =>
       textAlign: 'center',
     },
     backBtn: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingHorizontal: 24,
       paddingVertical: 12,
       borderRadius: 8,

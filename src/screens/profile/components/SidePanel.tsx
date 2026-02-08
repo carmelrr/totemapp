@@ -6,19 +6,18 @@ import {
   ScrollView,
   Animated,
   TextInput,
-  Image,
-  Switch,
   Alert,
   ActivityIndicator,
 } from "react-native";
+import { Image as ExpoImage } from "expo-image";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage, Language } from "@/features/language";
 import { useDefaultAvatar } from "@/context/DefaultAvatarContext";
+import { useUser } from "@/features/auth/UserContext";
 import { createStyles } from "../styles";
 import { RouteStatsService } from "@/features/routes-map/services/RouteStatsService";
+import { CachedAvatar } from "@/components/ui/CachedAvatar";
 import type { PrivacySettings } from "../types";
-
-const defaultAvatar = require("@/assets/splash.png");
 
 interface SidePanelProps {
   visible: boolean;
@@ -43,6 +42,7 @@ interface SidePanelProps {
   onAdminPanel?: () => void;
   onRolesManagement?: () => void;
   onAnnouncementsManagement?: () => void;
+  onWallEditor?: () => void;
   isAdmin?: boolean;
   adminModeEnabled?: boolean;
   onAdminModeToggle?: () => void;
@@ -73,6 +73,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onAdminPanel,
   onRolesManagement,
   onAnnouncementsManagement,
+  onWallEditor,
   isAdmin,
   adminModeEnabled,
   onAdminModeToggle,
@@ -88,12 +89,12 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   // Function to recalculate all route statistics and names
   const handleRecalculateRoutes = async () => {
     Alert.alert(
-      "רענון חישובי מסלולים",
-      "האם אתה בטוח? פעולה זו תחשב מחדש את ממוצעי הקהל ותעדכן שמות מסלולים בשתי השפות.",
+      "רענון נתוני מסלולים",
+      "בחר את הפעולה הרצויה:",
       [
         { text: "ביטול", style: "cancel" },
         {
-          text: "אישור",
+          text: "רענון חישובים",
           onPress: async () => {
             setIsRecalculating(true);
             try {
@@ -115,6 +116,29 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             }
           },
         },
+        {
+          text: "סנכרון פילטר סגירות",
+          onPress: async () => {
+            setIsRecalculating(true);
+            try {
+              const [sprayResult, communityResult, mapResult] = await Promise.all([
+                RouteStatsService.syncSprayRouteSends(),
+                RouteStatsService.syncCommunityRouteSends(),
+                RouteStatsService.syncRouteFeedbacksToUserRoutes(),
+              ]);
+              
+              Alert.alert(
+                "הושלם!",
+                `SprayWall: סונכרנו ${sprayResult.success} רשומות${sprayResult.failed > 0 ? `, ${sprayResult.failed} נכשלו` : ""}\n\nמסלולי קהילה: ${communityResult.success} רשומות קיימות\n\nמפת מסלולים: סונכרנו ${mapResult.success} מסלולים${mapResult.failed > 0 ? `, ${mapResult.failed} נכשלו` : ""}`
+              );
+            } catch (error) {
+              console.error("Error syncing sends:", error);
+              Alert.alert("שגיאה", "אירעה שגיאה בסנכרון פילטרים");
+            } finally {
+              setIsRecalculating(false);
+            }
+          },
+        },
       ]
     );
   };
@@ -126,6 +150,8 @@ export const SidePanel: React.FC<SidePanelProps> = ({
     { size: 12, labelKey: "medium" as const, color: "#2ecc71" },
     { size: 20, labelKey: "large" as const, color: "#e74c3c" },
   ];
+
+
 
   const renderCircleSize = (sizeData: { size: number; labelKey: "small" | "medium" | "large"; color: string }) => (
     <TouchableOpacity
@@ -187,9 +213,11 @@ export const SidePanel: React.FC<SidePanelProps> = ({
           >
             {/* Avatar Section */}
             <View style={styles.avatarSection}>
-              <Image
-                source={user?.photoURL ? { uri: user.photoURL } : defaultAvatar}
-                style={styles.sideAvatar as any}
+              <CachedAvatar
+                photoURL={user?.photoURL}
+                displayName={user?.displayName}
+                size={100}
+                showBorder={true}
               />
               <View style={styles.avatarButtons}>
                 <TouchableOpacity 
@@ -372,9 +400,12 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                   <Text style={styles.defaultAvatarTitle}>{t.admin.defaultAvatar || 'תמונת פרופיל ברירת מחדל'}</Text>
                   <View style={styles.defaultAvatarPreview}>
                     {defaultAvatarUrl ? (
-                      <Image
+                      <ExpoImage
                         source={{ uri: defaultAvatarUrl }}
                         style={styles.defaultAvatarImage}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        transition={200}
                       />
                     ) : (
                       <View style={styles.defaultAvatarPlaceholder}>
@@ -424,6 +455,18 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                       onPress={onRolesManagement}
                     >
                       <Text style={styles.adminButtonText}>{t.admin.rolesManagement}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Wall Editor Button */}
+                {onWallEditor && (
+                  <View style={styles.adminButtons}>
+                    <TouchableOpacity
+                      style={[styles.adminButton, { backgroundColor: '#00BCD4' }]}
+                      onPress={onWallEditor}
+                    >
+                      <Text style={styles.adminButtonText}>עורך קירות</Text>
                     </TouchableOpacity>
                   </View>
                 )}

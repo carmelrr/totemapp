@@ -132,11 +132,15 @@ export async function getWallsOnce(): Promise<Wall[]> {
 }
 
 export function listenToWalls(callback: (walls: Wall[]) => void) {
+  console.log('🔍 [wallsService] Setting up listener for walls collection');
   const q = query(collection(db, "walls"), orderBy("createdAt", "desc"));
   return onSnapshot(q, (snapshot: QuerySnapshot) => {
+    console.log('✅ [wallsService] Got walls snapshot, count:', snapshot.size);
     const walls: Wall[] = [];
     snapshot.forEach((d) => walls.push({ id: d.id, ...(d.data() as DocumentData) } as Wall));
     callback(walls);
+  }, (err) => {
+    console.error('❌ [wallsService] Firebase Error on walls:', err.code, err.message);
   });
 }
 

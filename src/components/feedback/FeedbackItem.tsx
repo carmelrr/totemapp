@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { StarRatingInput } from './StarRatingInput';
 import { VideoLinkButton } from './VideoLinkButton';
+import { CachedAvatar } from '@/components/ui/CachedAvatar';
 import { getTextAlign, formatDisplayName } from '@/utils/textUtils';
 import { useLanguage } from '@/features/language';
 
@@ -9,6 +10,7 @@ interface FeedbackItemProps {
     feedback: {
         id: string;
         userDisplayName?: string;
+        userPhotoURL?: string;
         starRating: number;
         suggestedGrade?: string;
         comment?: string;
@@ -22,7 +24,7 @@ interface FeedbackItemProps {
     onDelete?: (feedbackId: string) => void;
 }
 
-export const FeedbackItem: React.FC<FeedbackItemProps> = ({
+export const FeedbackItem = React.memo<FeedbackItemProps>(({
     feedback,
     currentUserId,
     isAdmin = false,
@@ -71,6 +73,12 @@ export const FeedbackItem: React.FC<FeedbackItemProps> = ({
         <View style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
+                <CachedAvatar
+                    photoURL={feedback.userPhotoURL}
+                    displayName={feedback.userDisplayName}
+                    size={40}
+                    showBorder={true}
+                />
                 <View style={styles.userInfo}>
                     <Text style={styles.userName}>
                         {formatDisplayName(feedback.userDisplayName)}
@@ -140,7 +148,7 @@ export const FeedbackItem: React.FC<FeedbackItemProps> = ({
             )}
         </View>
     );
-};
+});
 
 const styles = StyleSheet.create({
     container: {
@@ -156,9 +164,11 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'flex-start',
         marginBottom: 12,
+        gap: 12,
     },
     userInfo: {
         flex: 1,
+        marginLeft: 8,
     },
     userName: {
         fontSize: 16,

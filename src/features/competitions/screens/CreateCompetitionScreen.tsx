@@ -1,4 +1,4 @@
-/**
+﻿/**
  * @fileoverview Create Competition Screen (Admin)
  * @description Form for creating a new competition
  */
@@ -123,10 +123,10 @@ export default function CreateCompetitionScreen() {
         createdBy: user.uid,
         categories: enableCategories ? [
           // Default categories
-          { id: 'male_open', name: 'גברים', type: 'gender', value: 'male' },
-          { id: 'female_open', name: 'נשים', type: 'gender', value: 'female' },
-          { id: 'youth', name: 'נוער (עד 18)', type: 'age', minAge: 0, maxAge: 18 },
-          { id: 'adults', name: 'בוגרים (18+)', type: 'age', minAge: 18, maxAge: 99 },
+          { id: 'male_open', name: t.competitionExt.categoryMaleOpen, type: 'gender', value: 'male' },
+          { id: 'female_open', name: t.competitionExt.categoryFemaleOpen, type: 'gender', value: 'female' },
+          { id: 'youth', name: t.competitionExt.categoryYouth, type: 'age', minAge: 0, maxAge: 18 },
+          { id: 'adults', name: t.competitionExt.categoryAdults, type: 'age', minAge: 18, maxAge: 99 },
         ] : [],
       });
 
@@ -321,7 +321,7 @@ export default function CreateCompetitionScreen() {
                         }
                       }}
                       minimumDate={new Date()}
-                      locale="he-IL"
+                      locale={language === 'he' ? 'he-IL' : 'en-US'}
                       style={{ height: 200 }}
                     />
                   </View>
@@ -357,11 +357,11 @@ export default function CreateCompetitionScreen() {
                   <View style={styles.datePickerModalContent}>
                     <View style={styles.datePickerModalHeader}>
                       <TouchableOpacity onPress={() => setShowEndPicker(false)}>
-                        <Text style={styles.datePickerCancelText}>ביטול</Text>
+                        <Text style={styles.datePickerCancelText}>{t.common.cancel}</Text>
                       </TouchableOpacity>
-                      <Text style={styles.datePickerTitle}>בחר תאריך סיום</Text>
+                      <Text style={styles.datePickerTitle}>{t.competitionExt.selectEndDate}</Text>
                       <TouchableOpacity onPress={() => setShowEndPicker(false)}>
-                        <Text style={[styles.datePickerCancelText, { color: theme.primary }]}>אישור</Text>
+                        <Text style={[styles.datePickerCancelText, { color: theme.primary }]}>{t.common.confirm}</Text>
                       </TouchableOpacity>
                     </View>
                     <DateTimePicker
@@ -374,7 +374,7 @@ export default function CreateCompetitionScreen() {
                         }
                       }}
                       minimumDate={new Date(startDate.getTime() + 24 * 60 * 60 * 1000)}
-                      locale="he-IL"
+                      locale={language === 'he' ? 'he-IL' : 'en-US'}
                       style={{ height: 200 }}
                     />
                   </View>
@@ -385,11 +385,11 @@ export default function CreateCompetitionScreen() {
 
           {/* Advanced Settings */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>הגדרות מתקדמות</Text>
+            <Text style={styles.sectionTitle}>{t.competitionExt.advancedSettings}</Text>
             
             <View style={styles.settingsGrid}>
               <View style={styles.settingItem}>
-                <Text style={styles.settingLabel}>מספר מסלולים</Text>
+                <Text style={styles.settingLabel}>{t.competitionExt.numberOfRoutes}</Text>
                 <TextInput
                   style={styles.settingInput}
                   value={maxRoutes}
@@ -400,7 +400,7 @@ export default function CreateCompetitionScreen() {
               </View>
 
               <View style={styles.settingItem}>
-                <Text style={styles.settingLabel}>TOP לניקוד</Text>
+                <Text style={styles.settingLabel}>{t.competitionExt.topForScoring}</Text>
                 <TextInput
                   style={styles.settingInput}
                   value={topRoutes}
@@ -411,7 +411,7 @@ export default function CreateCompetitionScreen() {
               </View>
 
               <View style={styles.settingItem}>
-                <Text style={styles.settingLabel}>קנס ניסיון</Text>
+                <Text style={styles.settingLabel}>{t.competitionExt.attemptPenaltyLabel}</Text>
                 <TextInput
                   style={styles.settingInput}
                   value={attemptPenalty}
@@ -422,7 +422,7 @@ export default function CreateCompetitionScreen() {
               </View>
 
               <View style={styles.settingItem}>
-                <Text style={styles.settingLabel}>מקס. ניסיונות</Text>
+                <Text style={styles.settingLabel}>{t.competitionExt.maxAttemptsLabel}</Text>
                 <TextInput
                   style={styles.settingInput}
                   value={maxAttempts}
@@ -443,7 +443,7 @@ export default function CreateCompetitionScreen() {
                 size={24}
                 color={enableCategories ? theme.primary : theme.textSecondary}
               />
-              <Text style={styles.toggleLabel}>אפשר קטגוריות (גיל, מגדר)</Text>
+              <Text style={styles.toggleLabel}>{t.competitionExt.enableCategoriesToggle}</Text>
             </TouchableOpacity>
           </View>
 
@@ -458,7 +458,7 @@ export default function CreateCompetitionScreen() {
             ) : (
               <>
                 <Ionicons name="trophy" size={24} color="#fff" />
-                <Text style={styles.submitButtonText}>צור תחרות</Text>
+                <Text style={styles.submitButtonText}>{t.competitionExt.createCompetitionButton}</Text>
               </>
             )}
           </TouchableOpacity>
@@ -639,7 +639,7 @@ const createStyles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingVertical: 16,
       borderRadius: 12,
       gap: 8,
@@ -675,7 +675,7 @@ const createStyles = (theme: any) =>
     },
     datePickerBtn: {
       flex: 1,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingVertical: 12,
       paddingHorizontal: 16,
       borderRadius: 8,
@@ -707,7 +707,7 @@ const createStyles = (theme: any) =>
       paddingBottom: 34,
     },
     datePickerModalHeader: {
-      flexDirection: 'row-reverse',
+      flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
       paddingHorizontal: 16,

@@ -1,6 +1,6 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { View, StyleSheet, LayoutChangeEvent, Vibration } from 'react-native';
-import Animated, { runOnJS } from 'react-native-reanimated';
+import React, { useState, useCallback, useMemo, useImperativeHandle, forwardRef } from 'react';
+import { View, StyleSheet, LayoutChangeEvent, Vibration, TouchableOpacity, Text } from 'react-native';
+import Animated, { runOnJS, useAnimatedStyle, SharedValue, interpolate, Extrapolation } from 'react-native-reanimated';
 import { 
   GestureDetector,
   Gesture,
@@ -8,8 +8,179 @@ import {
 import { useFocusEffect } from '@react-navigation/native';
 import { useMapTransforms } from '@/hooks/useMapTransforms';
 import { RouteDoc } from '@/features/routes-map/types/route';
-import WallMapSVG from '@/assets/WallMapSVG';
+import { DynamicWallMap } from '@/features/wall-editor/components';
+import { Room, Sector } from '@/features/wall-editor/types';
 import RouteCircle from './RouteCircle';
+
+/**
+ * Individual sector label button that tracks the map transform
+ * Rendered OUTSIDE the GestureDetector so touches work properly
+ */
+interface SectorLabelButtonProps {
+  sector: Sector;
+  scale: SharedValue<number>;
+  translateX: SharedValue<number>;
+  translateY: SharedValue<number>;
+  imgW: number;
+  imgH: number;
+  wallWidth: number;
+  wallHeight: number;
+  onPress?: (sector: Sector) => void;
+  isActive?: boolean;
+}
+
+function SectorLabelButton({
+  sector,
+  scale,
+  translateX,
+  translateY,
+  imgW,
+  imgH,
+  wallWidth,
+  wallHeight,
+  onPress,
+  isActive = false,
+}: SectorLabelButtonProps) {
+  const labelOffset = sector.labelOffset || { x: 0, y: 0 };
+  const labelOpacity = sector.labelOpacity ?? 1;
+  const baseFontSize = sector.labelFontSize || 14;
+  
+  // Scale font size from room coords to image coords
+  const fontScale = imgW / wallWidth;
+  const fontSize = baseFontSize * fontScale;
+  const paddingH = 10 * fontScale;
+  const paddingV = 4 * fontScale;
+  
+  // Label position in image coordinates
+  const scaleX = imgW / wallWidth;
+  const scaleY = imgH / wallHeight;
+  const labelImgX = (sector.bounds.x + sector.bounds.width / 2 + labelOffset.x) * scaleX;
+  const labelImgY = (sector.bounds.y + sector.bounds.height / 2 + labelOffset.y) * scaleY;
+  
+  // Image center for transform calculations
+  const imgCenterX = imgW / 2;
+  const imgCenterY = imgH / 2;
+  
+  // Estimate button size for centering
+  const estimatedWidth = sector.name.length * fontSize * 0.7 + paddingH * 2;
+  const estimatedHeight = fontSize + paddingV * 2;
+  
+  // Animated style: position the label based on current map transform
+  // Transform model: screenPos = (imagePos - imgCenter) * scale + imgCenter + translate
+  const animatedStyle = useAnimatedStyle(() => {
+    const s = scale.value;
+    const tx = translateX.value;
+    const ty = translateY.value;
+    
+    const screenX = (labelImgX - imgCenterX) * s + imgCenterX + tx;
+    const screenY = (labelImgY - imgCenterY) * s + imgCenterY + ty;
+    
+    return {
+      left: screenX - estimatedWidth / 2,
+      top: screenY - estimatedHeight / 2,
+    };
+  }, [labelImgX, labelImgY, imgCenterX, imgCenterY, estimatedWidth, estimatedHeight]);
+  
+  return (
+    <Animated.View
+      style={[
+        {
+          position: 'absolute',
+          zIndex: 1000,
+        },
+        animatedStyle,
+      ]}
+    >
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => {
+          onPress?.(sector);
+        }}
+        style={{
+          backgroundColor: sector.color,
+          paddingHorizontal: paddingH,
+          paddingVertical: paddingV,
+          borderRadius: estimatedHeight / 2,
+          opacity: isActive ? 1 : labelOpacity,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: isActive ? 0.6 : 0.4,
+          shadowRadius: isActive ? 6 : 4,
+          elevation: isActive ? 15 : 10,
+          borderWidth: isActive ? 3 : 0,
+          borderColor: '#fff',
+          transform: isActive ? [{ scale: 1.1 }] : [],
+        }}
+      >
+        <Text style={{ color: '#fff', fontWeight: '700', fontSize }}>
+          {sector.name}
+        </Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
+
+/**
+ * Animated overlay for sector labels — uses the scale shared value directly
+ * to hide labels when zoomed past 1.8, preventing flicker when the bottom panel
+ * is dragged (which can cause React state to lag behind the actual zoom level).
+ */
+interface SectorLabelsOverlayProps {
+  sectors: Sector[];
+  scale: SharedValue<number>;
+  translateX: SharedValue<number>;
+  translateY: SharedValue<number>;
+  imgW: number;
+  imgH: number;
+  wallWidth: number;
+  wallHeight: number;
+  onSectorPress?: (sector: Sector) => void;
+  activeSectorId?: string | null;
+}
+
+function SectorLabelsOverlay({
+  sectors,
+  scale,
+  translateX,
+  translateY,
+  imgW,
+  imgH,
+  wallWidth,
+  wallHeight,
+  onSectorPress,
+  activeSectorId,
+}: SectorLabelsOverlayProps) {
+  // Animated opacity: fully visible when scale <= 1.6, fully hidden when scale >= 1.8
+  const overlayAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      scale.value,
+      [1.6, 1.8],
+      [1, 0],
+      Extrapolation.CLAMP
+    );
+    return { opacity, pointerEvents: opacity < 0.1 ? 'none' : 'box-none' } as any;
+  });
+
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 1000 }, overlayAnimatedStyle]} pointerEvents="box-none">
+      {sectors.map(sector => (
+        <SectorLabelButton
+          key={sector.id}
+          sector={sector}
+          scale={scale}
+          translateX={translateX}
+          translateY={translateY}
+          imgW={imgW}
+          imgH={imgH}
+          wallWidth={wallWidth}
+          wallHeight={wallHeight}
+          onPress={onSectorPress}
+          isActive={activeSectorId === sector.id}
+        />
+      ))}
+    </Animated.View>
+  );
+}
 
 interface WallMapProps {
   routes: RouteDoc[];
@@ -24,13 +195,33 @@ interface WallMapProps {
   gesturesEnabled?: boolean;
   onGestureStateChange?: (enabled: boolean) => void;
   onTransformChange?: (transform: { scale: number; translateX: number; translateY: number }) => void;
+  /** Room data for rendering the dynamic wall map */
+  room?: Room;
+  /** Show sector labels as interactive overlay buttons (default false) */
+  showSectorLabels?: boolean;
+  /** Called when a sector label button is pressed */
+  onSectorPress?: (sector: Sector) => void;
+  /** Currently active (selected) sector ID for highlighting */
+  activeSectorId?: string | null;
+  /** Bottom inset for centering (e.g., panel height) */
+  centeringBottomInset?: number;
+}
+
+// Ref type for external control
+export interface WallMapRef {
+  setZoom: (scale: number) => void;
+  getZoom: () => number;
+  getMinScale: () => number;
+  getMaxScale: () => number;
+  /** Zoom and pan to fit a rectangle (in room coordinates) in view */
+  zoomToSector: (bounds: { x: number; y: number; width: number; height: number }) => void;
 }
 
 /**
  * המפה האינטראקטיבית הראשית עם Pan/Zoom ומסלולים
  * משתמשת בקואורדינטות תמונה (xImg, yImg) כמקור האמת
  */
-export default function WallMap({
+const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap({
   routes,
   wallWidth,
   wallHeight,
@@ -43,7 +234,12 @@ export default function WallMap({
   gesturesEnabled = true,
   onGestureStateChange,
   onTransformChange,
-}: WallMapProps) {
+  room,
+  showSectorLabels = false,
+  onSectorPress,
+  activeSectorId = null,
+  centeringBottomInset = 0,
+}, ref) {
   const [containerDimensions, setContainerDimensions] = useState({
     width: 0,
     height: 0,
@@ -73,7 +269,37 @@ export default function WallMap({
     imageWidth: imageDimensions.imgW,
     imageHeight: imageDimensions.imgH,
     onTransformChange,
+    initialVerticalPosition: 'center',
+    centeringBottomInset,
   });
+
+  // Expose zoom control methods via ref
+  useImperativeHandle(ref, () => ({
+    setZoom: (newScale: number) => {
+      if (transforms?.setZoomToCenter) {
+        transforms.setZoomToCenter(newScale);
+      }
+    },
+    getZoom: () => transforms?.scale?.value ?? 1,
+    getMinScale: () => transforms?.minScale ?? 1,
+    getMaxScale: () => transforms?.maxScale ?? 8,
+    zoomToSector: (bounds: { x: number; y: number; width: number; height: number }) => {
+      if (!transforms?.zoomToRect || imageDimensions.imgW === 0) {
+        return;
+      }
+      // Convert room coordinates to image coordinates
+      // SVG viewBox maps room coords -> image pixels
+      const scaleX = imageDimensions.imgW / wallWidth;
+      const scaleY = imageDimensions.imgH / wallHeight;
+      const imgRect = {
+        x: bounds.x * scaleX,
+        y: bounds.y * scaleY,
+        width: bounds.width * scaleX,
+        height: bounds.height * scaleY,
+      };
+      transforms.zoomToRect(imgRect, 0.15, { verticalAlign: 'top' });
+    },
+  }), [transforms, imageDimensions, wallWidth, wallHeight]);
 
   // חישוב מידות התמונה בהתאם לאספקט רטיו של הקיר
   const wallAspectRatio = wallHeight / wallWidth;
@@ -98,6 +324,19 @@ export default function WallMap({
     }
   }, [containerDimensions, wallAspectRatio]);
 
+  // Recompute image dimensions when wallAspectRatio changes (e.g., room loads after mount)
+  React.useEffect(() => {
+    if (containerDimensions.width > 0 && containerDimensions.height > 0) {
+      let imgW = containerDimensions.width;
+      let imgH = containerDimensions.width * wallAspectRatio;
+      if (imgH > containerDimensions.height) {
+        imgH = containerDimensions.height;
+        imgW = containerDimensions.height / wallAspectRatio;
+      }
+      setImageDimensions({ imgW, imgH });
+    }
+  }, [wallAspectRatio, containerDimensions.width, containerDimensions.height]);
+
   // המרת קואורדינטות מסך לקואורדינטות תמונה
   const screenToImage = useCallback((screenX: number, screenY: number) => {
     if (!transforms) {
@@ -110,68 +349,58 @@ export default function WallMap({
     const translateX = transforms.translateX.value;
     const translateY = transforms.translateY.value;
     
+    // Image center for transform calculations
+    const imgCenterX = imageDimensions.imgW / 2;
+    const imgCenterY = imageDimensions.imgH / 2;
+    
     // Calculate image coordinates considering the current pan and zoom
-    const xImg = (screenX - translateX) / scale;
-    const yImg = (screenY - translateY) / scale;
+    // Transform model: screenPos = (imagePos - imgCenter) * scale + imgCenter + translate
+    // To invert: imagePos = (screenPos - imgCenter - translate) / scale + imgCenter
+    const xImg = (screenX - imgCenterX - translateX) / scale + imgCenterX;
+    const yImg = (screenY - imgCenterY - translateY) / scale + imgCenterY;
     
     return { xImg, yImg };
-  }, [transforms]);
-
-  // Log when onMapTap changes
-  React.useEffect(() => {
-    console.log('[WallMap] onMapTap changed, exists:', !!onMapTap);
-  }, [onMapTap]);
+  }, [transforms, imageDimensions]);
 
   // Callback wrapper that can be called via runOnJS
   const handleMapTapCallback = useCallback((screenX: number, screenY: number) => {
-    console.log('[WallMap] handleMapTapCallback called with:', screenX, screenY);
-    console.log('[WallMap] onMapTap exists:', !!onMapTap);
-    
     if (!onMapTap) return;
     
     try {
       // Validate input coordinates
       if (typeof screenX !== 'number' || typeof screenY !== 'number' || 
           isNaN(screenX) || isNaN(screenY)) {
-        console.error('[WallMap] Invalid screen coordinates:', { screenX, screenY });
         return;
       }
       
-      console.log('[WallMap] transforms:', { 
-        scale: transforms.scale.value, 
-        translateX: transforms.translateX.value, 
-        translateY: transforms.translateY.value 
-      });
-      console.log('[WallMap] imageDimensions:', imageDimensions);
-      
-      // Convert screen coordinates to image coordinates
-      // Need to account for current transform state
-      const scale = transforms.scale.value;
-      const translateX = transforms.translateX.value;
-      const translateY = transforms.translateY.value;
+      // Read current transform values from shared values
+      const currentScale = transforms?.scale?.value ?? 0;
+      const currentTranslateX = transforms?.translateX?.value ?? 0;
+      const currentTranslateY = transforms?.translateY?.value ?? 0;
       
       // Validate transform values
-      if (isNaN(scale) || isNaN(translateX) || isNaN(translateY) || scale === 0) {
-        console.error('[WallMap] Invalid transform values:', { scale, translateX, translateY });
+      if (isNaN(currentScale) || isNaN(currentTranslateX) || isNaN(currentTranslateY) || currentScale === 0) {
         return;
       }
       
+      // Image center for transform calculations
+      const imgCenterX = imageDimensions.imgW / 2;
+      const imgCenterY = imageDimensions.imgH / 2;
+      
       // Calculate image coordinates considering the current pan and zoom
-      const imageX = (screenX - translateX) / scale;
-      const imageY = (screenY - translateY) / scale;
+      // Transform model: screenPos = (imagePos - imgCenter) * scale + imgCenter + translate
+      // To invert: imagePos = (screenPos - imgCenter - translate) / scale + imgCenter
+      const imageX = (screenX - imgCenterX - currentTranslateX) / currentScale + imgCenterX;
+      const imageY = (screenY - imgCenterY - currentTranslateY) / currentScale + imgCenterY;
       
       // Validate calculated coordinates
       if (isNaN(imageX) || isNaN(imageY)) {
-        console.error('[WallMap] Invalid calculated coordinates:', { imageX, imageY });
         return;
       }
       
-      console.log('[WallMap] Converted to image coordinates:', { imageX, imageY });
-      
       onMapTap({ xImg: imageX, yImg: imageY });
-      console.log('[WallMap] onMapTap completed successfully');
     } catch (error) {
-      console.error('[WallMap] Error in onMapTap:', error);
+      // Silently handle errors in tap gesture
     }
   }, [onMapTap, transforms, imageDimensions]);
 
@@ -187,7 +416,7 @@ export default function WallMap({
         try {
           runOnJS(handleMapTapCallback)(event.x, event.y);
         } catch (error) {
-          console.error('[WallMap] Error in tap gesture:', error);
+          // Silently handle worklet errors
         }
       });
   }, [onMapTap, handleMapTapCallback]);
@@ -248,25 +477,36 @@ export default function WallMap({
 
   const isReady = containerDimensions.width > 0 && imageDimensions.imgW > 0;
 
+  // Use room's background color for the container
+  const bgColor = room?.backgroundColor || '#1a1a2e';
+  const containerStyle = useMemo(() => [
+    styles.container,
+    { backgroundColor: bgColor }
+  ], [bgColor]);
+
   if (!isReady) {
     return (
-      <View style={styles.container} onLayout={handleLayout}>
-        <View style={styles.loadingContainer} />
+      <View style={containerStyle} onLayout={handleLayout}>
+        <View style={[styles.loadingContainer, { backgroundColor: bgColor }]} />
       </View>
     );
   }
 
   return (
-    <View style={styles.container} onLayout={handleLayout}>
+    <View style={containerStyle} onLayout={handleLayout}>
       <GestureDetector gesture={composedGesture}>
         <Animated.View style={styles.gestureContainer} collapsable={false}>
           <Animated.View style={[styles.mapContainer, transforms.mapContainerStyle]} collapsable={false}>
-            {/* תמונת הקיר */}
-            <WallMapSVG
-              width={imageDimensions.imgW}
-              height={imageDimensions.imgH}
-              preserveAspectRatio="xMidYMid meet"
-            />
+            {/* Wall image - dynamic map from wall editor */}
+            {room ? (
+              <DynamicWallMap
+                room={room}
+                width={imageDimensions.imgW}
+                height={imageDimensions.imgH}
+                preserveAspectRatio="xMidYMid meet"
+                showSectorLabels={false}
+              />
+            ) : null}
             
             {/* שכבת המסלולים */}
             <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents={onMapTap ? 'none' : 'box-none'}>
@@ -292,14 +532,32 @@ export default function WallMap({
           </Animated.View>
         </Animated.View>
       </GestureDetector>
+      
+      {/* Sector labels overlay - OUTSIDE GestureDetector so touches work, uses animated positioning */}
+      {showSectorLabels && room?.sectors && room.sectors.length > 0 && (
+        <SectorLabelsOverlay
+          sectors={room.sectors}
+          scale={transforms.scale}
+          translateX={transforms.translateX}
+          translateY={transforms.translateY}
+          imgW={imageDimensions.imgW}
+          imgH={imageDimensions.imgH}
+          wallWidth={wallWidth}
+          wallHeight={wallHeight}
+          onSectorPress={onSectorPress}
+          activeSectorId={activeSectorId}
+        />
+      )}
     </View>
   );
-}
+}));
+
+export default WallMap;
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#01467D',
+    // backgroundColor is set dynamically from room.backgroundColor
     width: '100%',
     height: '100%',
     overflow: 'hidden', // Prevent map from visually going outside bounds

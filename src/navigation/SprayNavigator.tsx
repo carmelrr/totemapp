@@ -10,14 +10,14 @@ import {
   RouteDetailsScreen,
   SprayRouteDetailScreen,
 } from "@/screens/SprayWall";
-import { Hold, SprayRoute } from "@/features/spraywall/types";
+import { Hold } from "@/features/spraywall/types";
 
 export type SprayStackParamList = {
   SprayHome: undefined;
   AddWall: undefined;
   AddRoute: { wallId?: string } | undefined;
   RouteDetails: { wallId: string; holds: Hold[] };
-  SprayRouteDetail: { sprayRoute: SprayRoute; wallId: string };
+  SprayRouteDetail: { routeId: string; wallId: string };
 };
 
 const Stack = createNativeStackNavigator<SprayStackParamList>();
@@ -64,9 +64,7 @@ export const SprayNavigator: React.FC = () => {
       <Stack.Screen
         name="SprayRouteDetail"
         component={SprayRouteDetailScreen}
-        options={({ route }) => ({
-          title: route.params?.sprayRoute?.name || "פרטי מסלול",
-        })}
+        options={{ title: "פרטי מסלול" }}
       />
     </Stack.Navigator>
   );

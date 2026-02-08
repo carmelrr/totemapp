@@ -1,7 +1,7 @@
 // src/screens/SprayWall/SprayRouteDetailScreen.tsx
 // Screen showing spray route details with rating and feedback
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,24 +12,27 @@ import {
   Alert,
   ActivityIndicator,
   Modal,
+  Dimensions,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/features/language";
+import { useTheme } from "@/features/theme/ThemeContext";
 import { SprayRoute, SprayRouteFeedback } from "@/features/spraywall/types";
 import { WallImageWithHolds } from "@/components/spray/WallImageWithHolds";
 import { VideoLinkInput, VideoLinkButton } from "@/components/feedback";
-import { validateVideoLink } from "@/utils/linkValidation";
+import { RouteStatsSection } from '@/components/feedback/RouteStatsSection';
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import {
   addFeedbackToRoute,
-  getUserFeedbackForRoute,
-  getFeedbacksForRoute,
   listenToFeedbacksForRoute,
   updateRoute,
   deleteRoute,
 } from "@/features/spraywall/routesService";
 import { useWalls } from "@/features/walls/hooks";
+import { useRoutesForWall } from "@/features/spraywall/hooks";
+import { SwipeableRouteContainer } from '@/components/routes/SwipeableRouteContainer';
 
 // V-Scale grades for selector
 const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12'];
@@ -37,13 +40,40 @@ const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V
 export const SprayRouteDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { sprayRoute, wallId } = route.params;
+  const { routeId: initialRouteId, wallId } = route.params as { routeId: string; wallId: string };
+  
+  // Active route ID — starts from nav params, updates on swipe (no remount)
+  const [activeRouteId, setActiveRouteId] = useState(initialRouteId);
+  const routeId = activeRouteId;
   const { user } = useAuth();
   const { walls } = useWalls();
   const { t } = useLanguage();
+  const { theme } = useTheme();
+  const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
+  const { isLandscape, isTablet, width } = layout;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  
+  // Dynamic styles based on theme
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
 
   // Find wall for the image
   const wall = walls.find((w) => w.id === wallId);
+
+  // Fetch routes for this wall via hook (real-time, shared cache)
+  const { routes: allRoutes, loading: routesLoading } = useRoutesForWall(wallId);
+
+  // Find the specific route by ID from the real-time routes list
+  const currentRoute = useMemo(() => {
+    return allRoutes.find((r) => r.id === routeId) || null;
+  }, [allRoutes, routeId]);
+
+  // Update header title when route is loaded
+  useEffect(() => {
+    if (currentRoute?.name) {
+      navigation.setOptions({ title: currentRoute.name });
+    }
+  }, [currentRoute?.name, navigation]);
 
   // Feedback state
   const [feedbacks, setFeedbacks] = useState<SprayRouteFeedback[]>([]);
@@ -59,24 +89,45 @@ export const SprayRouteDetailScreen: React.FC = () => {
   const [isVideoLinkValid, setIsVideoLinkValid] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Current route data (may update with feedbacks)
-  const [currentRoute, setCurrentRoute] = useState<SprayRoute>(sprayRoute);
-
   // Edit route state
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editName, setEditName] = useState(sprayRoute.name);
-  const [editGrade, setEditGrade] = useState(sprayRoute.grade);
+  const [editName, setEditName] = useState("");
+  const [editGrade, setEditGrade] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Check if current user is the route creator
-  const isRouteCreator = user?.uid && sprayRoute.createdBy === user.uid;
-
-  // Load feedbacks
+  // Initialize edit fields when route loads
   useEffect(() => {
-    if (!sprayRoute?.id) return;
+    if (currentRoute) {
+      setEditName(currentRoute.name);
+      setEditGrade(currentRoute.grade);
+    }
+  }, [currentRoute?.id]);
 
-    const unsubscribe = listenToFeedbacksForRoute(sprayRoute.id, (fetchedFeedbacks) => {
+  // Check if current user is the route creator
+  const isRouteCreator = user?.uid && currentRoute?.createdBy === user.uid;
+
+  // Swipe navigation between routes — update local state instead of navigation.replace
+  const handleSwipeNavigate = useCallback((nextRouteId: string) => {
+    setActiveRouteId(nextRouteId);
+    // Reset feedback/form state
+    setFeedbacks([]);
+    setUserFeedback(null);
+    setLoading(true);
+    setShowFeedbackForm(false);
+    setStarRating(0);
+    setSuggestedGrade('');
+    setComment('');
+    setVideoUrl('');
+    setShowEditModal(false);
+  }, []);
+
+  // Load feedbacks for current route
+  useEffect(() => {
+    if (!routeId) return;
+
+    setLoading(true);
+    const unsubscribe = listenToFeedbacksForRoute(routeId, (fetchedFeedbacks) => {
       setFeedbacks(fetchedFeedbacks);
       setLoading(false);
       
@@ -89,12 +140,14 @@ export const SprayRouteDetailScreen: React.FC = () => {
           setSuggestedGrade(myFeedback.suggestedGrade);
           setComment(myFeedback.comment || "");
           setVideoUrl(myFeedback.videoUrl || "");
+        } else {
+          setUserFeedback(null);
         }
       }
     });
 
     return () => unsubscribe();
-  }, [sprayRoute?.id, user?.uid]);
+  }, [routeId, user?.uid]);
 
   const handleSubmitFeedback = async () => {
     if (!user) {
@@ -120,9 +173,10 @@ export const SprayRouteDetailScreen: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      await addFeedbackToRoute(sprayRoute.id, {
+      await addFeedbackToRoute(routeId, {
         userId: user.uid,
         userDisplayName: user.displayName || user.email || "Anonymous",
+        userPhotoURL: user.photoURL || undefined,
         starRating,
         suggestedGrade,
         comment: comment.trim(),
@@ -148,20 +202,12 @@ export const SprayRouteDetailScreen: React.FC = () => {
 
     setIsUpdating(true);
     try {
-      await updateRoute(sprayRoute.id, {
+      await updateRoute(routeId, {
         name: editName.trim(),
         grade: editGrade,
       });
       
-      // Update local state
-      setCurrentRoute((prev) => ({
-        ...prev,
-        name: editName.trim(),
-        grade: editGrade,
-      }));
-      
       setShowEditModal(false);
-      Alert.alert(t.common.success, t.spray.routeUpdatedSuccess);
     } catch (error) {
       console.error("Error updating route:", error);
       Alert.alert(t.common.error, t.spray.failedToUpdateRoute);
@@ -183,19 +229,12 @@ export const SprayRouteDetailScreen: React.FC = () => {
           onPress: async () => {
             setIsDeleting(true);
             try {
-              await deleteRoute(sprayRoute.id);
-              Alert.alert(t.common.success, t.spray.routeDeletedSuccess, [
-                {
-                  text: t.common.ok,
-                  onPress: () => {
-                    // Reset navigation stack to SprayHome after deletion
-                    navigation.reset({
-                      index: 0,
-                      routes: [{ name: "SprayHome" }],
-                    });
-                  },
-                },
-              ]);
+              await deleteRoute(routeId);
+              // Reset navigation stack to SprayHome after deletion
+              navigation.reset({
+                index: 0,
+                routes: [{ name: "SprayHome" }],
+              });
             } catch (error) {
               console.error("Error deleting route:", error);
               Alert.alert(t.common.error, t.spray.failedToDeleteRoute);
@@ -209,20 +248,21 @@ export const SprayRouteDetailScreen: React.FC = () => {
 
   // Navigate to edit holds screen
   const handleEditHolds = () => {
+    if (!currentRoute) return;
     setShowEditModal(false);
     navigation.navigate("AddRoute", {
       wallId,
       editMode: true,
-      routeId: sprayRoute.id,
-      existingHolds: sprayRoute.holds,
+      routeId: routeId,
+      existingHolds: currentRoute.holds,
       routeName: currentRoute.name,
       routeGrade: currentRoute.grade,
     });
   };
 
-  const displayGrade = currentRoute.calculatedGrade || currentRoute.grade;
-  const averageRating = currentRoute.averageStarRating || 0;
-  const feedbackCount = currentRoute.feedbackCount || 0;
+  const displayGrade = currentRoute?.calculatedGrade || currentRoute?.grade || "";
+  const averageRating = currentRoute?.averageStarRating || 0;
+  const feedbackCount = currentRoute?.feedbackCount || 0;
 
   const formatDate = (timestamp: any) => {
     if (!timestamp) return "";
@@ -234,16 +274,34 @@ export const SprayRouteDetailScreen: React.FC = () => {
     }
   };
 
+  // Loading state
+  if (routesLoading || !currentRoute) {
+    return (
+      <SafeAreaView style={styles.container} edges={[]}>
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color={theme.primary} />
+          <Text style={{ color: theme.textSecondary, marginTop: 12 }}>
+            {t.spray.loading}
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.container} edges={["bottom"]}>
+    <SwipeableRouteContainer
+      currentRouteId={routeId}
+      onNavigateToRoute={handleSwipeNavigate}
+    >
+    <SafeAreaView style={styles.container} edges={[]}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
         {/* Wall Image with Holds */}
         {wall && (
           <View style={styles.imageContainer}>
             <WallImageWithHolds
               imageUrl={wall.imageUrl}
-              holds={sprayRoute.holds || []}
-              routeColor={sprayRoute.color || "#FF4444"}
+              holds={currentRoute.holds || []}
+              routeColor={currentRoute.color || "#FF4444"}
               editable={false}
             />
           </View>
@@ -283,26 +341,37 @@ export const SprayRouteDetailScreen: React.FC = () => {
         <View style={styles.detailsSection}>
           <Text style={styles.sectionTitle}>{t.spray.details}</Text>
           <View style={styles.detailsCard}>
-            {sprayRoute.creatorName && (
+            {currentRoute.creatorName && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>👤</Text>
                 <Text style={styles.detailLabel}>{t.spray.creator}</Text>
-                <Text style={styles.detailValue}>{sprayRoute.creatorName}</Text>
+                <Text style={styles.detailValue}>{currentRoute.creatorName}</Text>
               </View>
             )}
             <View style={styles.detailRow}>
               <Text style={styles.detailIcon}>📊</Text>
               <Text style={styles.detailLabel}>{t.spray.originalGrade}</Text>
-              <Text style={styles.detailValue}>{sprayRoute.grade}</Text>
+              <Text style={styles.detailValue}>{currentRoute.grade}</Text>
             </View>
-            {sprayRoute.createdAt && (
+            {currentRoute.createdAt && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailIcon}>📅</Text>
                 <Text style={styles.detailLabel}>{t.spray.created}</Text>
-                <Text style={styles.detailValue}>{formatDate(sprayRoute.createdAt)}</Text>
+                <Text style={styles.detailValue}>{formatDate(currentRoute.createdAt)}</Text>
               </View>
             )}
           </View>
+        </View>
+
+        {/* 📊 Route Statistics Section */}
+        <View style={styles.detailsSection}>
+          <RouteStatsSection
+            climbedCount={currentRoute.topsCount || feedbackCount}
+            feedbacks={feedbacks.map(fb => ({ starRating: fb.starRating, suggestedGrade: fb.suggestedGrade }))}
+            averageStarRating={averageRating}
+            originalGrade={currentRoute.grade}
+            calculatedGrade={currentRoute.calculatedGrade}
+          />
         </View>
 
         {/* Owner Actions - Edit/Delete (only for route creator) */}
@@ -323,7 +392,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
                 disabled={isDeleting}
               >
                 {isDeleting ? (
-                  <ActivityIndicator color="#ff6b6b" size="small" />
+                  <ActivityIndicator color={theme.error} size="small" />
                 ) : (
                   <>
                     <Text style={styles.deleteRouteIcon}>🗑️</Text>
@@ -614,8 +683,10 @@ export const SprayRouteDetailScreen: React.FC = () => {
                 style={styles.modalCancelButton}
                 onPress={() => {
                   setShowEditModal(false);
-                  setEditName(currentRoute.name);
-                  setEditGrade(currentRoute.grade);
+                  if (currentRoute) {
+                    setEditName(currentRoute.name);
+                    setEditGrade(currentRoute.grade);
+                  }
                 }}
               >
                 <Text style={styles.modalCancelText}>{t.common.cancel}</Text>
@@ -636,37 +707,40 @@ export const SprayRouteDetailScreen: React.FC = () => {
         </View>
       </Modal>
     </SafeAreaView>
+    </SwipeableRouteContainer>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout>, insets?: { left: number; right: number; top: number; bottom: number }) => {
+  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+  const isLandscape = layout?.isLandscape ?? screenWidth > screenHeight;
+  const isTablet = layout?.isTablet ?? false;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  const horizontalPadding = isLandscape ? Math.max(insets?.left ?? 0, insets?.right ?? 0, 16) : 16;
+  const contentMaxWidth = isLandscape ? Math.min((layout?.width ?? screenWidth) * 0.6, 600) : undefined;
+  
+  return StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#1a1a1a",
+    backgroundColor: theme.background,
+    flexDirection: isLandscape ? 'row' : 'column',
   },
   scrollView: {
     flex: 1,
   },
   imageContainer: {
-    height: 350,
+    height: isLandscape ? '100%' : 350,
+    width: isLandscape ? '50%' : '100%',
     position: "relative",
   },
   routeHeaderSection: {
-    backgroundColor: "#2a2a2a",
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 12,
-  },
-  routeOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: theme.surface,
+    paddingHorizontal: horizontalPadding,
+    paddingTop: isPhoneLandscape ? 12 : 16,
+    paddingBottom: isPhoneLandscape ? 8 : 12,
   },
   routeName: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 24,
     fontWeight: "bold",
   },
@@ -676,12 +750,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   routeGrade: {
-    color: "#8E4EC6",
+    color: theme.primary,
     fontSize: 20,
     fontWeight: "600",
   },
   communityBadge: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 12,
     marginLeft: 8,
   },
@@ -690,7 +764,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     paddingVertical: 16,
     paddingHorizontal: 8,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.surface,
   },
   statCard: {
     alignItems: "center",
@@ -701,12 +775,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   statValue: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 20,
     fontWeight: "bold",
   },
   statLabel: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 12,
     marginTop: 2,
   },
@@ -714,13 +788,13 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sectionTitle: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 12,
   },
   detailsCard: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
   },
@@ -729,7 +803,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#333",
+    borderBottomColor: theme.border,
   },
   detailIcon: {
     fontSize: 18,
@@ -737,12 +811,12 @@ const styles = StyleSheet.create({
     width: 24,
   },
   detailLabel: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 14,
     flex: 1,
   },
   detailValue: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 14,
     fontWeight: "500",
   },
@@ -750,7 +824,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   sentButton: {
-    backgroundColor: "#4CAF50",
+    backgroundColor: theme.success,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -767,7 +841,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   existingFeedbackCard: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
   },
@@ -777,12 +851,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   feedbackLabel: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 14,
     marginRight: 8,
   },
   feedbackValue: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 16,
     fontWeight: "500",
   },
@@ -791,16 +865,16 @@ const styles = StyleSheet.create({
   },
   starText: {
     fontSize: 20,
-    color: "#444",
+    color: theme.border,
   },
   filledStar: {
-    color: "#FFD700",
+    color: theme.starColor,
   },
   feedbackCommentRow: {
     marginTop: 8,
   },
   feedbackComment: {
-    color: "#ccc",
+    color: theme.textSecondary,
     fontSize: 14,
     marginTop: 4,
   },
@@ -809,11 +883,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   editFeedbackText: {
-    color: "#8E4EC6",
+    color: theme.primary,
     fontSize: 14,
   },
   feedbackFormCard: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 16,
   },
@@ -821,7 +895,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   formLabel: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 16,
     fontWeight: "500",
     marginBottom: 12,
@@ -835,7 +909,7 @@ const styles = StyleSheet.create({
   },
   starTextLarge: {
     fontSize: 36,
-    color: "#444",
+    color: theme.border,
   },
   gradeScroller: {
     marginTop: 4,
@@ -844,14 +918,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: "#3a3a3a",
+    backgroundColor: theme.surface,
     marginRight: 8,
   },
   gradeOptionSelected: {
-    backgroundColor: "#8E4EC6",
+    backgroundColor: theme.buttonPrimary,
   },
   gradeOptionText: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 14,
     fontWeight: "500",
   },
@@ -859,10 +933,10 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   commentInput: {
-    backgroundColor: "#3a3a3a",
+    backgroundColor: theme.inputBackground,
     borderRadius: 12,
     padding: 12,
-    color: "#fff",
+    color: theme.text,
     fontSize: 14,
     minHeight: 80,
     textAlign: "right",
@@ -876,12 +950,12 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "#3a3a3a",
+    backgroundColor: theme.surface,
     marginRight: 8,
     alignItems: "center",
   },
   cancelButtonText: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 16,
     fontWeight: "500",
   },
@@ -889,7 +963,7 @@ const styles = StyleSheet.create({
     flex: 2,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "#4CAF50",
+    backgroundColor: theme.success,
     alignItems: "center",
   },
   submitButtonText: {
@@ -904,7 +978,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   feedbackItem: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.surface,
     borderRadius: 12,
     padding: 12,
     marginBottom: 8,
@@ -915,7 +989,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   feedbackUser: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 14,
     fontWeight: "600",
   },
@@ -924,7 +998,7 @@ const styles = StyleSheet.create({
   },
   miniStar: {
     fontSize: 12,
-    color: "#444",
+    color: theme.border,
   },
   feedbackMeta: {
     flexDirection: "row",
@@ -932,21 +1006,21 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   feedbackGrade: {
-    color: "#8E4EC6",
+    color: theme.primary,
     fontSize: 12,
   },
   feedbackDate: {
-    color: "#666",
+    color: theme.textSecondary,
     fontSize: 12,
   },
   feedbackText: {
-    color: "#ccc",
+    color: theme.textSecondary,
     fontSize: 14,
     marginTop: 8,
     lineHeight: 20,
   },
   bottomSpacer: {
-    height: 40,
+    height: 20,
   },
   // Owner Actions Styles
   ownerActionsSection: {
@@ -962,7 +1036,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#3a3a3a",
+    backgroundColor: theme.surface,
     paddingVertical: 12,
     borderRadius: 12,
     gap: 8,
@@ -971,7 +1045,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   editRouteText: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 14,
     fontWeight: "600",
   },
@@ -979,7 +1053,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(255, 107, 107, 0.15)",
+    backgroundColor: theme.isDark ? "rgba(255, 107, 107, 0.15)" : "rgba(231, 76, 60, 0.1)",
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 12,
@@ -989,27 +1063,27 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   deleteRouteText: {
-    color: "#ff6b6b",
+    color: theme.error,
     fontSize: 14,
     fontWeight: "600",
   },
   // Modal Styles
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    backgroundColor: theme.overlay,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
   },
   modalContent: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.modalBackground,
     borderRadius: 16,
     padding: 20,
     width: "100%",
     maxWidth: 400,
   },
   modalTitle: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 20,
     fontWeight: "bold",
     textAlign: "center",
@@ -1019,19 +1093,19 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   modalLabel: {
-    color: "#aaa",
+    color: theme.textSecondary,
     fontSize: 14,
     marginBottom: 8,
   },
   modalInput: {
-    backgroundColor: "#3a3a3a",
+    backgroundColor: theme.inputBackground,
     borderRadius: 8,
     padding: 12,
-    color: "#fff",
+    color: theme.text,
     fontSize: 16,
   },
   modalNote: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 12,
     textAlign: "center",
     marginBottom: 20,
@@ -1043,19 +1117,19 @@ const styles = StyleSheet.create({
   },
   modalCancelButton: {
     flex: 1,
-    backgroundColor: "#3a3a3a",
+    backgroundColor: theme.surface,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",
   },
   modalCancelText: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 16,
     fontWeight: "600",
   },
   modalSaveButton: {
     flex: 1,
-    backgroundColor: "#8E4EC6",
+    backgroundColor: theme.buttonPrimary,
     paddingVertical: 14,
     borderRadius: 10,
     alignItems: "center",
@@ -1070,20 +1144,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#3a3a3a",
-    paddingVertical: 14,
+    backgroundColor: theme.surface,
+    paddingVertical: isPhoneLandscape ? 10 : 14,
     borderRadius: 10,
-    marginBottom: 16,
+    marginBottom: isPhoneLandscape ? 12 : 16,
     gap: 8,
   },
   editHoldsIcon: {
     fontSize: 18,
   },
   editHoldsText: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 14,
     fontWeight: "600",
   },
 });
+};
 
 export default SprayRouteDetailScreen;

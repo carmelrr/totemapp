@@ -3,7 +3,7 @@
  * @description Detailed competition management with tabs
  */
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -19,22 +20,32 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useAdmin } from '@/context/AdminContext';
 import { useRolesContext } from '@/features/roles/RolesContext';
+import { useAuth } from '@/context/AuthContext';
+import { BrandLogo } from '@/components/ui/BrandLogo';
 import {
   useCompetition,
   useParticipants,
   useCompetitionLeaderboard,
+  useCompetitionRoutes,
 } from '@/features/competitions/hooks/useCompetition';
 import { CompetitionService } from '@/features/competitions/services/CompetitionService';
 import { ResultsService } from '@/features/competitions/services/ResultsService';
-import { CompetitionStatus } from '@/features/competitions/types';
-import { CompetitionLeaderboard } from '@/features/competitions/components';
+import { CompetitionStatus, CompetitionRoute } from '@/features/competitions/types';
+import { CompetitionLeaderboard, CompetitionWallMap } from '@/features/competitions/components';
 import { useCurrentUser } from '@/store';
 import {
   COMPETITION_STATUS_INFO,
   COMPETITION_FORMAT_INFO,
 } from '@/features/competitions/constants';
+import { useCompetitionMapRoutes } from '@/features/competitions/hooks/useCompetitionMapRoutes';
+import { usePublishedRooms } from '@/features/wall-editor/hooks/usePublishedRooms';
+import { useEditorMap } from '@/features/wall-editor/hooks/useEditorMap';
 
-type TabType = 'overview' | 'participants' | 'leaderboard';
+// Wall dimensions (should match your actual wall)
+const WALL_WIDTH = 1000;
+const WALL_HEIGHT = 667;
+
+type TabType = 'overview' | 'participants' | 'leaderboard' | 'map';
 
 export default function ManageCompetitionScreen() {
   const { theme } = useTheme();
@@ -44,6 +55,7 @@ export default function ManageCompetitionScreen() {
   const { isAdmin } = useAdmin();
   const rolesContext = useRolesContext();
   const currentUser = useCurrentUser();
+  const { user } = useAuth();
 
   const [activeTab, setActiveTab] = useState<TabType>(initialTab || 'overview');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -56,10 +68,49 @@ export default function ManageCompetitionScreen() {
     undefined,
     competition?.format as 'national_league' | 'totemtition' | 'custom'
   );
+  
+  // Get competition routes for the map
+  const {
+    routes: mapRoutes,
+    userCompletedRoutes,
+    routeCompletionCounts,
+    loading: routesLoading,
+  } = useCompetitionMapRoutes({
+    competitionId,
+    userId: user?.uid,
+    format: competition?.format,
+  });
+
+  // Load room data for the new dynamic wall map
+  // If competition has a roomId, load that specific room; otherwise use the first published room
+  const { rooms: publishedRooms } = usePublishedRooms();
+  const { room: specificRoom } = useEditorMap({ roomId: competition?.roomId });
+  const mapRoom = useMemo(() => {
+    if (competition?.roomId && specificRoom) return specificRoom;
+    return publishedRooms.length > 0 ? publishedRooms[0] : null;
+  }, [competition?.roomId, specificRoom, publishedRooms]);
 
   const styles = createStyles(theme);
   const hasFixedNamesRef = useRef(false);
   const hasSyncedCategoriesRef = useRef(false);
+
+  // Handle route press on map - navigate to scoring for totemtition
+  // Must be defined before any early returns to maintain hook order
+  const handleMapRoutePress = useCallback((route: CompetitionRoute) => {
+    if (!competition) return;
+    
+    // For totemtition, navigate to enter results for this route
+    if (competition.format === 'totemtition' && competition.status === 'active') {
+      navigation.navigate('JudgeEntry', { 
+        competitionId,
+        selectedRouteNumber: route.routeNumber,
+      });
+    }
+  }, [competition, competitionId, navigation]);
+
+  // Get positioned routes for the map
+  // Must be defined before any early returns
+  const positionedRoutes = mapRoutes.filter(r => r.xNorm && r.yNorm && r.xNorm > 0 && r.yNorm > 0);
 
   // Fix missing participant names when leaderboard loads
   useEffect(() => {
@@ -94,8 +145,9 @@ export default function ManageCompetitionScreen() {
   // Check if user has permission to view this management screen
   const hasManagementAccess = rolesContext.isJudgeRole;
   
-  // Check if user is a viewer only (can only see leaderboard)
-  const isViewerOnly = !hasManagementAccess && initialTab === 'leaderboard';
+  // Check if user is a viewer only (can see map and leaderboard, but not admin features)
+  // Users coming to view leaderboard or map without management access are viewers
+  const isViewerOnly = !hasManagementAccess && (initialTab === 'leaderboard' || initialTab === 'map');
 
   if (loading) {
     return (
@@ -570,11 +622,94 @@ export default function ManageCompetitionScreen() {
     );
   };
 
+  // Render map tab
+  const renderMapTab = () => {
+    if (!competition) {
+      return (
+        <View style={styles.tabContent}>
+          <ActivityIndicator size="small" color={theme.primary} />
+        </View>
+      );
+    }
+
+    if (routesLoading) {
+      return (
+        <View style={styles.tabContent}>
+          <View style={styles.mapLoadingContainer}>
+            <ActivityIndicator size="large" color={theme.primary} />
+            <Text style={styles.mapLoadingText}>טוען מפת מסלולים...</Text>
+          </View>
+        </View>
+      );
+    }
+
+    if (positionedRoutes.length === 0) {
+      return (
+        <View style={styles.tabContent}>
+          <View style={styles.mapEmptyContainer}>
+            <Ionicons name="map-outline" size={64} color={theme.textSecondary} />
+            <Text style={styles.mapEmptyTitle}>אין מסלולים על המפה</Text>
+            <Text style={styles.mapEmptyText}>
+              {rolesContext.isJudgeRole 
+                ? 'לך למסלולי תחרות כדי למקם מסלולים על המפה'
+                : 'המסלולים עדיין לא מוקמו על המפה'}
+            </Text>
+            {rolesContext.isJudgeRole && (
+              <TouchableOpacity
+                style={styles.goToRoutesBtn}
+                onPress={() => navigation.navigate('ManageCompetitionRoutes', { competitionId })}
+              >
+                <Ionicons name="map" size={18} color="#fff" />
+                <Text style={styles.goToRoutesBtnText}>מסלולי תחרות</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      );
+    }
+
+    // Determine if map is interactive based on format and status
+    const isInteractive = competition.format === 'totemtition' && competition.status === 'active';
+    const screenHeight = Dimensions.get('window').height;
+
+    return (
+      <View style={[styles.mapTabContent, { height: screenHeight - 250 }]}>
+        <CompetitionWallMap
+          routes={positionedRoutes}
+          wallWidth={mapRoom?.width || WALL_WIDTH}
+          wallHeight={mapRoom?.height || WALL_HEIGHT}
+          format={competition.format}
+          isEditing={false}
+          onRoutePress={isInteractive ? handleMapRoutePress : undefined}
+          userCompletedRoutes={userCompletedRoutes}
+          routeCompletionCounts={routeCompletionCounts}
+          room={mapRoom}
+        />
+        
+        {/* Map legend */}
+        <View style={styles.mapLegend}>
+          <Text style={styles.mapLegendTitle}>
+            {competition.format === 'national_league' 
+              ? '🏅 מפת מסלולי ליגה' 
+              : '🎯 מפת מסלולי תחרוטוטם'}
+          </Text>
+          <Text style={styles.mapLegendText}>
+            {competition.format === 'totemtition' && competition.status === 'active'
+              ? 'לחץ על מסלול להזנת ניקוד'
+              : `${positionedRoutes.length} מסלולים על המפה`}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
   // Build tabs array - judges tab removed (roles are global now, not per-competition)
-  // For viewer-only users, show only leaderboard tab
+  // For viewer-only users, show map and leaderboard tabs (not overview/participants which are admin-only)
+  // Add map tab when competition is active and has routes
   const allTabs: { key: TabType; label: string; icon: string }[] = [
     { key: 'overview', label: 'סקירה', icon: 'home' },
     { key: 'participants', label: 'משתתפים', icon: 'people' },
+    { key: 'map', label: 'מפה', icon: 'map' },
     { key: 'leaderboard', label: 'דירוג', icon: 'trophy' },
   ];
   
@@ -582,8 +717,9 @@ export default function ManageCompetitionScreen() {
   let tabs = allTabs;
   
   if (isViewerOnly) {
-    // Viewer-only users can only see leaderboard
-    tabs = allTabs.filter(tab => tab.key === 'leaderboard');
+    // Viewer-only users can see map and leaderboard tabs
+    // Map helps competitors see route locations during active competition
+    tabs = allTabs.filter(tab => tab.key === 'leaderboard' || tab.key === 'map');
   }
 
   return (
@@ -594,11 +730,14 @@ export default function ManageCompetitionScreen() {
           style={styles.backButton}
           onPress={() => navigation.goBack()}
         >
-          <Ionicons name="arrow-forward" size={24} color={theme.text} />
+          <Ionicons name="arrow-forward" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle} numberOfLines={1}>
-          {competition.name}
-        </Text>
+        <View style={styles.headerCenter}>
+          <BrandLogo variant="icon" color="white" size={24} />
+          <Text style={styles.headerTitle} numberOfLines={1}>
+            {competition.name}
+          </Text>
+        </View>
         <View style={styles.placeholder} />
       </View>
 
@@ -635,18 +774,31 @@ export default function ManageCompetitionScreen() {
       </View>
 
       {/* Tab Content */}
-      <ScrollView style={styles.scrollContent}>
-        {isUpdating && (
-          <View style={styles.updatingOverlay}>
-            <ActivityIndicator color={theme.primary} />
-            <Text style={styles.updatingText}>מעדכן...</Text>
-          </View>
-        )}
-        
-        {activeTab === 'overview' && renderOverviewTab()}
-        {activeTab === 'participants' && renderParticipantsTab()}
-        {activeTab === 'leaderboard' && renderLeaderboardTab()}
-      </ScrollView>
+      {activeTab === 'map' ? (
+        // Map tab needs different container (not scrollable)
+        <>
+          {isUpdating && (
+            <View style={styles.updatingOverlay}>
+              <ActivityIndicator color={theme.primary} />
+              <Text style={styles.updatingText}>מעדכן...</Text>
+            </View>
+          )}
+          {renderMapTab()}
+        </>
+      ) : (
+        <ScrollView style={styles.scrollContent}>
+          {isUpdating && (
+            <View style={styles.updatingOverlay}>
+              <ActivityIndicator color={theme.primary} />
+              <Text style={styles.updatingText}>מעדכן...</Text>
+            </View>
+          )}
+          
+          {activeTab === 'overview' && renderOverviewTab()}
+          {activeTab === 'participants' && renderParticipantsTab()}
+          {activeTab === 'leaderboard' && renderLeaderboardTab()}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -688,7 +840,7 @@ const createStyles = (theme: any) =>
       paddingHorizontal: 24,
     },
     backBtn: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingHorizontal: 24,
       paddingVertical: 12,
       borderRadius: 8,
@@ -704,23 +856,28 @@ const createStyles = (theme: any) =>
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: 16,
-      paddingVertical: 16,
-      backgroundColor: theme.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
+      paddingVertical: 14,
+      backgroundColor: theme.headerGradient,
     },
     backButton: {
-      padding: 4,
+      padding: 8,
+      borderRadius: 12,
+      backgroundColor: 'rgba(255,255,255,0.15)',
+    },
+    headerCenter: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
     },
     headerTitle: {
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: 'bold',
-      color: theme.text,
-      flex: 1,
-      textAlign: 'center',
+      color: '#fff',
     },
     placeholder: {
-      width: 32,
+      width: 40,
     },
     tabsContainer: {
       backgroundColor: theme.surface,
@@ -910,7 +1067,7 @@ const createStyles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       paddingVertical: 12,
       borderRadius: 12,
       gap: 8,
@@ -1042,5 +1199,75 @@ const createStyles = (theme: any) =>
     updatingText: {
       fontSize: 14,
       color: theme.text,
+    },
+    // Map tab styles
+    mapTabContent: {
+      flex: 1,
+    },
+    mapLoadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingVertical: 60,
+    },
+    mapLoadingText: {
+      marginTop: 12,
+      fontSize: 14,
+      color: theme.textSecondary,
+    },
+    mapEmptyContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingVertical: 60,
+      paddingHorizontal: 20,
+    },
+    mapEmptyTitle: {
+      fontSize: 18,
+      fontWeight: 'bold',
+      color: theme.text,
+      marginTop: 16,
+    },
+    mapEmptyText: {
+      fontSize: 14,
+      color: theme.textSecondary,
+      marginTop: 8,
+      textAlign: 'center',
+    },
+    goToRoutesBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.buttonPrimary,
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      borderRadius: 10,
+      marginTop: 20,
+      gap: 8,
+    },
+    goToRoutesBtnText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    mapLegend: {
+      position: 'absolute',
+      top: 16,
+      left: 16,
+      right: 16,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      borderRadius: 12,
+      padding: 12,
+      alignItems: 'center',
+    },
+    mapLegendTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: '#ffffff',
+    },
+    mapLegendText: {
+      fontSize: 13,
+      color: 'rgba(255, 255, 255, 0.8)',
+      marginTop: 4,
     },
   });

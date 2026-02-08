@@ -22,11 +22,14 @@ export type RouteDoc = {
   completionCount?: number;     // Number of users who completed the route
 };
 
+export type CompletionFilter = "all" | "completed" | "not-completed";
+
 export type RouteFilters = {
   grades: string[];
   colors: string[];
   status: ("active" | "archived" | "draft")[];
   tags: string[];
+  completionStatus?: CompletionFilter;
 };
 
 export type RouteSortBy = "distance" | "grade-asc" | "grade-desc" | "rating" | "newest";

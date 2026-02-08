@@ -30,6 +30,7 @@ import { ParticipantService } from '@/features/competitions/services/Participant
 import { Participant, Category } from '@/features/competitions/types';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '@/features/data/firebase';
+import { CachedAvatar } from '@/components/ui/CachedAvatar';
 
 interface UserSearchResult {
   id: string;
@@ -217,7 +218,7 @@ export default function ManageParticipantsScreen() {
   const handleApproveRegistration = async (participant: Participant) => {
     Alert.alert(
       t.competitionExt.approve,
-      t.competitionExt.removeParticipantConfirm(participant.userName),
+      t.competitionExt.approveRegistrationConfirm(participant.userName),
       [
         { text: t.common.cancel, style: 'cancel' },
         {
@@ -242,7 +243,7 @@ export default function ManageParticipantsScreen() {
   const handleRejectRegistration = async (participant: Participant) => {
     Alert.alert(
       t.competitionExt.reject,
-      t.competitionExt.removeParticipantConfirm(participant.userName),
+      t.competitionExt.rejectRegistrationConfirm(participant.userName),
       [
         { text: t.common.cancel, style: 'cancel' },
         {
@@ -298,11 +299,12 @@ export default function ManageParticipantsScreen() {
       onPress={() => handleAddParticipant(item)}
     >
       <View style={styles.userInfo}>
-        <View style={styles.userAvatar}>
-          <Text style={styles.userAvatarText}>
-            {item.displayName.charAt(0).toUpperCase()}
-          </Text>
-        </View>
+        <CachedAvatar
+          photoURL={item.photoURL}
+          displayName={item.displayName}
+          size={40}
+          showBorder={true}
+        />
         <View>
           <Text style={styles.userName}>{item.displayName}</Text>
           {item.email && (
@@ -860,7 +862,7 @@ const createStyles = (theme: any) =>
       marginTop: 24,
       paddingVertical: 12,
       paddingHorizontal: 24,
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
       borderRadius: 8,
     },
     backBtnText: {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import {
     View,
     Text,
@@ -55,7 +55,8 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
         }
     };
 
-    const calculateStats = () => {
+    // Memoize stats calculation to avoid recalculating on every render
+    const stats = useMemo(() => {
         if (feedbacks.length === 0) {
             return {
                 averageRating: 0,
@@ -79,21 +80,24 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
             totalCount: feedbacks.length,
             gradeDistribution,
         };
-    };
+    }, [feedbacks]);
 
-    const stats = calculateStats();
-    const sortedFeedbacks = [...feedbacks].sort((a, b) => {
-        if (!a.createdAt && !b.createdAt) return 0;
-        if (!a.createdAt) return 1;
-        if (!b.createdAt) return -1;
+    // Memoize sorted feedbacks
+    const sortedFeedbacks = useMemo(() => {
+        return [...feedbacks].sort((a, b) => {
+            if (!a.createdAt && !b.createdAt) return 0;
+            if (!a.createdAt) return 1;
+            if (!b.createdAt) return -1;
 
-        const dateA = a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
-        const dateB = b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+            const dateA = a.createdAt.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+            const dateB = b.createdAt.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
 
-        return dateB.getTime() - dateA.getTime(); // Most recent first
-    });
+            return dateB.getTime() - dateA.getTime(); // Most recent first
+        });
+    }, [feedbacks]);
 
-    const renderFeedbackItem = ({ item }: { item: Feedback }) => (
+    // Memoize renderItem to prevent recreation on each render
+    const renderFeedbackItem = useCallback(({ item }: { item: Feedback }) => (
         <FeedbackItem
             feedback={item}
             currentUserId={currentUserId}
@@ -101,7 +105,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
             onEdit={onEditFeedback}
             onDelete={onDeleteFeedback}
         />
-    );
+    ), [currentUserId, isAdmin, onEditFeedback, onDeleteFeedback]);
 
     const renderHeader = () => (
         <View style={styles.header}>
@@ -151,6 +155,10 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
                 renderItem={renderFeedbackItem}
                 keyExtractor={(item) => item.id}
                 showsVerticalScrollIndicator={false}
+                removeClippedSubviews={true}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                initialNumToRender={8}
                 contentContainerStyle={[
                     styles.listContent,
                     sortedFeedbacks.length === 0 && styles.emptyList,

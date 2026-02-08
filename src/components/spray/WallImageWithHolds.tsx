@@ -45,10 +45,51 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
   onSelectHold,
   editable = true,
 }) => {
-  const [imageWidth, setImageWidth] = useState(0);
-  const [imageHeight, setImageHeight] = useState(0);
+  // Container dimensions (from onLayout)
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [containerHeight, setContainerHeight] = useState(0);
+  // Natural/actual image dimensions (from Image.getSize)
+  const [naturalWidth, setNaturalWidth] = useState(0);
+  const [naturalHeight, setNaturalHeight] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  // Calculate the actual displayed image dimensions within the container (for resizeMode="contain")
+  // This accounts for letterboxing
+  const getDisplayedImageDimensions = useCallback(() => {
+    if (!containerWidth || !containerHeight || !naturalWidth || !naturalHeight) {
+      return { width: containerWidth, height: containerHeight, offsetX: 0, offsetY: 0 };
+    }
+
+    const containerAspect = containerWidth / containerHeight;
+    const imageAspect = naturalWidth / naturalHeight;
+
+    let displayedWidth: number;
+    let displayedHeight: number;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    if (imageAspect > containerAspect) {
+      // Image is wider than container - width fills container, height is smaller
+      displayedWidth = containerWidth;
+      displayedHeight = containerWidth / imageAspect;
+      offsetY = (containerHeight - displayedHeight) / 2;
+    } else {
+      // Image is taller than container - height fills container, width is smaller
+      displayedHeight = containerHeight;
+      displayedWidth = containerHeight * imageAspect;
+      offsetX = (containerWidth - displayedWidth) / 2;
+    }
+
+    return { width: displayedWidth, height: displayedHeight, offsetX, offsetY };
+  }, [containerWidth, containerHeight, naturalWidth, naturalHeight]);
+
+  // Get the displayed image dimensions
+  const displayedImage = getDisplayedImageDimensions();
+  const imageWidth = displayedImage.width;
+  const imageHeight = displayedImage.height;
+  const imageOffsetX = displayedImage.offsetX;
+  const imageOffsetY = displayedImage.offsetY;
 
   // Ref to always have the latest activeHold value
   const activeHoldRef = React.useRef<Hold | null>(null);
@@ -96,10 +137,29 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
     }
   }, [activeHold]);
 
+  // Fetch natural image dimensions when URL changes
+  useEffect(() => {
+    if (imageUrl) {
+      Image.getSize(
+        imageUrl,
+        (width, height) => {
+          setNaturalWidth(width);
+          setNaturalHeight(height);
+        },
+        (error) => {
+          console.error('Failed to get image size:', error);
+          // Fallback: use container dimensions if we can't get natural size
+          setNaturalWidth(containerWidth);
+          setNaturalHeight(containerHeight);
+        }
+      );
+    }
+  }, [imageUrl]);
+
   const handleLayout = useCallback((event: LayoutChangeEvent) => {
     const { width, height } = event.nativeEvent.layout;
-    setImageWidth(width);
-    setImageHeight(height);
+    setContainerWidth(width);
+    setContainerHeight(height);
   }, []);
 
   const handleImageLoad = useCallback(() => {
@@ -194,14 +254,19 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
     const translateX = imageTranslateX.value;
     const translateY = imageTranslateY.value;
     
+    // Account for the image offset due to resizeMode="contain" (letterboxing)
+    // The tap x,y is relative to container, but image may be offset
+    const tapInImageAreaX = x - imageOffsetX;
+    const tapInImageAreaY = y - imageOffsetY;
+    
     // The image is scaled from its center
-    // First, find the center of the container
+    // First, find the center of the displayed image area
     const centerX = imageWidth / 2;
     const centerY = imageHeight / 2;
     
-    // The tap position relative to the center
-    const tapFromCenterX = x - centerX;
-    const tapFromCenterY = y - centerY;
+    // The tap position relative to the center of the displayed image
+    const tapFromCenterX = tapInImageAreaX - centerX;
+    const tapFromCenterY = tapInImageAreaY - centerY;
     
     // Account for translation and scale:
     // The image center is at (centerX + translateX, centerY + translateY)
@@ -230,7 +295,7 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
         onCreateHold(normalizedX, normalizedY);
       }
     }
-  }, [imageWidth, imageHeight, findHoldAtPosition, onSelectHold, onCreateHold]);
+  }, [imageWidth, imageHeight, imageOffsetX, imageOffsetY, findHoldAtPosition, onSelectHold, onCreateHold]);
 
   // Reset zoom
   const resetZoom = useCallback(() => {
@@ -245,7 +310,9 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
   // === GESTURES ===
 
   // Tap gesture - select existing hold or create new one (only when no active hold)
+  // maxDistance ensures a drag/pan that ends won't be mistaken for a tap
   const tapGesture = Gesture.Tap()
+    .maxDistance(10)
     .onEnd((event) => {
       if (!hasActiveHold.value) {
         runOnJS(handleTapAtPosition)(event.x, event.y);
@@ -255,6 +322,7 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
   // Double tap to reset zoom
   const doubleTapGesture = Gesture.Tap()
     .numberOfTaps(2)
+    .maxDistance(10)
     .onEnd(() => {
       if (!hasActiveHold.value) {
         runOnJS(resetZoom)();
@@ -293,6 +361,7 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
 
   // Pan gesture - move image OR move active hold
   const panGesture = Gesture.Pan()
+    .minDistance(10)
     .onStart(() => {
       if (hasActiveHold.value) {
         startHoldX.value = currentHoldX.value;
@@ -333,12 +402,13 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
       }
     });
 
-  // Combine gestures
-  const composedGesture = Gesture.Simultaneous(
-    Gesture.Exclusive(doubleTapGesture, tapGesture),
-    pinchGesture,
-    panGesture
-  );
+  // Combine gestures:
+  // - Pan and Pinch run simultaneously (zoom + pan at the same time)
+  // - Race ensures that if pan/pinch activates, tap gestures are cancelled
+  //   (prevents a pan release from being interpreted as a tap that creates a hold)
+  const panPinchGesture = Gesture.Simultaneous(pinchGesture, panGesture);
+  const tapGestures = Gesture.Exclusive(doubleTapGesture, tapGesture);
+  const composedGesture = Gesture.Race(panPinchGesture, tapGestures);
 
   // Animated style for image zoom/pan
   const animatedImageStyle = useAnimatedStyle(() => {
@@ -378,6 +448,8 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
                 holds={holds}
                 imageWidth={imageWidth}
                 imageHeight={imageHeight}
+                imageOffsetX={imageOffsetX}
+                imageOffsetY={imageOffsetY}
                 activeHold={activeHold}
                 activeHoldX={currentHoldX}
                 activeHoldY={currentHoldY}

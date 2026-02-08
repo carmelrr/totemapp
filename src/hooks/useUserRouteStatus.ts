@@ -30,11 +30,13 @@ export function useUserRouteStatus() {
       return;
     }
 
+    console.log('🔍 [useUserRouteStatus] Setting up listener for userRoutes/', userId);
     const userRoutesRef = doc(db, 'userRoutes', userId);
     
     const unsubscribe = onSnapshot(
       userRoutesRef,
       (docSnap) => {
+        console.log('✅ [useUserRouteStatus] Got userRoutes doc, exists:', docSnap.exists());
         if (docSnap.exists()) {
           const data = docSnap.data();
           setUserRouteData(data.routes || {});
@@ -45,7 +47,7 @@ export function useUserRouteStatus() {
         setError(null);
       },
       (err) => {
-        console.error('Error fetching user route data:', err);
+        console.error('❌ [useUserRouteStatus] Firebase Error on userRoutes:', err.code, err.message);
         setError(err.message);
         setIsLoading(false);
       }

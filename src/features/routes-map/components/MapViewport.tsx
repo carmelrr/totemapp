@@ -2,7 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { View, Text, LayoutChangeEvent, StyleSheet } from 'react-native';
 import Animated, { runOnJS } from 'react-native-reanimated';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
-import WallMapSVG from '@/assets/WallMapSVG';
+import { DynamicWallMap } from '@/features/wall-editor/components';
+import { Room } from '@/features/wall-editor/types';
 import { useMapTransforms } from '@/hooks/useMapTransforms';
 import { MapTransforms } from '../types/route';
 
@@ -25,12 +26,9 @@ interface MapViewportProps {
    */
   onTap?: (coordinates: { xImg: number; yImg: number }) => void;
   debug?: boolean;
+  /** Room data for rendering the dynamic wall map */
+  room: Room;
 }
-
-// SVG viewBox dimensions from WallMapSVG
-const SVG_WIDTH = 2560;
-const SVG_HEIGHT = 1600;
-const SVG_ASPECT_RATIO = SVG_HEIGHT / SVG_WIDTH;
 
 export default function MapViewport({
   children,
@@ -39,7 +37,13 @@ export default function MapViewport({
   onTransformsReady,
   onTap,
   debug = false,
+  room,
 }: MapViewportProps) {
+  // Use room dimensions for aspect ratio calculation
+  const SVG_WIDTH = room.width;
+  const SVG_HEIGHT = room.height;
+  const SVG_ASPECT_RATIO = SVG_HEIGHT / SVG_WIDTH;
+
   const [containerDimensions, setContainerDimensions] = useState({
     width: 0,
     height: 0,
@@ -93,29 +97,26 @@ export default function MapViewport({
           const tx = transforms.translateX.value;
           const ty = transforms.translateY.value;
           
-          // The map container uses a complex transform with scale compensation:
-          // transform: [
-          //   { scale: s },
-          //   { translateX: (tx - scaleCompX) / s },
-          //   { translateY: (ty - scaleCompY) / s },
-          // ]
-          // where scaleCompX = imgW * (1-s) / 2 and scaleCompY = imgH * (1-s) / 2
+          // Image dimensions for center calculation
+          const imgW = imageDimensions.imgW;
+          const imgH = imageDimensions.imgH;
+          const imgCenterX = imgW / 2;
+          const imgCenterY = imgH / 2;
+          
+          // The map container uses transform order [translateX, translateY, scale]
+          // which means: screenPos = (imagePos - imgCenter) * scale + imgCenter + translate
+          // (scale is applied around the image center after translation)
           //
-          // This means a point at image coords (xImg, yImg) appears at screen coords:
-          // screenX = xImg * s + tx  (after simplification)
-          // screenY = yImg * s + ty
-          //
-          // So to invert:
-          // xImg = (screenX - tx) / s
-          // yImg = (screenY - ty) / s
-          const xImg = (screenX - tx) / s;
-          const yImg = (screenY - ty) / s;
+          // To invert and find image coordinates from screen coordinates:
+          // imagePos = (screenPos - imgCenter - translate) / scale + imgCenter
+          const xImg = (screenX - imgCenterX - tx) / s + imgCenterX;
+          const yImg = (screenY - imgCenterY - ty) / s + imgCenterY;
           
           // Log all values for debugging
           console.log('=== TAP DEBUG ===' );
           console.log('Screen tap:', { screenX, screenY });
           console.log('Transforms:', { scale: s, translateX: tx, translateY: ty });
-          console.log('Image dimensions:', { imgW: imageDimensions.imgW, imgH: imageDimensions.imgH });
+          console.log('Image dimensions:', { imgW, imgH, imgCenterX, imgCenterY });
           console.log('Calculated image coords:', { xImg, yImg });
           console.log('================');
           
@@ -191,7 +192,8 @@ export default function MapViewport({
       <GestureDetector gesture={combinedGesture}>
         <Animated.View style={styles.gestureContainer} collapsable={false}>
           <Animated.View style={[styles.mapContainer, transforms.mapContainerStyle]} collapsable={false}>
-            <WallMapSVG
+            <DynamicWallMap
+              room={room}
               width={imageDimensions.imgW}
               height={imageDimensions.imgH}
               preserveAspectRatio="xMidYMid meet"

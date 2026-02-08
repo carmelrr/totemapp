@@ -11,24 +11,25 @@
  * - Real-time updates
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, memo } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  Image,
   RefreshControl,
   Dimensions,
   ScrollView,
   ActivityIndicator,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  useWindowDimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useNavigation } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 import { auth, db } from "@/features/data/firebase";
-import { collection, getDocs, query, where, onSnapshot } from "firebase/firestore";
-import defaultAvatar from "@/assets/splash.png";
+import { collection, getDocs, onSnapshot } from "firebase/firestore";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
 import { useAdmin } from "@/context/AdminContext";
@@ -36,6 +37,9 @@ import { useActiveCompetitions, useOpenRegistrationCompetitions, useCompletedCom
 import { ActiveCompetitionBanner } from "@/features/competitions/components/ActiveCompetitionBanner";
 import { OpenRegistrationBanner } from "@/features/competitions/components/OpenRegistrationBanner";
 import { CompletedCompetitionBanner } from "@/features/competitions/components/CompletedCompetitionBanner";
+import { BrandLogo } from "@/components/ui/BrandLogo";
+import { CachedAvatar, prefetchAvatarImages } from "@/components/ui/CachedAvatar";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -103,8 +107,9 @@ interface LeaderboardUser {
   displayName: string;
   photoURL: string | null;
   points: number;
+  allTimePoints: number; // Used for tiebreaker when points are equal
   routeCount?: number;
-  actualRank?: number;
+  rank?: number;
 }
 
 export default function LeaderboardScreen() {
@@ -112,14 +117,22 @@ export default function LeaderboardScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const { isAdmin } = useAdmin();
+  const layout = useResponsiveLayout();
+  const insets = useSafeAreaInsets();
+  const { isLandscape, isTablet, width } = layout;
+  const isPhoneLandscape = !isTablet && isLandscape;
   
   // State
   const [allUsers, setAllUsers] = useState<LeaderboardUser[]>([]);
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('onWall');
+  const [activeCompetitionIndex, setActiveCompetitionIndex] = useState(0);
   
   const currentUserId = auth.currentUser?.uid;
+
+  // Responsive styles
+  const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
 
   // Active competitions
   const { competitions: activeCompetitions, hasActiveCompetition } = useActiveCompetitions();
@@ -130,42 +143,112 @@ export default function LeaderboardScreen() {
   // Completed competitions with visible results
   const { competitions: completedCompetitions, hasCompletedWithResults } = useCompletedCompetitionsWithResults();
 
-  // Load users data with filtering
+  // Load users data with filtering - OPTIMIZED VERSION
+  // Instead of querying per-user, we fetch all data once and compute locally
   const loadUsersData = useCallback(async () => {
     try {
       setLoading(true);
 
-      // Check if we should only count active routes (on the wall)
       const onlyActiveRoutes = timeFilter === 'onWall';
 
-      // Get all users
+      // Step 1: Fetch all routes ONCE
+      const routesSnapshot = await getDocs(collection(db, "routes"));
+      const routesMap = new Map<string, any>();
+      const activeRouteIds = new Set<string>();
+      
+      routesSnapshot.forEach((doc) => {
+        const routeData = { id: doc.id, ...doc.data() };
+        routesMap.set(doc.id, routeData);
+        const isActive = !routeData.status || routeData.status === 'active';
+        if (isActive) {
+          activeRouteIds.add(doc.id);
+        }
+      });
+
+      // Step 2: Fetch ALL feedbacks from main collection ONCE
+      const mainFeedbacksSnapshot = await getDocs(collection(db, "routeFeedbacks"));
+      
+      // Step 3: Build a map of userId -> { points, allTimePoints, routeCount, seenFeedbackIds }
+      // We calculate BOTH on-wall points AND all-time points in one pass
+      const userStatsMap = new Map<string, { 
+        points: number; 
+        allTimePoints: number;
+        routeCount: number; 
+        seenFeedbackIds: Set<string> 
+      }>();
+      
+      mainFeedbacksSnapshot.forEach((feedbackDoc) => {
+        const feedback = feedbackDoc.data();
+        const userId = feedback.userId;
+        if (!userId) return;
+        
+        const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
+        if (!isCompleted) return;
+        
+        // Get or create user stats
+        if (!userStatsMap.has(userId)) {
+          userStatsMap.set(userId, { points: 0, allTimePoints: 0, routeCount: 0, seenFeedbackIds: new Set() });
+        }
+        const userStats = userStatsMap.get(userId)!;
+        
+        const uniqueId = `main_${feedbackDoc.id}`;
+        if (userStats.seenFeedbackIds.has(uniqueId)) return;
+        userStats.seenFeedbackIds.add(uniqueId);
+        
+        // Use the ROUTE's grade for points calculation
+        const route = routesMap.get(feedback.routeId);
+        const routeGrade = route?.grade || 'V0';
+        const feedbackPoints = parseGradeToPoints(routeGrade);
+        
+        // Always add to all-time points
+        userStats.allTimePoints += feedbackPoints;
+        
+        // Only add to current points if route is active (when filtering by on-wall)
+        const isActiveRoute = activeRouteIds.has(feedback.routeId);
+        if (!onlyActiveRoutes || isActiveRoute) {
+          userStats.points += feedbackPoints;
+          userStats.routeCount++;
+        }
+      });
+
+      // Step 4: Fetch ALL users ONCE
       const usersSnapshot = await getDocs(collection(db, "users"));
       const users: LeaderboardUser[] = [];
 
-      // Calculate points for each user
-      for (const userDoc of usersSnapshot.docs) {
+      usersSnapshot.forEach((userDoc) => {
         const userData = userDoc.data();
-        const { points, routeCount } = await calculateUserPoints(userDoc.id, onlyActiveRoutes);
-
+        const userStats = userStatsMap.get(userDoc.id) || { points: 0, allTimePoints: 0, routeCount: 0 };
+        
         users.push({
           id: userDoc.id,
           displayName: userData.displayName || t.social.user,
           photoURL: userData.photoURL || null,
-          points,
-          routeCount,
+          points: userStats.points,
+          allTimePoints: userStats.allTimePoints,
+          routeCount: userStats.routeCount,
         });
-      }
+      });
 
-      // Sort by points (highest first)
-      users.sort((a, b) => b.points - a.points);
+      // Sort by points (highest first), then by allTimePoints as tiebreaker
+      users.sort((a, b) => {
+        if (b.points !== a.points) {
+          return b.points - a.points;
+        }
+        // Tiebreaker: sort by all-time points
+        return b.allTimePoints - a.allTimePoints;
+      });
 
       setAllUsers(users);
+      
+      // Prefetch top 15 user avatars for instant display
+      const topUserPhotos = users.slice(0, 15).map(u => u.photoURL);
+      prefetchAvatarImages(topUserPhotos);
     } catch (error) {
       console.error("Error loading users data:", error);
     } finally {
       setLoading(false);
     }
-  }, [timeFilter]);
+  }, [timeFilter, t.social.user]);
 
   // Real-time subscription to users collection for leaderboard updates
   useEffect(() => {
@@ -181,113 +264,10 @@ export default function LeaderboardScreen() {
     return () => unsubscribe();
   }, [loadUsersData]);
 
-  const calculateUserPoints = async (
-    userId: string,
-    onlyActiveRoutes: boolean
-  ): Promise<{ points: number; routeCount: number }> => {
-    try {
-      // Get all routes for grade lookup
-      const routesSnapshot = await getDocs(collection(db, "routes"));
-      const routesMap = new Map<string, any>();
-      const activeRouteIds = new Set<string>();
-      
-      routesSnapshot.forEach((doc) => {
-        const routeData = { id: doc.id, ...doc.data() };
-        routesMap.set(doc.id, routeData);
-        // A route is active if it has no status or status is 'active'
-        const isActive = !routeData.status || routeData.status === 'active';
-        if (isActive) {
-          activeRouteIds.add(doc.id);
-        }
-      });
-
-      let totalPoints = 0;
-      let routeCount = 0;
-      const seenFeedbackIds = new Set<string>();
-
-      // 1. Query from main routeFeedbacks collection (current method)
-      const mainFeedbacksRef = collection(db, "routeFeedbacks");
-      const mainFeedbackQuery = query(
-        mainFeedbacksRef,
-        where("userId", "==", userId)
-      );
-      const mainFeedbackSnapshot = await getDocs(mainFeedbackQuery);
-
-      mainFeedbackSnapshot.forEach((feedbackDoc) => {
-        const feedback = feedbackDoc.data();
-        const uniqueId = `main_${feedbackDoc.id}`;
-        
-        // Check both closedRoute and isCompleted for compatibility
-        const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
-        if (!isCompleted) return;
-        
-        // Filter by active routes if needed
-        if (onlyActiveRoutes && !activeRouteIds.has(feedback.routeId)) return;
-        
-        seenFeedbackIds.add(uniqueId);
-        
-        // Use the ROUTE's grade for points calculation (not suggestedGrade)
-        const route = routesMap.get(feedback.routeId);
-        const routeGrade = route?.grade || 'V0';
-        const points = parseGradeToPoints(routeGrade);
-        totalPoints += points;
-        routeCount++;
-      });
-
-      // 2. Also query from subcollections (legacy way) for backwards compatibility
-      for (const route of Array.from(routesMap.values())) {
-        const feedbacksRef = collection(db, "routes", route.id, "feedbacks");
-        const feedbackQuery = query(
-          feedbacksRef,
-          where("userId", "==", userId)
-        );
-
-        const feedbackSnapshot = await getDocs(feedbackQuery);
-
-        feedbackSnapshot.forEach((feedbackDoc) => {
-          const feedback = feedbackDoc.data();
-          const uniqueId = `sub_${route.id}_${feedbackDoc.id}`;
-          
-          // Skip if already seen
-          if (seenFeedbackIds.has(uniqueId)) return;
-          
-          // Check both closedRoute and isCompleted for compatibility
-          const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
-          if (!isCompleted) return;
-          
-          // Filter by active routes if needed
-          if (onlyActiveRoutes && !activeRouteIds.has(route.id)) return;
-          
-          seenFeedbackIds.add(uniqueId);
-          
-          // Use the ROUTE's grade for points calculation (not suggestedGrade)
-          const routeGrade = route.grade || 'V0';
-          const points = parseGradeToPoints(routeGrade);
-          totalPoints += points;
-          routeCount++;
-        });
-      }
-
-      return { points: totalPoints, routeCount };
-    } catch (error) {
-      console.error("Error calculating user points:", error);
-      return { points: 0, routeCount: 0 };
-    }
-  };
-
   const onRefresh = async () => {
     setRefreshing(true);
     await loadUsersData();
     setRefreshing(false);
-  };
-
-  const getCurrentUserRank = () => {
-    const userIndex = allUsers.findIndex((user) => user.id === currentUserId);
-    return userIndex !== -1 ? userIndex + 1 : null;
-  };
-
-  const getCurrentUserStats = () => {
-    return allUsers.find((user) => user.id === currentUserId);
   };
 
   // Get users with points > 0
@@ -296,18 +276,60 @@ export default function LeaderboardScreen() {
     [allUsers]
   );
 
+  // Calculate ranks with tie handling
+  // If users have the same points, they share the same rank
+  // BUT they are sorted by allTimePoints as tiebreaker (for display order)
+  // Next rank skips to the correct position (e.g., 1,1,3 not 1,1,2)
+  const usersWithRanks = useMemo(() => {
+    // Sort by points first, then by allTimePoints as tiebreaker
+    const sorted = [...usersWithPoints].sort((a, b) => {
+      if (b.points !== a.points) {
+        return b.points - a.points;
+      }
+      // Tiebreaker: sort by all-time points
+      return b.allTimePoints - a.allTimePoints;
+    });
+    
+    let currentRank = 1;
+    
+    return sorted.map((user, index) => {
+      if (index === 0) {
+        return { ...user, rank: 1 };
+      }
+      
+      // If same points as previous user, same rank (tie)
+      // Note: even with different allTimePoints, if points are same, they share rank
+      if (user.points === sorted[index - 1].points) {
+        return { ...user, rank: currentRank };
+      }
+      
+      // Different points - rank is position + 1 (to account for ties)
+      currentRank = index + 1;
+      return { ...user, rank: currentRank };
+    });
+  }, [usersWithPoints]);
+
+  const getCurrentUserRank = () => {
+    const user = usersWithRanks.find((user) => user.id === currentUserId);
+    return user?.rank || null;
+  };
+
+  const getCurrentUserStats = () => {
+    return usersWithRanks.find((user) => user.id === currentUserId);
+  };
+
   // Get top 3 for podium
-  const topThree = useMemo(() => usersWithPoints.slice(0, 3), [usersWithPoints]);
+  const topThree = useMemo(() => usersWithRanks.slice(0, 3), [usersWithRanks]);
 
   // Get users for the list (4th place onwards)
   const getRestOfUsers = () => {
     const currentUser = getCurrentUserStats();
     const currentUserRank = getCurrentUserRank();
 
-    if (usersWithPoints.length <= 3) return [];
+    if (usersWithRanks.length <= 3) return [];
 
-    // Show positions 4-13 (10 users)
-    const restUsers = usersWithPoints.slice(3, 13);
+    // Show positions 4-13 (10 users) - using usersWithRanks which has rank property
+    const restUsers = usersWithRanks.slice(3, 13);
 
     // If current user is not in the visible list and has points > 0, add them at the end
     if (
@@ -316,14 +338,28 @@ export default function LeaderboardScreen() {
       currentUserRank > 13 &&
       currentUser.points > 0
     ) {
-      restUsers.push({
-        ...currentUser,
-        actualRank: currentUserRank,
-      });
+      restUsers.push(currentUser);
     }
 
     return restUsers;
   };
+
+  // Combine active and open registration competitions for the carousel
+  // Filter out active competitions from open registration to avoid duplicates
+  const allDisplayCompetitions = useMemo(() => {
+    const activeIds = new Set(activeCompetitions.map(c => c.id));
+    const openNotActive = openRegistrationCompetitions.filter(c => !activeIds.has(c.id) && c.status !== 'active');
+    return [...activeCompetitions, ...openNotActive];
+  }, [activeCompetitions, openRegistrationCompetitions]);
+
+  const hasMultipleCompetitions = allDisplayCompetitions.length > 1;
+
+  // Handle carousel scroll
+  const handleCompetitionScroll = useCallback((event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / (screenWidth - 30)); // Account for margin
+    setActiveCompetitionIndex(index);
+  }, []);
 
   const handleCompetitionPress = (competition: Competition) => {
     // Navigate to competition leaderboard tab
@@ -377,122 +413,164 @@ export default function LeaderboardScreen() {
     </View>
   );
 
+  const handleUserPress = useCallback((userId: string, displayName?: string) => {
+    navigation.navigate('UserProfile', { userId, displayName });
+  }, [navigation]);
+
   const renderPodium = () => {
     if (topThree.length === 0) return null;
+
+    // Podium colors
+    const GOLD = "#f1c40f";
+    const SILVER = "#95a5a6";
+    const BRONZE = "#cd7f32";
 
     return (
       <View style={styles.podiumContainer}>
         <View style={styles.podiumRow}>
           {/* Second place */}
           {topThree[1] && (
-            <View style={styles.podiumPlace}>
-              <View style={styles.podiumStep2}>
-                <Text style={styles.podiumRank}>2</Text>
-              </View>
-              <Image
-                source={
-                  topThree[1].photoURL
-                    ? { uri: topThree[1].photoURL }
-                    : defaultAvatar
-                }
+            <TouchableOpacity 
+              style={styles.podiumPlace}
+              onPress={() => handleUserPress(topThree[1].id, topThree[1].displayName)}
+              activeOpacity={0.7}
+            >
+              <BrandLogo variant="icon" color="white" size={50} tintColor={SILVER} />
+              <CachedAvatar
+                photoURL={topThree[1].photoURL}
+                displayName={topThree[1].displayName}
+                size={60}
+                showBorder={false}
                 style={styles.podiumAvatar}
               />
               <Text style={styles.podiumName} numberOfLines={1}>
                 {topThree[1].displayName}
               </Text>
               <Text style={styles.podiumPoints}>{topThree[1].points} {t.social.pts}</Text>
-              <Text style={styles.podiumMedal}>🥈</Text>
-            </View>
+            </TouchableOpacity>
           )}
 
           {/* First place */}
           {topThree[0] && (
-            <View style={styles.podiumPlace}>
-              <View style={styles.podiumStep1}>
-                <Text style={styles.podiumRank}>1</Text>
-              </View>
-              <Image
-                source={
-                  topThree[0].photoURL
-                    ? { uri: topThree[0].photoURL }
-                    : defaultAvatar
-                }
+            <TouchableOpacity 
+              style={styles.podiumPlace}
+              onPress={() => handleUserPress(topThree[0].id, topThree[0].displayName)}
+              activeOpacity={0.7}
+            >
+              <BrandLogo variant="icon" color="white" size={70} tintColor={GOLD} />
+              <CachedAvatar
+                photoURL={topThree[0].photoURL}
+                displayName={topThree[0].displayName}
+                size={70}
+                showBorder={false}
                 style={styles.podiumAvatar}
               />
               <Text style={styles.podiumName} numberOfLines={1}>
                 {topThree[0].displayName}
               </Text>
               <Text style={styles.podiumPoints}>{topThree[0].points} {t.social.pts}</Text>
-              <Text style={styles.podiumMedal}>🥇</Text>
-            </View>
+            </TouchableOpacity>
           )}
 
           {/* Third place */}
           {topThree[2] && (
-            <View style={styles.podiumPlace}>
-              <View style={styles.podiumStep3}>
-                <Text style={styles.podiumRank}>3</Text>
-              </View>
-              <Image
-                source={
-                  topThree[2].photoURL
-                    ? { uri: topThree[2].photoURL }
-                    : defaultAvatar
-                }
+            <TouchableOpacity 
+              style={styles.podiumPlace}
+              onPress={() => handleUserPress(topThree[2].id, topThree[2].displayName)}
+              activeOpacity={0.7}
+            >
+              <BrandLogo variant="icon" color="white" size={40} tintColor={BRONZE} />
+              <CachedAvatar
+                photoURL={topThree[2].photoURL}
+                displayName={topThree[2].displayName}
+                size={55}
+                showBorder={false}
                 style={styles.podiumAvatar}
               />
               <Text style={styles.podiumName} numberOfLines={1}>
                 {topThree[2].displayName}
               </Text>
               <Text style={styles.podiumPoints}>{topThree[2].points} {t.social.pts}</Text>
-              <Text style={styles.podiumMedal}>🥉</Text>
-            </View>
+            </TouchableOpacity>
           )}
         </View>
       </View>
     );
   };
 
+  // Memoized leaderboard item for better performance
+  const LeaderboardItem = memo(({ item, index, isCurrentUser, displayRank, onPress, t, styles }: {
+    item: LeaderboardUser;
+    index: number;
+    isCurrentUser: boolean;
+    displayRank: number;
+    onPress: () => void;
+    t: any;
+    styles: any;
+  }) => (
+    <TouchableOpacity
+      style={[
+        styles.leaderboardItem,
+        isCurrentUser && styles.currentUserItem,
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.rankContainer}>
+        <Text style={styles.rankNumber}>{displayRank}</Text>
+      </View>
+
+      <CachedAvatar
+        photoURL={item.photoURL}
+        displayName={item.displayName}
+        size={45}
+        showBorder={false}
+        style={styles.userAvatar}
+      />
+
+      <View style={styles.userInfo}>
+        <Text
+          style={[styles.userName, isCurrentUser && styles.currentUserName]}
+        >
+          {item.displayName || t.social.user}
+          {isCurrentUser && <Text> {t.social.you}</Text>}
+        </Text>
+        <Text style={styles.userStat}>
+          {item.points} {t.social.points} {item.routeCount ? `| ${item.routeCount} ${t.social.routes}` : ''}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  ), (prev, next) => {
+    return prev.item.id === next.item.id && 
+           prev.item.points === next.item.points &&
+           prev.item.photoURL === next.item.photoURL &&
+           prev.isCurrentUser === next.isCurrentUser &&
+           prev.displayRank === next.displayRank;
+  });
+
   const renderLeaderboardItem = ({ item, index }: { item: LeaderboardUser; index: number }) => {
-    const avatarSource = item.photoURL ? { uri: item.photoURL } : defaultAvatar;
     const isCurrentUser = item.id === currentUserId;
-    const displayRank = item.actualRank || index + 4;
+    // Use pre-calculated rank, fallback to index + 4 for 4th place onwards
+    const displayRank = item.rank || index + 4;
 
     return (
-      <View
-        style={[
-          styles.leaderboardItem,
-          isCurrentUser && styles.currentUserItem,
-        ]}
-      >
-        <View style={styles.rankContainer}>
-          <Text style={styles.rankNumber}>{displayRank}</Text>
-        </View>
-
-        <Image source={avatarSource} style={styles.userAvatar} />
-
-        <View style={styles.userInfo}>
-          <Text
-            style={[styles.userName, isCurrentUser && styles.currentUserName]}
-          >
-            {item.displayName || t.social.user}
-            {isCurrentUser && <Text> {t.social.you}</Text>}
-          </Text>
-          <Text style={styles.userStat}>
-            {item.points} {t.social.points} {item.routeCount ? `| ${item.routeCount} ${t.social.routes}` : ''}
-          </Text>
-        </View>
-      </View>
+      <LeaderboardItem
+        item={item}
+        index={index}
+        isCurrentUser={isCurrentUser}
+        displayRank={displayRank}
+        onPress={() => handleUserPress(item.id, item.displayName)}
+        t={t}
+        styles={styles}
+      />
     );
   };
-
-  // Create styles based on current theme
-  const styles = createStyles(theme);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       {/* Header */}
       <View style={styles.headerContainer}>
+        <BrandLogo variant="icon" color="white" size={24} />
         <Text style={styles.headerTitle}>
           {hasActiveCompetition ? `🏆 ${t.social.competitions}` : `🏆 ${t.social.leaderboard}`}
         </Text>
@@ -501,7 +579,7 @@ export default function LeaderboardScreen() {
             style={styles.manageButton}
             onPress={handleManageCompetitions}
           >
-            <Ionicons name="settings-outline" size={22} color={theme.primary} />
+            <Ionicons name="settings-outline" size={22} color="#fff" />
           </TouchableOpacity>
         )}
       </View>
@@ -512,27 +590,75 @@ export default function LeaderboardScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Active Competition Banners */}
-        {hasActiveCompetition && activeCompetitions.map((competition) => (
-          <ActiveCompetitionBanner
-            key={competition.id}
-            competition={competition}
-            onPress={() => handleCompetitionPress(competition)}
-            onEnterResults={() => handleEnterResultsPress(competition)}
-          />
-        ))}
-
-        {/* Open Registration Banners - Only show competitions that are NOT active yet */}
-        {/* (competitions that are active should show via ActiveCompetitionBanner above) */}
-        {hasOpenRegistration && openRegistrationCompetitions
-          .filter((competition) => competition.status !== 'active')
-          .map((competition) => (
-            <OpenRegistrationBanner
-              key={competition.id}
-              competition={competition}
-              onRegisterPress={() => handleRegistrationPress(competition)}
-            />
-          ))}
+        {/* Competition Banners - Carousel when multiple competitions */}
+        {allDisplayCompetitions.length > 0 && (
+          <View>
+            {hasMultipleCompetitions ? (
+              <>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onScroll={handleCompetitionScroll}
+                  scrollEventThrottle={16}
+                  contentContainerStyle={styles.competitionsCarousel}
+                  snapToInterval={screenWidth - 30}
+                  decelerationRate="fast"
+                >
+                  {allDisplayCompetitions.map((competition) => (
+                    <View key={competition.id} style={styles.competitionSlide}>
+                      {competition.status === 'active' ? (
+                        <ActiveCompetitionBanner
+                          competition={competition}
+                          onPress={() => handleCompetitionPress(competition)}
+                          onEnterResults={() => handleEnterResultsPress(competition)}
+                        />
+                      ) : (
+                        <OpenRegistrationBanner
+                          competition={competition}
+                          onRegisterPress={() => handleRegistrationPress(competition)}
+                        />
+                      )}
+                    </View>
+                  ))}
+                </ScrollView>
+                {/* Pagination Dots */}
+                <View style={styles.paginationContainer}>
+                  {allDisplayCompetitions.map((_, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.paginationDot,
+                        index === activeCompetitionIndex && styles.paginationDotActive,
+                      ]}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : (
+              <>
+                {/* Single competition - show without carousel */}
+                {activeCompetitions.map((competition) => (
+                  <ActiveCompetitionBanner
+                    key={competition.id}
+                    competition={competition}
+                    onPress={() => handleCompetitionPress(competition)}
+                    onEnterResults={() => handleEnterResultsPress(competition)}
+                  />
+                ))}
+                {openRegistrationCompetitions
+                  .filter((competition) => competition.status !== 'active')
+                  .map((competition) => (
+                    <OpenRegistrationBanner
+                      key={competition.id}
+                      competition={competition}
+                      onRegisterPress={() => handleRegistrationPress(competition)}
+                    />
+                  ))}
+              </>
+            )}
+          </View>
+        )}
 
         {/* Completed Competition Banners - Show when results are visible */}
         {hasCompletedWithResults && completedCompetitions.map((competition) => (
@@ -562,16 +688,13 @@ export default function LeaderboardScreen() {
           <View style={styles.listSection}>
             <Text style={styles.listTitle}>{t.social.otherPlaces}</Text>
             {getRestOfUsers().map((user, index) => {
-              const displayIndex = user.actualRank
-                ? user.actualRank - 1
-                : index + 3;
               return (
                 <View key={user.id}>
-                  {renderLeaderboardItem({ item: user, index: displayIndex })}
+                  {renderLeaderboardItem({ item: user, index })}
                 </View>
               );
             })}
-            {getRestOfUsers().length === 0 && usersWithPoints.length <= 3 && (
+            {getRestOfUsers().length === 0 && usersWithRanks.length <= 3 && (
               <Text style={styles.emptyText}>{t.social.noMoreUsers}</Text>
             )}
           </View>
@@ -582,8 +705,8 @@ export default function LeaderboardScreen() {
           <View style={styles.currentUserSection}>
             <Text style={styles.currentUserSectionTitle}>{t.social.yourPosition}</Text>
             {renderLeaderboardItem({
-              item: { ...getCurrentUserStats()!, actualRank: getCurrentUserRank()! },
-              index: getCurrentUserRank()! - 1,
+              item: getCurrentUserStats()!,
+              index: 0,
             })}
           </View>
         )}
@@ -592,38 +715,69 @@ export default function LeaderboardScreen() {
   );
 }
 
-const createStyles = (theme: any) =>
-  StyleSheet.create({
+const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout>, insets?: { left: number; right: number; top: number; bottom: number }) => {
+  const { width: screenWidth } = Dimensions.get('window');
+  const isLandscape = layout?.isLandscape ?? false;
+  const isTablet = layout?.isTablet ?? false;
+  const isPhoneLandscape = !isTablet && isLandscape;
+  const horizontalPadding = isLandscape ? Math.max(insets?.left ?? 0, insets?.right ?? 0, 16) : 16;
+  const contentMaxWidth = isLandscape ? Math.min((layout?.width ?? screenWidth) * 0.7, 600) : screenWidth;
+  
+  return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.background,
     },
     headerContainer: {
-      backgroundColor: theme.surface,
-      paddingVertical: 20,
-      paddingHorizontal: 15,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.border,
-      alignItems: "center",
       flexDirection: 'row',
+      alignItems: 'center',
       justifyContent: 'center',
+      gap: 8,
+      backgroundColor: theme.headerGradient,
+      paddingVertical: isPhoneLandscape ? 8 : 14,
+      paddingHorizontal: Math.max(horizontalPadding, 16),
     },
     headerTitle: {
-      fontSize: 20,
+      fontSize: isPhoneLandscape ? 18 : 20,
       fontWeight: "bold",
-      color: theme.text,
+      color: '#fff',
       textAlign: "center",
-      flex: 1,
     },
     manageButton: {
       position: 'absolute',
-      right: 15,
+      right: horizontalPadding,
       padding: 8,
       borderRadius: 20,
-      backgroundColor: theme.isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)',
+      backgroundColor: 'rgba(255,255,255,0.15)',
     },
     scrollContainer: {
       flex: 1,
+    },
+    competitionsCarousel: {
+      paddingHorizontal: isLandscape ? horizontalPadding : 0,
+      alignItems: isLandscape ? 'center' : undefined,
+    },
+    competitionSlide: {
+      width: isLandscape ? Math.min(contentMaxWidth, screenWidth - 60) : screenWidth - 30,
+      marginHorizontal: 0,
+      alignSelf: isLandscape ? 'center' : undefined,
+    },
+    paginationContainer: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingVertical: 8,
+      gap: 6,
+    },
+    paginationDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: theme.isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.2)',
+    },
+    paginationDotActive: {
+      backgroundColor: theme.primary,
+      width: 20,
     },
     loadingContainer: {
       padding: 40,
@@ -637,20 +791,20 @@ const createStyles = (theme: any) =>
     filterContainer: {
       flexDirection: 'row',
       justifyContent: 'center',
-      paddingVertical: 12,
-      paddingHorizontal: 15,
+      paddingVertical: isPhoneLandscape ? 8 : 12,
+      paddingHorizontal: horizontalPadding,
       backgroundColor: theme.surface,
       marginBottom: 10,
     },
     filterTab: {
-      paddingHorizontal: 20,
-      paddingVertical: 8,
+      paddingHorizontal: isPhoneLandscape ? 16 : 20,
+      paddingVertical: isPhoneLandscape ? 6 : 8,
       borderRadius: 20,
       marginHorizontal: 4,
       backgroundColor: theme.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
     },
     filterTabActive: {
-      backgroundColor: theme.primary,
+      backgroundColor: theme.buttonPrimary,
     },
     filterTabText: {
       fontSize: 14,
@@ -664,56 +818,28 @@ const createStyles = (theme: any) =>
     // Podium Styles
     podiumContainer: {
       backgroundColor: theme.surface,
-      padding: 20,
+      padding: isPhoneLandscape ? 15 : 20,
       marginBottom: 10,
+      alignSelf: isLandscape ? 'center' : undefined,
+      width: isLandscape ? contentMaxWidth : undefined,
+      maxWidth: isLandscape ? 600 : undefined,
     },
     podiumRow: {
       flexDirection: "row",
       justifyContent: "center",
       alignItems: "flex-end",
-      height: 200,
+      minHeight: isPhoneLandscape ? 150 : 180,
     },
     podiumPlace: {
       alignItems: "center",
       marginHorizontal: 10,
       flex: 1,
     },
-    podiumStep1: {
-      backgroundColor: "#f1c40f",
-      height: 80,
-      width: "100%",
-      borderRadius: 12,
-      justifyContent: "center",
-      alignItems: "center",
-      marginBottom: 10,
-    },
-    podiumStep2: {
-      backgroundColor: "#95a5a6",
-      height: 60,
-      width: "100%",
-      borderRadius: 12,
-      justifyContent: "center",
-      alignItems: "center",
-      marginBottom: 10,
-    },
-    podiumStep3: {
-      backgroundColor: "#cd7f32",
-      height: 40,
-      width: "100%",
-      borderRadius: 12,
-      justifyContent: "center",
-      alignItems: "center",
-      marginBottom: 10,
-    },
-    podiumRank: {
-      color: "#fff",
-      fontSize: 18,
-      fontWeight: "bold",
-    },
     podiumAvatar: {
       width: 50,
       height: 50,
       borderRadius: 25,
+      marginTop: 8,
       marginBottom: 5,
       borderWidth: 3,
       borderColor: theme.surface,
@@ -739,12 +865,15 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.surface,
       marginTop: 10,
       paddingTop: 15,
+      alignSelf: isLandscape ? 'center' : undefined,
+      width: isLandscape ? contentMaxWidth : undefined,
+      maxWidth: isLandscape ? 600 : undefined,
     },
     listTitle: {
       fontSize: 16,
       fontWeight: "bold",
       color: theme.text,
-      paddingHorizontal: 15,
+      paddingHorizontal: horizontalPadding,
       marginBottom: 10,
       textAlign: "right",
     },
@@ -753,8 +882,8 @@ const createStyles = (theme: any) =>
       alignItems: "center",
       backgroundColor: theme.card,
       marginVertical: 4,
-      marginHorizontal: 15,
-      padding: 16,
+      marginHorizontal: horizontalPadding,
+      padding: isPhoneLandscape ? 12 : 16,
       borderRadius: 14,
       shadowColor: theme.shadow,
       shadowOffset: { width: 0, height: 2 },
@@ -805,20 +934,24 @@ const createStyles = (theme: any) =>
       textAlign: "center",
       color: theme.textSecondary,
       fontSize: 16,
-      margin: 20,
+      margin: horizontalPadding,
     },
     currentUserSection: {
       backgroundColor: theme.surface,
       marginTop: 10,
       paddingTop: 15,
       paddingBottom: 15,
+      alignSelf: isLandscape ? 'center' : undefined,
+      width: isLandscape ? contentMaxWidth : undefined,
+      maxWidth: isLandscape ? 600 : undefined,
     },
     currentUserSectionTitle: {
       fontSize: 14,
       fontWeight: 'bold',
       color: theme.textSecondary,
-      paddingHorizontal: 15,
+      paddingHorizontal: horizontalPadding,
       marginBottom: 10,
       textAlign: 'right',
     },
   });
+};

@@ -40,7 +40,7 @@ export function useVisibleRoutes({
     lastUpdateRef.current = now;
 
     // Calculate viewport bounds in image coordinates
-    const bounds = getViewportBounds(transforms, screenWidth, screenHeight);
+    const bounds = getViewportBounds(transforms, screenWidth, screenHeight, imageWidth, imageHeight);
 
     // Filter routes within viewport
     let filteredRoutes = routes.filter((route) => {

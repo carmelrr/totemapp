@@ -203,7 +203,6 @@ export function useCompetitionLeaderboard(
       ? ResultsService.subscribeToTotemtitionLeaderboard(
           competitionId,
           (leaderboard) => {
-            console.log('[useCompetitionLeaderboard] Received Totemtition leaderboard:', leaderboard.map(e => ({ name: e.participantName, rank: e.rank, points: e.totalPoints })));
             setEntries(leaderboard);
             setLoading(false);
           },
@@ -212,7 +211,6 @@ export function useCompetitionLeaderboard(
       : ResultsService.subscribeToLeaderboard(
           competitionId,
           (leaderboard) => {
-            console.log('[useCompetitionLeaderboard] Received regular leaderboard:', leaderboard.map(e => ({ name: e.participantName, rank: e.rank, points: e.points })));
             setEntries(leaderboard);
             setLoading(false);
           },

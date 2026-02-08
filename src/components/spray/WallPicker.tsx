@@ -1,7 +1,7 @@
 // src/components/spray/WallPicker.tsx
 // Component for selecting a wall from the list
 
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -13,6 +13,9 @@ import {
 } from "react-native";
 import { Wall } from "@/features/spraywall/types";
 import { useLanguage } from "@/features/language";
+import { useTheme, lightTheme } from "@/features/theme/ThemeContext";
+
+type Theme = typeof lightTheme;
 
 interface WallPickerProps {
   walls: Wall[];
@@ -28,11 +31,13 @@ export const WallPicker: React.FC<WallPickerProps> = ({
   loading = false,
 }) => {
   const { t } = useLanguage();
+  const { theme } = useTheme();
+  const styles = useMemo(() => createStyles(theme), [theme]);
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="small" color="#8E4EC6" />
+        <ActivityIndicator size="small" color={theme.secondary} />
         <Text style={styles.loadingText}>{t.wall.loadingWalls}</Text>
       </View>
     );
@@ -92,13 +97,14 @@ export const WallPicker: React.FC<WallPickerProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+// Dynamic styles based on theme
+const createStyles = (theme: Theme) => StyleSheet.create({
   container: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.surface,
     paddingVertical: 12,
   },
   title: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 16,
     fontWeight: "600",
     paddingHorizontal: 16,
@@ -109,7 +115,7 @@ const styles = StyleSheet.create({
   },
   wallItem: {
     marginHorizontal: 4,
-    backgroundColor: "#3a3a3a",
+    backgroundColor: theme.card,
     borderRadius: 12,
     overflow: "hidden",
     width: 140,
@@ -117,7 +123,7 @@ const styles = StyleSheet.create({
     borderColor: "transparent",
   },
   wallItemSelected: {
-    borderColor: "#8E4EC6",
+    borderColor: theme.secondary,
   },
   wallThumbnail: {
     width: "100%",
@@ -127,15 +133,15 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   wallName: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 14,
     fontWeight: "500",
   },
   wallNameSelected: {
-    color: "#8E4EC6",
+    color: theme.secondary,
   },
   wallDimensions: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 12,
     marginTop: 2,
   },
@@ -143,7 +149,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 8,
     right: 8,
-    backgroundColor: "#8E4EC6",
+    backgroundColor: theme.secondary,
     borderRadius: 12,
     width: 24,
     height: 24,
@@ -160,7 +166,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   loadingText: {
-    color: "#888",
+    color: theme.textSecondary,
     marginTop: 8,
   },
   emptyContainer: {
@@ -168,7 +174,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   emptyText: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 14,
   },
 });

@@ -22,8 +22,8 @@ export default function RouteMarker({
   // not provided, fall back to 1.
   const compensatedStyle = useAnimatedStyle(() => {
     const raw = scale?.value ?? 1;
-    // If raw is not finite or zero, default to 1.  Clamp to a sensible range.
-    const safeRaw = Number.isFinite(raw) && raw > 0 ? Math.min(Math.max(raw, 0.5), 8) : 1;
+    // If raw is not finite or zero, default to 1.  Clamp to a sensible range (up to 10x for high zoom).
+    const safeRaw = Number.isFinite(raw) && raw > 0 ? Math.min(Math.max(raw, 0.5), 10) : 1;
     return {
       transform: [{ scale: 1 / safeRaw }],
     } as any;
@@ -48,7 +48,7 @@ export default function RouteMarker({
           selected && styles.selectedMarker,
         ]}
         onPress={handlePress}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
         activeOpacity={0.7}
       >
         <Text

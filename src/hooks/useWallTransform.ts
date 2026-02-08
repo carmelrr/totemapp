@@ -1,4 +1,5 @@
 // hooks/useWallTransform.ts
+import { useRef, useCallback } from 'react';
 import { useSharedValue, useDerivedValue, withTiming, runOnJS, useAnimatedStyle } from 'react-native-reanimated';
 import { Gesture } from 'react-native-gesture-handler';
 
@@ -23,6 +24,26 @@ export const useWallTransform = (p: Params) => {
     const baseScale = useSharedValue(minScale);
     const baseTx = useSharedValue(0);
     const baseTy = useSharedValue(0);
+
+    // Throttled notification — prevent runOnJS spam during gestures
+    const pendingNotifyRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const notifyThrottled = useCallback((s: number, x: number, y: number) => {
+        if (!onTransformChange) return;
+        if (pendingNotifyRef.current) return; // already scheduled
+        pendingNotifyRef.current = setTimeout(() => {
+            pendingNotifyRef.current = null;
+            onTransformChange(s, x, y);
+        }, 100);
+    }, [onTransformChange]);
+
+    const notifyImmediate = useCallback((s: number, x: number, y: number) => {
+        if (!onTransformChange) return;
+        if (pendingNotifyRef.current) {
+            clearTimeout(pendingNotifyRef.current);
+            pendingNotifyRef.current = null;
+        }
+        onTransformChange(s, x, y);
+    }, [onTransformChange]);
 
     const clamp = (v: number, lo: number, hi: number) => {
         'worklet';
@@ -75,6 +96,14 @@ export const useWallTransform = (p: Params) => {
             const newScale = clamp(baseScale.value * e.scale, minScale, maxScale);
             scale.value = newScale;
             clampPan(newScale);
+            if (onTransformChange) {
+                runOnJS(notifyThrottled)(newScale, tx.value, ty.value);
+            }
+        })
+        .onEnd(() => {
+            if (onTransformChange) {
+                runOnJS(notifyImmediate)(scale.value, tx.value, ty.value);
+            }
         });
 
     const pan = Gesture.Pan()
@@ -88,6 +117,14 @@ export const useWallTransform = (p: Params) => {
             tx.value = baseTx.value + e.translationX;
             ty.value = baseTy.value + e.translationY;
             clampPan(scale.value);
+            if (onTransformChange) {
+                runOnJS(notifyThrottled)(scale.value, tx.value, ty.value);
+            }
+        })
+        .onEnd(() => {
+            if (onTransformChange) {
+                runOnJS(notifyImmediate)(scale.value, tx.value, ty.value);
+            }
         });
 
     const doubleTap = Gesture.Tap()
@@ -96,6 +133,9 @@ export const useWallTransform = (p: Params) => {
             scale.value = withTiming(minScale);
             tx.value = withTiming(0);
             ty.value = withTiming(0);
+            if (onTransformChange) {
+                runOnJS(notifyImmediate)(minScale, 0, 0);
+            }
         });
 
     // איפוס לגודל המינימלי
@@ -103,14 +143,8 @@ export const useWallTransform = (p: Params) => {
         scale.value = withTiming(minScale);
         tx.value = withTiming(0);
         ty.value = withTiming(0);
+        notifyImmediate(minScale, 0, 0);
     };
-
-    // העברת עדכון החוצה (רק אם צריך, עדיף לעשות throttle בחוץ)
-    useDerivedValue(() => {
-        if (onTransformChange) {
-            runOnJS(onTransformChange)(scale.value, tx.value, ty.value);
-        }
-    });
 
     const composedGestures = Gesture.Simultaneous(
         Gesture.Race(doubleTap, pinch),

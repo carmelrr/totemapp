@@ -15,11 +15,13 @@ import {
     getDoc,
     serverTimestamp,
     getDocs,
+    setDoc,
 } from "firebase/firestore";
 import { db } from "@/features/data/firebase";
 import { RouteStatsService } from "./RouteStatsService";
 import { UserStatsService } from "./UserStatsService";
 import { triggerStatsRefresh } from "@/utils/events/statsRefreshEvent";
+import { clearFeedCache } from "@/features/social/socialService";
 
 /**
  * הפניות לאוספי Firestore
@@ -65,6 +67,7 @@ export class FeedbackService {
         feedbackData: {
             userId: string;
             userDisplayName?: string;
+            userPhotoURL?: string;
             starRating: number;
             suggestedGrade?: string;
             comment?: string;
@@ -84,6 +87,33 @@ export class FeedbackService {
 
             await addDoc(feedbacksRef, feedbackWithMeta);
             console.log("✅ Feedback added successfully");
+
+            // Clear feed cache so new feedback appears immediately
+            clearFeedCache();
+
+            // Update userRoutes for completion filter
+            if (feedbackData.isCompleted) {
+                try {
+                    const userRoutesRef = doc(db, 'userRoutes', feedbackData.userId);
+                    const userRoutesDoc = await getDoc(userRoutesRef);
+                    const existingRoutes = userRoutesDoc.exists() ? (userRoutesDoc.data().routes || {}) : {};
+                    
+                    const updatedRoutes = {
+                        ...existingRoutes,
+                        [routeId]: {
+                            ...(existingRoutes[routeId] || {}),
+                            status: 'sent',
+                            attempts: (existingRoutes[routeId]?.attempts || 0) + 1,
+                            lastAttempt: new Date(),
+                        }
+                    };
+                    
+                    await setDoc(userRoutesRef, { routes: updatedRoutes }, { merge: true });
+                    console.log("✅ UserRoutes updated for completion filter");
+                } catch (userRoutesError) {
+                    console.warn("⚠️ Could not update userRoutes:", userRoutesError);
+                }
+            }
 
             // Update route statistics
             try {

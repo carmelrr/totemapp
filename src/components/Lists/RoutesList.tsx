@@ -1,7 +1,7 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, FlatList, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { RouteDoc } from '@/features/routes-map/types/route';
-import { useFiltersStore } from '@/store/useFiltersStore';
+import { useFiltersStore, filterRoutes } from '@/store/useFiltersStore';
 import { getColorHex, getContrastTextColor } from '@/constants/colors';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language/LanguageContext';
@@ -175,15 +175,18 @@ const RoutesList = React.memo(function RoutesList({
 }: RoutesListProps) {
   const { theme } = useTheme();
   const { t } = useLanguage();
-  const styles = createStyles(theme, compact);
-  const { getFilteredRoutes } = useFiltersStore();
+  const styles = useMemo(() => createStyles(theme, compact), [theme, compact]);
+  const filters = useFiltersStore(state => state.filters);
+  const sorting = useFiltersStore(state => state.sorting);
+  const searchQuery = useFiltersStore(state => state.searchQuery);
 
-  // אם יש לנו visibleRouteIds, זה אומר שהמסלולים כבר עברו סינון viewport ב-RoutesMapScreen
-  // במקרה הזה אנחנו רוצים להציג את כל המסלולים שהגיעו ללא סינון נוסף
-  // אחרת, נשתמש בפילטרים הרגילים של FiltersStore
-  const filteredRoutes = (visibleRouteIds && visibleRouteIds.length > 0) ? 
-    routes : 
-    getFilteredRoutes(routes, undefined);
+  // Memoize filtered routes to avoid recalculating on every render
+  const filteredRoutes = useMemo(() => {
+    if (visibleRouteIds && visibleRouteIds.length > 0) {
+      return routes;
+    }
+    return filterRoutes(routes, filters, sorting, searchQuery);
+  }, [routes, visibleRouteIds, filters, sorting, searchQuery]);
 
   const renderItem = useCallback(({ item }: { item: RouteDoc }) => (
     <RouteItem route={item} onPress={onRoutePress} onLongPress={onRouteLongPress} theme={theme} t={t} />
@@ -210,10 +213,12 @@ const RoutesList = React.memo(function RoutesList({
       data={filteredRoutes}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
+      getItemLayout={getItemLayout}
       maxToRenderPerBatch={10}
       windowSize={10}
       updateCellsBatchingPeriod={50}
       removeClippedSubviews={true}
+      initialNumToRender={10}
       style={styles.list}
       contentContainerStyle={styles.listContent}
     />

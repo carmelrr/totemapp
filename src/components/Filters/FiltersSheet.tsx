@@ -5,9 +5,11 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  SafeAreaView,
   ScrollView,
+  Pressable,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useFiltersStore } from '@/store/useFiltersStore';
 import { getColorHex } from '@/constants/colors';
 import { useLanguage } from '@/features/language';
@@ -52,10 +54,6 @@ export default function FiltersSheet({
     });
   }, [availableGrades]);
   
-  console.log('[FiltersSheet] availableColors:', availableColors);
-  console.log('[FiltersSheet] availableDates:', availableDates);
-  console.log('[FiltersSheet] sortedGrades:', sortedGrades);
-  
   const {
     filters,
     setFilter,
@@ -72,7 +70,6 @@ export default function FiltersSheet({
   };
 
   const handleColorToggle = (color: string) => {
-    console.log('[FiltersSheet] Toggling color:', color, 'current:', filters.colors);
     const newColors = filters.colors.includes(color)
       ? filters.colors.filter(c => c !== color)
       : [...filters.colors, color];
@@ -159,39 +156,42 @@ export default function FiltersSheet({
   return (
     <Modal
       visible={isFilterSheetOpen}
-      animationType="slide"
-      presentationStyle="pageSheet"
+      animationType="fade"
+      transparent
       onRequestClose={() => setFilterSheetOpen(false)}
     >
-      <SafeAreaView style={dynamicStyles.container}>
-        {/* Header */}
-        <View style={dynamicStyles.header}>
-          <TouchableOpacity
-            style={dynamicStyles.headerButton}
-            onPress={() => setFilterSheetOpen(false)}
-          >
-            <Text style={dynamicStyles.cancelText}>{t.common.cancel}</Text>
-          </TouchableOpacity>
-          
-          <Text style={dynamicStyles.title}>{t.filters.title}</Text>
-          
-          <TouchableOpacity
-            style={dynamicStyles.headerButton}
-            onPress={handleApply}
-          >
-            <Text style={dynamicStyles.applyText}>{t.filters.apply}</Text>
-          </TouchableOpacity>
-        </View>
+      <View style={dynamicStyles.modalOverlay}>
+        {/* Backdrop press handler (kept behind the sheet so it won't steal scroll/touch gestures) */}
+        <Pressable
+          style={StyleSheet.absoluteFill}
+          onPress={() => setFilterSheetOpen(false)}
+        />
 
-        <ScrollView style={dynamicStyles.content}>
-          {/* Colors Section */}
-          <View style={dynamicStyles.section}>
-            <Text style={dynamicStyles.sectionTitle}>{t.filters.colors}</Text>
-            {availableColors.length > 0 ? (
-              <View style={dynamicStyles.colorsGrid}>
-                {availableColors.map((color) => {
-                  const displayColor = getDisplayColor(color);
-                  const isSelected = filters.colors.includes(color);
+        <View style={dynamicStyles.modalContent}>
+          {/* Header */}
+          <View style={dynamicStyles.header}>
+            <Text style={dynamicStyles.title}>{t.filters.title}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+              {(filters.colors.length > 0 || filters.gradeRange.min || filters.gradeRange.max || filters.dateRange !== 'all' || filters.completionStatus !== 'all') && (
+                <TouchableOpacity onPress={resetFilters}>
+                  <Text style={dynamicStyles.clearText}>{t.routes.clearFilters}</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity onPress={() => setFilterSheetOpen(false)}>
+                <Ionicons name="close" size={24} color={theme.text} />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <ScrollView style={dynamicStyles.content} showsVerticalScrollIndicator={false}>
+            {/* Colors Section */}
+            <View style={dynamicStyles.section}>
+              <Text style={dynamicStyles.sectionTitle}>{t.filters.colors}</Text>
+              {availableColors.length > 0 ? (
+                <View style={dynamicStyles.colorsGrid}>
+                  {availableColors.map((color) => {
+                    const displayColor = getDisplayColor(color);
+                    const isSelected = filters.colors.includes(color);
                   return (
                     <TouchableOpacity
                       key={color}
@@ -301,66 +301,110 @@ export default function FiltersSheet({
               })}
             </ScrollView>
           </View>
+
+          {/* Completion Status Section */}
+          <View style={dynamicStyles.section}>
+            <Text style={dynamicStyles.sectionTitle}>{t.filters.completionStatus}</Text>
+            <View style={dynamicStyles.completionOptionsRow}>
+              <TouchableOpacity
+                style={[
+                  dynamicStyles.completionChip,
+                  (!filters.completionStatus || filters.completionStatus === 'all') && dynamicStyles.completionChipSelected,
+                ]}
+                onPress={() => setFilter('completionStatus', 'all')}
+              >
+                <Text style={[
+                  dynamicStyles.completionChipText,
+                  (!filters.completionStatus || filters.completionStatus === 'all') && dynamicStyles.completionChipTextSelected,
+                ]}>
+                  {t.filters.showAll}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  dynamicStyles.completionChip,
+                  filters.completionStatus === 'completed' && dynamicStyles.completionChipSelected,
+                ]}
+                onPress={() => setFilter('completionStatus', 'completed')}
+              >
+                <Text style={[
+                  dynamicStyles.completionChipText,
+                  filters.completionStatus === 'completed' && dynamicStyles.completionChipTextSelected,
+                ]}>
+                  ✓ {t.filters.showCompleted}
+                </Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[
+                  dynamicStyles.completionChip,
+                  filters.completionStatus === 'not-completed' && dynamicStyles.completionChipSelected,
+                ]}
+                onPress={() => setFilter('completionStatus', 'not-completed')}
+              >
+                <Text style={[
+                  dynamicStyles.completionChipText,
+                  filters.completionStatus === 'not-completed' && dynamicStyles.completionChipTextSelected,
+                ]}>
+                  {t.filters.showNotCompleted}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </ScrollView>
 
-        {/* Footer */}
-        <View style={dynamicStyles.footer}>
-          {activeFiltersCount > 0 && (
-            <TouchableOpacity
-              style={dynamicStyles.resetButton}
-              onPress={() => {
-                resetFilters();
-              }}
-            >
-              <Text style={dynamicStyles.resetButtonText}>נקה סינון ({activeFiltersCount})</Text>
-            </TouchableOpacity>
-          )}
+        {/* Apply Button */}
+        <TouchableOpacity
+          style={dynamicStyles.applyButton}
+          onPress={handleApply}
+        >
+          <Text style={dynamicStyles.applyButtonText}>{t.filters.apply}</Text>
+        </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      </View>
     </Modal>
   );
 }
 
 const createStyles = (theme: any) => StyleSheet.create({
-  container: {
+  modalOverlay: {
     flex: 1,
-    backgroundColor: theme.background,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: theme.surface,
+    borderRadius: 16,
+    padding: 20,
+    width: '90%',
+    maxWidth: 400,
+    maxHeight: '80%',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.border,
-  },
-  headerButton: {
-    minWidth: 60,
-  },
-  cancelText: {
-    fontSize: 16,
-    color: theme.textSecondary,
+    marginBottom: 16,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: 'bold',
     color: theme.text,
   },
-  applyText: {
-    fontSize: 16,
+  clearText: {
+    fontSize: 14,
     fontWeight: '600',
     color: theme.primary,
-    textAlign: 'right',
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
   },
   section: {
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.border,
+    marginBottom: 20,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -369,9 +413,10 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginBottom: 4,
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 14,
     fontWeight: '600',
-    color: theme.text,
+    color: theme.textSecondary,
+    marginBottom: 12,
   },
   selectedText: {
     fontSize: 14,
@@ -432,7 +477,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: theme.border,
-    backgroundColor: theme.isDark ? '#2a2a2a' : '#f9fafb',
+    backgroundColor: theme.card,
     minWidth: 55,
     alignItems: 'center',
   },
@@ -459,7 +504,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderRadius: 20,
     borderWidth: 1.5,
     borderColor: theme.border,
-    backgroundColor: theme.isDark ? '#2a2a2a' : '#f9fafb',
+    backgroundColor: theme.card,
   },
   dateChipSelected: {
     backgroundColor: theme.primary,
@@ -473,21 +518,42 @@ const createStyles = (theme: any) => StyleSheet.create({
   dateChipTextSelected: {
     color: '#ffffff',
   },
-  footer: {
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-    borderTopColor: theme.border,
+  completionOptionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginBottom: 12,
   },
-  resetButton: {
-    backgroundColor: theme.error,
-    paddingVertical: 14,
-    borderRadius: 10,
-    alignItems: 'center',
+  completionChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: theme.border,
+    backgroundColor: theme.card,
   },
-  resetButtonText: {
-    fontSize: 16,
+  completionChipSelected: {
+    backgroundColor: theme.success,
+    borderColor: theme.success,
+  },
+  completionChipText: {
+    fontSize: 13,
     fontWeight: '600',
+    color: theme.textSecondary,
+  },
+  completionChipTextSelected: {
+    color: '#ffffff',
+  },
+  applyButton: {
+    backgroundColor: theme.buttonPrimary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
     color: '#ffffff',
   },
 });

@@ -8,8 +8,10 @@ import {
   getRoutesForWall,
   listenToRoutesForWall,
   deleteRoute as deleteRouteService,
+  listenToUserFeedbackRoutes,
 } from "./routesService";
 import { useWalls } from "@/features/walls/hooks";
+import { useAuth } from "@/context/AuthContext";
 
 // Re-export useWalls for convenience
 export { useWalls };
@@ -133,4 +135,35 @@ export function useDeleteRoute() {
   }, []);
 
   return { deleteRoute, loading };
+}
+
+/**
+ * Hook to get all routes the current user has completed (given feedback on)
+ * Returns a Set of route IDs for efficient lookup
+ */
+export function useUserCompletedSprayRoutes() {
+  const { user } = useAuth();
+  const [completedRouteIds, setCompletedRouteIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user?.uid) {
+      console.log('🔍 [useUserCompletedSprayRoutes] No user, returning empty set');
+      setCompletedRouteIds(new Set());
+      setLoading(false);
+      return;
+    }
+
+    console.log('🔍 [useUserCompletedSprayRoutes] Setting up listener for user:', user.uid);
+    setLoading(true);
+    const unsubscribe = listenToUserFeedbackRoutes(user.uid, (routeIds) => {
+      console.log('✅ [useUserCompletedSprayRoutes] Got', routeIds.size, 'completed routes:', Array.from(routeIds));
+      setCompletedRouteIds(routeIds);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid]);
+
+  return { completedRouteIds, loading };
 }

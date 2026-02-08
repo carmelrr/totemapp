@@ -2,10 +2,12 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Animated, Dimensions } from "react-native";
 
 const { width: screenWidth } = Dimensions.get("window");
+const panelWidth = screenWidth * 0.8; // 80% of screen width
 
 export function useSidePanel() {
   const [showSidePanel, setShowSidePanel] = useState(false);
-  const slideAnim = useRef(new Animated.Value(screenWidth)).current;
+  // Start with panel off-screen to the right (negative value positions panel to the right of screen)
+  const slideAnim = useRef(new Animated.Value(-panelWidth)).current;
   // Track the current animation to stop it on unmount
   const animationRef = useRef<Animated.CompositeAnimation | null>(null);
 
@@ -26,8 +28,9 @@ export function useSidePanel() {
     }
 
     if (showSidePanel) {
+      // Close: slide panel off to the right
       animationRef.current = Animated.timing(slideAnim, {
-        toValue: screenWidth,
+        toValue: -panelWidth,
         duration: 300,
         useNativeDriver: false,
       });
@@ -36,9 +39,10 @@ export function useSidePanel() {
         animationRef.current = null;
       });
     } else {
+      // Open: slide panel in from the right (right: 0 means panel is at right edge of screen)
       setShowSidePanel(true);
       animationRef.current = Animated.timing(slideAnim, {
-        toValue: screenWidth * 0.2,
+        toValue: 0,
         duration: 300,
         useNativeDriver: false,
       });

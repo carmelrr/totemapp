@@ -123,9 +123,11 @@ export function getAllColorSettings(): Map<string, CustomColorSetting> {
 export function subscribeToColorSettings(
   callback: (settings: Map<string, CustomColorSetting>) => void
 ): () => void {
+  console.log('🔍 [ColorSettingsService] Setting up listener for colorSettings');
   const colorSettingsRef = collection(db, 'colorSettings');
   
   const unsubscribe = onSnapshot(colorSettingsRef, (snapshot) => {
+    console.log('✅ [ColorSettingsService] Got colorSettings snapshot, changes:', snapshot.docChanges().length);
     snapshot.docChanges().forEach((change) => {
       const data = change.doc.data() as CustomColorSetting;
       if (change.type === 'added' || change.type === 'modified') {
@@ -136,6 +138,8 @@ export function subscribeToColorSettings(
     });
     
     callback(new Map(colorSettingsCache));
+  }, (err) => {
+    console.error('❌ [ColorSettingsService] Firebase Error on colorSettings:', err.code, err.message);
   });
   
   return unsubscribe;
