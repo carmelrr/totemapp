@@ -88,7 +88,7 @@ export class CompetitionRoutesService {
         createdBy,
       };
 
-      // Store per-route scoring overrides for custom_points / ifsc_points
+      // Store per-route scoring overrides for zone_top format
       if (data.pointsTop !== undefined) routeData.pointsTop = data.pointsTop;
       if (data.pointsZone !== undefined) routeData.pointsZone = data.pointsZone;
 
@@ -484,7 +484,7 @@ export class CompetitionRoutesService {
       isActive: data.isActive ?? true,
       createdAt: data.createdAt?.toDate() || new Date(),
       createdBy: data.createdBy,
-      // Per-route scoring overrides (custom_points / ifsc_points)
+      // Per-route scoring overrides (zone_top format)
       ...(data.pointsTop !== undefined && { pointsTop: data.pointsTop }),
       ...(data.pointsZone !== undefined && { pointsZone: data.pointsZone }),
     };

@@ -5,7 +5,7 @@
 
 // =============== Enums & Constants ===============
 
-export type CompetitionFormat = 'national_league' | 'totemtition' | 'custom' | 'custom_points' | 'ifsc_points';
+export type CompetitionFormat = 'national_league' | 'totemtition' | 'custom' | 'zone_top';
 export type ResultsEntryMode = 'selfEntry' | 'judgesOnly';
 export type RegistrationMode = 'openRegistration' | 'adminsOrJudgesOnly';
 export type CompetitionStatus = 'draft' | 'upcoming' | 'active' | 'closed' | 'completed' | 'cancelled';
@@ -57,7 +57,7 @@ export interface CompetitionSettings {
   // Totemtition specific
   basePointsPerRoute?: number;          // 1000 for totemtition
 
-  // New format settings (custom_points / ifsc_points)
+  // Zone/Top format settings
   resultsEntryMode?: ResultsEntryMode;       // who enters results
   registrationMode?: RegistrationMode;       // who can register
   enableZone?: boolean;                      // whether Zone is tracked
@@ -101,7 +101,7 @@ export interface CompetitionRoute {
   createdAt: Date;
   createdBy?: string;
 
-  // Per-route scoring overrides (custom_points format)
+  // Per-route scoring overrides (zone_top format)
   pointsTop?: number;                   // custom top points for this route
   pointsZone?: number;                  // custom zone points for this route
 }
@@ -191,7 +191,7 @@ export interface RouteResult {
   updatedBy?: string;
   updatedAt?: Date;
 
-  // Zone/Top fields for IFSC & custom_points formats
+  // Zone/Top fields for zone_top format
   topAchieved?: boolean;                // did the climber top the route?
   topAttempt?: number;                  // attempt number top was achieved (1-based)
   zoneAchieved?: boolean;               // did the climber reach zone?
@@ -314,7 +314,7 @@ export interface ScoringConfig {
 }
 
 /**
- * Per-route scoring config for custom_points format
+ * Per-route scoring config for zone_top format
  * Stored in each CompetitionRoute document
  */
 export interface RoutePointsConfig {
@@ -323,7 +323,7 @@ export interface RoutePointsConfig {
 }
 
 /**
- * IFSC / custom_points scoring config (competition-level)
+ * Zone/Top scoring config (competition-level)
  */
 export interface ZoneTopScoringConfig {
   defaultPointsTop: number;             // 25 for IFSC

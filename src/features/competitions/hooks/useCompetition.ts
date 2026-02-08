@@ -210,7 +210,7 @@ export function useCompetitionLeaderboard(
         },
         category
       );
-    } else if (format === 'ifsc_points' || format === 'custom_points') {
+    } else if (format === 'zone_top') {
       unsubscribe = ResultsService.subscribeToZoneTopLeaderboard(
         competitionId,
         (leaderboard) => {

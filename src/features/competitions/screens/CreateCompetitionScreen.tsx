@@ -28,8 +28,7 @@ import { CompetitionFormat } from '@/features/competitions/types';
 import {
   NATIONAL_LEAGUE_SETTINGS,
   TOTEMTITION_SETTINGS,
-  CUSTOM_POINTS_SETTINGS,
-  IFSC_POINTS_SETTINGS,
+  ZONE_TOP_SETTINGS,
   COMPETITION_FORMAT_INFO,
   getDefaultSettingsForFormat,
 } from '@/features/competitions/constants';
@@ -58,7 +57,7 @@ export default function CreateCompetitionScreen() {
   const [maxAttempts, setMaxAttempts] = useState('10');
   const [enableCategories, setEnableCategories] = useState(true);
 
-  // Zone/Top settings (for ifsc_points & custom_points)
+  // Zone/Top settings
   const [enableZone, setEnableZone] = useState(true);
   const [defaultPointsTop, setDefaultPointsTop] = useState('25');
   const [defaultPointsZone, setDefaultPointsZone] = useState('10');
@@ -73,7 +72,7 @@ export default function CreateCompetitionScreen() {
 
   const styles = createStyles(theme);
 
-  const isZoneTopFormat = format === 'ifsc_points' || format === 'custom_points';
+  const isZoneTopFormat = format === 'zone_top';
 
   const handleFormatChange = (newFormat: CompetitionFormat) => {
     setFormat(newFormat);
@@ -90,7 +89,7 @@ export default function CreateCompetitionScreen() {
     setRegistrationMode(defaults.registrationMode ?? 'openRegistration');
 
     // Zone/Top settings
-    if (newFormat === 'ifsc_points' || newFormat === 'custom_points') {
+    if (newFormat === 'zone_top') {
       setEnableZone(defaults.enableZone ?? true);
       setDefaultPointsTop(String(defaults.defaultPointsTop ?? 25));
       setDefaultPointsZone(String(defaults.defaultPointsZone ?? 10));
@@ -240,7 +239,7 @@ export default function CreateCompetitionScreen() {
           <View style={styles.section}>
             <Text style={styles.label}>{t.competitionExt.competitionFormat}</Text>
             <View style={styles.formatOptions}>
-              {(['national_league', 'totemtition', 'ifsc_points', 'custom_points'] as CompetitionFormat[]).map((f) => {
+              {(['national_league', 'totemtition', 'zone_top'] as CompetitionFormat[]).map((f) => {
                 const info = COMPETITION_FORMAT_INFO[f];
                 const isSelected = format === f;
                 const label = language === 'he' ? info.label : info.labelEn;

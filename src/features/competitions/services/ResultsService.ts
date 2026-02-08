@@ -93,12 +93,12 @@ export class ResultsService {
       completed: boolean;
       attempts: number;
       grade: string;
-      // Zone/Top fields for IFSC & custom_points formats
+      // Zone/Top fields for zone_top format
       topAchieved?: boolean;
       topAttempt?: number;
       zoneAchieved?: boolean;
       zoneAttempt?: number;
-      // Per-route overrides (custom_points)
+      // Per-route overrides (zone_top)
       pointsTop?: number;
       pointsZone?: number;
     },
@@ -132,7 +132,7 @@ export class ResultsService {
         // TOTEM routes: points calculated dynamically in leaderboard
         points = 0;
       } else if (format && isZoneTopFormat(format) && competition?.settings) {
-        // Zone/Top scoring (IFSC or custom_points)
+        // Zone/Top scoring
         const config = buildZoneTopScoringConfig(competition.settings);
         points = calculateZoneTopRoutePoints(
           {

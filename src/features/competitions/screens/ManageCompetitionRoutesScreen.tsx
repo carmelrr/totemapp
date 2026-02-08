@@ -73,12 +73,11 @@ export default function ManageCompetitionRoutesScreen() {
 
   // Check if this is Totemtition format (no grades needed)
   const isTotemtition = competition?.format === 'totemtition';
-  const isCustomPoints = competition?.format === 'custom_points';
   const isZoneTop = competition?.format ? isZoneTopFormat(competition.format) : false;
   const [selectedGrade, setSelectedGrade] = useState('V3');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Per-route points for custom_points format
+  // Per-route points for zone_top format
   const defaultTop = competition?.settings?.defaultPointsTop ?? 25;
   const defaultZone = competition?.settings?.defaultPointsZone ?? 10;
   const [newRoutePointsTop, setNewRoutePointsTop] = useState('');
@@ -360,7 +359,7 @@ export default function ManageCompetitionRoutesScreen() {
     setShowColorModal(true);
   };
 
-  // Handle editing route points (custom_points format)
+  // Handle editing route points (zone_top format)
   const handleOpenEditRoute = (route: CompetitionRoute) => {
     setEditingRoute(route);
     setEditPointsTop(String(route.pointsTop ?? defaultTop));
@@ -481,8 +480,8 @@ export default function ManageCompetitionRoutesScreen() {
           <Text style={styles.routeGrade}>{displayGrade}</Text>
           <Text style={styles.routePoints}>{pointsLabel}</Text>
         </View>
-        {/* Edit points button - only for custom_points format */}
-        {isCustomPoints && (
+        {/* Edit points button - zone_top format */}
+        {isZoneTop && (
           <TouchableOpacity
             style={styles.editBtn}
             onPress={() => handleOpenEditRoute(item)}
@@ -810,8 +809,8 @@ export default function ManageCompetitionRoutesScreen() {
               </View>
             )}
 
-            {/* Zone/Top per-route points (custom_points) */}
-            {isCustomPoints && (
+            {/* Zone/Top per-route points */}
+            {isZoneTop && (
               <View style={styles.inputSection}>
                 <Text style={styles.inputLabel}>{t.competitions?.pointsTopLabel || 'נקודות ל-Top'}</Text>
                 <TextInput
@@ -835,15 +834,6 @@ export default function ManageCompetitionRoutesScreen() {
                 />
                 <Text style={styles.zoneTopHint}>
                   {t.competitions?.perRoutePointsHint || 'השאר ריק לשימוש בברירת מחדל'}
-                </Text>
-              </View>
-            )}
-
-            {/* IFSC format info */}
-            {isZoneTop && !isCustomPoints && (
-              <View style={styles.totemtitionInfo}>
-                <Text style={styles.totemtitionInfoText}>
-                  🏆 IFSC: Top={defaultTop} / Zone={defaultZone}
                 </Text>
               </View>
             )}
@@ -918,7 +908,7 @@ export default function ManageCompetitionRoutesScreen() {
         </View>
       </Modal>
 
-      {/* Edit Route Points Modal (custom_points) */}
+      {/* Edit Route Points Modal (zone_top) */}
       <Modal
         visible={showEditModal}
         transparent

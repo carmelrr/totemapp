@@ -73,7 +73,7 @@ export default function JudgeEntryScreen() {
   // Category-based route completion counts: category -> routeId -> count
   const [routeCompletionCountsByCategory, setRouteCompletionCountsByCategory] = useState<Record<string, Record<string, number>>>({});
 
-  // Zone/Top state (IFSC & custom_points)
+  // Zone/Top state
   const [zoneAchieved, setZoneAchieved] = useState(false);
   const [zoneAttempt, setZoneAttempt] = useState('1');
   const [topAchieved, setTopAchieved] = useState(false);
@@ -264,7 +264,7 @@ export default function JudgeEntryScreen() {
         resultData.topAttempt = topAchieved ? (parseInt(topAttempt) || 1) : undefined;
         resultData.zoneAchieved = zoneAchieved;
         resultData.zoneAttempt = zoneAchieved ? (parseInt(zoneAttempt) || 1) : undefined;
-        // Per-route scoring overrides (mainly for custom_points)
+        // Per-route scoring overrides (zone_top)
         if (selectedRoute.pointsTop !== undefined) {
           resultData.pointsTop = selectedRoute.pointsTop;
         }
