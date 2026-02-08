@@ -25,16 +25,15 @@ import { getUserRoles } from '@/features/roles/rolesService';
 
 /**
  * Check if user has permission to manage competition routes
- * Judges, Head Judges, and Admins can manage routes
+ * Only Head Judges and Admins can manage routes
  */
 async function checkManageRoutesPermission(userId: string): Promise<void> {
   const userRoles = await getUserRoles(userId);
   const hasPermission = userRoles.includes('admin') || 
-                       userRoles.includes('judge') || 
                        userRoles.includes('head_judge');
   
   if (!hasPermission) {
-    throw new Error('Not authorized to manage competition routes. Only judges, head judges, and admins can manage routes.');
+    throw new Error('Not authorized to manage competition routes. Only head judges and admins can manage routes.');
   }
 }
 

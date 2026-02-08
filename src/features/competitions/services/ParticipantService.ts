@@ -26,22 +26,16 @@ import { getUserRoles } from '@/features/roles/rolesService';
 
 /**
  * Check if user has permission to manage participants
- * Judges, Head Judges, and Admins can manage participants
+ * Only Head Judges and Admins can manage participants
  */
 async function checkManageParticipantsPermission(userId: string): Promise<void> {
   const userRoles = await getUserRoles(userId);
   
-  console.log('[DEBUG] checkManageParticipantsPermission - userId:', userId);
-  console.log('[DEBUG] checkManageParticipantsPermission - userRoles:', userRoles);
-  
   const hasPermission = userRoles.includes('admin') || 
-                       userRoles.includes('judge') || 
                        userRoles.includes('head_judge');
   
-  console.log('[DEBUG] checkManageParticipantsPermission - hasPermission:', hasPermission);
-  
   if (!hasPermission) {
-    throw new Error('Not authorized to manage participants. Only judges, head judges, and admins can manage participants.');
+    throw new Error('Not authorized to manage participants. Only head judges and admins can manage participants.');
   }
 }
 

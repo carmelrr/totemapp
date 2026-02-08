@@ -200,18 +200,18 @@ export function canManageJudges(roles: UserRole[]): boolean {
 
 /**
  * Check if user can manage competition participants
- * Judge, Head Judge, and Admin can manage participants
+ * Only Head Judge and Admin can manage participants
  */
 export function canManageParticipants(roles: UserRole[]): boolean {
-  return roles.includes('admin') || roles.includes('judge') || roles.includes('head_judge');
+  return roles.includes('admin') || roles.includes('head_judge');
 }
 
 /**
  * Check if user can manage competition routes
- * Judge, Head Judge, and Admin can manage routes
+ * Only Head Judge and Admin can manage routes
  */
 export function canManageCompetitionRoutes(roles: UserRole[]): boolean {
-  return roles.includes('admin') || roles.includes('judge') || roles.includes('head_judge');
+  return roles.includes('admin') || roles.includes('head_judge');
 }
 
 /**
