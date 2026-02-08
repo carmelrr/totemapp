@@ -260,10 +260,16 @@ export default function JudgeEntryScreen() {
 
       // Add Zone/Top fields for applicable formats
       if (isZoneTop) {
+        const topAtt = parseInt(topAttempt) || 1;
+        let zoneAtt = parseInt(zoneAttempt) || 1;
+        // Zone can't be after top — if topped on attempt X, zone must be ≤ X
+        if (topAchieved && zoneAchieved && zoneAtt > topAtt) {
+          zoneAtt = topAtt;
+        }
         resultData.topAchieved = topAchieved;
-        resultData.topAttempt = topAchieved ? (parseInt(topAttempt) || 1) : undefined;
+        resultData.topAttempt = topAchieved ? topAtt : undefined;
         resultData.zoneAchieved = zoneAchieved;
-        resultData.zoneAttempt = zoneAchieved ? (parseInt(zoneAttempt) || 1) : undefined;
+        resultData.zoneAttempt = zoneAchieved ? zoneAtt : undefined;
         // Per-route scoring overrides (zone_top)
         if (selectedRoute.pointsTop !== undefined) {
           resultData.pointsTop = selectedRoute.pointsTop;
@@ -785,7 +791,12 @@ export default function JudgeEntryScreen() {
                               />
                               <TouchableOpacity
                                 style={styles.attemptsBtn}
-                                onPress={() => setZoneAttempt(String(parseInt(zoneAttempt) + 1))}
+                                onPress={() => {
+                                const newVal = parseInt(zoneAttempt) + 1;
+                                // Zone attempt can't exceed top attempt
+                                if (topAchieved && newVal > (parseInt(topAttempt) || 1)) return;
+                                setZoneAttempt(String(newVal));
+                              }}
                               >
                                 <Ionicons name="add" size={20} color={theme.text} />
                               </TouchableOpacity>
@@ -806,6 +817,12 @@ export default function JudgeEntryScreen() {
                           if (newVal && hasZone && !zoneAchieved) {
                             setZoneAchieved(true);
                           }
+                          // Cap zone attempt to top attempt
+                          if (newVal && hasZone) {
+                            const tAtt = parseInt(topAttempt) || 1;
+                            const zAtt = parseInt(zoneAttempt) || 1;
+                            if (zAtt > tAtt) setZoneAttempt(String(tAtt));
+                          }
                         }}
                       >
                         <Ionicons 
@@ -823,7 +840,14 @@ export default function JudgeEntryScreen() {
                           <View style={styles.attemptsControl}>
                             <TouchableOpacity
                               style={styles.attemptsBtn}
-                              onPress={() => setTopAttempt(String(Math.max(1, parseInt(topAttempt) - 1)))}
+                              onPress={() => {
+                                const newVal = Math.max(1, parseInt(topAttempt) - 1);
+                                setTopAttempt(String(newVal));
+                                // Cap zone attempt if it exceeds new top attempt
+                                if (zoneAchieved && parseInt(zoneAttempt) > newVal) {
+                                  setZoneAttempt(String(newVal));
+                                }
+                              }}
                             >
                               <Ionicons name="remove" size={20} color={theme.text} />
                             </TouchableOpacity>
