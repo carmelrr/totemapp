@@ -73,6 +73,14 @@ export default function CreateCompetitionScreen() {
   const styles = createStyles(theme);
 
   const isZoneTopFormat = format === 'zone_top';
+  const isTotemtition = format === 'totemtition';
+  const isNationalLeague = format === 'national_league';
+
+  // Which settings are relevant per format
+  const showTopRoutes = isNationalLeague;          // only NL uses TOP-N
+  const showAttemptPenalty = isNationalLeague;      // ZT uses zone/top penalties, Totem has none
+  const showMaxAttempts = !isTotemtition;           // Totem is unlimited
+  const showCategories = !isTotemtition;            // Totem has no categories
 
   const handleFormatChange = (newFormat: CompetitionFormat) => {
     setFormat(newFormat);
@@ -439,52 +447,60 @@ export default function CreateCompetitionScreen() {
                 />
               </View>
 
-              <View style={styles.settingItem}>
-                <Text style={styles.settingLabel}>{t.competitionExt.topForScoring}</Text>
-                <TextInput
-                  style={styles.settingInput}
-                  value={topRoutes}
-                  onChangeText={setTopRoutes}
-                  keyboardType="number-pad"
-                  textAlign="center"
-                />
-              </View>
+              {showTopRoutes && (
+                <View style={styles.settingItem}>
+                  <Text style={styles.settingLabel}>{t.competitionExt.topForScoring}</Text>
+                  <TextInput
+                    style={styles.settingInput}
+                    value={topRoutes}
+                    onChangeText={setTopRoutes}
+                    keyboardType="number-pad"
+                    textAlign="center"
+                  />
+                </View>
+              )}
 
-              <View style={styles.settingItem}>
-                <Text style={styles.settingLabel}>{t.competitionExt.attemptPenaltyLabel}</Text>
-                <TextInput
-                  style={styles.settingInput}
-                  value={attemptPenalty}
-                  onChangeText={setAttemptPenalty}
-                  keyboardType="number-pad"
-                  textAlign="center"
-                />
-              </View>
+              {showAttemptPenalty && (
+                <View style={styles.settingItem}>
+                  <Text style={styles.settingLabel}>{t.competitionExt.attemptPenaltyLabel}</Text>
+                  <TextInput
+                    style={styles.settingInput}
+                    value={attemptPenalty}
+                    onChangeText={setAttemptPenalty}
+                    keyboardType="number-pad"
+                    textAlign="center"
+                  />
+                </View>
+              )}
 
-              <View style={styles.settingItem}>
-                <Text style={styles.settingLabel}>{t.competitionExt.maxAttemptsLabel}</Text>
-                <TextInput
-                  style={styles.settingInput}
-                  value={maxAttempts}
-                  onChangeText={setMaxAttempts}
-                  keyboardType="number-pad"
-                  textAlign="center"
-                />
-              </View>
+              {showMaxAttempts && (
+                <View style={styles.settingItem}>
+                  <Text style={styles.settingLabel}>{t.competitionExt.maxAttemptsLabel}</Text>
+                  <TextInput
+                    style={styles.settingInput}
+                    value={maxAttempts}
+                    onChangeText={setMaxAttempts}
+                    keyboardType="number-pad"
+                    textAlign="center"
+                  />
+                </View>
+              )}
             </View>
 
             {/* Categories Toggle */}
-            <TouchableOpacity
-              style={styles.toggleRow}
-              onPress={() => setEnableCategories(!enableCategories)}
-            >
-              <Ionicons
-                name={enableCategories ? 'checkbox' : 'square-outline'}
-                size={24}
-                color={enableCategories ? theme.primary : theme.textSecondary}
-              />
-              <Text style={styles.toggleLabel}>{t.competitionExt.enableCategoriesToggle}</Text>
-            </TouchableOpacity>
+            {showCategories && (
+              <TouchableOpacity
+                style={styles.toggleRow}
+                onPress={() => setEnableCategories(!enableCategories)}
+              >
+                <Ionicons
+                  name={enableCategories ? 'checkbox' : 'square-outline'}
+                  size={24}
+                  color={enableCategories ? theme.primary : theme.textSecondary}
+                />
+                <Text style={styles.toggleLabel}>{t.competitionExt.enableCategoriesToggle}</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Entry & Registration Mode */}
@@ -534,7 +550,7 @@ export default function CreateCompetitionScreen() {
             </View>
           </View>
 
-          {/* Zone/Top Scoring Settings (IFSC & Custom Points only) */}
+          {/* Zone/Top Scoring Settings */}
           {isZoneTopFormat && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>{t.competitionExt.scoringSettings}</Text>
