@@ -68,7 +68,7 @@ export default function ManageCompetitionScreen() {
   const { entries: leaderboard, loading: leaderboardLoading } = useCompetitionLeaderboard(
     competitionId,
     undefined,
-    competition?.format as 'national_league' | 'totemtition' | 'custom'
+    competition?.format
   );
   
   // Get competition routes for the map

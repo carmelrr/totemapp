@@ -159,7 +159,7 @@ export default function CompetitionsListScreen() {
 
         <View style={styles.cardFooter}>
           {/* Show register button for competitions with open registration */}
-          {(item.format === 'totemtition' || item.format === 'national_league') && item.registrationStatus === 'open' && (
+          {item.registrationStatus === 'open' && (
             <TouchableOpacity
               style={[styles.actionButton, styles.registerButton]}
               onPress={() => navigation.navigate('CompetitionRegistration', { competitionId: item.id })}

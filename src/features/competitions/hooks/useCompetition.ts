@@ -180,7 +180,7 @@ export function useAllCompetitions() {
 export function useCompetitionLeaderboard(
   competitionId: string | null,
   category?: string,
-  format?: 'national_league' | 'totemtition' | 'custom'
+  format?: string
 ) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -198,24 +198,37 @@ export function useCompetitionLeaderboard(
 
     console.log(`[useCompetitionLeaderboard] Subscribing with format: ${format}`);
 
-    // Use Totemtition-specific subscription for 1000/N dynamic scoring
-    const unsubscribe = format === 'totemtition'
-      ? ResultsService.subscribeToTotemtitionLeaderboard(
-          competitionId,
-          (leaderboard) => {
-            setEntries(leaderboard);
-            setLoading(false);
-          },
-          category
-        )
-      : ResultsService.subscribeToLeaderboard(
-          competitionId,
-          (leaderboard) => {
-            setEntries(leaderboard);
-            setLoading(false);
-          },
-          category
-        );
+    // Use format-specific subscription
+    let unsubscribe: () => void;
+
+    if (format === 'totemtition') {
+      unsubscribe = ResultsService.subscribeToTotemtitionLeaderboard(
+        competitionId,
+        (leaderboard) => {
+          setEntries(leaderboard);
+          setLoading(false);
+        },
+        category
+      );
+    } else if (format === 'ifsc_points' || format === 'custom_points') {
+      unsubscribe = ResultsService.subscribeToZoneTopLeaderboard(
+        competitionId,
+        (leaderboard) => {
+          setEntries(leaderboard);
+          setLoading(false);
+        },
+        category
+      );
+    } else {
+      unsubscribe = ResultsService.subscribeToLeaderboard(
+        competitionId,
+        (leaderboard) => {
+          setEntries(leaderboard);
+          setLoading(false);
+        },
+        category
+      );
+    }
 
     return () => unsubscribe();
   }, [competitionId, category, format]);
@@ -487,7 +500,7 @@ export function useCompetitionData(competitionId: string | null) {
   const { entries: leaderboard, loading: leaderboardLoading } = useCompetitionLeaderboard(
     competitionId,
     undefined,
-    competition?.format as 'national_league' | 'totemtition' | 'custom'
+    competition?.format
   );
   const timer = useCompetitionTimer(competition);
 

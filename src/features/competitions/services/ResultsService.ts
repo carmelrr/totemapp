@@ -26,11 +26,15 @@ import {
   ParticipantResult,
   LeaderboardEntry,
   CompetitionRoute,
+  Competition,
 } from '../types';
 import {
   calculateRoutePoints,
   calculateTopNPoints,
   calculateTotemtitionPoints,
+  calculateZoneTopRoutePoints,
+  buildZoneTopScoringConfig,
+  isZoneTopFormat,
   NATIONAL_LEAGUE_SCORING,
 } from '../constants';
 import { getUserRoles } from '@/features/roles/rolesService';
@@ -89,9 +93,18 @@ export class ResultsService {
       completed: boolean;
       attempts: number;
       grade: string;
+      // Zone/Top fields for IFSC & custom_points formats
+      topAchieved?: boolean;
+      topAttempt?: number;
+      zoneAchieved?: boolean;
+      zoneAttempt?: number;
+      // Per-route overrides (custom_points)
+      pointsTop?: number;
+      pointsZone?: number;
     },
     enteredBy: string,
-    isSelfReport: boolean = false
+    isSelfReport: boolean = false,
+    competition?: Competition | null
   ): Promise<void> {
     try {
       // Check authorization
@@ -105,17 +118,37 @@ export class ResultsService {
         if (currentUser.uid !== participantId) {
           throw new Error('Self-reporting is only allowed for your own results');
         }
-        // Self-reporting authorization is checked in the UI layer (approved participant check)
       } else {
         // Standard authorization check for judges
         await checkEnterResultsPermission(currentUser.uid);
       }
 
-      // Calculate points - for TOTEM routes, points will be calculated dynamically
+      // Calculate points based on format
+      let points = 0;
       const isTotemRoute = result.grade === 'TOTEM';
-      const points = result.completed && !isTotemRoute
-        ? calculateRoutePoints(result.grade, result.attempts)
-        : 0; // TOTEM routes get 0 here, calculated dynamically in leaderboard
+      const format = competition?.format;
+
+      if (isTotemRoute) {
+        // TOTEM routes: points calculated dynamically in leaderboard
+        points = 0;
+      } else if (format && isZoneTopFormat(format) && competition?.settings) {
+        // Zone/Top scoring (IFSC or custom_points)
+        const config = buildZoneTopScoringConfig(competition.settings);
+        points = calculateZoneTopRoutePoints(
+          {
+            topAchieved: result.topAchieved ?? result.completed,
+            topAttempt: result.topAttempt ?? (result.completed ? result.attempts : undefined),
+            zoneAchieved: result.zoneAchieved ?? false,
+            zoneAttempt: result.zoneAttempt,
+            pointsTop: result.pointsTop ?? config.defaultPointsTop,
+            pointsZone: result.pointsZone ?? config.defaultPointsZone,
+          },
+          config
+        );
+      } else if (result.completed) {
+        // National league / custom: grade-based
+        points = calculateRoutePoints(result.grade, result.attempts);
+      }
 
       const routeResult: RouteResult = {
         routeNumber,
@@ -125,6 +158,11 @@ export class ResultsService {
         points,
         enteredBy,
         enteredAt: new Date(),
+        // Zone/Top fields
+        topAchieved: result.topAchieved,
+        topAttempt: result.topAttempt,
+        zoneAchieved: result.zoneAchieved,
+        zoneAttempt: result.zoneAttempt,
       };
 
       // Get or create participant result document
@@ -997,6 +1035,103 @@ export class ResultsService {
       },
       (error) => {
         console.error('Error subscribing to Totemtition leaderboard:', error);
+        callback([]);
+      }
+    );
+  }
+
+  /**
+   * Subscribe to Zone/Top leaderboard (IFSC Points / Custom Points)
+   * Points are already calculated and stored in each route result's `points` field
+   * at entry time, so this uses the pre-calculated scores.
+   */
+  static subscribeToZoneTopLeaderboard(
+    competitionId: string,
+    callback: (entries: LeaderboardEntry[]) => void,
+    category?: string
+  ): () => void {
+    const resultsRef = collection(
+      db,
+      'competitions',
+      competitionId,
+      'results'
+    );
+
+    return onSnapshot(
+      resultsRef,
+      (snapshot) => {
+        const allResults: ParticipantResult[] = snapshot.docs.map((d) =>
+          this.mapDocToResult(d)
+        );
+
+        if (allResults.length === 0) {
+          callback([]);
+          return;
+        }
+
+        const filteredResults = category
+          ? allResults.filter((r) => r.category === category)
+          : allResults;
+
+        const entries: LeaderboardEntry[] = filteredResults.map((result) => {
+          let totalPoints = 0;
+          let totalAttempts = 0;
+          let routesCompleted = 0;
+          const routes = result.routes;
+
+          if (routes) {
+            const routeValues = Array.isArray(routes)
+              ? routes
+              : Object.values(routes);
+            routeValues.forEach((route: RouteResult) => {
+              if (route.attempts) {
+                totalAttempts += route.attempts;
+              }
+              if (route.completed || route.topAchieved || route.zoneAchieved) {
+                // Use the pre-calculated points from entry time
+                totalPoints += route.points || 0;
+                if (route.completed || route.topAchieved) {
+                  routesCompleted++;
+                }
+              }
+            });
+          }
+
+          // Round to 2 decimal places for display
+          totalPoints = Math.round(totalPoints * 100) / 100;
+
+          return {
+            rank: 0,
+            participantId: result.participantId,
+            participantName: result.participantName || result.userName || 'Unknown',
+            userName: result.userName || result.participantName || 'Unknown',
+            userId: result.participantId,
+            photoURL: (result as any).photoURL || null,
+            points: totalPoints,
+            totalPoints,
+            routesCompleted,
+            totalAttempts,
+            category: result.category,
+            categoryName: result.categoryName,
+          };
+        });
+
+        // Sort and assign ranks with tie handling
+        entries.sort((a, b) => (b.totalPoints || 0) - (a.totalPoints || 0));
+        for (let i = 0; i < entries.length; i++) {
+          if (i === 0) {
+            entries[i].rank = 1;
+          } else if ((entries[i].totalPoints || 0) === (entries[i - 1].totalPoints || 0)) {
+            entries[i].rank = entries[i - 1].rank;
+          } else {
+            entries[i].rank = i + 1;
+          }
+        }
+
+        callback(entries);
+      },
+      (error) => {
+        console.error('Error subscribing to Zone/Top leaderboard:', error);
         callback([]);
       }
     );

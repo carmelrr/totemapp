@@ -35,6 +35,7 @@ import {
   RouteResult,
 } from '@/features/competitions/types';
 import { NATIONAL_LEAGUE_GRADE_POINTS } from '@/features/competitions/constants';
+import { isZoneTopFormat } from '@/features/competitions/constants';
 import { ParticipantService } from '@/features/competitions/services/ParticipantService';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/features/data/firebase';
@@ -72,10 +73,18 @@ export default function JudgeEntryScreen() {
   // Category-based route completion counts: category -> routeId -> count
   const [routeCompletionCountsByCategory, setRouteCompletionCountsByCategory] = useState<Record<string, Record<string, number>>>({});
 
+  // Zone/Top state (IFSC & custom_points)
+  const [zoneAchieved, setZoneAchieved] = useState(false);
+  const [zoneAttempt, setZoneAttempt] = useState('1');
+  const [topAchieved, setTopAchieved] = useState(false);
+  const [topAttempt, setTopAttempt] = useState('1');
+
   const styles = createStyles(theme);
 
   // Check if this is a Totemtition competition with self-reporting
   const isTotemtition = competition?.format === 'totemtition';
+  const isZoneTop = competition?.format ? isZoneTopFormat(competition.format) : false;
+  const hasZone = isZoneTop && (competition?.settings?.enableZone !== false);
 
   // Subscribe to route completion counts by category for Totemtition
   useEffect(() => {
@@ -91,10 +100,12 @@ export default function JudgeEntryScreen() {
     return () => unsubscribe();
   }, [isTotemtition, competitionId]);
 
-  // Check if user is an approved participant for self-reporting (Totemtition)
+  // Check if user is an approved participant for self-reporting
+  // (Totemtition or Zone/Top formats with selfEntry)
+  const allowsSelfEntry = isTotemtition || (isZoneTop && competition?.settings?.resultsEntryMode === 'selfEntry');
   useEffect(() => {
     const checkSelfReporter = async () => {
-      if (!user || !isTotemtition) {
+      if (!user || !allowsSelfEntry) {
         setCheckingSelfReporter(false);
         return;
       }
@@ -104,7 +115,7 @@ export default function JudgeEntryScreen() {
         if (participant && participant.status === 'approved') {
           setIsSelfReporter(true);
           setSelfParticipant(participant);
-          // Auto-select self as participant in Totemtition mode ONLY if not a judge
+          // Auto-select self as participant in self-entry mode ONLY if not a judge
           // Judges (including head judges) should see all participants and choose manually
           if (!isJudge) {
             setSelectedParticipant(participant);
@@ -118,12 +129,14 @@ export default function JudgeEntryScreen() {
     };
 
     checkSelfReporter();
-  }, [user, isTotemtition, competitionId, isJudge]);
+  }, [user, allowsSelfEntry, competitionId, isJudge]);
 
   // Determine if user can access this screen
   // In Totemtition: judges OR approved self-reporters
+  // In Zone/Top formats with selfEntry: judges OR approved self-reporters
   // In other formats: judges only
-  const canAccessScreen = isJudge || (isTotemtition && isSelfReporter);
+  const isZoneTopSelfReporter = isZoneTop && competition?.settings?.resultsEntryMode === 'selfEntry' && isSelfReporter;
+  const canAccessScreen = isJudge || (isTotemtition && isSelfReporter) || isZoneTopSelfReporter;
 
   const loading = compLoading || partsLoading || routesLoading || checkingSelfReporter;
 
@@ -197,8 +210,21 @@ export default function JudgeEntryScreen() {
     
     if (existingResult) {
       setAttempts(String(existingResult.attempts));
+      // Restore zone/top state if applicable
+      if (isZoneTop) {
+        setZoneAchieved(existingResult.zoneAchieved ?? false);
+        setZoneAttempt(String(existingResult.zoneAttempt ?? 1));
+        setTopAchieved(existingResult.topAchieved ?? existingResult.completed);
+        setTopAttempt(String(existingResult.topAttempt ?? existingResult.attempts));
+      }
     } else {
       setAttempts('1');
+      if (isZoneTop) {
+        setZoneAchieved(false);
+        setZoneAttempt('1');
+        setTopAchieved(false);
+        setTopAttempt('1');
+      }
     }
     
     setShowResultModal(true);
@@ -218,26 +244,65 @@ export default function JudgeEntryScreen() {
     // Determine if this is a self-report (Totemtition participant entering their own result)
     const isSelfReportMode = isTotemtition && isSelfReporter && !isJudge && 
                               selectedParticipant.userId === user.uid;
+    // Also allow self-entry for Zone/Top formats if settings allow
+    const isZoneTopSelfEntry = isZoneTop && !isJudge &&
+                                competition.settings.resultsEntryMode === 'selfEntry' &&
+                                selectedParticipant.userId === user.uid;
 
     try {
+      // Build result data
+      const resultData: any = {
+        routeId: selectedRoute.id,
+        grade: selectedRoute.grade,
+        completed: isZoneTop ? (topAchieved || zoneAchieved) : completed,
+        attempts: isZoneTop ? (parseInt(topAttempt) || parseInt(zoneAttempt) || attemptsNum) : (completed ? attemptsNum : 0),
+      };
+
+      // Add Zone/Top fields for applicable formats
+      if (isZoneTop) {
+        resultData.topAchieved = topAchieved;
+        resultData.topAttempt = topAchieved ? (parseInt(topAttempt) || 1) : undefined;
+        resultData.zoneAchieved = zoneAchieved;
+        resultData.zoneAttempt = zoneAchieved ? (parseInt(zoneAttempt) || 1) : undefined;
+        // Per-route scoring overrides (mainly for custom_points)
+        if (selectedRoute.pointsTop !== undefined) {
+          resultData.pointsTop = selectedRoute.pointsTop;
+        }
+        if (selectedRoute.pointsZone !== undefined) {
+          resultData.pointsZone = selectedRoute.pointsZone;
+        }
+        // If top achieved but no zone recorded, auto-set zone = topAttempt
+        if (topAchieved && !zoneAchieved) {
+          resultData.zoneAchieved = true;
+          resultData.zoneAttempt = resultData.topAttempt;
+        }
+        resultData.completed = topAchieved;
+        resultData.attempts = topAchieved 
+          ? (parseInt(topAttempt) || 1) 
+          : (zoneAchieved ? (parseInt(zoneAttempt) || 1) : 0);
+      }
+
       await ResultsService.enterRouteResult(
         competitionId,
         selectedParticipant.userId,
         selectedRoute.routeNumber,
-        {
-          routeId: selectedRoute.id,
-          grade: selectedRoute.grade,
-          completed,
-          attempts: completed ? attemptsNum : 0,
-        },
+        resultData,
         user.uid,
-        isSelfReportMode
+        isSelfReportMode || isZoneTopSelfEntry,
+        competition
       );
 
       setShowResultModal(false);
       
       // Show feedback
-      if (completed) {
+      if (isZoneTop) {
+        if (topAchieved) {
+          Alert.alert(
+            t.competitionExt.completedStatus,
+            t.competitionExt.routeCompleted(selectedRoute.routeNumber.toString())
+          );
+        }
+      } else if (completed) {
         Alert.alert(
           t.competitionExt.completedStatus,
           t.competitionExt.routeCompleted(selectedRoute.routeNumber.toString())
@@ -337,7 +402,8 @@ export default function JudgeEntryScreen() {
           </Text>
           
           {/* Show registration button for Totemtition/National League if not registered */}
-          {(isTotemtition || competition?.format === 'national_league') && !isSelfReporter && (
+          {/* Show registration button if not registered */}
+          {!isSelfReporter && (
             <TouchableOpacity
               style={[styles.backBtn, { marginTop: 16 }]}
               onPress={() => navigation.navigate('CompetitionRegistration', { competitionId })}
@@ -618,7 +684,7 @@ export default function JudgeEntryScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                מסלול {selectedRoute?.routeNumber}
+                {t.competitionExt.routeLabel(selectedRoute?.routeNumber ?? 0)}
               </Text>
               <TouchableOpacity onPress={() => setShowResultModal(false)}>
                 <Ionicons name="close" size={24} color={theme.text} />
@@ -633,64 +699,201 @@ export default function JudgeEntryScreen() {
                   </Text>
                   <Text style={styles.modalPoints}>
                     {selectedRoute.grade === 'TOTEM' 
-                      ? '1000 נקודות בסיס' 
-                      : `${NATIONAL_LEAGUE_GRADE_POINTS[selectedRoute.grade] || 100} נקודות בסיס`
+                      ? t.competitionExt.totemBasePoints
+                      : isZoneTop
+                        ? `Top: ${selectedRoute.pointsTop ?? competition?.settings?.defaultPointsTop ?? 25} | Zone: ${selectedRoute.pointsZone ?? competition?.settings?.defaultPointsZone ?? 10}`
+                        : t.competitionExt.basePointsInfo(NATIONAL_LEAGUE_GRADE_POINTS[selectedRoute.grade] || 100)
                     }
                   </Text>
                 </View>
 
-                <View style={styles.attemptsSection}>
-                  <Text style={styles.attemptsLabel}>מספר ניסיונות</Text>
-                  <View style={styles.attemptsControl}>
-                    <TouchableOpacity
-                      style={styles.attemptsBtn}
-                      onPress={() => setAttempts(String(Math.max(1, parseInt(attempts) - 1)))}
-                    >
-                      <Ionicons name="remove" size={24} color={theme.text} />
-                    </TouchableOpacity>
-                    <TextInput
-                      style={styles.attemptsInput}
-                      value={attempts}
-                      onChangeText={setAttempts}
-                      keyboardType="number-pad"
-                      textAlign="center"
-                    />
-                    <TouchableOpacity
-                      style={styles.attemptsBtn}
-                      onPress={() => setAttempts(String(parseInt(attempts) + 1))}
-                    >
-                      <Ionicons name="add" size={24} color={theme.text} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                <View style={styles.modalActions}>
-                  <TouchableOpacity
-                    style={[styles.modalBtn, styles.successBtn]}
-                    onPress={() => handleSubmitResult(true)}
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <>
-                        <Ionicons name="checkmark-circle" size={24} color="#fff" />
-                        <Text style={styles.modalBtnText}>✓ השלים</Text>
-                      </>
+                {/* Zone/Top Entry Mode */}
+                {isZoneTop ? (
+                  <View style={styles.zoneTopSection}>
+                    {/* Zone row */}
+                    {hasZone && (
+                      <View style={styles.zoneTopRow}>
+                        <TouchableOpacity
+                          style={[styles.zoneTopToggle, zoneAchieved && styles.zoneTopToggleActive]}
+                          onPress={() => {
+                            setZoneAchieved(!zoneAchieved);
+                            if (!zoneAchieved && !topAchieved) setTopAchieved(false);
+                          }}
+                        >
+                          <Ionicons 
+                            name={zoneAchieved ? 'checkbox' : 'square-outline'} 
+                            size={22} 
+                            color={zoneAchieved ? '#10b981' : theme.textSecondary} 
+                          />
+                          <Text style={[styles.zoneTopToggleText, zoneAchieved && { color: '#10b981', fontWeight: 'bold' }]}>
+                            Zone
+                          </Text>
+                        </TouchableOpacity>
+                        {zoneAchieved && (
+                          <View style={styles.zoneTopAttemptInput}>
+                            <Text style={styles.zoneTopAttemptLabel}>{t.competitionExt.attemptNumberShort}</Text>
+                            <View style={styles.attemptsControl}>
+                              <TouchableOpacity
+                                style={styles.attemptsBtn}
+                                onPress={() => setZoneAttempt(String(Math.max(1, parseInt(zoneAttempt) - 1)))}
+                              >
+                                <Ionicons name="remove" size={20} color={theme.text} />
+                              </TouchableOpacity>
+                              <TextInput
+                                style={styles.attemptsInput}
+                                value={zoneAttempt}
+                                onChangeText={setZoneAttempt}
+                                keyboardType="number-pad"
+                                textAlign="center"
+                              />
+                              <TouchableOpacity
+                                style={styles.attemptsBtn}
+                                onPress={() => setZoneAttempt(String(parseInt(zoneAttempt) + 1))}
+                              >
+                                <Ionicons name="add" size={20} color={theme.text} />
+                              </TouchableOpacity>
+                            </View>
+                          </View>
+                        )}
+                      </View>
                     )}
-                  </TouchableOpacity>
 
-                  {getRouteStatus(selectedRoute) === 'completed' && isHeadJudge && (
-                    <TouchableOpacity
-                      style={[styles.modalBtn, styles.dangerBtn]}
-                      onPress={handleRemoveResult}
-                      disabled={isSubmitting}
-                    >
-                      <Ionicons name="trash" size={20} color="#fff" />
-                      <Text style={styles.modalBtnText}>מחק</Text>
-                    </TouchableOpacity>
-                  )}
-                </View>
+                    {/* Top row */}
+                    <View style={styles.zoneTopRow}>
+                      <TouchableOpacity
+                        style={[styles.zoneTopToggle, topAchieved && styles.zoneTopToggleActive]}
+                        onPress={() => {
+                          const newVal = !topAchieved;
+                          setTopAchieved(newVal);
+                          // If top achieved, auto-enable zone too
+                          if (newVal && hasZone && !zoneAchieved) {
+                            setZoneAchieved(true);
+                          }
+                        }}
+                      >
+                        <Ionicons 
+                          name={topAchieved ? 'checkbox' : 'square-outline'} 
+                          size={22} 
+                          color={topAchieved ? theme.primary : theme.textSecondary} 
+                        />
+                        <Text style={[styles.zoneTopToggleText, topAchieved && { color: theme.primary, fontWeight: 'bold' }]}>
+                          Top
+                        </Text>
+                      </TouchableOpacity>
+                      {topAchieved && (
+                        <View style={styles.zoneTopAttemptInput}>
+                          <Text style={styles.zoneTopAttemptLabel}>{t.competitionExt.attemptNumberShort}</Text>
+                          <View style={styles.attemptsControl}>
+                            <TouchableOpacity
+                              style={styles.attemptsBtn}
+                              onPress={() => setTopAttempt(String(Math.max(1, parseInt(topAttempt) - 1)))}
+                            >
+                              <Ionicons name="remove" size={20} color={theme.text} />
+                            </TouchableOpacity>
+                            <TextInput
+                              style={styles.attemptsInput}
+                              value={topAttempt}
+                              onChangeText={setTopAttempt}
+                              keyboardType="number-pad"
+                              textAlign="center"
+                            />
+                            <TouchableOpacity
+                              style={styles.attemptsBtn}
+                              onPress={() => setTopAttempt(String(parseInt(topAttempt) + 1))}
+                            >
+                              <Ionicons name="add" size={20} color={theme.text} />
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      )}
+                    </View>
+
+                    {/* Save button for Zone/Top */}
+                    <View style={styles.modalActions}>
+                      <TouchableOpacity
+                        style={[styles.modalBtn, styles.successBtn]}
+                        onPress={() => handleSubmitResult(true)}
+                        disabled={isSubmitting || (!topAchieved && !zoneAchieved)}
+                      >
+                        {isSubmitting ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <>
+                            <Ionicons name="save" size={24} color="#fff" />
+                            <Text style={styles.modalBtnText}>{t.competitionExt.saveResult}</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+
+                      {getRouteStatus(selectedRoute) === 'completed' && isHeadJudge && (
+                        <TouchableOpacity
+                          style={[styles.modalBtn, styles.dangerBtn]}
+                          onPress={handleRemoveResult}
+                          disabled={isSubmitting}
+                        >
+                          <Ionicons name="trash" size={20} color="#fff" />
+                          <Text style={styles.modalBtnText}>{t.competitionExt.deleteResult}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </View>
+                ) : (
+                  /* Standard entry mode (national_league, totemtition, custom) */
+                  <>
+                    <View style={styles.attemptsSection}>
+                      <Text style={styles.attemptsLabel}>{t.competitionExt.attemptsLabel}</Text>
+                      <View style={styles.attemptsControl}>
+                        <TouchableOpacity
+                          style={styles.attemptsBtn}
+                          onPress={() => setAttempts(String(Math.max(1, parseInt(attempts) - 1)))}
+                        >
+                          <Ionicons name="remove" size={24} color={theme.text} />
+                        </TouchableOpacity>
+                        <TextInput
+                          style={styles.attemptsInput}
+                          value={attempts}
+                          onChangeText={setAttempts}
+                          keyboardType="number-pad"
+                          textAlign="center"
+                        />
+                        <TouchableOpacity
+                          style={styles.attemptsBtn}
+                          onPress={() => setAttempts(String(parseInt(attempts) + 1))}
+                        >
+                          <Ionicons name="add" size={24} color={theme.text} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={styles.modalActions}>
+                      <TouchableOpacity
+                        style={[styles.modalBtn, styles.successBtn]}
+                        onPress={() => handleSubmitResult(true)}
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? (
+                          <ActivityIndicator color="#fff" />
+                        ) : (
+                          <>
+                            <Ionicons name="checkmark-circle" size={24} color="#fff" />
+                            <Text style={styles.modalBtnText}>{t.competitionExt.completed}</Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+
+                      {getRouteStatus(selectedRoute) === 'completed' && isHeadJudge && (
+                        <TouchableOpacity
+                          style={[styles.modalBtn, styles.dangerBtn]}
+                          onPress={handleRemoveResult}
+                          disabled={isSubmitting}
+                        >
+                          <Ionicons name="trash" size={20} color="#fff" />
+                          <Text style={styles.modalBtnText}>{t.competitionExt.deleteResult}</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  </>
+                )}
               </>
             )}
           </View>
@@ -1078,5 +1281,38 @@ const createStyles = (theme: any) =>
       color: '#fff',
       fontSize: 16,
       fontWeight: 'bold',
+    },
+    // Zone/Top styles
+    zoneTopSection: {
+      gap: 16,
+      marginBottom: 16,
+    },
+    zoneTopRow: {
+      backgroundColor: theme.card,
+      borderRadius: 12,
+      padding: 12,
+      gap: 12,
+    },
+    zoneTopToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    zoneTopToggleActive: {
+      // styling handled inline
+    },
+    zoneTopToggleText: {
+      fontSize: 16,
+      color: theme.textSecondary,
+    },
+    zoneTopAttemptInput: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingLeft: 30,
+    },
+    zoneTopAttemptLabel: {
+      fontSize: 12,
+      color: theme.textSecondary,
     },
   });

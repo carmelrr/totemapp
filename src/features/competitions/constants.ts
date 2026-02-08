@@ -3,7 +3,7 @@
  * @description Scoring rules, default settings, and constants for competitions
  */
 
-import { CompetitionSettings, ScoringConfig } from './types';
+import { CompetitionSettings, ScoringConfig, ZoneTopScoringConfig } from './types';
 
 // =============== Grade Points (National League) ===============
 
@@ -81,6 +81,52 @@ export const CUSTOM_FORMAT_SETTINGS: CompetitionSettings = {
 };
 
 /**
+ * Default settings for Custom Points format (admin-defined per-route scoring)
+ */
+export const CUSTOM_POINTS_SETTINGS: CompetitionSettings = {
+  maxRoutes: 20,
+  maxAttempts: 10,
+  topRoutesForScoring: 999,          // all routes count by default
+  attemptPenalty: 0,                 // uses zone/top penalties instead
+  allowSelfEntry: false,
+  judgesOnly: true,
+  enableCategories: true,
+  enableRounds: false,
+  resultsEntryMode: 'judgesOnly',
+  registrationMode: 'openRegistration',
+  enableZone: true,
+  defaultPointsTop: 25,
+  defaultPointsZone: 10,
+  attemptPenaltyZone: 0.1,
+  attemptPenaltyTop: 0.01,
+  freeFirstAttempt: true,
+  separateTopZonePenalty: true,
+};
+
+/**
+ * Default settings for IFSC Points format (Zone=10, Top=25, penalty 0.1)
+ */
+export const IFSC_POINTS_SETTINGS: CompetitionSettings = {
+  maxRoutes: 5,
+  maxAttempts: 10,
+  topRoutesForScoring: 999,          // all routes count
+  attemptPenalty: 0,                 // uses zone/top penalties instead
+  allowSelfEntry: false,
+  judgesOnly: true,
+  enableCategories: true,
+  enableRounds: false,
+  resultsEntryMode: 'judgesOnly',
+  registrationMode: 'openRegistration',
+  enableZone: true,
+  defaultPointsTop: 25,
+  defaultPointsZone: 10,
+  attemptPenaltyZone: 0.1,
+  attemptPenaltyTop: 0.1,
+  freeFirstAttempt: true,
+  separateTopZonePenalty: false,     // standard IFSC: penalty on (At - 1) only
+};
+
+/**
  * Get default settings by format
  */
 export function getDefaultSettingsForFormat(format: string): CompetitionSettings {
@@ -89,6 +135,10 @@ export function getDefaultSettingsForFormat(format: string): CompetitionSettings
       return { ...NATIONAL_LEAGUE_SETTINGS };
     case 'totemtition':
       return { ...TOTEMTITION_SETTINGS };
+    case 'custom_points':
+      return { ...CUSTOM_POINTS_SETTINGS };
+    case 'ifsc_points':
+      return { ...IFSC_POINTS_SETTINGS };
     case 'custom':
     default:
       return { ...CUSTOM_FORMAT_SETTINGS };
@@ -159,19 +209,36 @@ export const COMPETITION_FORMAT_INFO = {
     label: 'ליגה ארצית',
     labelEn: 'National League',
     description: 'פורמט רשמי עם TOP7 וניקוד לפי דירוג וניסיונות',
+    descriptionEn: 'Official format with TOP7 scoring by grade and attempts',
     icon: '🏅',
   },
   totemtition: {
     label: 'תחרוטוטם',
     labelEn: 'Totemtition',
     description: 'פורמט קהילתי - 1000 נקודות מתחלקות בין מי שסגר',
+    descriptionEn: 'Community format - 1000 points shared among completers',
     icon: '🎯',
   },
   custom: {
     label: 'מותאם אישית',
     labelEn: 'Custom',
     description: 'הגדר את חוקי התחרות בעצמך',
+    descriptionEn: 'Define competition rules yourself',
     icon: '⚙️',
+  },
+  custom_points: {
+    label: 'בהתאמה אישית',
+    labelEn: 'Custom Points',
+    description: 'כל מסלול שווה ניקוד שהאדמין מגדיר מראש. Zone/Top עם קנסות גמישים.',
+    descriptionEn: 'Admin-defined points per route. Zone/Top with configurable penalties.',
+    icon: '🎛️',
+  },
+  ifsc_points: {
+    label: 'נקודות IFSC',
+    labelEn: 'IFSC Points',
+    description: 'Zone = 10, Top = 25. קנס 0.1 לכל ניסיון נוסף. סכום כל המסלולים.',
+    descriptionEn: 'Zone = 10, Top = 25. 0.1 penalty per extra attempt. Sum of all routes.',
+    icon: '🏆',
   },
 } as const;
 
@@ -243,6 +310,10 @@ export function calculateTotemtitionPoints(
  * @returns Formatted string (e.g., "720 נק'")
  */
 export function formatPoints(points: number): string {
+  // Show decimals for zone/top scores, whole numbers for others
+  if (points % 1 !== 0) {
+    return `${points.toFixed(2)} נק'`;
+  }
   return `${points.toLocaleString('he-IL')} נק'`;
 }
 
@@ -269,4 +340,122 @@ export function isValidAttempts(attempts: number, maxAttempts: number): boolean 
  */
 export function isValidCompetitionGrade(grade: string): boolean {
   return COMPETITION_GRADES.includes(grade as CompetitionGrade);
+}
+
+// =============== Zone/Top Scoring (IFSC & Custom Points) ===============
+
+/**
+ * Default IFSC scoring configuration
+ */
+export const IFSC_SCORING_CONFIG: ZoneTopScoringConfig = {
+  defaultPointsTop: 25,
+  defaultPointsZone: 10,
+  enableZone: true,
+  attemptPenaltyZone: 0.1,
+  attemptPenaltyTop: 0.1,        // standard IFSC: same penalty scale
+  freeFirstAttempt: true,
+  separateTopZonePenalty: false,  // penalty on (At - 1)
+};
+
+/**
+ * Separate penalty config (enhanced IFSC variant)
+ */
+export const SEPARATE_PENALTY_CONFIG: ZoneTopScoringConfig = {
+  defaultPointsTop: 25,
+  defaultPointsZone: 10,
+  enableZone: true,
+  attemptPenaltyZone: 0.1,
+  attemptPenaltyTop: 0.01,       // separate penalty on (At - Az)
+  freeFirstAttempt: true,
+  separateTopZonePenalty: true,
+};
+
+/**
+ * Build ZoneTopScoringConfig from competition settings
+ */
+export function buildZoneTopScoringConfig(settings: CompetitionSettings): ZoneTopScoringConfig {
+  return {
+    defaultPointsTop: settings.defaultPointsTop ?? 25,
+    defaultPointsZone: settings.defaultPointsZone ?? 10,
+    enableZone: settings.enableZone ?? true,
+    attemptPenaltyZone: settings.attemptPenaltyZone ?? 0.1,
+    attemptPenaltyTop: settings.attemptPenaltyTop ?? 0.01,
+    freeFirstAttempt: settings.freeFirstAttempt ?? true,
+    separateTopZonePenalty: settings.separateTopZonePenalty ?? true,
+  };
+}
+
+/**
+ * Calculate points for a single route in Zone/Top format (IFSC or Custom Points).
+ * 
+ * All calculations use integer math internally (x1000) to avoid floating-point drift.
+ * The returned value is a decimal (e.g., 24.78).
+ * 
+ * @param params.topAchieved   - Did the climber top the route?
+ * @param params.topAttempt    - Attempt number top was achieved (1-based)
+ * @param params.zoneAchieved  - Did the climber reach zone?
+ * @param params.zoneAttempt   - Attempt number zone was achieved (1-based)
+ * @param params.pointsTop     - Points for topping (per-route override or default)
+ * @param params.pointsZone    - Points for zone (per-route override or default)
+ * @param config               - Scoring configuration
+ * @returns Score for this route (clamped to >= 0)
+ */
+export function calculateZoneTopRoutePoints(
+  params: {
+    topAchieved: boolean;
+    topAttempt?: number;
+    zoneAchieved: boolean;
+    zoneAttempt?: number;
+    pointsTop: number;
+    pointsZone: number;
+  },
+  config: ZoneTopScoringConfig
+): number {
+  const { topAchieved, zoneAchieved } = params;
+  const SCALE = 1000; // internal integer math
+
+  // Nothing achieved → 0
+  if (!topAchieved && !zoneAchieved) return 0;
+
+  const freeOffset = config.freeFirstAttempt ? 1 : 0;
+
+  if (topAchieved) {
+    const At = params.topAttempt ?? 1;
+    // If zone achieved: use zoneAttempt, otherwise default to topAttempt
+    const Az = params.zoneAchieved ? (params.zoneAttempt ?? At) : At;
+
+    const baseTop = Math.round(params.pointsTop * SCALE);
+
+    if (config.separateTopZonePenalty) {
+      // Enhanced: score = pointsTop - penaltyZone*(Az-1) - penaltyTop*(At-Az)
+      const zonePenaltyExtraAttempts = Math.max(0, Az - freeOffset);
+      const topPenaltyExtraAttempts = Math.max(0, At - Az);
+      const penaltyZone = Math.round(config.attemptPenaltyZone * SCALE) * zonePenaltyExtraAttempts;
+      const penaltyTop = Math.round(config.attemptPenaltyTop * SCALE) * topPenaltyExtraAttempts;
+      return Math.max(0, (baseTop - penaltyZone - penaltyTop) / SCALE);
+    } else {
+      // Standard IFSC: score = pointsTop - penaltyTop*(At-1)
+      const extraAttempts = Math.max(0, At - freeOffset);
+      const penalty = Math.round(config.attemptPenaltyTop * SCALE) * extraAttempts;
+      return Math.max(0, (baseTop - penalty) / SCALE);
+    }
+  }
+
+  // Zone only
+  if (zoneAchieved) {
+    const Az = params.zoneAttempt ?? 1;
+    const baseZone = Math.round(params.pointsZone * SCALE);
+    const extraAttempts = Math.max(0, Az - freeOffset);
+    const penalty = Math.round(config.attemptPenaltyZone * SCALE) * extraAttempts;
+    return Math.max(0, (baseZone - penalty) / SCALE);
+  }
+
+  return 0;
+}
+
+/**
+ * Check if a competition format uses Zone/Top scoring
+ */
+export function isZoneTopFormat(format: string): boolean {
+  return format === 'ifsc_points' || format === 'custom_points';
 }

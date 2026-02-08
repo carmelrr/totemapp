@@ -5,7 +5,9 @@
 
 // =============== Enums & Constants ===============
 
-export type CompetitionFormat = 'national_league' | 'totemtition' | 'custom';
+export type CompetitionFormat = 'national_league' | 'totemtition' | 'custom' | 'custom_points' | 'ifsc_points';
+export type ResultsEntryMode = 'selfEntry' | 'judgesOnly';
+export type RegistrationMode = 'openRegistration' | 'adminsOrJudgesOnly';
 export type CompetitionStatus = 'draft' | 'upcoming' | 'active' | 'closed' | 'completed' | 'cancelled';
 export type RegistrationStatus = 'closed' | 'open';
 export type RoundStatus = 'pending' | 'active' | 'completed';
@@ -54,6 +56,17 @@ export interface CompetitionSettings {
   
   // Totemtition specific
   basePointsPerRoute?: number;          // 1000 for totemtition
+
+  // New format settings (custom_points / ifsc_points)
+  resultsEntryMode?: ResultsEntryMode;       // who enters results
+  registrationMode?: RegistrationMode;       // who can register
+  enableZone?: boolean;                      // whether Zone is tracked
+  defaultPointsTop?: number;                 // default Top points per route (e.g., 25)
+  defaultPointsZone?: number;                // default Zone points per route (e.g., 10)
+  attemptPenaltyZone?: number;               // penalty per zone attempt (e.g., 0.1)
+  attemptPenaltyTop?: number;                // penalty per top attempt (e.g., 0.01)
+  freeFirstAttempt?: boolean;                // if true, penalty = (attempts - 1)
+  separateTopZonePenalty?: boolean;           // if true, top penalty is on (At - Az) not (At - 1)
 }
 
 /**
@@ -87,6 +100,10 @@ export interface CompetitionRoute {
   setBy?: string;                       // who set the route
   createdAt: Date;
   createdBy?: string;
+
+  // Per-route scoring overrides (custom_points format)
+  pointsTop?: number;                   // custom top points for this route
+  pointsZone?: number;                  // custom zone points for this route
 }
 
 /**
@@ -173,6 +190,12 @@ export interface RouteResult {
   enteredAt: Date;
   updatedBy?: string;
   updatedAt?: Date;
+
+  // Zone/Top fields for IFSC & custom_points formats
+  topAchieved?: boolean;                // did the climber top the route?
+  topAttempt?: number;                  // attempt number top was achieved (1-based)
+  zoneAchieved?: boolean;               // did the climber reach zone?
+  zoneAttempt?: number;                 // attempt number zone was achieved (1-based)
 }
 
 /**
@@ -281,13 +304,35 @@ export interface CompetitionUpdateData extends Partial<CompetitionCreateData> {
 // =============== Scoring Types ===============
 
 /**
- * Scoring configuration
+ * Scoring configuration (national_league)
  */
 export interface ScoringConfig {
   gradePoints: Record<string, number>;  // V0: 100, V1: 200, etc.
   attemptPenalty: number;               // points deducted per extra attempt
   topRoutesCount: number;               // how many routes count for final score
   maxAttempts: number;                  // max attempts per route
+}
+
+/**
+ * Per-route scoring config for custom_points format
+ * Stored in each CompetitionRoute document
+ */
+export interface RoutePointsConfig {
+  pointsTop: number;                    // e.g., 25
+  pointsZone: number;                   // e.g., 10, or 0 if no zone
+}
+
+/**
+ * IFSC / custom_points scoring config (competition-level)
+ */
+export interface ZoneTopScoringConfig {
+  defaultPointsTop: number;             // 25 for IFSC
+  defaultPointsZone: number;            // 10 for IFSC
+  enableZone: boolean;
+  attemptPenaltyZone: number;           // 0.1 for IFSC
+  attemptPenaltyTop: number;            // 0.01 for separate penalty, 0.1 for standard IFSC
+  freeFirstAttempt: boolean;            // penalty on (attempts - 1)
+  separateTopZonePenalty: boolean;      // top penalty relative to zone attempt
 }
 
 // =============== Filter & Sort Types ===============

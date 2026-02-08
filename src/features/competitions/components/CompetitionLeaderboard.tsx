@@ -24,10 +24,11 @@ import {
   LeaderboardEntry,
   Category,
   Participant,
+  CompetitionFormat,
 } from '@/features/competitions/types';
 import { ParticipantService } from '@/features/competitions/services/ParticipantService';
 import { ResultsService } from '@/features/competitions/services/ResultsService';
-import { formatPoints } from '@/features/competitions/constants';
+import { formatPoints, isZoneTopFormat } from '@/features/competitions/constants';
 import { CachedAvatar } from '@/components/ui/CachedAvatar';
 
 interface CompetitionLeaderboardProps {
@@ -50,7 +51,7 @@ interface CategoryLeaderboardData {
  */
 function useAllLeaderboardEntries(
   competitionId: string | null,
-  format: 'national_league' | 'totemtition' | 'custom'
+  format: CompetitionFormat
 ) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,23 +66,32 @@ function useAllLeaderboardEntries(
     setLoading(true);
     
     // Fetch ALL entries without category filter - filter later on client side
-    const unsubscribe = format === 'totemtition'
-      ? ResultsService.subscribeToTotemtitionLeaderboard(
-          competitionId,
-          (leaderboard) => {
-            setEntries(leaderboard);
-            setLoading(false);
-          }
-          // No category filter - get all
-        )
-      : ResultsService.subscribeToLeaderboard(
-          competitionId,
-          (leaderboard) => {
-            setEntries(leaderboard);
-            setLoading(false);
-          }
-          // No category filter - get all
-        );
+    let unsubscribe: () => void;
+    if (format === 'totemtition') {
+      unsubscribe = ResultsService.subscribeToTotemtitionLeaderboard(
+        competitionId,
+        (leaderboard) => {
+          setEntries(leaderboard);
+          setLoading(false);
+        }
+      );
+    } else if (isZoneTopFormat(format)) {
+      unsubscribe = ResultsService.subscribeToZoneTopLeaderboard(
+        competitionId,
+        (leaderboard) => {
+          setEntries(leaderboard);
+          setLoading(false);
+        }
+      );
+    } else {
+      unsubscribe = ResultsService.subscribeToLeaderboard(
+        competitionId,
+        (leaderboard) => {
+          setEntries(leaderboard);
+          setLoading(false);
+        }
+      );
+    }
 
     return () => unsubscribe();
   }, [competitionId, format]);
@@ -375,7 +385,7 @@ export function CompetitionLeaderboard({
   // then filter per category in useMemo (no separate subscriptions per category)
   const { entries: allEntries, loading: allEntriesLoading } = useAllLeaderboardEntries(
     hasCategories ? competition.id : null,
-    competition.format as 'national_league' | 'totemtition' | 'custom'
+    competition.format
   );
   
   const { participants: allParticipantsForCategories, loading: allParticipantsLoading } = useAllParticipants(
@@ -386,7 +396,7 @@ export function CompetitionLeaderboard({
   const { entries, loading: leaderboardLoading, error } = useCompetitionLeaderboard(
     hasCategories ? null : competition.id, // Only fetch if no categories
     undefined,
-    competition.format as 'national_league' | 'totemtition' | 'custom'
+    competition.format
   );
 
   const { participants, loading: participantsLoading, count: totalParticipantCount } = useParticipants(
