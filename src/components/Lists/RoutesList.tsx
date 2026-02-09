@@ -81,7 +81,7 @@ const RouteItem = React.memo(({ route, onPress, onLongPress, theme, t }: RouteIt
 
   return (
     <TouchableOpacity 
-      style={[styles.routeItem, { borderLeftColor: routeColor }]} 
+      style={[styles.routeItem, { borderStartColor: routeColor }]} 
       onPress={handlePress}
       onLongPress={handleLongPress}
       delayLongPress={500}
@@ -255,7 +255,7 @@ const createStyles = (theme: any, compact: boolean = false) => StyleSheet.create
   },
   colorAccentContainer: {
     position: 'relative',
-    marginRight: 14,
+    marginEnd: 14,
   },
   colorAccent: {
     width: 40,
@@ -285,7 +285,7 @@ const createStyles = (theme: any, compact: boolean = false) => StyleSheet.create
     fontSize: 16,
     fontWeight: '600',
     color: theme.text,
-    marginRight: 8,
+    marginEnd: 8,
   },
   gradeBadge: {
     paddingHorizontal: 12,
@@ -302,7 +302,7 @@ const createStyles = (theme: any, compact: boolean = false) => StyleSheet.create
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     gap: 4,
-    marginRight: 6,
+    marginEnd: 6,
   },
   communityBadgeIcon: {
     fontSize: 10,
@@ -318,12 +318,12 @@ const createStyles = (theme: any, compact: boolean = false) => StyleSheet.create
   },
   communityBadge: {
     fontSize: 10,
-    marginLeft: 2,
+    marginStart: 2,
   },
   inlineStars: {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
-    marginRight: 8,
+    marginEnd: 8,
     gap: 3,
   },
   inlineStarText: {
@@ -398,7 +398,7 @@ const createStyles = (theme: any, compact: boolean = false) => StyleSheet.create
     fontWeight: '600',
   },
   chevronContainer: {
-    marginLeft: 10,
+    marginStart: 10,
     justifyContent: 'center',
   },
   chevron: {

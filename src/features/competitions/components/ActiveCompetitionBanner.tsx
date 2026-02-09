@@ -178,7 +178,7 @@ const createStyles = (theme: any) =>
     timerLabel: {
       fontSize: 12,
       color: theme.textSecondary,
-      marginRight: 4,
+      marginEnd: 4,
     },
     timerValue: {
       fontSize: 14,
@@ -194,7 +194,6 @@ const createStyles = (theme: any) =>
       fontSize: 18,
       fontWeight: 'bold',
       color: theme.text,
-      textAlign: 'right',
       marginBottom: 8,
     },
     formatBadge: {
@@ -207,7 +206,7 @@ const createStyles = (theme: any) =>
     },
     formatIcon: {
       fontSize: 14,
-      marginLeft: 4,
+      marginStart: 4,
     },
     formatLabel: {
       fontSize: 12,

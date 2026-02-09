@@ -266,7 +266,7 @@ const createStyles = (theme: any) => StyleSheet.create({
         backgroundColor: theme.isDark ? '#1f3d1f' : '#f5fff5',
     },
     clearButton: {
-        marginLeft: 8,
+        marginStart: 8,
         width: 32,
         height: 32,
         borderRadius: 16,
@@ -282,7 +282,6 @@ const createStyles = (theme: any) => StyleSheet.create({
         marginTop: 6,
         fontSize: 12,
         color: '#ff4444',
-        textAlign: 'right',
     },
     platformsHint: {
         marginTop: 8,

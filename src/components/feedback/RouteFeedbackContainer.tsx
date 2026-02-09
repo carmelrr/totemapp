@@ -13,6 +13,8 @@ import { auth } from '@/features/data/firebase';
 import { FeedbackService } from '@/features/routes-map/services/FeedbackService';
 import { tagUsersInFeedback } from '@/features/social/socialService';
 import { useUser } from '@/features/auth/UserContext';
+import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 
 import { DraggableModal } from '@/components/ui/DraggableModal';
 import { FeedbackForm } from './FeedbackForm';
@@ -49,6 +51,9 @@ export const RouteFeedbackContainer: React.FC<RouteFeedbackContainerProps> = ({
     onClose,
     isAdmin = false,
 }) => {
+    const { theme } = useTheme();
+    const { t } = useLanguage();
+    const styles = createStyles(theme);
     const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
     const [userFeedback, setUserFeedback] = useState<Feedback | null>(null);
     const [isEditingFeedback, setIsEditingFeedback] = useState(false);
@@ -120,7 +125,7 @@ export const RouteFeedbackContainer: React.FC<RouteFeedbackContainerProps> = ({
 
     async function handleFeedbackSubmit(data: any) {
         if (!user || !route) {
-            Alert.alert('שגיאה', 'משתמש או מסלול לא נמצאו');
+            Alert.alert(t.common.error, t.alerts.userOrRouteNotFound);
             return;
         }
 
@@ -137,7 +142,7 @@ export const RouteFeedbackContainer: React.FC<RouteFeedbackContainerProps> = ({
             if (userFeedback && isEditingFeedback) {
                 // Update existing feedback
                 await FeedbackService.updateFeedback(userFeedback.id, feedbackData);
-                Alert.alert('הצלחה', 'המשוב עודכן בהצלחה');
+                Alert.alert(t.common.success, t.alerts.feedbackUpdated);
             } else {
                 // Add new feedback
                 await FeedbackService.addFeedbackToRoute(route.id, feedbackData);
@@ -153,14 +158,14 @@ export const RouteFeedbackContainer: React.FC<RouteFeedbackContainerProps> = ({
                     }
                 }
 
-                Alert.alert('הצלחה', 'המשוב נשלח בהצלחה');
+                Alert.alert(t.common.success, t.alerts.feedbackSubmitted);
             }
 
             setIsEditingFeedback(false);
             resetForm();
         } catch (error) {
             console.error('Error submitting feedback:', error);
-            Alert.alert('שגיאה', 'שגיאה בשליחת המשוב');
+            Alert.alert(t.common.error, t.alerts.feedbackSubmitError);
             throw error;
         }
     }
@@ -180,10 +185,10 @@ export const RouteFeedbackContainer: React.FC<RouteFeedbackContainerProps> = ({
     const handleDeleteFeedback = async (feedbackId: string) => {
         try {
             await FeedbackService.deleteFeedback(feedbackId);
-            Alert.alert('הצלחה', 'המשוב נמחק בהצלחה');
+            Alert.alert(t.common.success, t.alerts.feedbackDeleted);
         } catch (error) {
             console.error('Error deleting feedback:', error);
-            Alert.alert('שגיאה', 'שגיאה במחיקת המשוב');
+            Alert.alert(t.common.error, t.alerts.feedbackDeleteError);
         }
     };
 
@@ -255,7 +260,7 @@ export const RouteFeedbackContainer: React.FC<RouteFeedbackContainerProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
     },
@@ -267,7 +272,7 @@ const styles = StyleSheet.create({
     },
     formSection: {
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: theme.border,
         marginBottom: 16,
     },
     editActions: {
@@ -280,13 +285,13 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         paddingHorizontal: 16,
         borderRadius: 6,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.card,
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: theme.border,
     },
     cancelButtonText: {
         fontSize: 14,
-        color: '#333',
+        color: theme.text,
         textAlign: 'center',
     },
 });

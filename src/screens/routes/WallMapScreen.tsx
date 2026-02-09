@@ -580,8 +580,8 @@ const createStyles = (
     },
     landscapeListSection: {
       flex: 2,
-      borderLeftWidth: 1,
-      borderLeftColor: theme.border,
+      borderStartWidth: 1,
+      borderStartColor: theme.border,
     },
     mapFrame: {
       // Use aspect ratio instead of fixed height for responsive sizing

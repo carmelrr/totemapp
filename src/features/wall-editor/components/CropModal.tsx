@@ -465,25 +465,25 @@ const createStyles = (theme: any) => StyleSheet.create({
   cornerTopLeft: {
     top: -2,
     left: -2,
-    borderRightWidth: 0,
+    borderEndWidth: 0,
     borderBottomWidth: 0,
   },
   cornerTopRight: {
     top: -2,
     right: -2,
-    borderLeftWidth: 0,
+    borderStartWidth: 0,
     borderBottomWidth: 0,
   },
   cornerBottomLeft: {
     bottom: -2,
     left: -2,
-    borderRightWidth: 0,
+    borderEndWidth: 0,
     borderTopWidth: 0,
   },
   cornerBottomRight: {
     bottom: -2,
     right: -2,
-    borderLeftWidth: 0,
+    borderStartWidth: 0,
     borderTopWidth: 0,
   },
   gridLine: {

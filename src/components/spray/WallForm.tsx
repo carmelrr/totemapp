@@ -125,7 +125,7 @@ export const WallForm: React.FC<WallFormProps> = ({
 
       {/* Dimensions */}
       <View style={styles.row}>
-        <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+        <View style={[styles.inputGroup, { flex: 1, marginEnd: 8 }]}>
           <Text style={styles.label}>{t.wall.widthMeters}</Text>
           <TextInput
             style={styles.input}
@@ -136,7 +136,7 @@ export const WallForm: React.FC<WallFormProps> = ({
             keyboardType="numeric"
           />
         </View>
-        <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+        <View style={[styles.inputGroup, { flex: 1, marginStart: 8 }]}>
           <Text style={styles.label}>{t.wall.heightMeters}</Text>
           <TextInput
             style={styles.input}

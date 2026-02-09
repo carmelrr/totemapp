@@ -289,10 +289,10 @@ export default function WallEditorScreen() {
         textLabels: currentRoom.textLabels ?? [],
         createdBy: user.uid,
       });
-      Alert.alert('שמירה הצליחה', 'הקיר נשמר בהצלחה!');
+      Alert.alert(t.alerts.wallSaveTitle, t.alerts.wallSaved);
     } catch (error) {
       console.error('Error saving room:', error);
-      Alert.alert('שגיאה', 'לא ניתן לשמור את הקיר');
+      Alert.alert(t.common.error, t.alerts.wallSaveFailed);
     } finally {
       setIsSaving(false);
     }
@@ -319,18 +319,18 @@ export default function WallEditorScreen() {
             try {
               if (isPublished) {
                 await unpublishRoomInDb(currentRoom.id);
-                Alert.alert('הצלחה', 'הקיר הוסר ממפת המסלולים');
+                Alert.alert(t.common.success, t.alerts.wallUnpublished);
               } else {
                 // Save first, then publish
                 await handleSaveRoom();
                 await publishRoomInDb(currentRoom.id);
-                Alert.alert('הצלחה', 'הקיר פורסם למפת המסלולים!');
+                Alert.alert(t.common.success, t.alerts.wallPublished);
               }
               // Update local state
               updateRoomStyle(currentRoom.id, { isPublished: !isPublished } as any);
             } catch (error) {
               console.error('Error publishing room:', error);
-              Alert.alert('שגיאה', 'לא ניתן לפרסם את הקיר');
+              Alert.alert(t.common.error, t.alerts.wallPublishFailed);
             } finally {
               setIsPublishing(false);
             }
@@ -402,7 +402,7 @@ export default function WallEditorScreen() {
       
       // Check if it's an OBJ file
       if (!filename.endsWith('.obj')) {
-        Alert.alert('שגיאה', 'נא לבחור קובץ OBJ');
+        Alert.alert(t.common.error, t.alerts.selectObjFile);
         return;
       }
       
@@ -418,11 +418,19 @@ export default function WallEditorScreen() {
         throw new Error('הקובץ גדול מדי. נסה קובץ קטן יותר (עד 6MB)');
       }
       
-      // Call Cloud Function
+      // Call Cloud Function (with auth token)
       console.log('Calling Cloud Function:', OBJ_TO_TOP_VIEW_URL);
+      const { auth: firebaseAuth } = require('@/features/data/firebase');
+      const idToken = await firebaseAuth.currentUser?.getIdToken();
+      if (!idToken) {
+        throw new Error('יש להתחבר כדי להשתמש בעיבוד OBJ');
+      }
       const response = await fetch(OBJ_TO_TOP_VIEW_URL, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
         body: JSON.stringify({
           fileData: base64,
           filename: asset.name,
@@ -491,7 +499,7 @@ export default function WallEditorScreen() {
       
     } catch (error) {
       console.error('Error processing OBJ:', error);
-      Alert.alert('שגיאה', error instanceof Error ? error.message : 'לא הצלחנו לעבד את הקובץ');
+      Alert.alert(t.common.error, error instanceof Error ? error.message : t.alerts.objProcessFailed);
     } finally {
       setIsLoadingOverlay(false);
     }
@@ -527,7 +535,7 @@ export default function WallEditorScreen() {
       }
     } catch (error) {
       console.error('Error picking image:', error);
-      Alert.alert('שגיאה', 'לא הצלחנו לטעון את התמונה');
+      Alert.alert(t.common.error, t.alerts.imageLoadFailed);
     }
   }, [setOverlay]);
   
@@ -1277,7 +1285,6 @@ const createStyles = (theme: any, layout: any, insets: any) =>
       fontSize: 13,
       color: 'rgba(255,255,255,0.85)',
       lineHeight: 18,
-      textAlign: 'right' as const,
     },
     arrowBannerSteps: {
       flexDirection: 'row',
@@ -1305,7 +1312,7 @@ const createStyles = (theme: any, layout: any, insets: any) =>
     },
     arrowBannerClose: {
       padding: 4,
-      marginLeft: 8,
+      marginStart: 8,
     },
     noRoomMessage: {
       flex: 1,
@@ -1472,7 +1479,6 @@ const createStyles = (theme: any, layout: any, insets: any) =>
       padding: 12,
       fontSize: 16,
       color: theme.text,
-      textAlign: 'right',
     },
     colorOptions: {
       flexDirection: 'row',
@@ -1615,7 +1621,6 @@ const createStyles = (theme: any, layout: any, insets: any) =>
       fontWeight: '600',
       color: theme.text,
       marginBottom: 12,
-      textAlign: 'right' as const,
     },
     fillColorRow: {
       flexDirection: 'row' as const,
@@ -1628,7 +1633,7 @@ const createStyles = (theme: any, layout: any, insets: any) =>
     fillSettingsLabel: {
       fontSize: 14,
       color: theme.text,
-      marginLeft: 12,
+      marginStart: 12,
       minWidth: 50,
     },
     colorOption: {

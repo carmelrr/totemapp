@@ -12,7 +12,7 @@ import LoginScreen from "@/screens/auth/LoginScreen";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import CompetitionNavigator from "@/navigation/CompetitionNavigator";
 import { UserProvider } from "@/features/auth/UserContext";
-import { ThemeProvider, useTheme } from "@/features/theme/ThemeContext";
+import { ThemeProvider } from "@/features/theme/ThemeContext";
 import { LanguageProvider } from "@/features/language";
 import { AuthProvider } from "@/context/AuthContext";
 import { AdminProvider } from "@/context/AdminContext";
@@ -30,16 +30,9 @@ if (__DEV__) {
   console.log("🚀 App.tsx starting to load...");
 }
 
-// Force LTR layout for the entire app regardless of device language settings
-// This ensures consistent left-to-right layout throughout the app
-if (I18nManager.isRTL) {
-  I18nManager.allowRTL(false);
-  I18nManager.forceRTL(false);
-  // Note: forceRTL requires app restart to take effect
-  if (__DEV__) {
-    console.log("📐 LTR mode forced - app may need restart for full effect");
-  }
-}
+// RTL is now managed dynamically by LanguageContext + App.js.
+// Hebrew → RTL, English → LTR.  I18nManager state is set in App.js at
+// launch and updated in LanguageContext.setLanguage on switch.
 
 // Enable React Native Screens for better performance and native feel
 enableScreens();

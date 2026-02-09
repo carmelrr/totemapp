@@ -230,11 +230,15 @@ export function useMapTransforms({
         bottomInset: centeringBottomInset,
       };
 
-      // If already initialized and the user is zoomed in, skip re-centering.
-      // This prevents the map from jumping when the bottom panel is dragged,
-      // which changes both container AND computed image-fit dimensions.
+      // If already initialized and the user is zoomed in, skip re-centering
+      // AND skip re-clamping. This prevents the map from shifting when the
+      // bottom panel is dragged, which changes the container height and would
+      // otherwise force translateY to a new clamped value.
+      // We still notify the parent so it can recalculate viewport bounds
+      // with the new container dimensions.
       if (hasInitializedRef.current && scale.value > 1.05) {
-        // User is zoomed in — don't reset position, just update the ref
+        lastNotifyRef.current = null; // Clear dedup cache to force notification
+        notifyChange(scale.value, translateX.value, translateY.value);
         return;
       }
 

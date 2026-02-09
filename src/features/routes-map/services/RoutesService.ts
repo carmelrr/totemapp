@@ -19,7 +19,7 @@ import {
   QueryDocumentSnapshot,
   DocumentData,
 } from 'firebase/firestore';
-import { db } from '@/features/data/firebase';
+import { db, auth } from '@/features/data/firebase';
 import { RouteDoc } from '../types/route';
 import { triggerStatsRefresh } from '@/utils/events/statsRefreshEvent';
 
@@ -262,6 +262,7 @@ export class RoutesService {
         xNorm: routeData.xNorm,
         yNorm: routeData.yNorm,
         createdAt: Timestamp.now(),
+        createdBy: auth.currentUser?.uid || '',
         status: routeData.status || 'active',
         rating: 0,
         tops: 0,

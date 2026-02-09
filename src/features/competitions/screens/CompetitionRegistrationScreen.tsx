@@ -306,7 +306,6 @@ export default function CompetitionRegistrationScreen() {
             placeholder="050-1234567"
             placeholderTextColor={theme.textSecondary}
             keyboardType="phone-pad"
-            textAlign="right"
           />
         </View>
 
@@ -365,7 +364,6 @@ export default function CompetitionRegistrationScreen() {
               placeholder={t.competitionExt.birthYearPlaceholder}
               placeholderTextColor={theme.textSecondary}
               keyboardType="number-pad"
-              textAlign="right"
               maxLength={4}
             />
           </View>
@@ -599,7 +597,6 @@ const createStyles = (theme: any) =>
       fontWeight: '600',
       color: theme.text,
       marginBottom: 8,
-      textAlign: 'right',
     },
     input: {
       backgroundColor: theme.card,
@@ -617,7 +614,6 @@ const createStyles = (theme: any) =>
     readOnlyText: {
       fontSize: 16,
       color: theme.text,
-      textAlign: 'right',
     },
     categoriesGrid: {
       flexDirection: 'row',
@@ -656,7 +652,6 @@ const createStyles = (theme: any) =>
       fontSize: 14,
       color: theme.text,
       lineHeight: 20,
-      textAlign: 'right',
     },
     submitBtn: {
       backgroundColor: theme.buttonPrimary,

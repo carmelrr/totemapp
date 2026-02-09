@@ -14,7 +14,6 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import MapViewport from '../components/MapViewport';
 import RouteMarker from '../components/RouteMarker';
-import ZoomSlider from '@/components/WallMap/ZoomSlider';
 
 import { toImg, toNorm } from '@/utils/coordinateUtils';
 import { GRADES } from '../utils/grades';
@@ -93,13 +92,6 @@ export default function AddRouteMapScreen() {
   const handleTransformChange = useCallback((transforms: MapTransforms) => {
     setCurrentTransforms(transforms);
     setCurrentZoom(transforms.scale);
-  }, []);
-
-  // Handle zoom slider change
-  const handleZoomSliderChange = useCallback((newScale: number) => {
-    if (mapTransformsRef.current?.setZoomToCenter) {
-      mapTransformsRef.current.setZoomToCenter(newScale);
-    }
   }, []);
 
   const handleMapPress = useCallback((event: any) => {
@@ -274,17 +266,6 @@ export default function AddRouteMapScreen() {
           </MapViewport>
         </TouchableOpacity>
 
-        {/* Zoom Slider - always shown on add route screen for precision */}
-        <View style={styles.zoomSliderContainer}>
-          <ZoomSlider
-            currentScale={currentZoom}
-            minScale={mapTransformsRef.current?.minScale ?? 1}
-            maxScale={mapTransformsRef.current?.maxScale ?? 8}
-            onZoomChange={handleZoomSliderChange}
-            forceShow={true}
-          />
-        </View>
-
         {errors.position && (
           <Text style={styles.errorText}>{errors.position}</Text>
         )}
@@ -446,12 +427,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   mapTouchable: {
     height: 280, // Fixed height for map area
-  },
-  zoomSliderContainer: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    backgroundColor: theme.isDark ? 'rgba(45, 45, 45, 0.9)' : 'rgba(245, 245, 245, 0.9)',
-    marginTop: 4,
   },
   previewMarkerContainer: {
     position: 'absolute',

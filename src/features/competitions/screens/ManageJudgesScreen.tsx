@@ -145,9 +145,9 @@ export default function ManageJudgesScreen() {
       setSearchResults([]);
       refresh();
       
-      Alert.alert('הצלחה', `${user.displayName} נוסף כשופט`);
+      Alert.alert(t.common.success, t.alerts.judgeAdded(user.displayName));
     } catch (error) {
-      Alert.alert('שגיאה', 'לא ניתן להוסיף את השופט');
+      Alert.alert(t.common.error, t.alerts.judgeAddFailed);
     }
   };
 
@@ -165,7 +165,7 @@ export default function ManageJudgesScreen() {
               await JudgeService.removeJudge(competitionId, judge.id);
               refresh();
             } catch (error) {
-              Alert.alert('שגיאה', 'לא ניתן להסיר את השופט');
+              Alert.alert(t.common.error, t.alerts.judgeRemoveFailed);
             }
           },
         },
@@ -177,9 +177,9 @@ export default function ManageJudgesScreen() {
     try {
       await JudgeService.updateJudgeRole(competitionId, judge.id, 'head_judge');
       refresh();
-      Alert.alert('הצלחה', `${judge.userName} קודם לשופט ראשי`);
+      Alert.alert(t.common.success, t.alerts.judgePromoted(judge.userName));
     } catch (error) {
-      Alert.alert('שגיאה', 'לא ניתן לעדכן את התפקיד');
+      Alert.alert(t.common.error, t.alerts.roleUpdateFailed);
     }
   };
 
@@ -188,7 +188,7 @@ export default function ManageJudgesScreen() {
       await JudgeService.updateJudgeRole(competitionId, judge.id, 'judge');
       refresh();
     } catch (error) {
-      Alert.alert('שגיאה', 'לא ניתן לעדכן את התפקיד');
+      Alert.alert(t.common.error, t.alerts.roleUpdateFailed);
     }
   };
 
@@ -310,9 +310,8 @@ export default function ManageJudgesScreen() {
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={handleSearch}
-            placeholder="חפש משתמשים להוספה כשופטים..."
+            placeholder={t.competitionExt.searchUsersForJudges}
             placeholderTextColor={theme.textSecondary}
-            textAlign="right"
           />
           {isSearching && <ActivityIndicator size="small" color={theme.primary} />}
         </View>
@@ -411,7 +410,6 @@ const createStyles = (theme: any) =>
       flex: 1,
       fontSize: 13,
       color: theme.text,
-      textAlign: 'right',
       lineHeight: 18,
     },
     searchSection: {
@@ -441,7 +439,6 @@ const createStyles = (theme: any) =>
       fontSize: 12,
       color: theme.textSecondary,
       marginBottom: 8,
-      textAlign: 'right',
     },
     searchResultItem: {
       flexDirection: 'row',

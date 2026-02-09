@@ -355,11 +355,10 @@ export function AnnouncementEditorScreen() {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>כותרת *</Text>
           <TextInput
             style={[styles.input, { backgroundColor: theme.surface, color: theme.text }]}
-            placeholder="הזן כותרת..."
+            placeholder={t.announcements.titlePlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={title}
             onChangeText={setTitle}
-            textAlign="right"
           />
         </View>
 
@@ -372,11 +371,10 @@ export function AnnouncementEditorScreen() {
               styles.textArea,
               { backgroundColor: theme.surface, color: theme.text },
             ]}
-            placeholder="הזן את תוכן ההודעה..."
+            placeholder={t.announcements.messagePlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={text}
             onChangeText={setText}
-            textAlign="right"
             multiline
             numberOfLines={4}
           />
@@ -462,11 +460,10 @@ export function AnnouncementEditorScreen() {
           <Text style={[styles.sectionTitle, { color: theme.text }]}>כפתור (אופציונלי)</Text>
           <TextInput
             style={[styles.input, { backgroundColor: theme.surface, color: theme.text }]}
-            placeholder="טקסט הכפתור (לדוגמה: למידע נוסף)"
+            placeholder={t.announcements.buttonTextPlaceholder}
             placeholderTextColor={theme.textSecondary}
             value={ctaLabel}
             onChangeText={setCtaLabel}
-            textAlign="right"
           />
           {ctaLabel.trim() && (
             <>
@@ -475,11 +472,10 @@ export function AnnouncementEditorScreen() {
                   styles.input,
                   { backgroundColor: theme.surface, color: theme.text, marginTop: 8 },
                 ]}
-                placeholder="קישור (אופציונלי)"
+                placeholder={t.announcements.linkPlaceholder}
                 placeholderTextColor={theme.textSecondary}
                 value={ctaAction}
                 onChangeText={setCtaAction}
-                textAlign="right"
                 autoCapitalize="none"
                 keyboardType="url"
               />
@@ -1012,7 +1008,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
-    textAlign: 'right',
     color: theme.text,
   },
   input: {

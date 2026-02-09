@@ -61,7 +61,7 @@ export const RouteDetailsScreen: React.FC = () => {
 
     // Check if user is logged in
     if (!user?.uid) {
-      Alert.alert(t.common.error, t.spray.loginToAddRoute || "יש להתחבר כדי להוסיף מסלול");
+      Alert.alert(t.common.error, t.spray.loginToAddRoute);
       return;
     }
 
@@ -284,7 +284,6 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
     fontSize: 16,
     borderWidth: 1,
     borderColor: theme.border,
-    textAlign: "right",
   },
   saveButton: {
     backgroundColor: theme.secondary,

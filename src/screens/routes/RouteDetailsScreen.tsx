@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Alert,
   StatusBar,
-  TextInput,
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
@@ -25,40 +24,15 @@ import { useAuth } from '@/context/AuthContext';
 import { FeedbackService } from '@/features/routes-map/services/FeedbackService';
 import { RoutesService } from '@/features/routes-map/services/RoutesService';
 import { useLanguage } from '@/features/language';
-import { VideoLinkInput, VideoLinkButton } from '@/components/feedback';
 import { RouteStatsSection } from '@/components/feedback/RouteStatsSection';
-import { CachedAvatar } from '@/components/ui/CachedAvatar';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { usePublishedRooms } from '@/features/wall-editor';
+import { V_GRADES, getGradeIndex, getAllowedGrades, getContrastTextColor, formatDate } from '@/components/routes/routeDetailUtils';
+import { RouteFeedbackForm } from '@/components/routes/RouteFeedbackForm';
+import { ExistingFeedbackCard } from '@/components/routes/ExistingFeedbackCard';
+import { FeedbacksList } from '@/components/routes/FeedbacksList';
 
-// V-Scale grades for selector
-const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12'];
 
-/**
- * Get the index of a V-grade in the V_GRADES array
- * VB = 0, V0 = 1, V1 = 2, etc.
- */
-const getGradeIndex = (grade: string): number => {
-  const index = V_GRADES.indexOf(grade);
-  return index >= 0 ? index : -1;
-};
-
-/**
- * Get allowed grades for community rating (±2 from builder's original)
- * If builder set V5, community can rate V3-V7
- */
-const getAllowedGrades = (originalGrade: string): string[] => {
-  const originalIndex = getGradeIndex(originalGrade);
-  if (originalIndex < 0) {
-    // If original grade not found, return all grades
-    return V_GRADES;
-  }
-  
-  const minIndex = Math.max(0, originalIndex - 2);
-  const maxIndex = Math.min(V_GRADES.length - 1, originalIndex + 2);
-  
-  return V_GRADES.slice(minIndex, maxIndex + 1);
-};
 
 // Feedback interface for displaying all route completions
 interface RouteFeedback {
@@ -83,23 +57,6 @@ type RootStackParamList = {
 
 type RouteDetailsScreenRouteProp = RouteProp<RootStackParamList, 'RouteDetails'>;
 type RouteDetailsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-// Helper function to determine text color based on background brightness
-const getContrastTextColor = (backgroundColor: string): string => {
-  // Remove # if present
-  const hex = backgroundColor.replace('#', '');
-  
-  // Parse RGB values
-  const r = parseInt(hex.substr(0, 2), 16);
-  const g = parseInt(hex.substr(2, 2), 16);
-  const b = parseInt(hex.substr(4, 2), 16);
-  
-  // Calculate luminance
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  
-  // Return white for dark backgrounds, dark for light backgrounds
-  return luminance > 0.5 ? '#1F2937' : '#FFFFFF';
-};
 
 export default function RouteDetailsScreen() {
   const route = useRoute<RouteDetailsScreenRouteProp>();
@@ -424,158 +381,46 @@ export default function RouteDetailsScreen() {
             </TouchableOpacity>
           ) : !showSentForm && userSentFeedback ? (
             // Show existing feedback
-            <View style={styles.existingSentCard}>
-              <View style={styles.sentFeedbackRow}>
-                <Text style={styles.sentFeedbackLabel}>{t.routes.starRating}:</Text>
-                <View style={styles.sentStarsDisplay}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Text
-                      key={star}
-                      style={[
-                        styles.sentStarDisplay,
-                        star <= userSentFeedback.starRating && styles.sentStarFilled
-                      ]}
-                    >
-                      ★
-                    </Text>
-                  ))}
-                </View>
-              </View>
-              <View style={styles.sentFeedbackRow}>
-                <Text style={styles.sentFeedbackLabel}>{t.routes.suggestedGrade}:</Text>
-                <Text style={styles.sentFeedbackValue}>{userSentFeedback.suggestedGrade}</Text>
-              </View>
-              {userSentFeedback.comment && (
-                <View style={styles.sentCommentRow}>
-                  <Text style={styles.sentFeedbackLabel}>{t.routes.comment}:</Text>
-                  <Text style={styles.sentCommentText}>{userSentFeedback.comment}</Text>
-                </View>
-              )}
-              {userSentFeedback.videoUrl && (
-                <VideoLinkButton url={userSentFeedback.videoUrl} />
-              )}
-              <TouchableOpacity 
-                style={styles.editSentButton} 
-                onPress={() => setShowSentForm(true)}
-              >
-                <Text style={styles.editSentButtonText}>✏️ {t.common.edit}</Text>
-              </TouchableOpacity>
-            </View>
+            <ExistingFeedbackCard
+              starRating={userSentFeedback.starRating}
+              suggestedGrade={userSentFeedback.suggestedGrade}
+              comment={userSentFeedback.comment}
+              videoUrl={userSentFeedback.videoUrl}
+              onEdit={() => setShowSentForm(true)}
+            />
           ) : (
             // Show Sent! form
-            <View style={styles.sentFormCard}>
-              {/* Star Rating */}
-              <View style={styles.sentFormSection}>
-                <Text style={styles.sentFormLabel}>כמה נהנית מהמסלול? ⭐</Text>
-                <View style={styles.sentStarsRow}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <TouchableOpacity
-                      key={star}
-                      onPress={() => setSentStarRating(star)}
-                      style={styles.sentStarButton}
-                    >
-                      <Text style={[
-                        styles.sentStarText,
-                        star <= sentStarRating && styles.sentStarFilled
-                      ]}>
-                        ★
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              
-              {/* Grade Selector - Limited to ±2 from original grade */}
-              <View style={styles.sentFormSection}>
-                <Text style={styles.sentFormLabel}>מה הדירוג לדעתך? 📊</Text>
-                <Text style={styles.gradeHint}>
-                  (טווח מותר: {getAllowedGrades(originalGrade)[0]} - {getAllowedGrades(originalGrade).slice(-1)[0]})
-                </Text>
-                <ScrollView 
-                  horizontal 
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.gradeScrollView}
-                >
-                  {getAllowedGrades(originalGrade).map((grade) => (
-                    <TouchableOpacity
-                      key={grade}
-                      onPress={() => setSentSuggestedGrade(grade)}
-                      style={[
-                        styles.gradeOption,
-                        sentSuggestedGrade === grade && styles.gradeOptionSelected
-                      ]}
-                    >
-                      <Text style={[
-                        styles.gradeOptionText,
-                        sentSuggestedGrade === grade && styles.gradeOptionTextSelected
-                      ]}>
-                        {grade}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-              
-              {/* Comment */}
-              <View style={styles.sentFormSection}>
-                <Text style={styles.sentFormLabel}>רוצה להוסיף הערה? 💬</Text>
-                <TextInput
-                  style={styles.sentCommentInput}
-                  placeholder="בטא, טיפים, חוויה..."
-                  placeholderTextColor="#9CA3AF"
-                  value={sentComment}
-                  onChangeText={setSentComment}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-              </View>
-
-              {/* Video Link */}
-              <VideoLinkInput
-                value={sentVideoUrl}
-                onChange={setSentVideoUrl}
-                onValidationChange={setIsVideoLinkValid}
-                disabled={isSubmittingSent}
-              />
-              
-              {/* Buttons */}
-              <View style={styles.sentFormButtons}>
-                <TouchableOpacity 
-                  style={styles.sentCancelButton} 
-                  onPress={() => {
-                    setShowSentForm(false);
-                    if (userSentFeedback) {
-                      setSentStarRating(userSentFeedback.starRating || 0);
-                      setSentSuggestedGrade(userSentFeedback.suggestedGrade || '');
-                      setSentComment(userSentFeedback.comment || '');
-                      setSentVideoUrl(userSentFeedback.videoUrl || '');
-                    } else {
-                      setSentStarRating(0);
-                      setSentSuggestedGrade('');
-                      setSentComment('');
-                      setSentVideoUrl('');
-                    }
-                  }}
-                >
-                  <Text style={styles.sentCancelButtonText}>{t.common.cancel}</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
-                  style={[styles.sentSubmitButton, isSubmittingSent && styles.sentSubmitButtonDisabled]} 
-                  onPress={handleSubmitSent}
-                  disabled={isSubmittingSent}
-                >
-                  {isSubmittingSent ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.sentSubmitButtonText}>
-                      {userSentFeedback ? t.common.update : t.common.submit}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
+            <RouteFeedbackForm
+              starRating={sentStarRating}
+              onStarRatingChange={setSentStarRating}
+              suggestedGrade={sentSuggestedGrade}
+              onGradeChange={setSentSuggestedGrade}
+              grades={getAllowedGrades(originalGrade)}
+              gradeRangeHint={`(טווח מותר: ${getAllowedGrades(originalGrade)[0]} - ${getAllowedGrades(originalGrade).slice(-1)[0]})`}
+              comment={sentComment}
+              onCommentChange={setSentComment}
+              videoUrl={sentVideoUrl}
+              onVideoUrlChange={setSentVideoUrl}
+              isVideoLinkValid={isVideoLinkValid}
+              onVideoLinkValidChange={setIsVideoLinkValid}
+              onSubmit={handleSubmitSent}
+              onCancel={() => {
+                setShowSentForm(false);
+                if (userSentFeedback) {
+                  setSentStarRating(userSentFeedback.starRating || 0);
+                  setSentSuggestedGrade(userSentFeedback.suggestedGrade || '');
+                  setSentComment(userSentFeedback.comment || '');
+                  setSentVideoUrl(userSentFeedback.videoUrl || '');
+                } else {
+                  setSentStarRating(0);
+                  setSentSuggestedGrade('');
+                  setSentComment('');
+                  setSentVideoUrl('');
+                }
+              }}
+              isSubmitting={isSubmittingSent}
+              isUpdate={!!userSentFeedback}
+            />
           )}
           
           {!user && (
@@ -596,73 +441,14 @@ export default function RouteDetailsScreen() {
 
         {/* All Feedbacks Section - People who completed the route */}
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>{t.routes.communityFeedbacks} 🧗</Text>
-            <Text style={styles.completionCount}>
-              {allFeedbacks.length}
-            </Text>
-          </View>
-
-          {loadingFeedbacks ? (
-            <ActivityIndicator color={theme.primary} style={{ paddingVertical: 20 }} />
-          ) : allFeedbacks.length === 0 ? (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyStateEmoji}>🏔️</Text>
-              <Text style={styles.emptyStateText}>{t.routes.noFeedbacksYet}</Text>
-              <Text style={styles.emptyStateSubtext}>
-                תהיה הראשון! 💪
-              </Text>
-            </View>
-          ) : (
-            <View style={styles.feedbacksList}>
-              {allFeedbacks.map((feedback) => (
-                <View key={feedback.id} style={styles.feedbackCard}>
-                  {/* User info row */}
-                  <View style={styles.feedbackUserRow}>
-                    <CachedAvatar
-                      photoURL={feedback.userPhotoURL}
-                      displayName={feedback.userDisplayName || feedback.userName}
-                      size={36}
-                      showBorder={true}
-                    />
-                    <Text style={styles.feedbackUserName}>
-                      {feedback.userDisplayName || feedback.userName || 'Anonymous'}
-                    </Text>
-                  </View>
-                  
-                  {/* Stars and Grade row */}
-                  <View style={styles.feedbackRatingRow}>
-                    <View style={styles.feedbackStars}>
-                      {[1, 2, 3, 4, 5].map((star) => (
-                        <Text
-                          key={star}
-                          style={[
-                            styles.feedbackStar,
-                            star <= feedback.starRating && styles.feedbackStarFilled
-                          ]}
-                        >
-                          ★
-                        </Text>
-                      ))}
-                    </View>
-                    <View style={styles.feedbackGradeBadge}>
-                      <Text style={styles.feedbackGradeText}>{feedback.suggestedGrade}</Text>
-                    </View>
-                  </View>
-                  
-                  {/* Comment if exists */}
-                  {feedback.comment && (
-                    <Text style={styles.feedbackComment}>{feedback.comment}</Text>
-                  )}
-                  
-                  {/* Video Link Button if exists */}
-                  {feedback.videoUrl && (
-                    <VideoLinkButton url={feedback.videoUrl} />
-                  )}
-                </View>
-              ))}
-            </View>
-          )}
+          <FeedbacksList
+            feedbacks={allFeedbacks}
+            loading={loadingFeedbacks}
+            title={`${t.routes.communityFeedbacks} 🧗`}
+            emptyText={t.routes.noFeedbacksYet}
+            emptySubtext="תהיה הראשון! 💪"
+            showAvatar={true}
+          />
         </View>
         
         {/* Bottom padding */}
@@ -783,11 +569,6 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     fontWeight: '700',
     color: theme.text,
   },
-  completionCount: {
-    fontSize: 14,
-    color: theme.textSecondary,
-    fontWeight: '500',
-  },
   // Sent! Button
   sentButton: {
     flexDirection: 'row',
@@ -812,164 +593,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     fontWeight: '800',
     color: '#ffffff',
   },
-  // Existing Sent Card
-  existingSentCard: {
-    backgroundColor: theme.isDark ? 'rgba(16, 185, 129, 0.15)' : '#F0FDF4',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: theme.isDark ? 'rgba(16, 185, 129, 0.3)' : '#BBF7D0',
-  },
-  sentFeedbackRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.isDark ? 'rgba(16, 185, 129, 0.3)' : '#BBF7D0',
-  },
-  sentCommentRow: {
-    paddingVertical: 12,
-  },
-  sentFeedbackLabel: {
-    fontSize: 14,
-    color: theme.isDark ? '#4ade80' : '#166534',
-    fontWeight: '600',
-    marginRight: 12,
-    minWidth: 80,
-  },
-  sentFeedbackValue: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: theme.isDark ? '#4ade80' : '#15803D',
-  },
-  sentStarsDisplay: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  sentStarDisplay: {
-    fontSize: 20,
-    color: theme.border,
-  },
-  sentStarFilled: {
-    color: theme.starColor,
-  },
-  sentCommentText: {
-    fontSize: 14,
-    color: theme.isDark ? '#4ade80' : '#166534',
-    marginTop: 4,
-    lineHeight: 20,
-  },
-  editSentButton: {
-    marginTop: 14,
-    alignSelf: 'flex-end',
-  },
-  editSentButtonText: {
-    fontSize: 14,
-    color: theme.isDark ? '#4ade80' : '#15803D',
-    fontWeight: '700',
-  },
-  // Sent! Form
-  sentFormCard: {
-    backgroundColor: theme.card,
-    borderRadius: 14,
-    padding: 18,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  sentFormSection: {
-    marginBottom: 22,
-  },
-  sentFormLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.text,
-    marginBottom: 12,
-  },
-  sentStarsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  sentStarButton: {
-    padding: 6,
-  },
-  sentStarText: {
-    fontSize: 40,
-    color: theme.border,
-  },
-  gradeScrollView: {
-    flexGrow: 0,
-  },
-  gradeHint: {
-    fontSize: 12,
-    color: theme.textSecondary,
-    marginBottom: 8,
-    textAlign: 'right',
-  },
-  gradeOption: {
-    paddingHorizontal: 18,
-    paddingVertical: 12,
-    borderRadius: 12,
-    backgroundColor: theme.surface,
-    marginRight: 10,
-    borderWidth: 2,
-    borderColor: theme.border,
-  },
-  gradeOptionSelected: {
-    backgroundColor: theme.isDark ? 'rgba(102, 126, 234, 0.2)' : '#EFF6FF',
-    borderColor: theme.primary,
-  },
-  gradeOptionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.text,
-  },
-  gradeOptionTextSelected: {
-    color: theme.primary,
-  },
-  sentCommentInput: {
-    backgroundColor: theme.inputBackground,
-    borderRadius: 12,
-    padding: 14,
-    fontSize: 15,
-    color: theme.text,
-    minHeight: 90,
-    textAlignVertical: 'top',
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  sentFormButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 8,
-  },
-  sentCancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: theme.surface,
-    alignItems: 'center',
-  },
-  sentCancelButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: theme.textSecondary,
-  },
-  sentSubmitButton: {
-    flex: 2,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: theme.success,
-    alignItems: 'center',
-  },
-  sentSubmitButtonDisabled: {
-    opacity: 0.6,
-  },
-  sentSubmitButtonText: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#ffffff',
-  },
+
   loginHint: {
     fontSize: 13,
     color: theme.textSecondary,
@@ -977,93 +601,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     marginTop: 14,
     fontStyle: 'italic',
   },
-  // Empty State
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: 32,
-  },
-  emptyStateEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
-  emptyStateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.textSecondary,
-  },
-  emptyStateSubtext: {
-    fontSize: 14,
-    color: theme.textSecondary,
-    marginTop: 6,
-  },
-  // Feedbacks List
-  feedbacksList: {
-    gap: 14,
-  },
-  feedbackCard: {
-    backgroundColor: theme.card,
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: theme.border,
-  },
-  feedbackUserRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  feedbackAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: theme.primary,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  feedbackAvatarText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  feedbackUserName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.text,
-  },
-  feedbackRatingRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  feedbackStars: {
-    flexDirection: 'row',
-    gap: 3,
-  },
-  feedbackStar: {
-    fontSize: 18,
-    color: theme.border,
-  },
-  feedbackStarFilled: {
-    color: theme.starColor,
-  },
-  feedbackGradeBadge: {
-    backgroundColor: theme.isDark ? 'rgba(102, 126, 234, 0.2)' : '#EFF6FF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  feedbackGradeText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: theme.primary,
-  },
-  feedbackComment: {
-    marginTop: 12,
-    fontSize: 14,
-    color: theme.textSecondary,
-    lineHeight: 20,
-  },
+
   // Wall Map Section
   wallMapSection: {
     marginHorizontal: 16,

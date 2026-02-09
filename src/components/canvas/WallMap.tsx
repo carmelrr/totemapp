@@ -6,6 +6,7 @@ import { GestureDetector } from 'react-native-gesture-handler';
 import { useWallTransform } from '@/hooks/useWallTransform';
 import { DynamicWallMap } from '@/features/wall-editor/components';
 import { Room } from '@/features/wall-editor/types';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface RoutePoint {
     id: string;
@@ -45,6 +46,8 @@ export default function WallMap({
     onLayout,
     room,
 }: WallMapProps) {
+    const { theme } = useTheme();
+    const styles = createStyles(theme);
     const [containerDimensions, setContainerDimensions] = useState({
         width: 0,
         height: 0,
@@ -156,10 +159,10 @@ export default function WallMap({
     );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: theme.mapBackground,
         // המפה תמלא את כל המקום הפנוי במסגרת
         width: '100%',
         height: '100%',
@@ -176,7 +179,7 @@ const styles = StyleSheet.create({
     },
     loadingContainer: {
         flex: 1,
-        backgroundColor: '#e5e5e5',
+        backgroundColor: theme.inputBackground,
     },
     routePoint: {
         position: 'absolute',
@@ -184,8 +187,8 @@ const styles = StyleSheet.create({
         height: 30,
         borderRadius: 15,
         borderWidth: 2,
-        borderColor: '#fff',
-        shadowColor: '#000',
+        borderColor: theme.surface,
+        shadowColor: theme.shadow,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.3,
         shadowRadius: 3,

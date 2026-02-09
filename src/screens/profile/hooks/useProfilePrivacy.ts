@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Alert } from "react-native";
 import { auth } from "@/features/data/firebase";
+import { useLanguage } from "@/features/language";
 import { savePrivacySettings as savePrivacySettingsService, fetchProfile } from "../services/profileService";
 import type { PrivacySettings } from "../types";
 
@@ -16,6 +17,7 @@ const defaultPrivacySettings: PrivacySettings = {
 
 export function useProfilePrivacy() {
   const user = auth.currentUser;
+  const { t } = useLanguage();
   const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(defaultPrivacySettings);
   const [isEditingPrivacy, setIsEditingPrivacy] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,7 +58,7 @@ export function useProfilePrivacy() {
       setPrivacySettings(newSettings);
     } catch (error) {
       console.error("Error saving privacy settings:", error);
-      Alert.alert("שגיאה", "לא ניתן לשמור הגדרות פרטיות");
+      Alert.alert(t.common.error, t.alerts.privacySaveFailed);
     }
   };
 

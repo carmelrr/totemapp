@@ -260,18 +260,16 @@ const styles = StyleSheet.create({
   },
   icon: {
     fontSize: 24,
-    marginLeft: 8,
+    marginStart: 8,
   },
   title: {
     fontSize: 18,
     fontWeight: '700',
     flex: 1,
-    textAlign: 'right',
   },
   text: {
     fontSize: 15,
     lineHeight: 22,
-    textAlign: 'right',
     marginBottom: 12,
   },
   bold: {

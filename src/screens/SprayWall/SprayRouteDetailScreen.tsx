@@ -21,9 +21,12 @@ import { useLanguage } from "@/features/language";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { SprayRoute, SprayRouteFeedback } from "@/features/spraywall/types";
 import { WallImageWithHolds } from "@/components/spray/WallImageWithHolds";
-import { VideoLinkInput, VideoLinkButton } from "@/components/feedback";
 import { RouteStatsSection } from '@/components/feedback/RouteStatsSection';
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { RouteFeedbackForm } from "@/components/routes/RouteFeedbackForm";
+import { ExistingFeedbackCard } from "@/components/routes/ExistingFeedbackCard";
+import { FeedbacksList } from "@/components/routes/FeedbacksList";
+import { V_GRADES, formatDate } from "@/components/routes/routeDetailUtils";
 import {
   addFeedbackToRoute,
   listenToFeedbacksForRoute,
@@ -33,9 +36,6 @@ import {
 import { useWalls } from "@/features/walls/hooks";
 import { useRoutesForWall } from "@/features/spraywall/hooks";
 import { SwipeableRouteContainer } from '@/components/routes/SwipeableRouteContainer';
-
-// V-Scale grades for selector
-const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12'];
 
 export const SprayRouteDetailScreen: React.FC = () => {
   const navigation = useNavigation<any>();
@@ -264,16 +264,6 @@ export const SprayRouteDetailScreen: React.FC = () => {
   const averageRating = currentRoute?.averageStarRating || 0;
   const feedbackCount = currentRoute?.feedbackCount || 0;
 
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return "";
-    try {
-      const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-      return date.toLocaleDateString("he-IL");
-    } catch {
-      return "";
-    }
-  };
-
   // Loading state
   if (routesLoading || !currentRoute) {
     return (
@@ -423,188 +413,66 @@ export const SprayRouteDetailScreen: React.FC = () => {
           )}
 
           {!showFeedbackForm && userFeedback && (
-            <View style={styles.existingFeedbackCard}>
-              <View style={styles.feedbackRow}>
-                <Text style={styles.feedbackLabel}>{t.spray.ratingLabel}</Text>
-                <View style={styles.feedbackStars}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Text
-                      key={star}
-                      style={[
-                        styles.starText,
-                        star <= userFeedback.starRating && styles.filledStar,
-                      ]}
-                    >
-                      ★
-                    </Text>
-                  ))}
-                </View>
-              </View>
-              <View style={styles.feedbackRow}>
-                <Text style={styles.feedbackLabel}>{t.spray.difficultyGradeLabel}</Text>
-                <Text style={styles.feedbackValue}>{userFeedback.suggestedGrade}</Text>
-              </View>
-              {userFeedback.comment && (
-                <View style={styles.feedbackCommentRow}>
-                  <Text style={styles.feedbackLabel}>{t.spray.commentLabel}</Text>
-                  <Text style={styles.feedbackComment}>{userFeedback.comment}</Text>
-                </View>
-              )}
-              {userFeedback.videoUrl && (
-                <VideoLinkButton url={userFeedback.videoUrl} />
-              )}
-              <TouchableOpacity
-                style={styles.editFeedbackButton}
-                onPress={() => setShowFeedbackForm(true)}
-              >
-                <Text style={styles.editFeedbackText}>{t.spray.editRating}</Text>
-              </TouchableOpacity>
-            </View>
+            <ExistingFeedbackCard
+              starRating={userFeedback.starRating}
+              suggestedGrade={userFeedback.suggestedGrade}
+              comment={userFeedback.comment}
+              videoUrl={userFeedback.videoUrl}
+              onEdit={() => setShowFeedbackForm(true)}
+              ratingLabel={t.spray.ratingLabel}
+              gradeLabel={t.spray.difficultyGradeLabel}
+              commentLabel={t.spray.commentLabel}
+              editLabel={t.spray.editRating}
+            />
           )}
 
           {showFeedbackForm && (
-            <View style={styles.feedbackFormCard}>
-              {/* Star Rating */}
-              <View style={styles.formSection}>
-                <Text style={styles.formLabel}>{t.spray.howMuchEnjoy}</Text>
-                <View style={styles.starsRow}>
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <TouchableOpacity
-                      key={star}
-                      onPress={() => setStarRating(star)}
-                      style={styles.starButton}
-                      activeOpacity={0.7}
-                    >
-                      <Text
-                        style={[styles.starTextLarge, star <= starRating && styles.filledStar]}
-                      >
-                        ★
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Grade Selector */}
-              <View style={styles.formSection}>
-                <Text style={styles.formLabel}>{t.spray.whatGrade}</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.gradeScroller}
-                >
-                  {V_GRADES.map((grade) => (
-                    <TouchableOpacity
-                      key={grade}
-                      onPress={() => setSuggestedGrade(grade)}
-                      style={[
-                        styles.gradeOption,
-                        suggestedGrade === grade && styles.gradeOptionSelected,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.gradeOptionText,
-                          suggestedGrade === grade && styles.gradeOptionTextSelected,
-                        ]}
-                      >
-                        {grade}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-
-              {/* Comment */}
-              <View style={styles.formSection}>
-                <Text style={styles.formLabel}>{t.spray.wantToAddComment}</Text>
-                <TextInput
-                  style={styles.commentInput}
-                  placeholder={t.spray.betaTipsExperience}
-                  placeholderTextColor="#888"
-                  value={comment}
-                  onChangeText={setComment}
-                  multiline
-                  numberOfLines={3}
-                  textAlignVertical="top"
-                />
-              </View>
-
-              {/* Video Link */}
-              <VideoLinkInput
-                value={videoUrl}
-                onChange={setVideoUrl}
-                onValidationChange={setIsVideoLinkValid}
-                disabled={isSubmitting}
-              />
-
-              {/* Submit Buttons */}
-              <View style={styles.formButtons}>
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={() => {
-                    setShowFeedbackForm(false);
-                    if (userFeedback) {
-                      setStarRating(userFeedback.starRating || 0);
-                      setSuggestedGrade(userFeedback.suggestedGrade || "");
-                      setComment(userFeedback.comment || "");
-                      setVideoUrl(userFeedback.videoUrl || "");
-                    } else {
-                      setStarRating(0);
-                      setSuggestedGrade("");
-                      setComment("");
-                      setVideoUrl("");
-                    }
-                  }}
-                >
-                  <Text style={styles.cancelButtonText}>{t.common.cancel}</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.submitButton, isSubmitting && styles.buttonDisabled]}
-                  onPress={handleSubmitFeedback}
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.submitButtonText}>{t.spray.saveRating}</Text>
-                  )}
-                </TouchableOpacity>
-              </View>
-            </View>
+            <RouteFeedbackForm
+              starRating={starRating}
+              onStarRatingChange={setStarRating}
+              suggestedGrade={suggestedGrade}
+              onGradeChange={setSuggestedGrade}
+              grades={V_GRADES}
+              comment={comment}
+              onCommentChange={setComment}
+              commentPlaceholder={t.spray.betaTipsExperience}
+              videoUrl={videoUrl}
+              onVideoUrlChange={setVideoUrl}
+              isVideoLinkValid={isVideoLinkValid}
+              onVideoLinkValidChange={setIsVideoLinkValid}
+              onSubmit={handleSubmitFeedback}
+              onCancel={() => {
+                setShowFeedbackForm(false);
+                if (userFeedback) {
+                  setStarRating(userFeedback.starRating || 0);
+                  setSuggestedGrade(userFeedback.suggestedGrade || "");
+                  setComment(userFeedback.comment || "");
+                  setVideoUrl(userFeedback.videoUrl || "");
+                } else {
+                  setStarRating(0);
+                  setSuggestedGrade("");
+                  setComment("");
+                  setVideoUrl("");
+                }
+              }}
+              isSubmitting={isSubmitting}
+              isUpdate={!!userFeedback}
+              submitLabel={t.spray.saveRating}
+              starLabel={t.spray.howMuchEnjoy}
+              gradeLabel={t.spray.whatGrade}
+              commentLabel={t.spray.wantToAddComment}
+            />
           )}
         </View>
 
         {/* Community Feedbacks */}
         {feedbacks.length > 0 && (
-          <View style={styles.communitySection}>
-            <Text style={styles.sectionTitle}>{t.spray.communityFeedbacks} ({feedbacks.length})</Text>
-            {feedbacks.map((fb) => (
-              <View key={fb.id} style={styles.feedbackItem}>
-                <View style={styles.feedbackHeader}>
-                  <Text style={styles.feedbackUser}>{fb.userDisplayName}</Text>
-                  <View style={styles.feedbackMiniStars}>
-                    {[1, 2, 3, 4, 5].map((s) => (
-                      <Text
-                        key={s}
-                        style={[styles.miniStar, s <= fb.starRating && styles.filledStar]}
-                      >
-                        ★
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-                <View style={styles.feedbackMeta}>
-                  <Text style={styles.feedbackGrade}>{t.spray.rated} {fb.suggestedGrade}</Text>
-                  {fb.createdAt && (
-                    <Text style={styles.feedbackDate}>{formatDate(fb.createdAt)}</Text>
-                  )}
-                </View>
-                {fb.comment && <Text style={styles.feedbackText}>{fb.comment}</Text>}
-                {fb.videoUrl && <VideoLinkButton url={fb.videoUrl} />}
-              </View>
-            ))}
-          </View>
+          <FeedbacksList
+            feedbacks={feedbacks}
+            title={`${t.spray.communityFeedbacks} (${feedbacks.length})`}
+            showAvatar={false}
+            showDate={true}
+          />
         )}
 
         <View style={styles.bottomSpacer} />
@@ -757,7 +625,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
   communityBadge: {
     color: theme.textSecondary,
     fontSize: 12,
-    marginLeft: 8,
+    marginStart: 8,
   },
   statsSection: {
     flexDirection: "row",
@@ -807,7 +675,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
   },
   detailIcon: {
     fontSize: 18,
-    marginRight: 12,
+    marginEnd: 12,
     width: 24,
   },
   detailLabel: {
@@ -833,83 +701,12 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
   },
   sentButtonEmoji: {
     fontSize: 24,
-    marginRight: 8,
+    marginEnd: 8,
   },
   sentButtonText: {
     color: "#fff",
     fontSize: 20,
     fontWeight: "bold",
-  },
-  existingFeedbackCard: {
-    backgroundColor: theme.surface,
-    borderRadius: 12,
-    padding: 16,
-  },
-  feedbackRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  feedbackLabel: {
-    color: theme.textSecondary,
-    fontSize: 14,
-    marginRight: 8,
-  },
-  feedbackValue: {
-    color: theme.text,
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  feedbackStars: {
-    flexDirection: "row",
-  },
-  starText: {
-    fontSize: 20,
-    color: theme.border,
-  },
-  filledStar: {
-    color: theme.starColor,
-  },
-  feedbackCommentRow: {
-    marginTop: 8,
-  },
-  feedbackComment: {
-    color: theme.textSecondary,
-    fontSize: 14,
-    marginTop: 4,
-  },
-  editFeedbackButton: {
-    marginTop: 16,
-    alignItems: "center",
-  },
-  editFeedbackText: {
-    color: theme.primary,
-    fontSize: 14,
-  },
-  feedbackFormCard: {
-    backgroundColor: theme.surface,
-    borderRadius: 12,
-    padding: 16,
-  },
-  formSection: {
-    marginBottom: 20,
-  },
-  formLabel: {
-    color: theme.text,
-    fontSize: 16,
-    fontWeight: "500",
-    marginBottom: 12,
-  },
-  starsRow: {
-    flexDirection: "row",
-    justifyContent: "center",
-  },
-  starButton: {
-    padding: 8,
-  },
-  starTextLarge: {
-    fontSize: 36,
-    color: theme.border,
   },
   gradeScroller: {
     marginTop: 4,
@@ -919,7 +716,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     paddingVertical: 10,
     borderRadius: 20,
     backgroundColor: theme.surface,
-    marginRight: 8,
+    marginEnd: 8,
   },
   gradeOptionSelected: {
     backgroundColor: theme.buttonPrimary,
@@ -932,92 +729,8 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
   gradeOptionTextSelected: {
     color: "#fff",
   },
-  commentInput: {
-    backgroundColor: theme.inputBackground,
-    borderRadius: 12,
-    padding: 12,
-    color: theme.text,
-    fontSize: 14,
-    minHeight: 80,
-    textAlign: "right",
-  },
-  formButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 8,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: theme.surface,
-    marginRight: 8,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    color: theme.textSecondary,
-    fontSize: 16,
-    fontWeight: "500",
-  },
-  submitButton: {
-    flex: 2,
-    paddingVertical: 14,
-    borderRadius: 12,
-    backgroundColor: theme.success,
-    alignItems: "center",
-  },
-  submitButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
   buttonDisabled: {
     opacity: 0.6,
-  },
-  communitySection: {
-    padding: 16,
-  },
-  feedbackItem: {
-    backgroundColor: theme.surface,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
-  },
-  feedbackHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  feedbackUser: {
-    color: theme.text,
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  feedbackMiniStars: {
-    flexDirection: "row",
-  },
-  miniStar: {
-    fontSize: 12,
-    color: theme.border,
-  },
-  feedbackMeta: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 4,
-  },
-  feedbackGrade: {
-    color: theme.primary,
-    fontSize: 12,
-  },
-  feedbackDate: {
-    color: theme.textSecondary,
-    fontSize: 12,
-  },
-  feedbackText: {
-    color: theme.textSecondary,
-    fontSize: 14,
-    marginTop: 8,
-    lineHeight: 20,
   },
   bottomSpacer: {
     height: 20,

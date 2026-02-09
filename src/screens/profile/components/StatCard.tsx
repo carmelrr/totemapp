@@ -38,7 +38,7 @@ export const StatCard: React.FC<StatCardProps> = ({
                     styles.statCard,
                     styles.hiddenStatCard,
                     { 
-                        borderLeftColor: color, 
+                        borderStartColor: color, 
                         backgroundColor: theme.surface,
                         shadowColor: theme.shadow,
                     },
@@ -61,7 +61,7 @@ export const StatCard: React.FC<StatCardProps> = ({
         <View style={[
             styles.statCard, 
             { 
-                borderLeftColor: color, 
+                borderStartColor: color, 
                 backgroundColor: theme.surface,
                 shadowColor: theme.shadow,
             }
@@ -95,7 +95,7 @@ export const StatCard: React.FC<StatCardProps> = ({
 const styles = StyleSheet.create({
     statCard: {
         borderRadius: 16,
-        borderLeftWidth: 5,
+        borderStartWidth: 5,
         marginBottom: 12,
         shadowOffset: {
             width: 0,
@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 14,
+        marginEnd: 14,
     },
     statIcon: {
         fontSize: 26,
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
         fontWeight: "500",
     },
     privacyIndicator: {
-        paddingLeft: 8,
+        paddingStart: 8,
     },
     privacyText: {
         fontSize: 18,

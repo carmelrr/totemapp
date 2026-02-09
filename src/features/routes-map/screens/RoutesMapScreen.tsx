@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { useSharedValue, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
 
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -25,7 +25,6 @@ import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 
 // New Architecture Components
 import WallMap, { WallMapRef } from '../../../components/WallMap/WallMap';
-import ZoomSlider from '../../../components/WallMap/ZoomSlider';
 import { FiltersBar, FiltersSheet } from '../../../components/Filters';
 import { RoutesList } from '../../../components/Lists';
 import type { SortOption } from '../../../components/Filters/FiltersBar';
@@ -133,15 +132,33 @@ export default function RoutesMapScreen() {
   const [showSortModal, setShowSortModal] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(1); // For zoom slider
   const currentZoomRef = useRef(1); // Ref to avoid re-renders during gesture
+  // Store last received transform values so we can re-compute viewport bounds
+  // when mapFrameSize changes, using actual zoom/pan instead of hardcoded defaults.
+  const lastTransformRef = useRef({ scale: 1, translateX: 0, translateY: 0 });
   const [headerHeight, setHeaderHeight] = useState(insets.top + 46); // Dynamic header height
 
-  // Shared value for panel height — used to constrain the map container above the panel
+  // Shared value for panel height — used by the DraggableRoutesPanel
   const panelHeightSV = useSharedValue(height * 0.65);
 
-  // Animated style: map container's bottom edge tracks the panel height
-  const mapAnimatedStyle = useAnimatedStyle(() => ({
-    bottom: panelHeightSV.value,
-  }));
+  // Shared value for current zoom level — drives the map constraint animation
+  const zoomScaleSV = useSharedValue(1);
+
+  // Zoom threshold: when seeing ~80% of the map (scale ≈ 1.25), free the map
+  // from the panel constraint. Below this, the map stays centered between
+  // the header and the routes panel.
+  const ZOOM_FREE_THRESHOLD = 1.25;
+
+  // Animated style: constrain map between header and panel when not zoomed,
+  // let it extend behind the panel when zoomed in past threshold
+  const mapAnimatedStyle = useAnimatedStyle(() => {
+    const bottomValue = interpolate(
+      zoomScaleSV.value,
+      [ZOOM_FREE_THRESHOLD * 0.9, ZOOM_FREE_THRESHOLD],
+      [panelHeightSV.value, 0],
+      Extrapolation.CLAMP
+    );
+    return { bottom: bottomValue };
+  });
 
   // Active sector filtering - when a sector label is pressed
   const [activeSectorId, setActiveSectorId] = useState<string | null>(null);
@@ -490,10 +507,10 @@ export default function RoutesMapScreen() {
         xNorm: clampedX,
         yNorm: clampedY,
       });
-      Alert.alert('הצלחה', 'המסלול הוזז בהצלחה');
+      Alert.alert(t.common.success, t.alerts.routeMoved);
     } catch (error) {
       console.error('📍 Error moving route:', error);
-      Alert.alert('שגיאה', 'לא ניתן להזיז את המסלול');
+      Alert.alert(t.common.error, t.alerts.routeMoveFailed);
     } finally {
       setMovingRoute(null);
     }
@@ -526,27 +543,27 @@ export default function RoutesMapScreen() {
   const handleMarkTop = useCallback(async (route: RouteDoc) => {
     try {
       await RoutesService.incrementTops(route.id);
-      Alert.alert('הצלחה', 'המסלול סומן כטופס!');
+      Alert.alert(t.common.success, t.alerts.routeMarkedTop);
     } catch (error) {
-      Alert.alert('שגיאה', 'נכשל בסימון המסלול');
+      Alert.alert(t.common.error, t.alerts.routeMarkFailed);
     }
   }, []);
 
   const handleRate = useCallback(async (route: RouteDoc, rating: number) => {
     try {
       await RoutesService.updateRoute(route.id, { rating });
-      Alert.alert('הצלחה', 'המסלול דורג!');
+      Alert.alert(t.common.success, t.alerts.routeRated);
     } catch (error) {
-      Alert.alert('שגיאה', 'נכשל בדירוג המסלול');
+      Alert.alert(t.common.error, t.alerts.routeRateFailed);
     }
   }, []);
 
   const handleShare = useCallback((route: RouteDoc) => {
-    Alert.alert('שיתוף', `שיתוף מסלול: ${route.name}`);
+    Alert.alert(t.alerts.shareTitle, t.alerts.shareRoute(route.name));
   }, []);
 
   const handleReport = useCallback((route: RouteDoc) => {
-    Alert.alert('דיווח', `דיווח על מסלול: ${route.name}`);
+    Alert.alert(t.alerts.reportTitle, t.alerts.reportRoute(route.name));
   }, []);
 
   const handleAddRoute = useCallback(() => {
@@ -560,6 +577,12 @@ export default function RoutesMapScreen() {
   }, [navigation]);
 
   const handleTransformChange = useCallback((transform: { scale: number; translateX: number; translateY: number }) => {
+    // Store latest transform so we can re-use it when mapFrameSize changes
+    lastTransformRef.current = transform;
+
+    // Update zoom shared value for the map constraint animation
+    zoomScaleSV.value = transform.scale;
+
     const containerWidth = mapFrameSize.width || 0;
     const containerHeight = mapFrameSize.height || 0;
     
@@ -640,11 +663,12 @@ export default function RoutesMapScreen() {
     });
   }, [mapFrameSize.width, mapFrameSize.height, selectedRoom]);
 
-  // Calculate initial viewport bounds when map frame size is available
+  // Recalculate viewport bounds when map frame size changes.
+  // Uses the last known transform values (actual zoom/pan) so viewport bounds
+  // stay correct when the DraggableRoutesPanel is dragged.
   useEffect(() => {
     if (mapFrameSize.width > 0 && mapFrameSize.height > 0) {
-      // Call handleTransformChange with initial transform (scale: 1, no translation)
-      handleTransformChange({ scale: 1, translateX: 0, translateY: 0 });
+      handleTransformChange(lastTransformRef.current);
     }
   }, [mapFrameSize.width, mapFrameSize.height, handleTransformChange]);
 
@@ -777,11 +801,6 @@ export default function RoutesMapScreen() {
     );
   };
 
-  // Handler for zoom slider changes
-  const handleZoomSliderChange = useCallback((newScale: number) => {
-    wallMapRef.current?.setZoom(newScale);
-  }, []);
-
   // Handler for sector label press - toggle sector filtering and zoom
   const handleSectorPress = useCallback((sector: Sector) => {
     setActiveSectorId(prev => {
@@ -810,14 +829,6 @@ export default function RoutesMapScreen() {
           {renderMapView()}
         </View>
       </View>
-      
-      {/* Zoom Slider - only shows if enabled in user preferences */}
-      <ZoomSlider
-        currentScale={currentZoom}
-        minScale={wallMapRef.current?.getMinScale() ?? 1}
-        maxScale={wallMapRef.current?.getMaxScale() ?? 8}
-        onZoomChange={handleZoomSliderChange}
-      />
       
       <View style={styles.filterBarContainer}>
         <FiltersBar
@@ -858,17 +869,6 @@ export default function RoutesMapScreen() {
             {renderMapView()}
           </View>
         </View>
-      </View>
-      
-      {/* Vertical Zoom Slider - Between map and list */}
-      <View style={styles.landscapeZoomContainer}>
-        <ZoomSlider
-          currentScale={currentZoom}
-          minScale={wallMapRef.current?.getMinScale() ?? 1}
-          maxScale={wallMapRef.current?.getMaxScale() ?? 8}
-          onZoomChange={handleZoomSliderChange}
-          vertical={true}
-        />
       </View>
       
       {/* List Section - Right side */}
@@ -942,17 +942,6 @@ export default function RoutesMapScreen() {
             {renderMapView()}
           </View>
         </View>
-      </View>
-      
-      {/* Vertical Zoom Slider - Between map and list */}
-      <View style={styles.phoneLandscapeZoomContainer}>
-        <ZoomSlider
-          currentScale={currentZoom}
-          minScale={wallMapRef.current?.getMinScale() ?? 1}
-          maxScale={wallMapRef.current?.getMaxScale() ?? 8}
-          onZoomChange={handleZoomSliderChange}
-          vertical={true}
-        />
       </View>
       
       {/* Compact List Section - Right panel */}
@@ -1092,14 +1081,6 @@ export default function RoutesMapScreen() {
           </View>
         </View>
         
-        {/* Zoom Slider - only shows if enabled in user preferences */}
-        <ZoomSlider
-          currentScale={currentZoom}
-          minScale={wallMapRef.current?.getMinScale() ?? 1}
-          maxScale={wallMapRef.current?.getMaxScale() ?? 8}
-          onZoomChange={handleZoomSliderChange}
-        />
-        
         {/* FiltersBar positioned below the map with integrated action buttons */}
         <View style={styles.filterBarContainer}>
           <View style={styles.filterBarWithActions}>
@@ -1176,7 +1157,8 @@ export default function RoutesMapScreen() {
 
   return (
     <View style={styles.fullScreenContainer}>
-      {/* Map Container — constrained between header and panel top */}
+      {/* Map Container — constrained between header and panel when not zoomed,
+           extends full height behind the panel when zoomed past threshold */}
       <Animated.View 
         style={[styles.fullScreenMap, { top: headerHeight }, mapAnimatedStyle]}
         onLayout={e => {
@@ -1236,16 +1218,6 @@ export default function RoutesMapScreen() {
           )}
         </View>
       </SafeAreaView>
-
-      {/* Zoom Slider - Floating */}
-      <View style={[styles.floatingZoomSlider, { top: headerHeight + 12 }]}>
-        <ZoomSlider
-          currentScale={currentZoom}
-          minScale={wallMapRef.current?.getMinScale() ?? 1}
-          maxScale={wallMapRef.current?.getMaxScale() ?? 8}
-          onZoomChange={handleZoomSliderChange}
-        />
-      </View>
 
       {/* Draggable Routes Panel or Inline Add Route Panel */}
       {addingRoute ? (
@@ -1358,14 +1330,6 @@ const createStyles = (
       paddingVertical: 10,
       paddingHorizontal: 12,
     },
-    floatingZoomSlider: {
-      position: 'absolute',
-      // top is set dynamically via inline style
-      top: 0,
-      left: 12,
-      right: 12,
-      zIndex: 5,
-    },
     // Original styles kept for backwards compatibility
     container: {
       flex: 1,
@@ -1399,21 +1363,13 @@ const createStyles = (
       padding: 12,
       justifyContent: 'center',
     },
-    landscapeZoomContainer: {
-      // Vertical zoom slider container between map and list
-      width: 50,
-      paddingVertical: 20,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: theme.background,
-    },
     landscapeListSection: {
       flex: 2,
-      borderLeftWidth: 1,
-      borderLeftColor: theme.border,
+      borderStartWidth: 1,
+      borderStartColor: theme.border,
       backgroundColor: theme.background,
       // Add padding for safe areas in landscape
-      paddingRight: isLandscape ? rightInset : 0,
+      paddingEnd: isLandscape ? rightInset : 0,
       paddingTop: 8,
       paddingBottom: bottomInset,
     },
@@ -1428,18 +1384,10 @@ const createStyles = (
       flex: 0,
       width: '60%',
       padding: 4,
-      paddingLeft: Math.max(insets.left, 4),
-      paddingRight: 0,
+      paddingStart: Math.max(insets.left, 4),
+      paddingEnd: 0,
       justifyContent: 'center',
       alignItems: 'center',
-    },
-    phoneLandscapeZoomContainer: {
-      // Very narrow vertical zoom slider container between map and list
-      width: 12,
-      paddingVertical: 4,
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: 'transparent',
     },
     phoneLandscapeMapFrame: {
       flex: 1,
@@ -1457,12 +1405,12 @@ const createStyles = (
       // List takes remaining width - no header, starts from top
       flex: 1,
       minWidth: 120, // Ensure list is readable
-      borderLeftWidth: 1,
-      borderLeftColor: theme.border,
+      borderStartWidth: 1,
+      borderStartColor: theme.border,
       backgroundColor: theme.background,
       // No extra padding - RoutesList handles its own compact padding
       // Safe area is handled by SafeAreaView edges
-      paddingRight: 0,
+      paddingEnd: 0,
       paddingTop: 0, // List starts from very top
     },
     // Phone landscape action bar - replaces simple filter bar
@@ -1657,7 +1605,7 @@ const createStyles = (
       flexDirection: 'row',
       alignItems: 'center',
       gap: 6,
-      paddingRight: 8,
+      paddingEnd: 8,
     },
     filterBarActionButton: {
       width: 36,
@@ -1880,7 +1828,7 @@ const createStyles = (
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 10,
-    marginLeft: 12,
+    marginStart: 12,
   },
   exitEditModeText: {
     color: '#ffffff',

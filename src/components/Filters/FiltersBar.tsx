@@ -215,7 +215,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     height: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: 4,
+    marginStart: 4,
   },
   badgeText: {
     fontSize: 12,

@@ -319,8 +319,8 @@ const createStyles = (theme, layout, insets) => {
       alignItems: "center",
       paddingHorizontal: 20,
       paddingVertical: isPhoneLandscape ? 10 : 16,
-      paddingLeft: isLandscape ? Math.max(20, insets.left) : 20,
-      paddingRight: isLandscape ? Math.max(20, insets.right) : 20,
+      paddingStart: isLandscape ? Math.max(20, insets.left) : 20,
+      paddingEnd: isLandscape ? Math.max(20, insets.right) : 20,
       backgroundColor: theme.surface,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
@@ -357,8 +357,8 @@ const createStyles = (theme, layout, insets) => {
     },
     content: {
       flex: 1,
-      paddingLeft: isLandscape ? Math.max(0, insets.left) : 0,
-      paddingRight: isLandscape ? Math.max(0, insets.right) : 0,
+      paddingStart: isLandscape ? Math.max(0, insets.left) : 0,
+      paddingEnd: isLandscape ? Math.max(0, insets.right) : 0,
     },
     instructions: {
       paddingHorizontal: 20,

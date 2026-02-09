@@ -12,6 +12,7 @@ import { RouteFilters, RouteSortBy, CompletionFilter } from '../types/route';
 import { GRADES } from '../utils/grades';
 import { ROUTE_COLORS } from '../utils/colors';
 import { useLanguage } from '@/features/language';
+import { useTheme } from '@/features/theme/ThemeContext';
 import { useUserRouteStatus } from '@/hooks/useUserRouteStatus';
 
 interface FilterSheetProps {
@@ -48,6 +49,8 @@ export default function FilterSheet({
   onSortChange,
 }: FilterSheetProps) {
   const { t } = useLanguage();
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [localFilters, setLocalFilters] = useState<RouteFilters>(filters);
   const [localSortBy, setLocalSortBy] = useState<RouteSortBy>(sortBy);
 
@@ -272,13 +275,13 @@ export default function FilterSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   gestureRoot: {
     flex: 1,
   },
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   header: {
     flexDirection: 'row',
@@ -287,21 +290,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e1e5e9',
+    borderBottomColor: theme.border,
   },
   cancelButton: {
     fontSize: 16,
-    color: '#6b7280',
+    color: theme.textSecondary,
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
+    color: theme.text,
   },
   applyButton: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3b82f6',
+    color: theme.primary,
   },
   content: {
     flex: 1,
@@ -317,7 +320,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: theme.text,
     marginBottom: 12,
   },
   optionRow: {
@@ -330,19 +333,19 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
   selectedOption: {
-    backgroundColor: '#dbeafe',
+    backgroundColor: theme.activeTab,
   },
   optionText: {
     fontSize: 14,
-    color: '#4b5563',
+    color: theme.textSecondary,
   },
   selectedOptionText: {
-    color: '#1d4ed8',
+    color: theme.secondary,
     fontWeight: '500',
   },
   checkmark: {
     fontSize: 16,
-    color: '#1d4ed8',
+    color: theme.secondary,
     fontWeight: '600',
   },
   chipContainer: {
@@ -354,21 +357,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: theme.inputBackground,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: theme.border,
   },
   selectedChip: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   chipText: {
     fontSize: 12,
-    color: '#4b5563',
+    color: theme.textSecondary,
     fontWeight: '500',
   },
   selectedChipText: {
-    color: '#ffffff',
+    color: '#fff',
   },
   colorGrid: {
     flexDirection: 'row',
@@ -385,13 +388,13 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   selectedColorChip: {
-    borderColor: '#1f2937',
+    borderColor: theme.text,
   },
   colorCheckmark: {
     fontSize: 16,
-    color: '#ffffff',
+    color: '#fff',
     fontWeight: '600',
-    textShadowColor: '#000000',
+    textShadowColor: theme.shadow,
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
@@ -400,12 +403,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 8,
-    backgroundColor: '#ef4444',
+    backgroundColor: theme.error,
     alignSelf: 'center',
   },
   resetButtonText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#fff',
   },
 });

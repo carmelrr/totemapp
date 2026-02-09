@@ -4,6 +4,7 @@ import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from "fireb
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/features/data/firebase";
 import Constants from "expo-constants";
+import { useLanguage } from '@/features/language';
 
 // Only import native Google Sign-In on non-web platforms
 let GoogleSignin: any;
@@ -34,6 +35,7 @@ webGoogleProvider.addScope("email");
 
 export default function GoogleLoginButton() {
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const { t } = useLanguage();
 
   const handleGoogleLoginWeb = async () => {
     // Use Firebase signInWithPopup for web
@@ -162,14 +164,14 @@ export default function GoogleLoginButton() {
             console.log("Sign-in already in progress");
             break;
           case statusCodes?.PLAY_SERVICES_NOT_AVAILABLE:
-            Alert.alert("שגיאה", "Google Play Services לא זמין במכשיר זה");
+            Alert.alert(t.common.error, t.alerts.googlePlayUnavailable);
             break;
           default:
-            Alert.alert("שגיאה", "נכשל בהתחברות: " + error.message);
+            Alert.alert(t.common.error, t.alerts.loginFailed(error.message));
         }
       } else {
         console.error("Google sign-in error:", error);
-        Alert.alert("שגיאה", "נכשל בהתחברות: " + (error.message || error.code));
+        Alert.alert(t.common.error, t.alerts.loginFailed(error.message || error.code));
       }
     } finally {
       setIsSigningIn(false);
@@ -208,7 +210,6 @@ const styles = StyleSheet.create({
     color: "white",
     fontSize: 16,
     fontWeight: "bold",
-    marginLeft: 5,
-    textAlign: "right",
+    marginStart: 5,
   },
 });

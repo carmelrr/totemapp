@@ -110,7 +110,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
               );
             } catch (error) {
               console.error("Error recalculating:", error);
-              Alert.alert("שגיאה", "אירעה שגיאה ברענון חישובים");
+              Alert.alert(t.common.error, t.alerts.refreshCalcError);
             } finally {
               setIsRecalculating(false);
             }
@@ -133,7 +133,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
               );
             } catch (error) {
               console.error("Error syncing sends:", error);
-              Alert.alert("שגיאה", "אירעה שגיאה בסנכרון פילטרים");
+              Alert.alert(t.common.error, t.alerts.syncFiltersError);
             } finally {
               setIsRecalculating(false);
             }

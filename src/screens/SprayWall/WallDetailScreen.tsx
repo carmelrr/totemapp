@@ -803,7 +803,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     width: 24,
     height: 24,
     borderRadius: 12,
-    marginRight: 12,
+    marginEnd: 12,
   },
   routeInfo: {
     flex: 1,
@@ -851,7 +851,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
   ratingText: {
     color: theme.starColor,
     fontSize: 12,
-    marginLeft: 2,
+    marginStart: 2,
   },
   topsCount: {
     color: theme.success,
@@ -952,7 +952,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     height: 20,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 4,
+    marginStart: 4,
   },
   filterBadgeText: {
     color: "#fff",

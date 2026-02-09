@@ -79,7 +79,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       fontWeight: "bold",
       color: theme.text,
       marginBottom: 15,
-      textAlign: "right",
     },
     // Social section
     socialSection: {
@@ -139,7 +138,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       padding: 15,
       fontSize: 16,
       marginBottom: 15,
-      textAlign: "right",
       backgroundColor: theme.inputBackground,
       color: theme.text,
     },
@@ -163,7 +161,7 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       width: 40,
       height: 40,
       borderRadius: 20,
-      marginLeft: 12,
+      marginStart: 12,
       borderWidth: 2,
       borderColor: theme.primary,
     },
@@ -181,7 +179,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       fontSize: 16,
       color: theme.text,
       flex: 1,
-      textAlign: "right",
       fontWeight: "500",
     },
     followButton: {
@@ -247,7 +244,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       fontWeight: "bold",
       color: theme.text,
       flex: 1,
-      textAlign: "right",
     },
     closeButton: {
       backgroundColor: theme.card,
@@ -256,7 +252,7 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       height: 40,
       justifyContent: "center",
       alignItems: "center",
-      marginLeft: 15,
+      marginStart: 15,
     },
     closeButtonText: {
       fontSize: 18,
@@ -320,14 +316,12 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       fontSize: 14,
       color: theme.textSecondary,
       marginBottom: 8,
-      textAlign: "right",
       fontWeight: "600",
     },
     fieldValue: {
       fontSize: 16,
       color: theme.text,
       marginBottom: 15,
-      textAlign: "right",
       padding: 12,
       backgroundColor: theme.inputBackground,
       borderRadius: 10,
@@ -341,7 +335,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       padding: 12,
       fontSize: 16,
       marginBottom: 15,
-      textAlign: "right",
       backgroundColor: theme.inputBackground,
       color: theme.text,
     },
@@ -375,7 +368,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       fontSize: 14,
       color: theme.textSecondary,
       marginBottom: 15,
-      textAlign: "right",
     },
     circleSizeColumn: {
       gap: 10,
@@ -404,7 +396,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       color: theme.textSecondary,
       fontWeight: "600",
       flex: 1,
-      textAlign: "right",
     },
     circleSizeRowLabelSelected: {
       color: theme.primary,
@@ -413,7 +404,7 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
     circleSizeRowPreview: {
       justifyContent: "center",
       alignItems: "center",
-      marginLeft: 15,
+      marginStart: 15,
     },
     circleSizePreviewText: {
       color: "white",
@@ -444,8 +435,8 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       alignItems: "center",
       width: "48%",
       marginBottom: 12,
-      borderLeftWidth: 4,
-      borderLeftColor: theme.primary,
+      borderStartWidth: 4,
+      borderStartColor: theme.primary,
     },
     statNumber: {
       fontSize: 24,
@@ -479,7 +470,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       fontWeight: "bold",
       color: theme.error,
       marginBottom: 15,
-      textAlign: "right",
     },
     adminButtons: {
       gap: 10,
@@ -513,7 +503,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
     adminModeHint: {
       fontSize: 12,
       color: theme.success,
-      textAlign: "right",
       marginBottom: 15,
       fontStyle: "italic",
     },
@@ -529,7 +518,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       fontSize: 14,
       fontWeight: "600",
       color: theme.text,
-      textAlign: "right",
       marginBottom: 12,
     },
     defaultAvatarPreview: {
@@ -664,7 +652,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       fontWeight: "bold",
       color: theme.text,
       flex: 1,
-      textAlign: "right",
     },
     modalCloseButton: {
       width: 36,
@@ -673,7 +660,7 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       backgroundColor: theme.card,
       justifyContent: "center",
       alignItems: "center",
-      marginLeft: 10,
+      marginStart: 10,
     },
     modalCloseText: {
       fontSize: 18,
@@ -736,7 +723,6 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
     joinDateText: {
       fontSize: 14,
       color: theme.text,
-      textAlign: "right",
       fontWeight: "500",
     },
     joinDateContent: {
@@ -790,7 +776,7 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
     },
     statIcon: {
       fontSize: 28,
-      marginRight: 14,
+      marginEnd: 14,
     },
     statTextContainer: {
       flex: 1,
@@ -809,7 +795,7 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
       fontSize: 20,
       color: theme.secondary,
       fontWeight: "bold",
-      marginLeft: 8,
+      marginStart: 8,
     },
     themeToggleContainer: {
       flexDirection: "row",
@@ -886,7 +872,7 @@ export const createStyles = (theme: Theme, layout?: LayoutInfo, insets?: InsetsI
     },
     privacySettingsIcon: {
       fontSize: 24,
-      marginRight: 12,
+      marginEnd: 12,
     },
     privacySettingsTextContainer: {
       flex: 1,

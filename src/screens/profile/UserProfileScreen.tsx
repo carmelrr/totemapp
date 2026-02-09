@@ -867,8 +867,8 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     },
     scrollContent: {
       flexGrow: 1,
-      paddingLeft: isLandscape ? safeLeft : 0,
-      paddingRight: isLandscape ? safeRight : 0,
+      paddingStart: isLandscape ? safeLeft : 0,
+      paddingEnd: isLandscape ? safeRight : 0,
     },
     innerContainer: {
       flex: 1,
@@ -1033,8 +1033,8 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     padding: 12,
     borderRadius: 12,
     marginBottom: 15,
-    borderLeftWidth: 4,
-    borderLeftColor: theme.success,
+    borderStartWidth: 4,
+    borderStartColor: theme.success,
   },
   autoEditText: {
     fontSize: 13,
@@ -1053,7 +1053,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     padding: isLandscape ? 12 : 16,
     marginBottom: isLandscape ? 8 : 12,
     width: isLandscape ? '48%' : (screenWidth - 60) / 2,
-    borderLeftWidth: isLandscape ? 3 : 4,
+    borderStartWidth: isLandscape ? 3 : 4,
     shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
@@ -1070,7 +1070,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
   },
   statIcon: {
     fontSize: 24,
-    marginRight: 12,
+    marginEnd: 12,
   },
   statTextContainer: {
     flex: 1,
@@ -1089,7 +1089,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     fontSize: 20,
     color: theme.secondary,
     fontWeight: "bold",
-    marginLeft: 8,
+    marginStart: 8,
   },
   privacyToggleContainer: {
     flexDirection: "row",
@@ -1243,12 +1243,10 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     fontWeight: "bold",
     color: theme.text,
     marginBottom: 8,
-    textAlign: "right",
   },
   historySubtitle: {
     fontSize: 14,
     marginBottom: 16,
-    textAlign: "right",
   },
   // Tabs styles
   tabsContainer: {
@@ -1288,8 +1286,8 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     borderRadius: 12,
     padding: isLandscape ? 12 : 14,
     marginBottom: isLandscape ? 8 : 12,
-    borderLeftWidth: isLandscape ? 3 : 4,
-    borderLeftColor: theme.primary,
+    borderStartWidth: isLandscape ? 3 : 4,
+    borderStartColor: theme.primary,
     width: isLandscape ? '48%' : '100%',
   },
   historyItemsContainer: {
@@ -1334,8 +1332,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     fontSize: 15,
     fontWeight: "600",
     color: theme.text,
-    textAlign: "right",
-    marginRight: 8,
+    marginEnd: 8,
   },
   historyGradeChip: {
     paddingHorizontal: 8,
@@ -1350,7 +1347,6 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
   historyComment: {
     fontSize: 14,
     color: theme.text,
-    textAlign: "right",
     marginTop: 4,
     lineHeight: 20,
   },
@@ -1361,7 +1357,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
   },
   star: {
     fontSize: 14,
-    marginLeft: 2,
+    marginStart: 2,
   },
   historyLoading: {
     paddingVertical: 30,
@@ -1414,7 +1410,6 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     fontWeight: "bold",
     color: "#856404",
     marginBottom: 12,
-    textAlign: "right",
   },
   adminButtonsRow: {
     flexDirection: "row",

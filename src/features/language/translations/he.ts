@@ -95,8 +95,6 @@ export const he: TranslationKeys = {
     saveChanges: "שמור שינויים",
     preferences: "העדפות",
     circleSizeOnMap: "גודל עיגולי המסלולים במפה",
-    showZoomSlider: "הצג בר זום",
-    showZoomSliderDesc: "בר גרירה לשליטה בזום מתחת למפה",
     small: "קטן",
     medium: "בינוני",
     large: "גדול",
@@ -276,6 +274,8 @@ export const he: TranslationKeys = {
     difficultyRating: "דירוג קושי",
     yourComment: "ההערה שלך",
     commentPlaceholder: "הערה על המסלול... (השתמש ב@ לתיוג חברים)",
+    feedbackComposerPlaceholder: "כתוב את הפידבק שלך...",
+    routeFeedbackPlaceholder: "איך היה המסלול?",
     starRating: "דירוג כוכבים",
     suggestedGrade: "דרגת קושי",
     comment: "הערה",
@@ -655,6 +655,106 @@ export const he: TranslationKeys = {
     unsavedChanges: "יש לך שינויים שלא נשמרו. האם אתה בטוח שברצונך לצאת?",
     success: "הצלחה!",
     error: "שגיאה",
+
+    // General
+    noPermission: "אין הרשאה",
+    permissionToGallery: "יש לאשר גישה לגלריה כדי לבחור תמונה",
+    photoUploadError: "אירעה שגיאה בהעלאת התמונה",
+    photoRemoveError: "אירעה שגיאה בהסרת התמונה",
+    googlePlayUnavailable: "Google Play Services לא זמין במכשיר זה",
+    loginFailed: (msg: string) => `נכשל בהתחברות: ${msg}`,
+
+    // Feedback
+    selectRating: "אנא בחר דירוג",
+    addComment: "אנא הוסף תגובה",
+    invalidVideoLink: "הלינק לסרטון לא תקין",
+    userOrRouteNotFound: "משתמש או מסלול לא נמצאו",
+    feedbackUpdated: "המשוב עודכן בהצלחה",
+    feedbackSubmitted: "המשוב נשלח בהצלחה",
+    feedbackSubmitError: "שגיאה בשליחת המשוב",
+    feedbackDeleted: "המשוב נמחק בהצלחה",
+    feedbackDeleteError: "שגיאה במחיקת המשוב",
+    writeFeedback: "אנא כתוב פידבק",
+    feedbackSubmitFailed: "נכשל בשליחת הפידבק",
+    loginToFeedback: "יש להתחבר כדי לשלוח פידבק",
+    selectStarRating: "יש לבחור דירוג כוכבים",
+    selectSuggestedGrade: "יש לבחור דירוג מוצע",
+    deleteFeedbackTitle: "מחיקת פידבק",
+    feedbackDeleteFailed: "נכשל במחיקת הפידבק",
+
+    // Routes
+    routeMoved: "המסלול הוזז בהצלחה",
+    routeMoveFailed: "לא ניתן להזיז את המסלול",
+    routeMarkedTop: "המסלול סומן כטופס!",
+    routeMarkFailed: "נכשל בסימון המסלול",
+    routeRated: "המסלול דורג!",
+    routeRateFailed: "נכשל בדירוג המסלול",
+    shareTitle: "שיתוף",
+    shareRoute: (name: string) => `שיתוף מסלול: ${name}`,
+    reportTitle: "דיווח",
+    reportRoute: (name: string) => `דיווח על מסלול: ${name}`,
+
+    // Wall Editor
+    wallSaveTitle: "שמירה הצליחה",
+    wallSaved: "הקיר נשמר בהצלחה!",
+    wallSaveFailed: "לא ניתן לשמור את הקיר",
+    wallUnpublished: "הקיר הוסר ממפת המסלולים",
+    wallPublished: "הקיר פורסם למפת המסלולים!",
+    wallPublishFailed: "לא ניתן לפרסם את הקיר",
+    selectObjFile: "נא לבחור קובץ OBJ",
+    objProcessFailed: "לא הצלחנו לעבד את הקובץ",
+    imageLoadFailed: "לא הצלחנו לטעון את התמונה",
+    wallVisibilityFailed: "לא ניתן לעדכן את נראות הקיר",
+    wallRemoved: "הקיר הוסר ממפת המסלולים",
+    wallRemoveFailed: "לא ניתן להסיר את הקיר",
+
+    // Competition Management
+    statusUpdated: "הסטטוס עודכן בהצלחה",
+    statusUpdateFailed: "לא ניתן לעדכן את הסטטוס",
+    registrationClosed: "ההרשמה נסגרה",
+    registrationOpened: "ההרשמה נפתחה - משתמשים יכולים להירשם כעת",
+    registrationUpdateFailed: "לא ניתן לעדכן את מצב ההרשמה",
+    resultsHidden: "התוצאות הוסתרו מהמשתמשים",
+    resultsShown: "התוצאות מוצגות כעת לכל המשתמשים",
+    resultsUpdateFailed: "לא ניתן לעדכן את הצגת התוצאות",
+
+    // Competition Routes
+    enterRouteNumber: "יש להזין מספר מסלול",
+    invalidRouteNumber: "מספר מסלול לא תקין",
+    routeAlreadyExists: "מסלול עם מספר זה כבר קיים",
+    routeAddFailed: "לא ניתן להוסיף את המסלול",
+    routesAdded: "המסלולים נוספו בהצלחה",
+    routesAddFailed: "לא ניתן להוסיף את המסלולים",
+    routeDeleteFailed: "לא ניתן למחוק את המסלול",
+    routesPlaced: "כל המסלולים מוקמו על המפה",
+    routePlaceFailed: "לא ניתן למקם את המסלול",
+    routesAlreadyPlaced: "כל המסלולים כבר ממוקמים על המפה",
+    invalidPoints: "ערך ניקוד לא תקין",
+    pointsUpdateFailed: "לא ניתן לעדכן את הניקוד",
+    colorUpdateFailed: "לא ניתן לעדכן את צבע המסלול",
+    routesDeleteFailed: "לא ניתן למחוק את המסלולים",
+    resultDeleteFailed: "לא ניתן למחוק את התוצאה",
+
+    // Judges
+    judgeAdded: (name: string) => `${name} נוסף כשופט`,
+    judgeAddFailed: "לא ניתן להוסיף את השופט",
+    judgeRemoveFailed: "לא ניתן להסיר את השופט",
+    judgePromoted: (name: string) => `${name} קודם לשופט ראשי`,
+    roleUpdateFailed: "לא ניתן לעדכן את התפקיד",
+
+    // Profile
+    profileUpdateFailed: (msg: string) => `לא ניתן לעדכן פרופיל: ${msg}`,
+    photoUploadFailed: (msg: string) => msg || "לא ניתן להעלות תמונה",
+    privacySaveFailed: "לא ניתן לשמור הגדרות פרטיות",
+    refreshFailed: "נכשל ברענון הנתונים",
+    followFailed: "נכשל בעדכון מעקב",
+    refreshCalcError: "אירעה שגיאה ברענון חישובים",
+    syncFiltersError: "אירעה שגיאה בסנכרון פילטרים",
+    profilePhotoRemoveFailed: "לא ניתן להסיר את תמונת הפרופיל",
+    galleryOpenError: "אירעה שגיאה בפתיחת בורר התמונות",
+
+    // Note
+    attention: "שים לב",
   },
 
   // Time formatting
@@ -789,6 +889,9 @@ export const he: TranslationKeys = {
     selectWall: "בחר קיר:",
     errorLoadingImage: "שגיאה בטעינת התמונה",
     cannotSaveWall: "לא ניתן לשמור את הקיר",
+    sectorNamePlaceholder: "לדוגמה: אזור A",
+    labelPlaceholder: "כיתוב",
+    sectorNameInputPlaceholder: "שם סקטור",
   },
 
   // AddRoute
@@ -810,6 +913,7 @@ export const he: TranslationKeys = {
     hexExample: "לדוגמה: #FF0000 = אדום, #00FF00 = ירוק",
     moreColors: "צבעים נוספים",
     backToHoldEditing: "חזור לעריכת אחיזות",
+    colorExampleHe: "אדום",
   },
 
   // UserProfile
@@ -1258,6 +1362,7 @@ export const he: TranslationKeys = {
     // Manage Categories - additional hardcoded
     categoryNamePlaceholder: "לדוגמה: גברים 18-35",
     categoryDescriptionPlaceholder: "תיאור אופציונלי",
+    autoPrefixPlaceholder: "לדוגמה: M → M1, M2...",
     ageCalculationHint: "הגיל מחושב לפי שנתון (שנה נוכחית פחות שנת לידה)",
     fromAge: "מגיל",
     toAge: "עד גיל",
@@ -1307,6 +1412,8 @@ export const he: TranslationKeys = {
     enterText: "נא להזין טקסט הודעה",
     title: "כותרת *",
     titlePlaceholder: "כותרת ההודעה",
+    buttonTextPlaceholder: "טקסט הכפתור (לדוגמה: למידע נוסף)",
+    linkPlaceholder: "קישור (אופציונלי)",
     allUsers: "כל המשתמשים",
     judges: "שופטים",
     participants: "משתתפים",

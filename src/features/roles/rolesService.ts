@@ -7,15 +7,13 @@ import { db, auth } from '@/features/data/firebase';
 import {
   doc,
   getDoc,
-  setDoc,
-  updateDoc,
   collection,
   getDocs,
   query,
   where,
-  Timestamp,
   onSnapshot,
 } from 'firebase/firestore';
+import { httpsCallable, getFunctions } from 'firebase/functions';
 import { UserRole, UserRoles, UserWithRoles } from './types';
 import { canManageRoles } from './constants';
 
@@ -55,7 +53,9 @@ export async function getUserRoles(userId: string): Promise<UserRole[]> {
 }
 
 /**
- * Set roles for a user (admin only)
+ * Set roles for a user via Cloud Function (server-side enforcement)
+ * The Cloud Function validates admin permissions, updates Firestore,
+ * and sets Custom Claims on the target user.
  */
 export async function setUserRoles(
   targetUserId: string,
@@ -67,31 +67,20 @@ export async function setUserRoles(
       throw new Error('User not authenticated');
     }
     
-    // Verify current user has permission to manage roles
+    // Client-side pre-check (actual enforcement is server-side)
     const currentUserRoles = await getUserRoles(currentUser.uid);
     if (!canManageRoles(currentUserRoles)) {
       throw new Error('Not authorized to manage roles');
     }
+
+    // Call Cloud Function — it validates admin, writes Firestore, and sets Custom Claims
+    const functions = getFunctions();
+    const setRolesFn = httpsCallable(functions, 'setUserRoles');
+    const result = await setRolesFn({ targetUserId, roles });
     
-    // Update user document with new roles
-    const userRef = doc(db, USERS_COLLECTION, targetUserId);
-    const userDoc = await getDoc(userRef);
-    
-    if (!userDoc.exists()) {
-      throw new Error('User not found');
+    if (__DEV__) {
+      console.log(`Roles updated for user ${targetUserId}:`, roles, result.data);
     }
-    
-    // Determine if user should have isAdmin flag
-    const isAdmin = roles.includes('admin');
-    
-    await updateDoc(userRef, {
-      roles,
-      isAdmin,
-      rolesUpdatedAt: Timestamp.now(),
-      rolesUpdatedBy: currentUser.uid,
-    });
-    
-    console.log(`Roles updated for user ${targetUserId}:`, roles);
   } catch (error) {
     console.error('Error setting user roles:', error);
     throw error;

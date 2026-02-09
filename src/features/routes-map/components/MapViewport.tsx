@@ -6,6 +6,7 @@ import { DynamicWallMap } from '@/features/wall-editor/components';
 import { Room } from '@/features/wall-editor/types';
 import { useMapTransforms } from '@/hooks/useMapTransforms';
 import { MapTransforms } from '../types/route';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface MapViewportProps {
   children?: React.ReactNode;
@@ -39,6 +40,8 @@ export default function MapViewport({
   debug = false,
   room,
 }: MapViewportProps) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   // Use room dimensions for aspect ratio calculation
   const SVG_WIDTH = room.width;
   const SVG_HEIGHT = room.height;
@@ -206,10 +209,10 @@ export default function MapViewport({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: theme.mapBackground,
     overflow: 'hidden', // Prevent map from visually going outside bounds
   },
   gestureContainer: {
@@ -228,6 +231,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#666',
+    color: theme.textSecondary,
   },
 });

@@ -355,7 +355,6 @@ export const AddCommunityRouteScreen: React.FC = () => {
             onChangeText={setRouteName}
             placeholder={t.community.routeNamePlaceholder}
             placeholderTextColor={theme.textSecondary}
-            textAlign="right"
           />
         </View>
 
@@ -382,7 +381,6 @@ export const AddCommunityRouteScreen: React.FC = () => {
             onChangeText={setDescription}
             placeholder={t.community.descriptionPlaceholder}
             placeholderTextColor={theme.textSecondary}
-            textAlign="right"
             multiline
             numberOfLines={3}
           />
@@ -473,8 +471,8 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
       justifyContent: 'space-between',
       paddingHorizontal: 16,
       paddingVertical: isPhoneLandscape ? 10 : 14,
-      paddingLeft: isLandscape ? Math.max(16, insets.left) : 16,
-      paddingRight: isLandscape ? Math.max(16, insets.right) : 16,
+      paddingStart: isLandscape ? Math.max(16, insets.left) : 16,
+      paddingEnd: isLandscape ? Math.max(16, insets.right) : 16,
       backgroundColor: theme.headerGradient,
     },
     headerButton: {
@@ -496,8 +494,8 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
     stepContainer: {
       flex: 1,
       paddingHorizontal: 20,
-      paddingLeft: isLandscape ? Math.max(20, insets.left) : 20,
-      paddingRight: isLandscape ? Math.max(20, insets.right) : 20,
+      paddingStart: isLandscape ? Math.max(20, insets.left) : 20,
+      paddingEnd: isLandscape ? Math.max(20, insets.right) : 20,
       justifyContent: 'center',
     },
     stepHeader: {
@@ -653,7 +651,6 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
   inputLabel: {
     fontSize: 14,
     fontWeight: '600',
-    textAlign: 'right',
     color: theme.text,
   },
   labelRow: {
@@ -706,7 +703,6 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
   expirationNoticeText: {
     flex: 1,
     fontSize: 13,
-    textAlign: 'right',
     lineHeight: 20,
     color: theme.warning,
   },
@@ -717,8 +713,8 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
     right: 0,
     padding: 16,
     paddingBottom: 32,
-    paddingLeft: isLandscape ? Math.max(16, insets.left) : 16,
-    paddingRight: isLandscape ? Math.max(16, insets.right) : 16,
+    paddingStart: isLandscape ? Math.max(16, insets.left) : 16,
+    paddingEnd: isLandscape ? Math.max(16, insets.right) : 16,
     backgroundColor: theme.background,
   },
   saveButton: {

@@ -56,8 +56,8 @@ const createStyles = (theme, layout, insets) => {
       backgroundColor: theme.headerGradient,
       paddingVertical: isPhoneLandscape ? 10 : 14,
       paddingHorizontal: 16,
-      paddingLeft: isLandscape ? Math.max(16, insets.left) : 16,
-      paddingRight: isLandscape ? Math.max(16, insets.right) : 16,
+      paddingStart: isLandscape ? Math.max(16, insets.left) : 16,
+      paddingEnd: isLandscape ? Math.max(16, insets.right) : 16,
     },
     headerTitle: {
       fontSize: isPhoneLandscape ? 18 : 20,
@@ -68,8 +68,8 @@ const createStyles = (theme, layout, insets) => {
       flexGrow: 1,
       padding: 16,
       paddingBottom: 100,
-      paddingLeft: isLandscape ? Math.max(16, insets.left) : 16,
-      paddingRight: isLandscape ? Math.max(16, insets.right) : 16,
+      paddingStart: isLandscape ? Math.max(16, insets.left) : 16,
+      paddingEnd: isLandscape ? Math.max(16, insets.right) : 16,
     },
     // Wrapper for 2-column layout in landscape
     columnWrapper: {
@@ -97,7 +97,7 @@ const createStyles = (theme, layout, insets) => {
       height: 44,
       borderRadius: 22,
       backgroundColor: theme.border,
-      marginLeft: 12,
+      marginStart: 12,
       borderWidth: 2,
       borderColor: theme.primary,
     },
@@ -119,7 +119,6 @@ const createStyles = (theme, layout, insets) => {
       fontSize: 16,
       fontWeight: "bold",
       color: theme.text,
-      textAlign: "right",
     },
     timestamp: {
       fontSize: 12,
@@ -157,7 +156,6 @@ const createStyles = (theme, layout, insets) => {
       fontSize: 15,
       fontWeight: "600",
       color: theme.text,
-      textAlign: "right",
     },
     routeNameContainer: {
       flex: 1,
@@ -167,7 +165,7 @@ const createStyles = (theme, layout, insets) => {
       paddingHorizontal: 10,
       paddingVertical: 4,
       borderRadius: 8,
-      marginLeft: 8,
+      marginStart: 8,
     },
     gradeText: {
       color: "#fff",
@@ -184,18 +182,16 @@ const createStyles = (theme, layout, insets) => {
     },
     star: {
       fontSize: 18,
-      marginLeft: 2,
+      marginStart: 2,
     },
     comment: {
       fontSize: 14,
       color: theme.text,
-      textAlign: "right",
       lineHeight: 22,
     },
     suggestedGrade: {
       fontSize: 13,
       color: theme.textSecondary,
-      textAlign: "right",
       marginTop: 8,
     },
     emptyContainer: {

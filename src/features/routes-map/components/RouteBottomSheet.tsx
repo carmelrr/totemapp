@@ -686,7 +686,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontWeight: '700',
     color: theme.text,
     marginBottom: 12,
-    marginLeft: 4,
+    marginStart: 4,
   },
   detailsCard: {
     backgroundColor: theme.surface,
@@ -707,7 +707,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   detailIcon: {
     fontSize: 18,
-    marginRight: 14,
+    marginEnd: 14,
     width: 26,
     textAlign: 'center',
   },
@@ -931,7 +931,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   feedbackLabel: {
     fontSize: 14,
     color: theme.textSecondary,
-    marginRight: 12,
+    marginEnd: 12,
     minWidth: 80,
   },
   feedbackValue: {
@@ -994,14 +994,13 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 12,
     color: theme.textSecondary,
     marginBottom: 8,
-    textAlign: 'right',
   },
   gradeOption: {
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 12,
     backgroundColor: theme.card,
-    marginRight: 8,
+    marginEnd: 8,
     borderWidth: 2,
     borderColor: 'transparent',
   },

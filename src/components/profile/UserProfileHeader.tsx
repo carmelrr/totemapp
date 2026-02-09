@@ -116,7 +116,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
         avatarContainer: {
             alignItems: "center",
             marginBottom: isLandscape ? 0 : 16,
-            marginRight: isLandscape ? 16 : 0,
+            marginEnd: isLandscape ? 16 : 0,
         },
         avatar: {
             width: isLandscape ? 70 : 100,

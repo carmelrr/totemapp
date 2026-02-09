@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface MapControlsProps {
   onZoomIn: () => void;
@@ -14,6 +15,9 @@ export default function MapControls({
   onReset,
   scale,
 }: MapControlsProps) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
+
   return (
     <View style={styles.container}>
       <View style={styles.controlsGroup}>
@@ -33,7 +37,7 @@ export default function MapControls({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     position: 'absolute',
     top: 12,
@@ -41,10 +45,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
   },
   controlsGroup: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: theme.card,
     borderRadius: 8,
     padding: 4,
-    shadowColor: '#000',
+    shadowColor: theme.shadow,
     shadowOffset: {
       width: 0,
       height: 2,
@@ -57,29 +61,29 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 6,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     alignItems: 'center',
     justifyContent: 'center',
     marginVertical: 2,
     borderWidth: 1,
-    borderColor: '#e1e5e9',
+    borderColor: theme.border,
   },
   buttonText: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#1f2937',
+    color: theme.text,
   },
   resetButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
-    backgroundColor: '#3b82f6',
+    backgroundColor: theme.primary,
     marginTop: 4,
   },
   resetButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#fff',
     textAlign: 'center',
   },
 });

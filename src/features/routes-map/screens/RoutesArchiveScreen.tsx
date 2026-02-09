@@ -96,7 +96,7 @@ export default function RoutesArchiveScreen() {
               );
             } catch (error) {
               console.error('Error restoring route:', error);
-              Alert.alert(t.common.error, t.errors?.saveFailed || 'שגיאה בשחזור המסלול');
+              Alert.alert(t.common.error, t.errors.saveFailed);
             }
           },
         },
@@ -123,7 +123,7 @@ export default function RoutesArchiveScreen() {
               );
             } catch (error) {
               console.error('Error deleting route permanently:', error);
-              Alert.alert(t.common.error, t.errors?.saveFailed || 'שגיאה במחיקת המסלול');
+              Alert.alert(t.common.error, t.errors.saveFailed);
             }
           },
         },
@@ -152,7 +152,7 @@ export default function RoutesArchiveScreen() {
         style={[
           styles.routeCard,
           isSelected && styles.routeCardSelected,
-          { borderLeftColor: colorHex, borderLeftWidth: 4 }
+          { borderStartColor: colorHex, borderStartWidth: 4 }
         ]}
         onPress={() => handleRoutePress(route)}
         activeOpacity={0.7}

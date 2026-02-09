@@ -1,12 +1,14 @@
 import { useState, useEffect, useCallback } from "react";
 import { Alert } from "react-native";
 import { auth } from "@/features/data/firebase";
+import { useLanguage } from "@/features/language";
 import { fetchUserStats, calculateGradeStats, subscribeToUserStats, subscribeToGradeStats } from "../services/statsService";
 import { statsRefreshEvent } from "@/utils/events/statsRefreshEvent";
 import type { UserStats, GradeStatsMap } from "../types";
 
 export function useProfileStats() {
   const user = auth.currentUser;
+  const { t } = useLanguage();
   const [userStats, setUserStats] = useState<UserStats>({
     totalRoutesSent: 0,
     highestGrade: "N/A",
@@ -41,7 +43,7 @@ export function useProfileStats() {
     try {
       await loadStats();
     } catch (error) {
-      Alert.alert("שגיאה", "נכשל ברענון הנתונים");
+      Alert.alert(t.common.error, t.alerts.refreshFailed);
     } finally {
       setRefreshing(false);
     }

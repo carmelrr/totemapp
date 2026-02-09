@@ -205,8 +205,8 @@ const styles = StyleSheet.create({
         padding: 16,
         margin: 16,
         borderRadius: 12,
-        borderLeftWidth: 4,
-        borderLeftColor: "#8e44ad",
+        borderStartWidth: 4,
+        borderStartColor: "#8e44ad",
     },
     overallStatsText: {
         fontSize: 16,

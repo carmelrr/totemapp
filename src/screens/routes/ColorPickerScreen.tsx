@@ -145,11 +145,11 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
   const handleSaveEdit = async () => {
     if (!editingOriginalHex) return;
     if (!isValidHexColor(editHex)) {
-      Alert.alert(t.common?.error || "Error", "Invalid hex color");
+      Alert.alert(t.common.error, t.colors.invalidColorCode);
       return;
     }
     if (!editNameHe.trim() || !editNameEn.trim()) {
-      Alert.alert(t.common?.error || "Error", language === "he" ? "יש להזין שם בעברית ובאנגלית" : "Please enter names in both languages");
+      Alert.alert(t.common.error, t.colors.colorNameRequired);
       return;
     }
     setIsSaving(true);
@@ -163,7 +163,7 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
       setSettingsVersion((v) => v + 1);
       setShowEditModal(false);
     } catch (e) {
-      Alert.alert(t.common?.error || "Error", t.common?.errorGeneric || "Something went wrong");
+      Alert.alert(t.common.error, t.colors.colorSaveError);
     } finally {
       setIsSaving(false);
     }
@@ -305,7 +305,7 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
               style={styles.textInput}
               value={editNameHe}
               onChangeText={setEditNameHe}
-              placeholder="אדום"
+              placeholder={t.addRoute.colorExampleHe}
               placeholderTextColor={theme.textSecondary}
             />
             <Text style={styles.fieldLabel}>{language === "he" ? "שם באנגלית" : "English name"}</Text>

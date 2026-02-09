@@ -34,7 +34,6 @@ import { useTheme, lightTheme } from '@/features/theme/ThemeContext';
 import { useResponsiveLayout, ResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { useActiveRoutes } from '../hooks/useFirebaseRoutes';
 import { usePublishedRooms } from '@/features/wall-editor';
-import ZoomSlider from '@/components/WallMap/ZoomSlider';
 import { snapToNearestWall } from '@/utils/snapToWall';
 
 type Theme = typeof lightTheme;
@@ -192,13 +191,6 @@ export default function AddRouteMapScreen() {
     setCurrentZoom(transforms.scale);
   }, []);
   
-  // Handle zoom slider change
-  const handleZoomSliderChange = useCallback((newScale: number) => {
-    if (mapTransformsRef.current?.setZoomToCenter) {
-      mapTransformsRef.current.setZoomToCenter(newScale);
-    }
-  }, []);
-
   // Handle tap on map to place marker - receives IMAGE coordinates directly from MapViewport
   const handleMapTap = useCallback((coordinates: { xImg: number; yImg: number }) => {
     if (imageDimensions.imgW === 0 || imageDimensions.imgH === 0) {
@@ -584,19 +576,6 @@ export default function AddRouteMapScreen() {
             <Text style={styles.errorText}>{errors.position}</Text>
           )}
         </View>
-        
-        {/* Zoom Slider - outside mapSection so it doesn't get cut off by fixed height */}
-        {!isHorizontalLayout && (
-          <View style={styles.zoomSliderContainer}>
-            <ZoomSlider
-              currentScale={currentZoom}
-              minScale={mapTransformsRef.current?.minScale ?? 1}
-              maxScale={mapTransformsRef.current?.maxScale ?? 8}
-              onZoomChange={handleZoomSliderChange}
-              forceShow={true}
-            />
-          </View>
-        )}
 
         {/* Form Section */}
         <ScrollView style={[styles.formSection, isHorizontalLayout && styles.formSectionHorizontal]}>
@@ -1003,8 +982,8 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
     },
     mainContentHorizontal: {
       flexDirection: 'row',
-      paddingLeft: insets.left, // Safe area for landscape camera/notch
-      paddingRight: insets.right, // Safe area for landscape buttons
+      paddingStart: insets.left, // Safe area for landscape camera/notch
+      paddingEnd: insets.right, // Safe area for landscape buttons
     },
     // Map section
     mapSection: {
@@ -1016,11 +995,6 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
       width: isLandscape ? '55%' : undefined,
       flex: isLandscape ? undefined : 1,
     },
-    zoomSliderContainer: {
-      paddingVertical: 4,
-      paddingHorizontal: 8,
-      backgroundColor: theme.isDark ? 'rgba(45, 45, 45, 0.9)' : 'rgba(245, 245, 245, 0.9)',
-    },
     formSection: {
       flex: 1,
       paddingHorizontal: 16,
@@ -1029,7 +1003,7 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
       width: isLandscape ? '45%' : undefined,
       flex: isLandscape ? undefined : 1,
       paddingBottom: insets.bottom,
-      paddingRight: insets.right, // Extra padding for landscape safe area
+      paddingEnd: insets.right, // Extra padding for landscape safe area
     },
     fieldGroup: {
       marginVertical: 12,
@@ -1142,7 +1116,7 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
       width: 24,
       height: 24,
       borderRadius: 12,
-      marginRight: 10,
+      marginEnd: 10,
       borderWidth: 1,
       borderColor: 'rgba(0,0,0,0.1)',
     },
@@ -1279,7 +1253,6 @@ const createStyles = (layout: ResponsiveLayout, insets: { top: number; bottom: n
       fontSize: 14,
       color: theme.textSecondary,
       width: 40,
-      textAlign: 'right',
     },
     hexCodeDisplay: {
       fontSize: 16,

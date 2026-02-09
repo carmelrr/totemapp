@@ -1,0 +1,299 @@
+/**
+ * Shared feedback form used across all route detail screens.
+ * Handles star rating, grade selection, comment, optional video link,
+ * and submit/cancel flow.
+ */
+import React from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  ScrollView,
+  ActivityIndicator,
+  StyleSheet,
+} from 'react-native';
+import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
+import { VideoLinkInput } from '@/components/feedback';
+
+export interface RouteFeedbackFormProps {
+  /** Current star rating (0-5) */
+  starRating: number;
+  onStarRatingChange: (v: number) => void;
+
+  /** Currently selected grade string */
+  suggestedGrade: string;
+  onGradeChange: (v: string) => void;
+
+  /** Array of selectable grade strings */
+  grades: string[];
+
+  /** Optional hint like "(allowed range: V3 – V7)" */
+  gradeRangeHint?: string;
+
+  /** Comment text */
+  comment: string;
+  onCommentChange: (v: string) => void;
+
+  /** Comment input placeholder */
+  commentPlaceholder?: string;
+
+  /** Video URL – pass undefined to hide the video input entirely */
+  videoUrl?: string;
+  onVideoUrlChange?: (v: string) => void;
+
+  /** Video link validation state */
+  isVideoLinkValid?: boolean;
+  onVideoLinkValidChange?: (v: boolean) => void;
+
+  /** Submission handler */
+  onSubmit: () => void;
+  onCancel: () => void;
+
+  /** Loading indicator */
+  isSubmitting: boolean;
+
+  /** Controls whether the submit button says update or submit */
+  isUpdate: boolean;
+
+  /** Override the submit button label */
+  submitLabel?: string;
+
+  /** Label above star rating */
+  starLabel?: string;
+  /** Label above grade selector */
+  gradeLabel?: string;
+  /** Label above comment */
+  commentLabel?: string;
+}
+
+export const RouteFeedbackForm: React.FC<RouteFeedbackFormProps> = ({
+  starRating,
+  onStarRatingChange,
+  suggestedGrade,
+  onGradeChange,
+  grades,
+  gradeRangeHint,
+  comment,
+  onCommentChange,
+  commentPlaceholder,
+  videoUrl,
+  onVideoUrlChange,
+  isVideoLinkValid,
+  onVideoLinkValidChange,
+  onSubmit,
+  onCancel,
+  isSubmitting,
+  isUpdate,
+  submitLabel,
+  starLabel,
+  gradeLabel,
+  commentLabel,
+}) => {
+  const { theme } = useTheme();
+  const { t } = useLanguage();
+  const styles = React.useMemo(() => createStyles(theme), [theme]);
+
+  return (
+    <View style={styles.card}>
+      {/* Star Rating */}
+      <View style={styles.section}>
+        <Text style={styles.label}>{starLabel ?? `${t.routes?.starRating ?? 'Star rating'} ⭐`}</Text>
+        <View style={styles.starsRow}>
+          {[1, 2, 3, 4, 5].map((star) => (
+            <TouchableOpacity
+              key={star}
+              onPress={() => onStarRatingChange(star)}
+              style={styles.starButton}
+            >
+              <Text style={[styles.starText, star <= starRating && styles.starFilled]}>★</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      </View>
+
+      {/* Grade Selector */}
+      <View style={styles.section}>
+        <Text style={styles.label}>{gradeLabel ?? `${t.routes?.suggestedGrade ?? 'Suggested grade'} 📊`}</Text>
+        {gradeRangeHint ? <Text style={styles.hint}>{gradeRangeHint}</Text> : null}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gradeScroll}>
+          {grades.map((grade) => (
+            <TouchableOpacity
+              key={grade}
+              onPress={() => onGradeChange(grade)}
+              style={[styles.gradeOption, suggestedGrade === grade && styles.gradeOptionSelected]}
+            >
+              <Text
+                style={[
+                  styles.gradeOptionText,
+                  suggestedGrade === grade && styles.gradeOptionTextSelected,
+                ]}
+              >
+                {grade}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
+      {/* Comment */}
+      <View style={styles.section}>
+        <Text style={styles.label}>{commentLabel ?? `${t.routes?.comment ?? 'Comment'} 💬`}</Text>
+        <TextInput
+          style={styles.commentInput}
+          placeholder={commentPlaceholder ?? t.spray?.betaTipsExperience ?? 'Beta, tips, experience...'}
+          placeholderTextColor={theme.textSecondary}
+          value={comment}
+          onChangeText={onCommentChange}
+          multiline
+          numberOfLines={3}
+          textAlignVertical="top"
+        />
+      </View>
+
+      {/* Video Link (optional) */}
+      {videoUrl !== undefined && onVideoUrlChange && (
+        <VideoLinkInput
+          value={videoUrl}
+          onChange={onVideoUrlChange}
+          onValidationChange={onVideoLinkValidChange}
+          disabled={isSubmitting}
+        />
+      )}
+
+      {/* Buttons */}
+      <View style={styles.buttons}>
+        <TouchableOpacity style={styles.cancelButton} onPress={onCancel}>
+          <Text style={styles.cancelText}>{t.common.cancel}</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.submitButton, isSubmitting && styles.submitDisabled]}
+          onPress={onSubmit}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? (
+            <ActivityIndicator color="#fff" size="small" />
+          ) : (
+            <Text style={styles.submitText}>
+              {submitLabel ?? (isUpdate ? t.common.update : t.common.submit)}
+            </Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+};
+
+/* ── Styles ───────────────────────────────────────────────── */
+
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    card: {
+      backgroundColor: theme.card,
+      borderRadius: 14,
+      padding: 18,
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    section: {
+      marginBottom: 22,
+    },
+    label: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: theme.text,
+      marginBottom: 12,
+    },
+    hint: {
+      fontSize: 12,
+      color: theme.textSecondary,
+      marginBottom: 8,
+    },
+    /* Stars */
+    starsRow: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 12,
+    },
+    starButton: {
+      padding: 6,
+    },
+    starText: {
+      fontSize: 40,
+      color: theme.border,
+    },
+    starFilled: {
+      color: theme.starColor,
+    },
+    /* Grades */
+    gradeScroll: {
+      flexGrow: 0,
+    },
+    gradeOption: {
+      paddingHorizontal: 18,
+      paddingVertical: 12,
+      borderRadius: 12,
+      backgroundColor: theme.surface,
+      marginEnd: 10,
+      borderWidth: 2,
+      borderColor: theme.border,
+    },
+    gradeOptionSelected: {
+      backgroundColor: theme.isDark ? 'rgba(102, 126, 234, 0.2)' : '#EFF6FF',
+      borderColor: theme.primary,
+    },
+    gradeOptionText: {
+      fontSize: 16,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    gradeOptionTextSelected: {
+      color: theme.primary,
+    },
+    /* Comment */
+    commentInput: {
+      backgroundColor: theme.inputBackground,
+      borderRadius: 12,
+      padding: 14,
+      fontSize: 15,
+      color: theme.text,
+      minHeight: 90,
+      textAlignVertical: 'top',
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    /* Buttons */
+    buttons: {
+      flexDirection: 'row',
+      gap: 12,
+      marginTop: 8,
+    },
+    cancelButton: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: theme.surface,
+      alignItems: 'center',
+    },
+    cancelText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: theme.textSecondary,
+    },
+    submitButton: {
+      flex: 2,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: theme.success,
+      alignItems: 'center',
+    },
+    submitDisabled: {
+      opacity: 0.6,
+    },
+    submitText: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: '#ffffff',
+    },
+  });

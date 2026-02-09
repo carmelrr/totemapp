@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 import { Sector } from '../types';
 
 const SECTOR_COLORS = [
@@ -33,6 +34,7 @@ export default function CreateSectorModal({
   existingSectors,
 }: CreateSectorModalProps) {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const styles = useMemo(() => createStyles(theme), [theme]);
   
   const [name, setName] = useState('');
@@ -82,7 +84,7 @@ export default function CreateSectorModal({
             style={styles.input}
             value={name}
             onChangeText={setName}
-            placeholder="לדוגמה: אזור A"
+            placeholder={t.wall.sectorNamePlaceholder}
             placeholderTextColor={theme.textSecondary}
             autoFocus
           />
@@ -204,7 +206,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   suggestions: {
     flexDirection: 'row',
     gap: 8,
-    paddingRight: 16,
+    paddingEnd: 16,
   },
   suggestionChip: {
     paddingHorizontal: 14,

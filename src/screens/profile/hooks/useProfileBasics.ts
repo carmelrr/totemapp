@@ -3,6 +3,7 @@ import { Alert, Animated, Dimensions } from "react-native";
 import { signOut } from "firebase/auth";
 import { auth } from "@/features/data/firebase";
 import { useUser } from "@/features/auth/UserContext";
+import { useLanguage } from "@/features/language";
 import { saveProfile, fetchProfile } from "../services/profileService";
 import { uploadImage, deleteOldFirebaseImage } from "../services/imageService";
 
@@ -14,6 +15,7 @@ declare global {
 
 export function useProfileBasics() {
   const user = auth.currentUser;
+  const { t } = useLanguage();
   const { circleSize, setCircleSize } = useUser();
   
   // Initialize with auth values, then load from Firestore
@@ -101,7 +103,7 @@ export function useProfileBasics() {
       await saveProfile(user.uid, { displayName, photoURL });
       setEditing(false);
     } catch (e: any) {
-      Alert.alert("שגיאה", "לא ניתן לעדכן פרופיל: " + (e.message || e));
+      Alert.alert(t.common.error, t.alerts.profileUpdateFailed(e.message || String(e)));
     } finally {
       setLoading(false);
     }
@@ -133,7 +135,7 @@ export function useProfileBasics() {
         }
       }
     } catch (e: any) {
-      Alert.alert("שגיאה", e.message || "לא ניתן להעלות תמונה");
+      Alert.alert(t.common.error, t.alerts.photoUploadFailed(e.message));
     } finally {
       setLoading(false);
     }

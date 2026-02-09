@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { RouteDoc } from '@/features/routes-map/types/route';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 type RouteStatus = 'unsent' | 'project' | 'sent' | 'flashed';
 
@@ -19,7 +20,9 @@ export default function QuickStatusBar({
   onStatusUpdate,
   currentStatus = 'unsent',
 }: QuickStatusBarProps) {
-  
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
+
   const statusOptions: Array<{
     key: RouteStatus;
     label: string;
@@ -68,7 +71,7 @@ export default function QuickStatusBar({
               {
                 backgroundColor: currentStatus === option.key 
                   ? option.color 
-                  : '#f3f4f6',
+                  : theme.inputBackground,
                 borderColor: option.color,
               },
             ]}
@@ -95,18 +98,18 @@ export default function QuickStatusBar({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: theme.border,
   },
   title: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#374151',
+    color: theme.text,
     marginBottom: 8,
   },
   buttonsContainer: {
@@ -126,7 +129,7 @@ const styles = StyleSheet.create({
   },
   emoji: {
     fontSize: 16,
-    marginRight: 4,
+    marginEnd: 4,
   },
   buttonText: {
     fontSize: 12,

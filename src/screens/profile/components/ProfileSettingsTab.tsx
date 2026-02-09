@@ -265,7 +265,7 @@ const styles = StyleSheet.create({
   },
   tableColumnLeft: {
     flex: 2,
-    paddingRight: 8,
+    paddingEnd: 8,
   },
   tableColumnCenter: {
     flex: 1,
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   },
   itemIcon: {
     fontSize: 20,
-    marginRight: 10,
+    marginEnd: 10,
     marginTop: 2,
   },
   itemTextContainer: {
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
   },
   hiddenIcon: {
     fontSize: 12,
-    marginLeft: 4,
+    marginStart: 4,
   },
   summaryContainer: {
     marginTop: 16,
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
   },
   summaryIcon: {
     fontSize: 18,
-    marginRight: 8,
+    marginEnd: 8,
   },
   summaryText: {
     fontSize: 15,

@@ -8,10 +8,11 @@
  */
 
 const { setGlobalOptions } = require("firebase-functions");
-const { onRequest } = require("firebase-functions/https");
+const { onRequest, onCall, HttpsError } = require("firebase-functions/https");
 const { onSchedule } = require("firebase-functions/scheduler");
 const logger = require("firebase-functions/logger");
 const { initializeApp } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, Timestamp } = require("firebase-admin/firestore");
 const { getStorage } = require("firebase-admin/storage");
 
@@ -158,13 +159,12 @@ exports.cleanupExpiredCommunityRoutes = onSchedule(
 );
 
 /**
- * HTTP endpoint to manually trigger cleanup (for testing/admin use)
- * This can be called from the Firebase console or via curl
+ * HTTP endpoint to manually trigger cleanup (admin only)
+ * Requires a valid Firebase ID token with admin custom claim.
  */
 exports.manualCleanupExpiredRoutes = onRequest(
   { 
     maxInstances: 1,
-    // You may want to add authentication in production
   },
   async (req, res) => {
     // Only allow POST requests
@@ -172,8 +172,37 @@ exports.manualCleanupExpiredRoutes = onRequest(
       res.status(405).send("Method not allowed");
       return;
     }
+
+    // --- Authentication & Admin check ---
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      res.status(401).json({ success: false, error: "Missing or invalid Authorization header" });
+      return;
+    }
+
+    try {
+      const idToken = authHeader.split("Bearer ")[1];
+      const decodedToken = await getAuth().verifyIdToken(idToken);
+
+      // Require admin custom claim OR check Firestore isAdmin field as fallback
+      let isAdmin = decodedToken.admin === true;
+      if (!isAdmin) {
+        const userDoc = await db.collection("users").doc(decodedToken.uid).get();
+        isAdmin = userDoc.exists && userDoc.data().isAdmin === true;
+      }
+
+      if (!isAdmin) {
+        res.status(403).json({ success: false, error: "Admin access required" });
+        return;
+      }
+    } catch (authError) {
+      logger.error("Auth verification failed:", authError);
+      res.status(401).json({ success: false, error: "Invalid token" });
+      return;
+    }
+    // --- End auth check ---
     
-    logger.info("Manual cleanup triggered");
+    logger.info("Manual cleanup triggered by admin");
     
     const now = Timestamp.now();
     let deletedCount = 0;
@@ -251,9 +280,74 @@ exports.manualCleanupExpiredRoutes = onRequest(
       logger.error("Cleanup error:", error);
       res.status(500).json({
         success: false,
-        error: error.message,
+        error: "Internal server error",
       });
     }
+  }
+);
+
+// ==================== Set User Roles (Server-side) ====================
+/**
+ * Callable Cloud Function to set roles for a user.
+ * Only admins can call this. Sets both Firestore roles field and Custom Claims.
+ */
+exports.setUserRoles = onCall(
+  { maxInstances: 5 },
+  async (request) => {
+    // 1. Caller must be authenticated
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const callerUid = request.auth.uid;
+
+    // 2. Verify caller is admin (custom claim OR Firestore field)
+    let callerIsAdmin = request.auth.token.admin === true;
+    if (!callerIsAdmin) {
+      const callerDoc = await db.collection("users").doc(callerUid).get();
+      callerIsAdmin = callerDoc.exists && callerDoc.data().isAdmin === true;
+    }
+    if (!callerIsAdmin) {
+      throw new HttpsError("permission-denied", "Admin access required");
+    }
+
+    // 3. Validate input
+    const { targetUserId, roles } = request.data;
+    if (!targetUserId || typeof targetUserId !== "string") {
+      throw new HttpsError("invalid-argument", "targetUserId is required");
+    }
+    if (!Array.isArray(roles)) {
+      throw new HttpsError("invalid-argument", "roles must be an array");
+    }
+
+    const validRoles = ["route_setter", "judge", "head_judge", "social_manager", "admin"];
+    for (const role of roles) {
+      if (!validRoles.includes(role)) {
+        throw new HttpsError("invalid-argument", `Invalid role: ${role}`);
+      }
+    }
+
+    // 4. Check target user exists
+    const targetUserDoc = await db.collection("users").doc(targetUserId).get();
+    if (!targetUserDoc.exists) {
+      throw new HttpsError("not-found", "Target user not found");
+    }
+
+    // 5. Update Firestore document
+    const isAdmin = roles.includes("admin");
+    await db.collection("users").doc(targetUserId).update({
+      roles,
+      isAdmin,
+      rolesUpdatedAt: Timestamp.now(),
+      rolesUpdatedBy: callerUid,
+    });
+
+    // 6. Set Custom Claims so rules can use request.auth.token
+    const customClaims = { admin: isAdmin, roles };
+    await getAuth().setCustomUserClaims(targetUserId, customClaims);
+
+    logger.info(`Roles updated for ${targetUserId} by ${callerUid}:`, roles);
+    return { success: true, roles, isAdmin };
   }
 );
 

@@ -5,6 +5,7 @@ import { VideoLinkButton } from './VideoLinkButton';
 import { CachedAvatar } from '@/components/ui/CachedAvatar';
 import { getTextAlign, formatDisplayName } from '@/utils/textUtils';
 import { useLanguage } from '@/features/language';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface FeedbackItemProps {
     feedback: {
@@ -32,6 +33,8 @@ export const FeedbackItem = React.memo<FeedbackItemProps>(({
     onDelete,
 }) => {
     const { t, language } = useLanguage();
+    const { theme } = useTheme();
+    const styles = createStyles(theme);
     const canEdit = feedback.userId === currentUserId;
     const canDelete = canEdit || isAdmin;
 
@@ -150,14 +153,14 @@ export const FeedbackItem = React.memo<FeedbackItemProps>(({
     );
 });
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.surface,
         padding: 16,
         marginVertical: 4,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: '#eee',
+        borderColor: theme.border,
     },
     header: {
         flexDirection: 'row',
@@ -168,19 +171,17 @@ const styles = StyleSheet.create({
     },
     userInfo: {
         flex: 1,
-        marginLeft: 8,
+        marginStart: 8,
     },
     userName: {
         fontSize: 16,
         fontWeight: 'bold',
-        color: '#333',
-        textAlign: 'right',
+        color: theme.text,
     },
     date: {
         fontSize: 12,
-        color: '#666',
+        color: theme.textSecondary,
         marginTop: 2,
-        textAlign: 'right',
     },
     actions: {
         flexDirection: 'row',
@@ -190,22 +191,22 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 4,
         borderRadius: 4,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.card,
     },
     editButtonText: {
         fontSize: 12,
-        color: '#007AFF',
+        color: theme.primary,
         fontWeight: '600',
     },
     deleteButton: {
         paddingHorizontal: 12,
         paddingVertical: 4,
         borderRadius: 4,
-        backgroundColor: '#ffe6e6',
+        backgroundColor: theme.isDark ? 'rgba(255,68,68,0.15)' : '#ffe6e6',
     },
     deleteButtonText: {
         fontSize: 12,
-        color: '#ff4444',
+        color: theme.error,
         fontWeight: '600',
     },
     ratingContainer: {
@@ -217,7 +218,7 @@ const styles = StyleSheet.create({
     },
     ratingText: {
         fontSize: 14,
-        color: '#666',
+        color: theme.textSecondary,
     },
     gradeContainer: {
         flexDirection: 'row',
@@ -228,22 +229,22 @@ const styles = StyleSheet.create({
     },
     gradeLabel: {
         fontSize: 14,
-        color: '#666',
+        color: theme.textSecondary,
     },
     gradeBadge: {
-        backgroundColor: '#e3f2fd',
+        backgroundColor: theme.isDark ? 'rgba(25,118,210,0.15)' : '#e3f2fd',
         paddingHorizontal: 8,
         paddingVertical: 4,
         borderRadius: 12,
     },
     gradeText: {
         fontSize: 12,
-        color: '#1976d2',
+        color: theme.primary,
         fontWeight: '600',
     },
     comment: {
         fontSize: 14,
         lineHeight: 20,
-        color: '#333',
+        color: theme.text,
     },
 });

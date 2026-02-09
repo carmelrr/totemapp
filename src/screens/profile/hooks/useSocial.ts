@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Alert } from "react-native";
 import { useNavigation } from "@react-navigation/native";
+import { useLanguage } from "@/features/language";
 import { auth } from "@/features/data/firebase";
 import {
   searchUsers,
@@ -16,6 +17,7 @@ import type { SocialUser, ProfileNavigation } from "../types";
 export function useSocial() {
   const navigation = useNavigation<ProfileNavigation>();
   const user = auth.currentUser;
+  const { t } = useLanguage();
   
   const [searchTerm, setSearchTerm] = useState("");
   const [searchResults, setSearchResults] = useState<SocialUser[]>([]);
@@ -77,7 +79,7 @@ export function useSocial() {
       // Refresh social data
       await loadSocialData();
     } catch (error) {
-      Alert.alert("שגיאה", "נכשל בעדכון מעקב");
+      Alert.alert(t.common.error, t.alerts.followFailed);
     }
   };
 

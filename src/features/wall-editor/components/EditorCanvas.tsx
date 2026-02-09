@@ -392,7 +392,7 @@ function EditorCanvasComponent(
               {
                 width: canvasWidth,
                 height: canvasHeight,
-                marginLeft: (containerSize.width - canvasWidth) / 2,
+                marginStart: (containerSize.width - canvasWidth) / 2,
                 marginTop: (containerSize.height - canvasHeight) / 2,
               },
               animatedCanvasStyle,

@@ -99,13 +99,6 @@
       ]
     },
     {
-      "collectionGroup": "routeFeedbacks",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "createdAt", "order": "DESCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "routes",
       "queryScope": "COLLECTION",
       "fields": [

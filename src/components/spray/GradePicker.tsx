@@ -4,6 +4,7 @@
 import React from "react";
 import { View, TouchableOpacity, StyleSheet, Text, ScrollView } from "react-native";
 import { useLanguage } from "@/features/language";
+import { useTheme } from '@/features/theme/ThemeContext';
 
 const V_GRADES = ["VB", "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10+"];
 
@@ -17,6 +18,8 @@ export const GradePicker: React.FC<GradePickerProps> = ({
   onSelectGrade,
 }) => {
   const { t } = useLanguage();
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
 
   return (
     <View style={styles.container}>
@@ -51,13 +54,13 @@ export const GradePicker: React.FC<GradePickerProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     padding: 12,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.surface,
   },
   label: {
-    color: "#fff",
+    color: theme.text,
     fontSize: 14,
     fontWeight: "600",
     marginBottom: 8,
@@ -65,22 +68,22 @@ const styles = StyleSheet.create({
   gradesRow: {
     flexDirection: "row",
     gap: 8,
-    paddingRight: 12,
+    paddingEnd: 12,
   },
   gradeButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: "#3a3a3a",
+    backgroundColor: theme.inputBackground,
     borderWidth: 1,
-    borderColor: "#444",
+    borderColor: theme.border,
   },
   gradeButtonSelected: {
-    backgroundColor: "#8E4EC6",
-    borderColor: "#8E4EC6",
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
   },
   gradeText: {
-    color: "#888",
+    color: theme.textSecondary,
     fontSize: 14,
     fontWeight: "600",
   },

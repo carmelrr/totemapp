@@ -52,7 +52,7 @@ const ProfileScreen: React.FC = () => {
 
   // Image pick handler
   const handleImagePick = useCallback(async () => {
-    const uri = await pickImage();
+    const uri = await pickImage(t);
     if (uri) {
       await profileData.handleImageUpload(uri);
     }
@@ -61,7 +61,7 @@ const ProfileScreen: React.FC = () => {
   // Image remove handler
   const handleImageRemove = useCallback(async () => {
     if (profileData.userId) {
-      await removeProfileImage(profileData.userId, profileData.photoURL);
+      await removeProfileImage(profileData.userId, profileData.photoURL, t);
       profileData.setPhotoURL(null);
     }
   }, [profileData]);

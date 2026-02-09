@@ -329,7 +329,6 @@ const createStyles = (theme: any) =>
       fontSize: 18,
       fontWeight: 'bold',
       color: theme.text,
-      textAlign: 'right',
       marginBottom: 8,
     },
     statusBadge: {
@@ -408,7 +407,7 @@ const createStyles = (theme: any) =>
     },
     registerButton: {
       backgroundColor: '#27ae60',
-      marginLeft: 8,
+      marginStart: 8,
     },
     registerButtonText: {
       color: '#fff',

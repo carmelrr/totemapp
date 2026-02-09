@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface StarRatingInputProps {
     rating: number;
@@ -20,6 +21,8 @@ export const StarRatingInput = React.memo<StarRatingInputProps>(({
     color = '#FFD700',
     showLabels = true,
 }) => {
+    const { theme } = useTheme();
+    const styles = createStyles(theme);
     const stars = [1, 2, 3, 4, 5];
 
     return (
@@ -39,7 +42,7 @@ export const StarRatingInput = React.memo<StarRatingInputProps>(({
                         <Text
                             style={[
                                 styles.star,
-                                { fontSize: size * 0.8, color: star <= rating ? color : '#ccc' },
+                                { fontSize: size * 0.8, color: star <= rating ? color : theme.border },
                             ]}
                         >
                             ★
@@ -57,7 +60,7 @@ export const StarRatingInput = React.memo<StarRatingInputProps>(({
     );
 });
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         alignItems: 'center',
     },
@@ -80,7 +83,7 @@ const styles = StyleSheet.create({
     ratingLabel: {
         marginTop: 8,
         fontSize: 14,
-        color: '#666',
+        color: theme.textSecondary,
         textAlign: 'center',
         fontFamily: 'system',
     },

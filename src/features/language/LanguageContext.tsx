@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { I18nManager } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { en, he, TranslationKeys } from "./translations";
 
@@ -68,6 +69,16 @@ export const LanguageProvider: React.FC<LanguageProviderProps> = ({ children }) 
     try {
       await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, lang);
       setLanguageState(lang);
+
+      // Sync RTL with the chosen language
+      const shouldBeRTL = lang === 'he';
+      if (I18nManager.isRTL !== shouldBeRTL) {
+        I18nManager.allowRTL(shouldBeRTL);
+        I18nManager.forceRTL(shouldBeRTL);
+        // I18nManager change requires an app reload to take full effect.
+        // Expo handles this automatically on next restart; in dev you can
+        // call `Updates.reloadAsync()` or prompt the user.
+      }
     } catch (error) {
       console.error("Error saving language preference:", error);
       throw error;

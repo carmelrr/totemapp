@@ -240,9 +240,9 @@ export default function ManageCompetitionScreen() {
             setIsUpdating(true);
             try {
               await CompetitionService.updateCompetitionStatus(competitionId, newStatus);
-              Alert.alert('הצלחה', 'הסטטוס עודכן בהצלחה');
+              Alert.alert(t.common.success, t.alerts.statusUpdated);
             } catch (error) {
-              Alert.alert('שגיאה', 'לא ניתן לעדכן את הסטטוס');
+              Alert.alert(t.common.error, t.alerts.statusUpdateFailed);
             } finally {
               setIsUpdating(false);
             }
@@ -269,13 +269,13 @@ export default function ManageCompetitionScreen() {
             try {
               if (isOpen) {
                 await CompetitionService.closeRegistration(competitionId);
-                Alert.alert('הצלחה', 'ההרשמה נסגרה');
+                Alert.alert(t.common.success, t.alerts.registrationClosed);
               } else {
                 await CompetitionService.openRegistration(competitionId);
-                Alert.alert('הצלחה', 'ההרשמה נפתחה - משתמשים יכולים להירשם כעת');
+                Alert.alert(t.common.success, t.alerts.registrationOpened);
               }
             } catch (error) {
-              Alert.alert('שגיאה', 'לא ניתן לעדכן את מצב ההרשמה');
+              Alert.alert(t.common.error, t.alerts.registrationUpdateFailed);
             } finally {
               setIsUpdating(false);
             }
@@ -308,13 +308,13 @@ export default function ManageCompetitionScreen() {
             try {
               if (isVisible) {
                 await CompetitionService.hideResults(competitionId);
-                Alert.alert('הצלחה', 'התוצאות הוסתרו מהמשתמשים');
+                Alert.alert(t.common.success, t.alerts.resultsHidden);
               } else {
                 await CompetitionService.showResults(competitionId);
-                Alert.alert('הצלחה', 'התוצאות מוצגות כעת לכל המשתמשים');
+                Alert.alert(t.common.success, t.alerts.resultsShown);
               }
             } catch (error) {
-              Alert.alert('שגיאה', 'לא ניתן לעדכן את הצגת התוצאות');
+              Alert.alert(t.common.error, t.alerts.resultsUpdateFailed);
             } finally {
               setIsUpdating(false);
             }
@@ -935,7 +935,6 @@ const createStyles = (theme: any) =>
       fontSize: 16,
       fontWeight: 'bold',
       color: theme.text,
-      textAlign: 'right',
       marginBottom: 16,
     },
     statusRow: {
@@ -1132,12 +1131,10 @@ const createStyles = (theme: any) =>
       fontSize: 14,
       fontWeight: '600',
       color: theme.text,
-      textAlign: 'right',
     },
     listItemSubtitle: {
       fontSize: 12,
       color: theme.textSecondary,
-      textAlign: 'right',
       marginTop: 2,
     },
     statusDot: {
@@ -1169,7 +1166,7 @@ const createStyles = (theme: any) =>
       backgroundColor: theme.primary,
       justifyContent: 'center',
       alignItems: 'center',
-      marginLeft: 12,
+      marginStart: 12,
     },
     rankText: {
       color: '#fff',
@@ -1183,12 +1180,10 @@ const createStyles = (theme: any) =>
       fontSize: 14,
       fontWeight: '600',
       color: theme.text,
-      textAlign: 'right',
     },
     leaderboardDetails: {
       fontSize: 11,
       color: theme.textSecondary,
-      textAlign: 'right',
       marginTop: 2,
     },
     leaderboardPoints: {

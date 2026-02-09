@@ -116,7 +116,7 @@ export default function CreateRoomModal({
                 style={styles.input}
                 value={name}
                 onChangeText={setName}
-                placeholder="לדוגמה: קיר ראשי"
+                placeholder={t.wall.wallNamePlaceholder}
                 placeholderTextColor={theme.textSecondary}
               />
             </View>
@@ -254,13 +254,11 @@ const createStyles = (theme: any) =>
       padding: 12,
       fontSize: 16,
       color: theme.text,
-      textAlign: 'right',
     },
     hint: {
       fontSize: 12,
       color: theme.textSecondary,
       marginTop: 4,
-      textAlign: 'right',
     },
     meterInputContainer: {
       flexDirection: 'row',
@@ -282,7 +280,7 @@ const createStyles = (theme: any) =>
       fontSize: 14,
       fontWeight: '600',
       color: theme.textSecondary,
-      paddingRight: 4,
+      paddingEnd: 4,
     },
     dimensionsRow: {
       flexDirection: 'row',

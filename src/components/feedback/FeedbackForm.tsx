@@ -14,6 +14,8 @@ import { GradeSelector } from './GradeSelector';
 import { VideoLinkInput } from './VideoLinkInput';
 import { useUserTagging } from '@/hooks/useUserTagging';
 import { getTextAlign } from '@/utils/textUtils';
+import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 
 interface FeedbackFormProps {
     starRating: number;
@@ -54,8 +56,11 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
     disabled = false,
     errors = {},
 }) => {
+    const { theme } = useTheme();
+    const { t } = useLanguage();
     const [textInputHeight, setTextInputHeight] = useState(80);
     const [isVideoLinkValid, setIsVideoLinkValid] = useState(true);
+    const styles = createStyles(theme);
 
     const {
         showUserSuggestions,
@@ -79,15 +84,15 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
 
     const handleSubmit = () => {
         if (starRating === 0) {
-            Alert.alert('שגיאה', 'אנא בחר דירוג');
+            Alert.alert(t.common.error, t.alerts.selectRating);
             return;
         }
         if (!comment.trim()) {
-            Alert.alert('שגיאה', 'אנא הוסף תגובה');
+            Alert.alert(t.common.error, t.alerts.addComment);
             return;
         }
         if (!isVideoLinkValid) {
-            Alert.alert('שגיאה', 'הלינק לסרטון לא תקין');
+            Alert.alert(t.common.error, t.alerts.invalidVideoLink);
             return;
         }
         onSubmit();
@@ -128,8 +133,8 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
                         errors.comment && styles.inputError,
                     ]}
                     multiline
-                    placeholder="שתף את החוויה שלך..."
-                    placeholderTextColor="#999"
+                    placeholder={t.spray.feedbackPlaceholder}
+                    placeholderTextColor={theme.textSecondary}
                     value={comment}
                     onChangeText={handleCommentChange}
                     onContentSizeChange={(e) => {
@@ -217,7 +222,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         padding: 16,
     },
@@ -228,20 +233,20 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 8,
-        textAlign: 'right',
-        color: '#333',
+        color: theme.text,
     },
     commentInput: {
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: theme.border,
         borderRadius: 8,
         padding: 12,
         fontSize: 16,
-        backgroundColor: '#fff',
+        backgroundColor: theme.inputBackground,
         textAlignVertical: 'top',
+        color: theme.text,
     },
     inputError: {
-        borderColor: '#ff6b6b',
+        borderColor: theme.error,
     },
     commentFooter: {
         flexDirection: 'row',
@@ -251,21 +256,20 @@ const styles = StyleSheet.create({
     },
     characterCount: {
         fontSize: 12,
-        color: '#999',
+        color: theme.textSecondary,
     },
     errorText: {
-        color: '#ff6b6b',
+        color: theme.error,
         fontSize: 12,
-        textAlign: 'right',
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: theme.overlay,
         justifyContent: 'center',
         alignItems: 'center',
     },
     suggestionsContainer: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.surface,
         borderRadius: 8,
         margin: 20,
         maxWidth: 300,
@@ -274,26 +278,24 @@ const styles = StyleSheet.create({
     loadingText: {
         padding: 16,
         textAlign: 'center',
-        color: '#666',
+        color: theme.textSecondary,
     },
     suggestionItem: {
         padding: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: theme.border,
     },
     suggestionText: {
         fontSize: 16,
-        color: '#333',
-        textAlign: 'right',
+        color: theme.text,
     },
     suggestionUsername: {
         fontSize: 12,
-        color: '#666',
-        textAlign: 'right',
+        color: theme.textSecondary,
         marginTop: 2,
     },
     submitButton: {
-        backgroundColor: '#007AFF',
+        backgroundColor: theme.primary,
         paddingVertical: 12,
         paddingHorizontal: 24,
         borderRadius: 8,
@@ -301,10 +303,10 @@ const styles = StyleSheet.create({
         marginTop: 16,
     },
     submitButtonDisabled: {
-        backgroundColor: '#ccc',
+        backgroundColor: theme.border,
     },
     submitButtonText: {
-        color: '#fff',
+        color: theme.surface,
         fontSize: 16,
         fontWeight: 'bold',
     },

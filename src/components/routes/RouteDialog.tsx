@@ -14,10 +14,14 @@ import { auth } from "@/features/data/firebase";
 import { RoutesService } from "@/features/routes-map/services/RoutesService";
 import { FeedbackService } from "@/features/routes-map/services/FeedbackService";
 import { useUser } from "@/features/auth/UserContext";
+import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 
 const { width: screenWidth } = Dimensions.get("window");
 
 const StarRating = ({ rating, onRatingChange, disabled = false }) => {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const stars = [1, 2, 3, 4, 5];
 
   return (
@@ -31,7 +35,7 @@ const StarRating = ({ rating, onRatingChange, disabled = false }) => {
           <Text
             style={[
               styles.star,
-              { color: star <= rating ? "#FFD700" : "#ddd" },
+              { color: star <= rating ? theme.starColor : theme.border },
             ]}
           >
             ★
@@ -43,6 +47,8 @@ const StarRating = ({ rating, onRatingChange, disabled = false }) => {
 };
 
 const GradeSelector = ({ selectedGrade, onGradeChange, disabled = false }) => {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const grades = ["V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10"];
 
   return (
@@ -88,6 +94,9 @@ export default function RouteDialog({ visible, route, onClose }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { isAdmin } = useUser();
+  const { theme } = useTheme();
+  const { t } = useLanguage();
+  const styles = createStyles(theme);
   const user = auth.currentUser;
 
   useEffect(() => {
@@ -131,17 +140,17 @@ export default function RouteDialog({ visible, route, onClose }) {
 
   const handleSubmitFeedback = async () => {
     if (!user) {
-      Alert.alert("שגיאה", "יש להתחבר כדי לשלוח פידבק");
+      Alert.alert(t.common.error, t.alerts.loginToFeedback);
       return;
     }
 
     if (starRating === 0) {
-      Alert.alert("שגיאה", "יש לבחור דירוג כוכבים");
+      Alert.alert(t.common.error, t.alerts.selectStarRating);
       return;
     }
 
     if (!suggestedGrade) {
-      Alert.alert("שגיאה", "יש לבחור דירוג מוצע");
+      Alert.alert(t.common.error, t.alerts.selectSuggestedGrade);
       return;
     }
 
@@ -167,14 +176,14 @@ export default function RouteDialog({ visible, route, onClose }) {
 
       resetForm();
     } catch (error) {
-      Alert.alert("שגיאה", "נכשל בשליחת הפידבק");
+      Alert.alert(t.common.error, t.alerts.feedbackSubmitFailed);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteFeedback = async (feedbackId) => {
-    Alert.alert("מחיקת פידבק", "האם אתה בטוח שברצונך למחוק את הפידבק?", [
+    Alert.alert(t.alerts.deleteFeedbackTitle, t.alerts.deleteFeedbackConfirm, [
       { text: "ביטול", style: "cancel" },
       {
         text: "מחק",
@@ -183,7 +192,7 @@ export default function RouteDialog({ visible, route, onClose }) {
           try {
             await FeedbackService.deleteFeedback(feedbackId);
           } catch (error) {
-            Alert.alert("שגיאה", "נכשל במחיקת הפידבק");
+            Alert.alert(t.common.error, t.alerts.feedbackDeleteFailed);
           }
         },
       },
@@ -291,8 +300,8 @@ export default function RouteDialog({ visible, route, onClose }) {
                   numberOfLines={3}
                   value={comment}
                   onChangeText={setComment}
-                  placeholder="איך היה המסלול?"
-                  placeholderTextColor="#999"
+                  placeholder={t.routes.routeFeedbackPlaceholder}
+                placeholderTextColor={theme.textSecondary}
                   editable={!isSubmitting}
                 />
               </View>
@@ -398,35 +407,35 @@ export default function RouteDialog({ visible, route, onClose }) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: theme.background,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     padding: 16,
-    backgroundColor: "#3498db",
+    backgroundColor: theme.secondary,
     borderBottomWidth: 1,
-    borderBottomColor: "#2980b9",
+    borderBottomColor: theme.secondary,
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: "white",
+    color: "#FFFFFF",
   },
   closeButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: theme.overlay,
     justifyContent: "center",
     alignItems: "center",
   },
   closeButtonText: {
-    color: "white",
+    color: "#FFFFFF",
     fontSize: 18,
     fontWeight: "bold",
   },
@@ -435,11 +444,11 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   routeInfo: {
-    backgroundColor: "white",
+    backgroundColor: theme.surface,
     padding: 16,
     borderRadius: 8,
     marginBottom: 16,
-    shadowColor: "#000",
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -449,8 +458,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 12,
-    color: "#2c3e50",
-    textAlign: "right",
+    color: theme.text,
   },
   infoRow: {
     flexDirection: "row",
@@ -459,29 +467,28 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: "#7f8c8d",
+    color: theme.textSecondary,
     width: 120,
-    textAlign: "right",
   },
   infoValue: {
     fontSize: 14,
-    color: "#2c3e50",
+    color: theme.text,
     fontWeight: "500",
   },
   colorDot: {
     width: 16,
     height: 16,
     borderRadius: 8,
-    marginRight: 8,
+    marginEnd: 8,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: theme.border,
   },
   feedbackForm: {
-    backgroundColor: "white",
+    backgroundColor: theme.surface,
     padding: 16,
     borderRadius: 8,
     marginBottom: 16,
-    shadowColor: "#000",
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -491,18 +498,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 16,
-    color: "#2c3e50",
-    textAlign: "right",
+    color: theme.text,
   },
   formGroup: {
     marginBottom: 16,
   },
   formLabel: {
     fontSize: 14,
-    color: "#2c3e50",
+    color: theme.text,
     marginBottom: 8,
     fontWeight: "500",
-    textAlign: "right",
   },
   starContainer: {
     flexDirection: "row",
@@ -510,7 +515,7 @@ const styles = StyleSheet.create({
   },
   star: {
     fontSize: 24,
-    marginRight: 4,
+    marginEnd: 4,
   },
   gradeScroll: {
     maxHeight: 50,
@@ -519,31 +524,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 6,
-    backgroundColor: "#ecf0f1",
-    marginRight: 8,
+    backgroundColor: theme.inputBackground,
+    marginEnd: 8,
     borderWidth: 1,
-    borderColor: "#bdc3c7",
+    borderColor: theme.border,
   },
   gradeButtonSelected: {
-    backgroundColor: "#3498db",
-    borderColor: "#2980b9",
+    backgroundColor: theme.secondary,
+    borderColor: theme.secondary,
   },
   gradeButtonText: {
     fontSize: 14,
-    color: "#2c3e50",
+    color: theme.text,
     fontWeight: "500",
   },
   gradeButtonTextSelected: {
-    color: "white",
+    color: "#FFFFFF",
   },
   commentInput: {
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: theme.border,
     borderRadius: 6,
     padding: 12,
     fontSize: 14,
     minHeight: 80,
     textAlignVertical: "top",
+    color: theme.text,
+    backgroundColor: theme.inputBackground,
   },
   checkboxContainer: {
     flexDirection: "row",
@@ -553,46 +560,46 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderWidth: 2,
-    borderColor: "#bdc3c7",
+    borderColor: theme.border,
     borderRadius: 4,
-    marginRight: 12,
+    marginEnd: 12,
     justifyContent: "center",
     alignItems: "center",
   },
   checkboxChecked: {
-    backgroundColor: "#27ae60",
-    borderColor: "#27ae60",
+    backgroundColor: theme.success,
+    borderColor: theme.success,
   },
   checkmark: {
-    color: "white",
+    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "bold",
   },
   checkboxLabel: {
     fontSize: 14,
-    color: "#2c3e50",
+    color: theme.text,
   },
   submitButton: {
-    backgroundColor: "#27ae60",
+    backgroundColor: theme.success,
     paddingVertical: 12,
     borderRadius: 6,
     alignItems: "center",
     marginTop: 8,
   },
   submitButtonDisabled: {
-    backgroundColor: "#bdc3c7",
+    backgroundColor: theme.border,
   },
   submitButtonText: {
-    color: "white",
+    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "bold",
   },
   feedbacksList: {
-    backgroundColor: "white",
+    backgroundColor: theme.surface,
     padding: 16,
     borderRadius: 8,
     marginBottom: 16,
-    shadowColor: "#000",
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -602,17 +609,16 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 16,
-    color: "#2c3e50",
+    color: theme.text,
   },
   noFeedbacks: {
-    textAlign: "right",
-    color: "#7f8c8d",
+    color: theme.textSecondary,
     fontStyle: "italic",
     padding: 20,
   },
   feedbackItem: {
     borderBottomWidth: 1,
-    borderBottomColor: "#ecf0f1",
+    borderBottomColor: theme.border,
     paddingVertical: 12,
   },
   feedbackHeader: {
@@ -624,11 +630,11 @@ const styles = StyleSheet.create({
   feedbackUser: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#2c3e50",
+    color: theme.text,
   },
   feedbackDate: {
     fontSize: 12,
-    color: "#7f8c8d",
+    color: theme.textSecondary,
   },
   deleteFeedbackButton: {
     padding: 4,
@@ -646,16 +652,16 @@ const styles = StyleSheet.create({
   },
   feedbackGrade: {
     fontSize: 12,
-    color: "#7f8c8d",
+    color: theme.textSecondary,
   },
   closedBadge: {
     fontSize: 12,
-    color: "#27ae60",
+    color: theme.success,
     fontWeight: "bold",
   },
   feedbackComment: {
     fontSize: 14,
-    color: "#2c3e50",
+    color: theme.text,
     lineHeight: 20,
   },
 });

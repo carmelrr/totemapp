@@ -11,6 +11,7 @@ import { RouteDoc } from '@/features/routes-map/types/route';
 import { DynamicWallMap } from '@/features/wall-editor/components';
 import { Room, Sector } from '@/features/wall-editor/types';
 import RouteCircle from './RouteCircle';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 /**
  * Individual sector label button that tracks the map transform
@@ -240,6 +241,8 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
   activeSectorId = null,
   centeringBottomInset = 0,
 }, ref) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [containerDimensions, setContainerDimensions] = useState({
     width: 0,
     height: 0,
@@ -320,7 +323,12 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
         imgW = height / wallAspectRatio;
       }
 
-      setImageDimensions({ imgW, imgH });
+      // Only update if dimensions actually changed to avoid unnecessary re-renders
+      // (e.g., container height changed but image still fits by width)
+      setImageDimensions(prev => {
+        if (prev.imgW === imgW && prev.imgH === imgH) return prev;
+        return { imgW, imgH };
+      });
     }
   }, [containerDimensions, wallAspectRatio]);
 
@@ -333,7 +341,12 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
         imgH = containerDimensions.height;
         imgW = containerDimensions.height / wallAspectRatio;
       }
-      setImageDimensions({ imgW, imgH });
+      // Only update if dimensions actually changed to avoid triggering
+      // useMapTransforms dimension-change effect unnecessarily
+      setImageDimensions(prev => {
+        if (prev.imgW === imgW && prev.imgH === imgH) return prev;
+        return { imgW, imgH };
+      });
     }
   }, [wallAspectRatio, containerDimensions.width, containerDimensions.height]);
 
@@ -554,7 +567,7 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
 
 export default WallMap;
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
     // backgroundColor is set dynamically from room.backgroundColor
@@ -573,6 +586,6 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    backgroundColor: '#e5e5e5',
+    backgroundColor: theme.mapBackground,
   },
 });

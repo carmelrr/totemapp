@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface RatingStarsProps {
   rating?: number;
@@ -18,6 +19,8 @@ export default function RatingStars({
   size = 'medium',
   showRatingText = false,
 }: RatingStarsProps) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [tempRating, setTempRating] = useState<number | null>(null);
   
   const currentRating = tempRating !== null ? tempRating : rating;
@@ -72,7 +75,7 @@ export default function RatingStars({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     alignItems: 'center',
   },
@@ -89,15 +92,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   filledStar: {
-    color: '#FFD700', // Gold
+    color: theme.starColor,
   },
   emptyStar: {
-    color: '#D1D5DB', // Gray
+    color: theme.border,
   },
   ratingText: {
     marginTop: 4,
     fontSize: 14,
-    color: '#6B7280',
+    color: theme.textSecondary,
     fontWeight: '500',
   },
 });

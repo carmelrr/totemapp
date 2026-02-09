@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 import { Room } from '../types';
 import { setRoomVisibility, unpublishRoom } from '../services/editorService';
 
@@ -39,6 +40,7 @@ export function WallSelector({
   onEditRoom,
 }: WallSelectorProps) {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
   
   const [showModal, setShowModal] = useState(false);
@@ -55,7 +57,7 @@ export function WallSelector({
       onRefresh?.();
     } catch (error) {
       console.error('Error toggling visibility:', error);
-      Alert.alert('שגיאה', 'לא ניתן לעדכן את נראות הקיר');
+      Alert.alert(t.common.error, t.alerts.wallVisibilityFailed);
     }
   }, [onRefresh]);
   
@@ -74,11 +76,11 @@ export function WallSelector({
               if (selectedRoomId === room.id) {
                 onSelectRoom(rooms[0]?.id || null);
               }
-              Alert.alert('הצלחה', 'הקיר הוסר ממפת המסלולים');
+              Alert.alert(t.common.success, t.alerts.wallRemoved);
               onRefresh?.();
             } catch (error) {
               console.error('Error unpublishing room:', error);
-              Alert.alert('שגיאה', 'לא ניתן להסיר את הקיר');
+              Alert.alert(t.common.error, t.alerts.wallRemoveFailed);
             }
           },
         },

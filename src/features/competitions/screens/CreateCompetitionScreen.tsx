@@ -224,7 +224,6 @@ export default function CreateCompetitionScreen() {
               onChangeText={setName}
               placeholder={t.competitionExt.competitionNamePlaceholder}
               placeholderTextColor={theme.textSecondary}
-              textAlign="right"
             />
           </View>
 
@@ -237,7 +236,6 @@ export default function CreateCompetitionScreen() {
               onChangeText={setDescription}
               placeholder={t.competitionExt.descriptionPlaceholder}
               placeholderTextColor={theme.textSecondary}
-              textAlign="right"
               multiline
               numberOfLines={3}
             />
@@ -715,14 +713,12 @@ const createStyles = (theme: any) =>
       fontSize: 16,
       fontWeight: 'bold',
       color: theme.text,
-      textAlign: 'right',
       marginBottom: 16,
     },
     label: {
       fontSize: 14,
       fontWeight: '600',
       color: theme.text,
-      textAlign: 'right',
       marginBottom: 8,
     },
     input: {
@@ -755,14 +751,12 @@ const createStyles = (theme: any) =>
     },
     formatIcon: {
       fontSize: 24,
-      textAlign: 'right',
       marginBottom: 8,
     },
     formatLabel: {
       fontSize: 16,
       fontWeight: 'bold',
       color: theme.text,
-      textAlign: 'right',
     },
     formatLabelSelected: {
       color: theme.primary,
@@ -770,7 +764,6 @@ const createStyles = (theme: any) =>
     formatDescription: {
       fontSize: 13,
       color: theme.textSecondary,
-      textAlign: 'right',
       marginTop: 4,
     },
     checkIcon: {
@@ -840,7 +833,6 @@ const createStyles = (theme: any) =>
       fontSize: 14,
       color: theme.text,
       flex: 1,
-      textAlign: 'right',
     },
     toggleGroup: {
       flexDirection: 'row',

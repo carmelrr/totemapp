@@ -13,6 +13,7 @@ import {
 import Slider from '@react-native-community/slider';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 import { Room, EditorStyles, GridConfig, OverlayImage, EntranceArrow, Sector, TextLabel } from '../types';
 
 interface StyleControlsPanelProps {
@@ -90,6 +91,7 @@ export default function StyleControlsPanel({
   onAddTextLabel,
 }: StyleControlsPanelProps) {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const styles = useMemo(() => createStyles(theme), [theme]);
   
   const [activeSection, setActiveSection] = useState<'room' | 'grid' | 'wall' | 'reference'>('room');
@@ -602,7 +604,7 @@ export default function StyleControlsPanel({
                           newLabels[index] = { ...label, text };
                           onUpdateTextLabels?.(newLabels);
                         }}
-                        placeholder="כיתוב"
+                        placeholder={t.wall.labelPlaceholder}
                         placeholderTextColor={theme.textSecondary}
                       />
                     </View>
@@ -803,7 +805,7 @@ export default function StyleControlsPanel({
                             newSectors[index] = { ...sector, name: text };
                             onUpdateSectors?.(newSectors);
                           }}
-                          placeholder="שם סקטור"
+                          placeholder={t.wall.sectorNameInputPlaceholder}
                           placeholderTextColor={theme.textSecondary}
                         />
                         <TouchableOpacity onPress={() => onZoomToSector?.(sector)}>
@@ -1723,7 +1725,7 @@ const createStyles = (theme: any) =>
       position: 'absolute',
       top: 6,
       right: '50%',
-      marginRight: -20,
+      marginEnd: -20,
       width: 6,
       height: 6,
       borderRadius: 3,
@@ -1990,7 +1992,6 @@ const createStyles = (theme: any) =>
       fontSize: 12,
       color: theme.textSecondary,
       width: 40,
-      textAlign: 'right',
     },
     scaleButtonsRow: {
       flexDirection: 'row',
@@ -2017,7 +2018,6 @@ const createStyles = (theme: any) =>
       paddingVertical: 8,
       fontSize: 14,
       color: theme.text,
-      textAlign: 'right',
     },
     sectorZoomButton: {
       flexDirection: 'row',
@@ -2047,7 +2047,6 @@ const createStyles = (theme: any) =>
       borderRadius: 6,
       paddingHorizontal: 8,
       paddingVertical: 4,
-      textAlign: 'right',
     },
     sectorDimensionControl: {
       flexDirection: 'row',

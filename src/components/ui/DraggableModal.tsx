@@ -8,6 +8,7 @@ import {
     Dimensions,
 } from 'react-native';
 import { useDraggableModal } from '@/hooks/useDraggableModal';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface DraggableModalProps {
     visible: boolean;
@@ -31,6 +32,8 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
     showCloseButton = true,
     showDragHandle = true,
 }) => {
+    const { theme } = useTheme();
+    const styles = createStyles(theme);
     const { isDragging, currentHeight, panResponder, resetHeight } = useDraggableModal({
         initialHeight,
         onClose,
@@ -103,19 +106,19 @@ export const DraggableModal: React.FC<DraggableModalProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     overlay: {
         flex: 1,
         justifyContent: 'flex-end',
     },
     background: {
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        backgroundColor: theme.overlay,
     },
     container: {
-        backgroundColor: '#fff',
+        backgroundColor: theme.surface,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
-        shadowColor: '#000',
+        shadowColor: theme.shadow,
         shadowOffset: {
             width: 0,
             height: -2,
@@ -135,7 +138,7 @@ const styles = StyleSheet.create({
     dragIndicator: {
         width: 40,
         height: 4,
-        backgroundColor: '#ccc',
+        backgroundColor: theme.border,
         borderRadius: 2,
     },
     header: {
@@ -145,12 +148,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
+        borderBottomColor: theme.border,
     },
     title: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: '#333',
+        color: theme.text,
         textAlign: 'center',
         flex: 1,
     },
@@ -158,13 +161,13 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.inputBackground,
         alignItems: 'center',
         justifyContent: 'center',
     },
     closeButtonText: {
         fontSize: 24,
-        color: '#666',
+        color: theme.textSecondary,
         fontWeight: 'bold',
         lineHeight: 24,
     },

@@ -9,7 +9,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
-  TextInput,
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
@@ -35,6 +34,10 @@ import {
 } from '@/features/community-routes';
 import { RouteStatsSection } from '@/components/feedback/RouteStatsSection';
 import { SwipeableRouteContainer } from '@/components/routes/SwipeableRouteContainer';
+import { RouteFeedbackForm } from '@/components/routes/RouteFeedbackForm';
+import { ExistingFeedbackCard } from '@/components/routes/ExistingFeedbackCard';
+import { FeedbacksList } from '@/components/routes/FeedbacksList';
+import { formatDate } from '@/components/routes/routeDetailUtils';
 
 type Theme = typeof lightTheme;
 
@@ -160,14 +163,7 @@ export const CommunityRouteDetailScreen: React.FC = () => {
     }
   };
 
-  const formatDate = (timestamp: any) => {
-    if (!timestamp) return '';
-    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString('he-IL', {
-      day: 'numeric',
-      month: 'short',
-    });
-  };
+
 
   if (loading) {
     return (
@@ -359,47 +355,15 @@ export const CommunityRouteDetailScreen: React.FC = () => {
 
             {/* Existing user feedback */}
             {!showFeedbackForm && userFeedback && (
-              <View style={styles.existingFeedbackCard}>
-                <View style={styles.feedbackRow}>
-                  <Text style={[styles.feedbackLabel, { color: theme.textSecondary }]}>
-                    {t.community.yourRating}
-                  </Text>
-                  <View style={styles.starsDisplay}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Text
-                        key={star}
-                        style={[
-                          styles.starDisplayText,
-                          star <= userFeedback.starRating && styles.starFilled,
-                        ]}
-                      >
-                        ★
-                      </Text>
-                    ))}
-                  </View>
-                </View>
-                <View style={styles.feedbackRow}>
-                  <Text style={[styles.feedbackLabel, { color: theme.textSecondary }]}>
-                    {t.community.yourGrade}
-                  </Text>
-                  <Text style={[styles.feedbackGrade, { color: theme.primary }]}>
-                    {userFeedback.suggestedGrade}
-                  </Text>
-                </View>
-                {userFeedback.comment && (
-                  <Text style={[styles.feedbackCommentText, { color: theme.text }]}>
-                    {userFeedback.comment}
-                  </Text>
-                )}
-                <TouchableOpacity
-                  style={styles.editFeedbackButton}
-                  onPress={() => setShowFeedbackForm(true)}
-                >
-                  <Text style={[styles.editFeedbackText, { color: theme.primary }]}>
-                    {t.community.editFeedback}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <ExistingFeedbackCard
+                starRating={userFeedback.starRating}
+                suggestedGrade={userFeedback.suggestedGrade}
+                comment={userFeedback.comment}
+                onEdit={() => setShowFeedbackForm(true)}
+                ratingLabel={t.community.yourRating}
+                gradeLabel={t.community.yourGrade}
+                editLabel={t.community.editFeedback}
+              />
             )}
 
             {/* Feedback form */}
@@ -417,171 +381,47 @@ export const CommunityRouteDetailScreen: React.FC = () => {
             )}
 
             {showFeedbackForm && (
-              <View style={styles.feedbackForm}>
-                {/* Star Rating */}
-                <View style={styles.formSection}>
-                  <Text style={[styles.formLabel, { color: theme.text }]}>
-                    {t.community.starRating}
-                  </Text>
-                  <View style={styles.starsInput}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <TouchableOpacity
-                        key={star}
-                        onPress={() => setStarRating(star)}
-                        style={styles.starButton}
-                      >
-                        <Text
-                          style={[
-                            styles.starInputText,
-                            star <= starRating && styles.starFilled,
-                          ]}
-                        >
-                          ★
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-
-                {/* Grade Selector */}
-                <View style={styles.formSection}>
-                  <Text style={[styles.formLabel, { color: theme.text }]}>
-                    {t.community.suggestedGrade}
-                  </Text>
-                  <Text style={[styles.gradeHint, { color: theme.textSecondary }]}>
-                    ({t.community.allowedRange}: {allowedGrades[0]} - {allowedGrades[allowedGrades.length - 1]})
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.gradesScroll}
-                    contentContainerStyle={styles.gradesContent}
-                  >
-                    {allowedGrades.map((grade) => (
-                      <TouchableOpacity
-                        key={grade}
-                        style={[
-                          styles.gradeButton,
-                          suggestedGrade === grade && styles.gradeButtonSelected,
-                        ]}
-                        onPress={() => setSuggestedGrade(grade)}
-                      >
-                        <Text
-                          style={[
-                            styles.gradeButtonText,
-                            suggestedGrade === grade && styles.gradeButtonTextSelected,
-                          ]}
-                        >
-                          {grade}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-
-                {/* Comment */}
-                <View style={styles.formSection}>
-                  <Text style={[styles.formLabel, { color: theme.text }]}>
-                    {t.community.feedbackComment}
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.feedbackInput,
-                      { backgroundColor: theme.background, color: theme.text },
-                    ]}
-                    value={feedbackComment}
-                    onChangeText={setFeedbackComment}
-                    placeholder={t.community.feedbackPlaceholder}
-                    placeholderTextColor={theme.textSecondary}
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                    textAlign="right"
-                  />
-                </View>
-
-                {/* Buttons */}
-                <View style={styles.formButtons}>
-                  <TouchableOpacity
-                    style={styles.cancelButton}
-                    onPress={() => {
-                      setShowFeedbackForm(false);
-                      if (userFeedback) {
-                        setStarRating(userFeedback.starRating || 0);
-                        setSuggestedGrade(userFeedback.suggestedGrade || '');
-                        setFeedbackComment(userFeedback.comment || '');
-                      } else {
-                        setStarRating(0);
-                        setSuggestedGrade('');
-                        setFeedbackComment('');
-                      }
-                    }}
-                  >
-                    <Text style={[styles.cancelButtonText, { color: theme.textSecondary }]}>
-                      {t.common.cancel}
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.submitButton,
-                      { backgroundColor: theme.primary },
-                      feedbackSubmitting && styles.submitButtonDisabled,
-                    ]}
-                    onPress={handleSubmitFeedback}
-                    disabled={feedbackSubmitting}
-                  >
-                    {feedbackSubmitting ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.submitButtonText}>
-                        {userFeedback ? (t.community.updateFeedback) : (t.community.submitFeedback)}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
+              <RouteFeedbackForm
+                starRating={starRating}
+                onStarRatingChange={setStarRating}
+                suggestedGrade={suggestedGrade}
+                onGradeChange={setSuggestedGrade}
+                grades={allowedGrades}
+                gradeRangeHint={`(${t.community.allowedRange}: ${allowedGrades[0]} - ${allowedGrades[allowedGrades.length - 1]})`}
+                comment={feedbackComment}
+                onCommentChange={setFeedbackComment}
+                commentPlaceholder={t.community.feedbackPlaceholder}
+                onSubmit={handleSubmitFeedback}
+                onCancel={() => {
+                  setShowFeedbackForm(false);
+                  if (userFeedback) {
+                    setStarRating(userFeedback.starRating || 0);
+                    setSuggestedGrade(userFeedback.suggestedGrade || '');
+                    setFeedbackComment(userFeedback.comment || '');
+                  } else {
+                    setStarRating(0);
+                    setSuggestedGrade('');
+                    setFeedbackComment('');
+                  }
+                }}
+                isSubmitting={feedbackSubmitting}
+                isUpdate={!!userFeedback}
+                submitLabel={userFeedback ? t.community.updateFeedback : t.community.submitFeedback}
+                starLabel={t.community.starRating}
+                gradeLabel={t.community.suggestedGrade}
+                commentLabel={t.community.feedbackComment}
+              />
             )}
 
             {/* Other users' feedbacks */}
-            {feedbacks.filter(f => f.userId !== user?.uid).length > 0 && (
+            {feedbacks.length > 0 && (
               <View style={styles.otherFeedbacksSection}>
-                <Text style={[styles.otherFeedbacksTitle, { color: theme.textSecondary }]}>
-                  {t.routes.communityFeedbacks} ({feedbacks.filter(f => f.userId !== user?.uid).length})
-                </Text>
-                {feedbacks
-                  .filter(f => f.userId !== user?.uid)
-                  .map((feedback) => (
-                    <View key={feedback.id} style={styles.feedbackCard}>
-                      <View style={styles.feedbackCardHeader}>
-                        <Text style={[styles.feedbackUserName, { color: theme.text }]}>
-                          {feedback.userName}
-                        </Text>
-                        <View style={styles.feedbackStarsRow}>
-                          {[1, 2, 3, 4, 5].map((star) => (
-                            <Text
-                              key={star}
-                              style={[
-                                styles.feedbackStarSmall,
-                                star <= feedback.starRating && styles.starFilled,
-                              ]}
-                            >
-                              ★
-                            </Text>
-                          ))}
-                        </View>
-                      </View>
-                      <View style={styles.feedbackCardContent}>
-                        <Text style={[styles.feedbackGradeSmall, { color: theme.primary }]}>
-                          {feedback.suggestedGrade}
-                        </Text>
-                        {feedback.comment && (
-                          <Text style={[styles.feedbackCommentSmall, { color: theme.text }]}>
-                            {feedback.comment}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                  ))}
+                <FeedbacksList
+                  feedbacks={feedbacks}
+                  title={`${t.routes.communityFeedbacks}`}
+                  excludeUserId={user?.uid}
+                  showAvatar={false}
+                />
               </View>
             )}
           </View>
@@ -736,7 +576,7 @@ const createStyles = (theme: Theme, layout: ReturnType<typeof useResponsiveLayou
   },
   creatorInfo: {
     flex: 1,
-    marginLeft: 16,
+    marginStart: 16,
     alignItems: 'flex-end',
   },
   creatorName: {
@@ -763,7 +603,6 @@ const createStyles = (theme: Theme, layout: ReturnType<typeof useResponsiveLayou
     fontSize: 14,
     lineHeight: 22,
     marginTop: 12,
-    textAlign: 'right',
     color: theme.text,
   },
   actionsRow: {
@@ -796,7 +635,6 @@ const createStyles = (theme: Theme, layout: ReturnType<typeof useResponsiveLayou
   sectionTitle: {
     fontSize: 16,
     fontWeight: 'bold',
-    textAlign: 'right',
     marginBottom: 12,
     color: theme.text,
   },
@@ -822,7 +660,6 @@ const createStyles = (theme: Theme, layout: ReturnType<typeof useResponsiveLayou
   commentText: {
     fontSize: 14,
     lineHeight: 20,
-    textAlign: 'right',
     color: theme.text,
   },
   noComments: {
@@ -883,7 +720,7 @@ const createStyles = (theme: Theme, layout: ReturnType<typeof useResponsiveLayou
   },
   statValue: {
     fontSize: 12,
-    marginLeft: 4,
+    marginStart: 4,
     color: theme.text,
   },
   starsDisplay: {
@@ -911,7 +748,6 @@ const createStyles = (theme: Theme, layout: ReturnType<typeof useResponsiveLayou
   ratingTitle: {
     fontSize: 15,
     fontWeight: '600',
-    textAlign: 'right',
     marginBottom: 12,
     color: theme.text,
   },
@@ -920,42 +756,6 @@ const createStyles = (theme: Theme, layout: ReturnType<typeof useResponsiveLayou
     padding: 16,
     borderRadius: 16,
     backgroundColor: theme.surface,
-  },
-  existingFeedbackCard: {
-    backgroundColor: theme.card,
-    borderRadius: 12,
-    padding: 14,
-  },
-  feedbackRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  feedbackLabel: {
-    fontSize: 13,
-    color: theme.textSecondary,
-  },
-  feedbackGrade: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: theme.text,
-  },
-  feedbackCommentText: {
-    fontSize: 13,
-    marginTop: 8,
-    textAlign: 'right',
-    lineHeight: 18,
-    color: theme.text,
-  },
-  editFeedbackButton: {
-    marginTop: 10,
-    alignSelf: 'flex-start',
-  },
-  editFeedbackText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.primary,
   },
   addFeedbackButton: {
     flexDirection: 'row',
@@ -972,160 +772,13 @@ const createStyles = (theme: Theme, layout: ReturnType<typeof useResponsiveLayou
     fontSize: 15,
     fontWeight: '600',
   },
-  feedbackForm: {
-    marginTop: 8,
-  },
-  formSection: {
-    marginBottom: 16,
-  },
-  formLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'right',
-    marginBottom: 8,
-    color: theme.text,
-  },
-  gradeHint: {
-    fontSize: 12,
-    textAlign: 'right',
-    marginBottom: 8,
-    color: theme.textSecondary,
-  },
-  starsInput: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  starButton: {
-    padding: 4,
-  },
-  starInputText: {
-    fontSize: 32,
-    color: theme.textSecondary,
-  },
-  gradesScroll: {
-    marginTop: 4,
-  },
-  gradesContent: {
-    paddingHorizontal: 4,
-    gap: 8,
-  },
-  gradeButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: theme.card,
-    borderWidth: 1,
-    borderColor: theme.border,
-    minWidth: 50,
-    alignItems: 'center',
-  },
-  gradeButtonSelected: {
-    backgroundColor: theme.secondary,
-    borderColor: theme.secondary,
-  },
-  gradeButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.text,
-  },
-  gradeButtonTextSelected: {
-    color: '#fff',
-  },
-  feedbackInput: {
-    borderRadius: 12,
-    padding: 12,
-    fontSize: 14,
-    minHeight: 80,
-    textAlign: 'right',
-    backgroundColor: theme.inputBackground,
-    color: theme.text,
-  },
-  formButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 16,
-  },
-  cancelButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-  },
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: theme.textSecondary,
-  },
-  submitButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 12,
-    minWidth: 100,
-    alignItems: 'center',
-    backgroundColor: theme.buttonPrimary,
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
   otherFeedbacksSection: {
     marginTop: 24,
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: theme.border,
   },
-  otherFeedbacksTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    marginBottom: 12,
-    textAlign: 'right',
-    color: theme.text,
-  },
-  feedbackCard: {
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.border,
-  },
-  feedbackCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  feedbackUserName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: theme.text,
-  },
-  feedbackStarsRow: {
-    flexDirection: 'row',
-    gap: 2,
-  },
-  feedbackStarSmall: {
-    fontSize: 14,
-    color: theme.textSecondary,
-  },
-  feedbackCardContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  feedbackGradeSmall: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: theme.text,
-  },
-  feedbackCommentSmall: {
-    flex: 1,
-    fontSize: 13,
-    lineHeight: 18,
-    textAlign: 'right',
-    color: theme.textSecondary,
-  },
+
 });
 };
 

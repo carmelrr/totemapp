@@ -256,7 +256,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
             fontWeight: "600",
         },
         autoEditNotification: {
-            borderLeftWidth: 4,
+            borderStartWidth: 4,
             padding: 12,
             marginBottom: 16,
             borderRadius: 8,
@@ -336,7 +336,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
             borderBottomWidth: 1,
         },
         statListClickable: {
-            paddingRight: 0,
+            paddingEnd: 0,
         },
         statListLeft: {
             flexDirection: "row",

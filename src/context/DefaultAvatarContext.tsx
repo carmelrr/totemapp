@@ -7,6 +7,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { db, storage } from '@/features/data/firebase';
 import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useLanguage } from '@/features/language';
 
 interface DefaultAvatarContextType {
   defaultAvatarUrl: string | null;
@@ -32,6 +33,7 @@ interface DefaultAvatarProviderProps {
 const SETTINGS_DOC = 'settings/app';
 
 export function DefaultAvatarProvider({ children }: DefaultAvatarProviderProps) {
+  const { t } = useLanguage();
   const [defaultAvatarUrl, setDefaultAvatarUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -67,7 +69,7 @@ export function DefaultAvatarProvider({ children }: DefaultAvatarProviderProps) 
       if (!permission.granted) {
         const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== 'granted') {
-          Alert.alert('אין הרשאה', 'יש לאשר גישה לגלריה כדי לבחור תמונה');
+          Alert.alert(t.alerts.noPermission, t.alerts.permissionToGallery);
           return;
         }
       }
@@ -119,7 +121,7 @@ export function DefaultAvatarProvider({ children }: DefaultAvatarProviderProps) 
       );
     } catch (error) {
       console.error('Error uploading default avatar:', error);
-      Alert.alert('שגיאה', 'אירעה שגיאה בהעלאת התמונה');
+      Alert.alert(t.common.error, t.alerts.photoUploadError);
     }
   };
 
@@ -144,7 +146,7 @@ export function DefaultAvatarProvider({ children }: DefaultAvatarProviderProps) 
       );
     } catch (error) {
       console.error('Error removing default avatar:', error);
-      Alert.alert('שגיאה', 'אירעה שגיאה בהסרת התמונה');
+      Alert.alert(t.common.error, t.alerts.photoRemoveError);
     }
   };
 

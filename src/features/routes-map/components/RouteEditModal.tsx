@@ -15,6 +15,7 @@ import { ROUTE_COLORS, getColorTranslationKey, getContrastTextColor } from '../u
 import { GRADES } from '../utils/grades';
 import { RoutesService } from '../services/RoutesService';
 import { useLanguage } from '@/features/language';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface RouteEditModalProps {
   visible: boolean;
@@ -45,6 +46,8 @@ export default function RouteEditModal({
   onMoveRoute,
 }: RouteEditModalProps) {
   const { t } = useLanguage();
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [grade, setGrade] = useState(route?.grade || 'V0');
   const [color, setColor] = useState(route?.color || ROUTE_COLORS[0]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -176,10 +179,10 @@ export default function RouteEditModal({
             setDeletingFeedbackId(feedback.id);
             try {
               await FeedbackService.deleteFeedback(feedback.id);
-              Alert.alert(t.common.success, t.routes?.feedbackDeleted || 'התגובה נמחקה');
+              Alert.alert(t.common.success, t.alerts.feedbackDeleted);
             } catch (error) {
               console.error('Error deleting feedback:', error);
-              Alert.alert(t.common.error, t.routes?.cannotDeleteFeedback || 'לא ניתן למחוק את התגובה');
+              Alert.alert(t.common.error, t.alerts.feedbackDeleteFailed);
             } finally {
               setDeletingFeedbackId(null);
             }
@@ -364,10 +367,10 @@ export default function RouteEditModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: theme.surface,
   },
   header: {
     flexDirection: 'row',
@@ -377,44 +380,44 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingTop: 50,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: theme.border,
   },
   cancelButton: {
     fontSize: 16,
-    color: '#6b7280',
+    color: theme.textSecondary,
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
+    color: theme.text,
   },
   saveButton: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#3b82f6',
+    color: theme.primary,
   },
   disabledButton: {
-    color: '#9ca3af',
+    color: theme.textSecondary,
   },
   content: {
     flex: 1,
     padding: 16,
   },
   infoSection: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: theme.inputBackground,
     padding: 16,
     borderRadius: 12,
     marginBottom: 20,
   },
   infoLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: theme.textSecondary,
     marginBottom: 4,
   },
   infoValue: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1f2937',
+    color: theme.text,
   },
   section: {
     marginBottom: 24,
@@ -422,7 +425,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#1f2937',
+    color: theme.text,
     marginBottom: 12,
   },
   gradeContainer: {
@@ -434,21 +437,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: theme.inputBackground,
     borderWidth: 1.5,
-    borderColor: '#e5e7eb',
+    borderColor: theme.border,
   },
   selectedGradeChip: {
-    backgroundColor: '#10b981',
-    borderColor: '#10b981',
+    backgroundColor: theme.success,
+    borderColor: theme.success,
   },
   gradeChipText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4b5563',
+    color: theme.textSecondary,
   },
   selectedGradeChipText: {
-    color: '#ffffff',
+    color: '#fff',
   },
   colorGrid: {
     flexDirection: 'row',
@@ -465,14 +468,14 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   selectedColorChip: {
-    borderColor: '#1f2937',
+    borderColor: theme.text,
   },
   colorCheckmark: {
     fontSize: 20,
     fontWeight: '600',
   },
   moveButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: theme.primary,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -484,10 +487,10 @@ const styles = StyleSheet.create({
   moveButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#fff',
   },
   deleteButton: {
-    backgroundColor: '#ef4444',
+    backgroundColor: theme.error,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -496,28 +499,28 @@ const styles = StyleSheet.create({
   deleteButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#fff',
   },
   feedbacksSection: {
     marginTop: 32,
     marginBottom: 40,
     paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
+    borderTopColor: theme.border,
   },
   noFeedbacksText: {
     fontSize: 14,
-    color: '#9ca3af',
+    color: theme.textSecondary,
     textAlign: 'center',
     marginVertical: 20,
   },
   feedbackCard: {
-    backgroundColor: '#f9fafb',
+    backgroundColor: theme.card,
     borderRadius: 12,
     padding: 14,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: theme.border,
   },
   feedbackHeader: {
     flexDirection: 'row',
@@ -531,16 +534,16 @@ const styles = StyleSheet.create({
   feedbackUserName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1f2937',
+    color: theme.text,
   },
   feedbackDate: {
     fontSize: 12,
-    color: '#9ca3af',
+    color: theme.textSecondary,
     marginTop: 2,
   },
   deleteFeedbackButton: {
     padding: 8,
-    marginLeft: 8,
+    marginStart: 8,
   },
   deleteFeedbackButtonText: {
     fontSize: 18,
@@ -555,7 +558,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   suggestedGradeBadge: {
-    backgroundColor: '#10b981',
+    backgroundColor: theme.success,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
@@ -563,16 +566,16 @@ const styles = StyleSheet.create({
   suggestedGradeText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#ffffff',
+    color: '#fff',
   },
   completedBadge: {
     fontSize: 12,
-    color: '#10b981',
+    color: theme.success,
     fontWeight: '500',
   },
   feedbackComment: {
     fontSize: 14,
-    color: '#4b5563',
+    color: theme.textSecondary,
     lineHeight: 20,
   },
 });

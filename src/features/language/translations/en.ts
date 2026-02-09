@@ -93,8 +93,6 @@ export const en = {
     saveChanges: "Save Changes",
     preferences: "Preferences",
     circleSizeOnMap: "Circle size on map",
-    showZoomSlider: "Show zoom slider",
-    showZoomSliderDesc: "Drag bar to control zoom below the map",
     small: "Small",
     medium: "Medium",
     large: "Large",
@@ -274,6 +272,8 @@ export const en = {
     difficultyRating: "Difficulty Rating",
     yourComment: "Your Comment",
     commentPlaceholder: "Comment on the route... (Use @ to tag friends)",
+    feedbackComposerPlaceholder: "Write your feedback...",
+    routeFeedbackPlaceholder: "How was the route?",
     starRating: "Star Rating",
     suggestedGrade: "Suggested Grade",
     comment: "Comment",
@@ -653,6 +653,106 @@ export const en = {
     unsavedChanges: "You have unsaved changes. Are you sure you want to leave?",
     success: "Success!",
     error: "Error",
+
+    // General
+    noPermission: "No Permission",
+    permissionToGallery: "Please allow gallery access to choose an image",
+    photoUploadError: "An error occurred while uploading the image",
+    photoRemoveError: "An error occurred while removing the image",
+    googlePlayUnavailable: "Google Play Services not available on this device",
+    loginFailed: (msg: string) => `Failed to sign in: ${msg}`,
+
+    // Feedback
+    selectRating: "Please select a rating",
+    addComment: "Please add a comment",
+    invalidVideoLink: "Video link is invalid",
+    userOrRouteNotFound: "User or route not found",
+    feedbackUpdated: "Feedback updated successfully",
+    feedbackSubmitted: "Feedback submitted successfully",
+    feedbackSubmitError: "Error submitting feedback",
+    feedbackDeleted: "Feedback deleted successfully",
+    feedbackDeleteError: "Error deleting feedback",
+    writeFeedback: "Please write feedback",
+    feedbackSubmitFailed: "Failed to submit feedback",
+    loginToFeedback: "Login to submit feedback",
+    selectStarRating: "Please select a star rating",
+    selectSuggestedGrade: "Please select a suggested grade",
+    deleteFeedbackTitle: "Delete Feedback",
+    feedbackDeleteFailed: "Failed to delete feedback",
+
+    // Routes
+    routeMoved: "Route moved successfully",
+    routeMoveFailed: "Could not move the route",
+    routeMarkedTop: "Route marked as topped!",
+    routeMarkFailed: "Failed to mark route",
+    routeRated: "Route rated!",
+    routeRateFailed: "Failed to rate route",
+    shareTitle: "Share",
+    shareRoute: (name: string) => `Share route: ${name}`,
+    reportTitle: "Report",
+    reportRoute: (name: string) => `Report route: ${name}`,
+
+    // Wall Editor
+    wallSaved: "Wall saved successfully!",
+    wallSaveFailed: "Could not save the wall",
+    wallUnpublished: "Wall removed from routes map",
+    wallPublished: "Wall published to routes map!",
+    wallPublishFailed: "Could not publish the wall",
+    selectObjFile: "Please select an OBJ file",
+    objProcessFailed: "Could not process the file",
+    imageLoadFailed: "Could not load the image",
+    wallVisibilityFailed: "Could not update wall visibility",
+    wallRemoved: "Wall removed from routes map",
+    wallRemoveFailed: "Could not remove the wall",
+    wallSaveTitle: "Save Successful",
+
+    // Competition Management
+    statusUpdated: "Status updated successfully",
+    statusUpdateFailed: "Could not update the status",
+    registrationClosed: "Registration closed",
+    registrationOpened: "Registration opened — users can now register",
+    registrationUpdateFailed: "Could not update registration status",
+    resultsHidden: "Results hidden from users",
+    resultsShown: "Results are now visible to all users",
+    resultsUpdateFailed: "Could not update results visibility",
+
+    // Competition Routes
+    enterRouteNumber: "Please enter a route number",
+    invalidRouteNumber: "Invalid route number",
+    routeAlreadyExists: "A route with this number already exists",
+    routeAddFailed: "Could not add the route",
+    routesAdded: "Routes added successfully",
+    routesAddFailed: "Could not add the routes",
+    routeDeleteFailed: "Could not delete the route",
+    routesPlaced: "All routes placed on the map",
+    routePlaceFailed: "Could not place the route",
+    routesAlreadyPlaced: "All routes are already placed on the map",
+    invalidPoints: "Invalid points value",
+    pointsUpdateFailed: "Could not update the points",
+    colorUpdateFailed: "Could not update the route color",
+    routesDeleteFailed: "Could not delete the routes",
+    resultDeleteFailed: "Could not delete the result",
+
+    // Judges
+    judgeAdded: (name: string) => `${name} added as judge`,
+    judgeAddFailed: "Could not add the judge",
+    judgeRemoveFailed: "Could not remove the judge",
+    judgePromoted: (name: string) => `${name} promoted to head judge`,
+    roleUpdateFailed: "Could not update the role",
+
+    // Profile
+    profileUpdateFailed: (msg: string) => `Could not update profile: ${msg}`,
+    photoUploadFailed: (msg: string) => msg || "Could not upload photo",
+    privacySaveFailed: "Could not save privacy settings",
+    refreshFailed: "Failed to refresh data",
+    followFailed: "Failed to update follow status",
+    refreshCalcError: "An error occurred while refreshing calculations",
+    syncFiltersError: "An error occurred while syncing filters",
+    profilePhotoRemoveFailed: "Could not remove profile photo",
+    galleryOpenError: "An error occurred while opening the image picker",
+
+    // Note
+    attention: "Note",
   },
 
   // Time formatting
@@ -786,6 +886,9 @@ export const en = {
     selectWall: "Select Wall:",
     errorLoadingImage: "Error loading image",
     cannotSaveWall: "Cannot save the wall",
+    sectorNamePlaceholder: "e.g., Area A",
+    labelPlaceholder: "Label",
+    sectorNameInputPlaceholder: "Sector name",
   },
 
   // AddRoute
@@ -807,6 +910,7 @@ export const en = {
     hexExample: "Example: #FF0000 = Red, #00FF00 = Green",
     moreColors: "More Colors",
     backToHoldEditing: "Back to Hold Editing",
+    colorExampleHe: "Red",
   },
 
   // UserProfile
@@ -1255,6 +1359,7 @@ export const en = {
     // Manage Categories - additional hardcoded
     categoryNamePlaceholder: "e.g., Men 18-35",
     categoryDescriptionPlaceholder: "Optional description",
+    autoPrefixPlaceholder: "e.g., M → M1, M2...",
     ageCalculationHint: "Age is calculated by birth year (current year minus birth year)",
     fromAge: "From age",
     toAge: "To age",
@@ -1304,6 +1409,8 @@ export const en = {
     enterText: "Please enter message text",
     title: "Title *",
     titlePlaceholder: "Announcement title",
+    buttonTextPlaceholder: "Button text (e.g., Learn more)",
+    linkPlaceholder: "Link (optional)",
     allUsers: "All Users",
     judges: "Judges",
     participants: "Participants",

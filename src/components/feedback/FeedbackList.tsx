@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { FeedbackItem } from './FeedbackItem';
 import { useLanguage } from '@/features/language';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface Feedback {
     id: string;
@@ -42,6 +43,8 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
     showStatistics = true,
 }) => {
     const { t } = useLanguage();
+    const { theme } = useTheme();
+    const styles = createStyles(theme);
     const [refreshing, setRefreshing] = useState(false);
 
     const handleRefresh = async () => {
@@ -168,8 +171,8 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={handleRefresh}
-                            colors={['#007AFF']}
-                            tintColor={'#007AFF'}
+                            colors={[theme.primary]}
+                            tintColor={theme.primary}
                         />
                     ) : undefined
                 }
@@ -179,25 +182,24 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         flex: 1,
     },
     header: {
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: '#eee',
-        backgroundColor: '#fff',
+        borderBottomColor: theme.border,
+        backgroundColor: theme.surface,
     },
     title: {
         fontSize: 18,
         fontWeight: 'bold',
-        textAlign: 'right',
-        color: '#333',
+        color: theme.text,
         marginBottom: 12,
     },
     statsContainer: {
-        backgroundColor: '#f8f9fa',
+        backgroundColor: theme.card,
         padding: 12,
         borderRadius: 8,
     },
@@ -209,13 +211,12 @@ const styles = StyleSheet.create({
     },
     statLabel: {
         fontSize: 14,
-        color: '#666',
-        textAlign: 'right',
+        color: theme.textSecondary,
     },
     statValue: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
     },
     gradeStats: {
         marginTop: 8,
@@ -228,7 +229,7 @@ const styles = StyleSheet.create({
     },
     gradeItem: {
         fontSize: 12,
-        color: '#007AFF',
+        color: theme.primary,
         marginHorizontal: 4,
         marginVertical: 2,
     },
@@ -245,13 +246,13 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: 16,
-        color: '#666',
+        color: theme.textSecondary,
         textAlign: 'center',
         marginBottom: 8,
     },
     emptySubText: {
         fontSize: 14,
-        color: '#999',
+        color: theme.textSecondary,
         textAlign: 'center',
     },
 });

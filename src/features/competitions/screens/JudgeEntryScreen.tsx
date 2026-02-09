@@ -80,8 +80,9 @@ export default function JudgeEntryScreen() {
   const [topAchieved, setTopAchieved] = useState(false);
   const [topAttempt, setTopAttempt] = useState('1');
 
-  // Categories for route prefix display
+  // Categories for route prefix display and participant grouping
   const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
 
   const styles = createStyles(theme);
 
@@ -90,9 +91,11 @@ export default function JudgeEntryScreen() {
   const isZoneTop = competition?.format ? isZoneTopFormat(competition.format) : false;
   const hasZone = isZoneTop && (competition?.settings?.enableZone !== false);
 
-  // Load categories for route prefix display
+  const hasCategories = competition?.settings?.enableCategories === true;
+
+  // Load categories for route prefix display and participant grouping
   useEffect(() => {
-    if (!isZoneTop || !competitionId) return;
+    if (!competitionId || (!isZoneTop && !hasCategories)) return;
     const loadCategories = async () => {
       try {
         const cats = await ParticipantService.getCategories(competitionId);
@@ -102,7 +105,7 @@ export default function JudgeEntryScreen() {
       }
     };
     loadCategories();
-  }, [isZoneTop, competitionId]);
+  }, [isZoneTop, hasCategories, competitionId]);
 
   // Get route label with prefix based on current participant's category
   const getRouteLabel = useCallback((routeNumber: number): string => {
@@ -174,12 +177,17 @@ export default function JudgeEntryScreen() {
   // Filter approved participants
   const approvedParticipants = participants.filter(p => p.status === 'approved');
 
+  // Filter by selected category first, then by search query
+  const categoryFilteredParticipants = selectedCategoryId
+    ? approvedParticipants.filter(p => p.category === selectedCategoryId)
+    : approvedParticipants;
+
   // Search filter
   const filteredParticipants = searchQuery
-    ? approvedParticipants.filter(p => 
+    ? categoryFilteredParticipants.filter(p => 
         p.userName.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : approvedParticipants;
+    : categoryFilteredParticipants;
 
   // Load participant results when selected
   useEffect(() => {
@@ -374,7 +382,7 @@ export default function JudgeEntryScreen() {
               );
               setShowResultModal(false);
             } catch (error) {
-              Alert.alert('שגיאה', 'לא ניתן למחוק את התוצאה');
+              Alert.alert(t.common.error, t.alerts.resultDeleteFailed);
             } finally {
               setIsSubmitting(false);
             }
@@ -665,29 +673,84 @@ export default function JudgeEntryScreen() {
         {/* Participants Panel - Hidden for self-reporters in Totemtition */}
         {(!isTotemtition || isJudge) && (
           <View style={styles.participantsPanel}>
-            <Text style={styles.panelTitle}>{t.competitionExt.selectParticipant}</Text>
-            
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={18} color={theme.textSecondary} />
-              <TextInput
-                style={styles.searchInput}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder={t.competitionExt.searchParticipant}
-                placeholderTextColor={theme.textSecondary}
-                textAlign="right"
-              />
-            </View>
+            {/* Show categories list when categories exist and none selected */}
+            {hasCategories && categories.length > 0 && !selectedCategoryId ? (
+              <>
+                <Text style={styles.panelTitle}>בחר קטגוריה</Text>
+                <FlatList
+                  data={categories}
+                  keyExtractor={(item) => item.id}
+                  renderItem={({ item }) => {
+                    const count = approvedParticipants.filter(p => p.category === item.id).length;
+                    return (
+                      <TouchableOpacity
+                        style={styles.categoryItem}
+                        onPress={() => {
+                          setSelectedCategoryId(item.id);
+                          setSelectedParticipant(null);
+                          setSearchQuery('');
+                        }}
+                      >
+                        <View style={styles.categoryItemContent}>
+                          <Ionicons name="people" size={22} color={theme.primary} />
+                          <Text style={styles.categoryItemName}>{item.name}</Text>
+                        </View>
+                        <View style={styles.categoryItemRight}>
+                          <Text style={styles.categoryItemCount}>{count}</Text>
+                          <Ionicons name="chevron-back" size={18} color={theme.textSecondary} />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  }}
+                  showsVerticalScrollIndicator={false}
+                  ListEmptyComponent={
+                    <Text style={styles.emptyText}>אין קטגוריות</Text>
+                  }
+                />
+              </>
+            ) : (
+              <>
+                {/* Show back to categories button if a category is selected */}
+                {hasCategories && categories.length > 0 && selectedCategoryId && (
+                  <TouchableOpacity
+                    style={styles.backToCategoriesBtn}
+                    onPress={() => {
+                      setSelectedCategoryId(null);
+                      setSelectedParticipant(null);
+                      setSearchQuery('');
+                    }}
+                  >
+                    <Ionicons name="arrow-forward" size={18} color={theme.primary} />
+                    <Text style={styles.backToCategoriesText}>
+                      {categories.find(c => c.id === selectedCategoryId)?.name || 'חזרה לקטגוריות'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
 
-            <FlatList
-              data={filteredParticipants}
-              keyExtractor={(item) => item.id}
-              renderItem={renderParticipantItem}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <Text style={styles.emptyText}>{t.competitionExt.noParticipants}</Text>
-              }
-            />
+                <Text style={styles.panelTitle}>{t.competitionExt.selectParticipant}</Text>
+                
+                <View style={styles.searchContainer}>
+                  <Ionicons name="search" size={18} color={theme.textSecondary} />
+                  <TextInput
+                    style={styles.searchInput}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder={t.competitionExt.searchParticipant}
+                    placeholderTextColor={theme.textSecondary}
+                  />
+                </View>
+
+                <FlatList
+                  data={filteredParticipants}
+                  keyExtractor={(item) => item.id}
+                  renderItem={renderParticipantItem}
+                  showsVerticalScrollIndicator={false}
+                  ListEmptyComponent={
+                    <Text style={styles.emptyText}>{t.competitionExt.noParticipants}</Text>
+                  }
+                />
+              </>
+            )}
           </View>
         )}
 
@@ -1098,8 +1161,8 @@ const createStyles = (theme: any) =>
     participantsPanel: {
       width: '35%',
       backgroundColor: theme.surface,
-      borderRightWidth: 1,
-      borderRightColor: theme.border,
+      borderEndWidth: 1,
+      borderEndColor: theme.border,
       padding: 8,
     },
     panelTitle: {
@@ -1108,6 +1171,49 @@ const createStyles = (theme: any) =>
       color: theme.text,
       textAlign: 'center',
       marginBottom: 8,
+    },
+    // Category selection styles
+    categoryItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: theme.card,
+      borderRadius: 10,
+      padding: 12,
+      marginBottom: 6,
+    },
+    categoryItemContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      flex: 1,
+    },
+    categoryItemName: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    categoryItemRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    categoryItemCount: {
+      fontSize: 12,
+      color: theme.textSecondary,
+    },
+    backToCategoriesBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingVertical: 6,
+      paddingHorizontal: 4,
+      marginBottom: 4,
+    },
+    backToCategoriesText: {
+      fontSize: 13,
+      color: theme.primary,
+      fontWeight: '600',
     },
     // Self-reporter info for Totemtition
     selfReporterInfo: {
@@ -1401,7 +1507,7 @@ const createStyles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingLeft: 30,
+      paddingStart: 30,
     },
     zoneTopAttemptLabel: {
       fontSize: 12,

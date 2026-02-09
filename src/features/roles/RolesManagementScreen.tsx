@@ -353,14 +353,13 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     backgroundColor: theme.inputBackground,
     borderRadius: 8,
     paddingHorizontal: 12,
-    marginLeft: 12,
+    marginStart: 12,
   },
   searchInput: {
     flex: 1,
     paddingVertical: 10,
     paddingHorizontal: 8,
     fontSize: 16,
-    textAlign: 'right',
     color: theme.text,
   },
   searchButton: {
@@ -500,7 +499,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
-    textAlign: 'right',
     color: theme.text,
   },
   rolesList: {
@@ -525,7 +523,7 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     borderColor: theme.border,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: 12,
+    marginStart: 12,
   },
   roleOptionText: {
     flex: 1,

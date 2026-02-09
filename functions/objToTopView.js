@@ -6,6 +6,7 @@
 
 const { onRequest } = require("firebase-functions/https");
 const logger = require("firebase-functions/logger");
+const { getAuth } = require("firebase-admin/auth");
 
 // Maximum number of edges to render (to prevent memory issues)
 const MAX_EDGES = 2000;
@@ -259,6 +260,20 @@ exports.objToTopView = onRequest(
         res.status(405).json({ error: 'Method not allowed' });
         return;
       }
+
+      // --- Authentication check ---
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        res.status(401).json({ error: "Authentication required" });
+        return;
+      }
+      try {
+        await getAuth().verifyIdToken(authHeader.split("Bearer ")[1]);
+      } catch (authErr) {
+        res.status(401).json({ error: "Invalid token" });
+        return;
+      }
+      // --- End auth check ---
       
       const { fileData, filename, options = {} } = req.body;
       
@@ -350,7 +365,7 @@ exports.objToTopView = onRequest(
       logger.error('Error processing OBJ:', error);
       res.status(500).json({ 
         success: false, 
-        error: error.message || 'Internal server error' 
+        error: 'Internal server error' 
       });
     }
   }

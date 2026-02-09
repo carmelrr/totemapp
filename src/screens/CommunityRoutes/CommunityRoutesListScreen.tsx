@@ -595,8 +595,8 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
       backgroundColor: theme.headerGradient,
       paddingVertical: isPhoneLandscape ? 10 : 14,
       paddingHorizontal: 16,
-      paddingLeft: isLandscape ? Math.max(16, insets.left) : 16,
-      paddingRight: isLandscape ? Math.max(16, insets.right) : 16,
+      paddingStart: isLandscape ? Math.max(16, insets.left) : 16,
+      paddingEnd: isLandscape ? Math.max(16, insets.right) : 16,
     },
     compactHeaderTitle: {
       fontSize: isPhoneLandscape ? 18 : 20,
@@ -606,8 +606,8 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
     header: {
       paddingHorizontal: 12,
       paddingVertical: isPhoneLandscape ? 8 : 12,
-      paddingLeft: isLandscape ? Math.max(12, insets.left) : 12,
-      paddingRight: isLandscape ? Math.max(12, insets.right) : 12,
+      paddingStart: isLandscape ? Math.max(12, insets.left) : 12,
+      paddingEnd: isLandscape ? Math.max(12, insets.right) : 12,
     },
     sortContainer: {
       flexDirection: 'row',
@@ -630,8 +630,8 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
     listContent: {
       padding: 8,
       paddingBottom: 100,
-      paddingLeft: isLandscape ? Math.max(8, insets.left) : 8,
-      paddingRight: isLandscape ? Math.max(8, insets.right) : 8,
+      paddingStart: isLandscape ? Math.max(8, insets.left) : 8,
+      paddingEnd: isLandscape ? Math.max(8, insets.right) : 8,
     },
     columnWrapper: {
       flexDirection: 'row',
@@ -702,7 +702,6 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
   routeName: {
     fontSize: isPhoneLandscape ? 12 : 14,
     fontWeight: 'bold',
-    textAlign: 'right',
     marginBottom: isPhoneLandscape ? 2 : 4,
     color: theme.text,
   },
@@ -711,12 +710,10 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
   },
   creatorName: {
     fontSize: isPhoneLandscape ? 9 : 11,
-    textAlign: 'right',
     color: theme.textSecondary,
   },
   gymName: {
     fontSize: isPhoneLandscape ? 8 : 10,
-    textAlign: 'right',
     marginTop: isPhoneLandscape ? 1 : 2,
     color: theme.textSecondary,
   },
@@ -820,7 +817,7 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
     borderRadius: 9,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 4,
+    marginEnd: 4,
     backgroundColor: theme.primary,
   },
   filterBadgeText: {

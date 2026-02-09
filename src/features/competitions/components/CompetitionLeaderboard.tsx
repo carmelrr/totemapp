@@ -785,7 +785,7 @@ const createStyles = (theme: any) =>
       paddingHorizontal: 16,
       paddingVertical: 8,
       borderRadius: 20,
-      marginRight: 8,
+      marginEnd: 8,
       backgroundColor: theme.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
     },
     categoryTabActive: {
@@ -897,7 +897,6 @@ const createStyles = (theme: any) =>
       color: theme.text,
       paddingHorizontal: 15,
       marginBottom: 10,
-      textAlign: 'right',
     },
     listItem: {
       flexDirection: 'row',
@@ -956,7 +955,6 @@ const createStyles = (theme: any) =>
       fontSize: 15,
       fontWeight: 'bold',
       color: theme.text,
-      textAlign: 'right',
       marginBottom: 2,
     },
     currentUserName: {
@@ -965,7 +963,6 @@ const createStyles = (theme: any) =>
     statsText: {
       fontSize: 12,
       color: theme.textSecondary,
-      textAlign: 'right',
     },
     noScoreText: {
       fontStyle: 'italic',

@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, ScrollView } from 'react-native';
+import { useTheme } from '@/features/theme/ThemeContext';
 
 interface GradeSelectorProps {
     selectedGrade: string;
@@ -16,6 +17,9 @@ export const GradeSelector: React.FC<GradeSelectorProps> = ({
     disabled = false,
     grades = DEFAULT_GRADES,
 }) => {
+    const { theme } = useTheme();
+    const styles = createStyles(theme);
+
     return (
         <View style={styles.container}>
             <Text style={styles.title}>דרגת קושי מוצעת:</Text>
@@ -51,7 +55,7 @@ export const GradeSelector: React.FC<GradeSelectorProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
     container: {
         marginVertical: 16,
     },
@@ -59,8 +63,7 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: 'bold',
         marginBottom: 12,
-        textAlign: 'right',
-        color: '#333',
+        color: theme.text,
     },
     scrollView: {
         flexGrow: 0,
@@ -73,23 +76,23 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         marginHorizontal: 4,
         borderRadius: 20,
-        backgroundColor: '#f0f0f0',
+        backgroundColor: theme.card,
         borderWidth: 1,
-        borderColor: '#ddd',
+        borderColor: theme.border,
         minWidth: 50,
         alignItems: 'center',
     },
     selectedGrade: {
-        backgroundColor: '#007AFF',
-        borderColor: '#007AFF',
+        backgroundColor: theme.primary,
+        borderColor: theme.primary,
     },
     gradeText: {
         fontSize: 14,
         fontWeight: '600',
-        color: '#333',
+        color: theme.text,
     },
     selectedGradeText: {
-        color: '#fff',
+        color: theme.surface,
     },
     disabled: {
         opacity: 0.5,

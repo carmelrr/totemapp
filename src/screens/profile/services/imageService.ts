@@ -10,13 +10,13 @@ import {
   deleteObject,
 } from "firebase/storage";
 
-export async function pickImage(): Promise<string | undefined> {
+export async function pickImage(t?: any): Promise<string | undefined> {
   // Request gallery permissions before opening image picker
   let permission = await ImagePicker.getMediaLibraryPermissionsAsync();
   if (!permission.granted) {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== "granted") {
-      Alert.alert("אין הרשאה", "יש לאשר גישה לגלריה כדי לבחור תמונה");
+      Alert.alert(t?.alerts?.noPermission ?? "אין הרשאה", t?.alerts?.permissionToGallery ?? "יש לאשר גישה לגלריה כדי לבחור תמונה");
       return;
     }
   }
@@ -32,7 +32,7 @@ export async function pickImage(): Promise<string | undefined> {
       return result.assets[0].uri;
     }
   } catch (e) {
-    Alert.alert("שגיאה", "אירעה שגיאה בפתיחת בורר התמונות");
+    Alert.alert(t?.common?.error ?? "שגיאה", t?.alerts?.galleryOpenError ?? "אירעה שגיאה בפתיחת בורר התמונות");
   }
 
   return undefined;
@@ -99,7 +99,7 @@ export async function deleteOldFirebaseImage(imageUrl: string): Promise<void> {
   }
 }
 
-export async function removeProfileImage(userId: string, currentPhotoURL: string | null): Promise<void> {
+export async function removeProfileImage(userId: string, currentPhotoURL: string | null, t?: any): Promise<void> {
   const user = auth.currentUser;
   if (!user || user.uid !== userId) {
     throw new Error("User not authenticated");
@@ -147,7 +147,7 @@ export async function removeProfileImage(userId: string, currentPhotoURL: string
               resolve();
             } catch (error) {
               console.error("Error removing profile image:", error);
-              Alert.alert("שגיאה", "לא ניתן להסיר את תמונת הפרופיל");
+              Alert.alert(t?.common?.error ?? "שגיאה", t?.alerts?.profilePhotoRemoveFailed ?? "לא ניתן להסיר את תמונת הפרופיל");
               reject(error);
             }
           },

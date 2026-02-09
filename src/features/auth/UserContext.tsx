@@ -6,13 +6,10 @@ const UserContext = createContext({
   isAdmin: false,
   circleSize: 12, // ברירת מחדל: גודל בינוני (6=קטן, 12=בינוני, 20=גדול)
   setCircleSize: (newSize: number) => {},
-  showZoomSlider: false, // ברירת מחדל: מוסתר
-  setShowZoomSlider: (show: boolean) => {},
 });
 
 export function UserProvider({ children, isAdmin }) {
   const [circleSize, setCircleSize] = useState(12); // Default to medium size
-  const [showZoomSlider, setShowZoomSlider] = useState(false); // Default to hidden
 
   // Load user preferences from Firestore
   useEffect(() => {
@@ -26,9 +23,6 @@ export function UserProvider({ children, isAdmin }) {
             const userData = docSnap.data();
             if (userData.circleSize) {
               setCircleSize(userData.circleSize);
-            }
-            if (userData.showZoomSlider !== undefined) {
-              setShowZoomSlider(userData.showZoomSlider);
             }
           }
         } catch (error) {
@@ -54,28 +48,12 @@ export function UserProvider({ children, isAdmin }) {
     }
   };
 
-  // Save zoom slider preference to Firestore
-  const saveShowZoomSlider = async (show: boolean) => {
-    const user = auth.currentUser;
-    if (user) {
-      try {
-        const docRef = doc(db, "users", user.uid);
-        await setDoc(docRef, { showZoomSlider: show }, { merge: true });
-        setShowZoomSlider(show);
-      } catch (error) {
-        // Error saving zoom slider preference - silently handled
-      }
-    }
-  };
-
   return (
     <UserContext.Provider
       value={{
         isAdmin,
         circleSize,
         setCircleSize: saveCircleSize,
-        showZoomSlider,
-        setShowZoomSlider: saveShowZoomSlider,
       }}
     >
       {children}

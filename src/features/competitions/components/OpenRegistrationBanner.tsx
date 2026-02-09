@@ -256,7 +256,6 @@ const createStyles = (theme: any) =>
       fontSize: 18,
       fontWeight: 'bold',
       color: theme.text,
-      textAlign: 'right',
       marginBottom: 8,
     },
     formatBadge: {
@@ -270,7 +269,7 @@ const createStyles = (theme: any) =>
     },
     formatIcon: {
       fontSize: 14,
-      marginLeft: 4,
+      marginStart: 4,
     },
     formatLabel: {
       fontSize: 12,
@@ -279,7 +278,6 @@ const createStyles = (theme: any) =>
     description: {
       fontSize: 13,
       color: theme.textSecondary,
-      textAlign: 'right',
     },
     footer: {
       borderTopWidth: 1,

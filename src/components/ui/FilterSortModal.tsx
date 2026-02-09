@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { useTheme } from '@/features/theme/ThemeContext';
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -23,6 +24,8 @@ export default function FilterSortModal({
   initialActiveTab,
   buttonPos,
 }) {
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
   const [activeTab, setActiveTab] = useState(initialActiveTab || "filter");
 
   // Update activeTab when initialActiveTab changes
@@ -162,7 +165,7 @@ export default function FilterSortModal({
         <View
           style={[
             StyleSheet.absoluteFillObject,
-            { backgroundColor: "rgba(0,0,0,0.1)" },
+            { backgroundColor: theme.overlay },
           ]}
         >
           <View
@@ -223,16 +226,16 @@ export default function FilterSortModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   dropdown: {
     position: "absolute",
     maxHeight: 250,
-    backgroundColor: "white",
+    backgroundColor: theme.surface,
     borderWidth: 1,
-    borderColor: "#ddd",
+    borderColor: theme.border,
     borderRadius: 12,
     elevation: 8,
-    shadowColor: "#000",
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -246,30 +249,29 @@ const styles = StyleSheet.create({
     height: 0,
     backgroundColor: "transparent",
     borderStyle: "solid",
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
+    borderStartWidth: 8,
+    borderEndWidth: 8,
     borderTopWidth: 8,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: "white",
+    borderStartColor: "transparent",
+    borderEndColor: "transparent",
+    borderTopColor: theme.surface,
     zIndex: 1001,
   },
   tabContainer: {
-    backgroundColor: "#f8f9fa",
+    backgroundColor: theme.inputBackground,
     borderBottomWidth: 1,
-    borderBottomColor: "#e9ecef",
+    borderBottomColor: theme.border,
   },
   singleTab: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     alignItems: "center",
-    backgroundColor: "#3498db",
+    backgroundColor: theme.secondary,
   },
   singleTabText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "white",
-    textAlign: "right",
+    color: "#fff",
   },
   tab: {
     flex: 1,
@@ -279,40 +281,38 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   activeTab: {
-    backgroundColor: "#3498db",
+    backgroundColor: theme.secondary,
   },
   tabText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#6c757d",
+    color: theme.textSecondary,
   },
   activeTabText: {
-    color: "white",
+    color: "#fff",
   },
   dropdownList: {
     maxHeight: 250,
-    backgroundColor: "white",
+    backgroundColor: theme.surface,
   },
   dropdownItem: {
     padding: 16,
     borderBottomWidth: 0.5,
-    borderBottomColor: "#e9ecef",
-    backgroundColor: "white",
+    borderBottomColor: theme.border,
+    backgroundColor: theme.surface,
   },
   dropdownItemText: {
     fontSize: 15,
-    color: "#2c3e50",
+    color: theme.text,
     fontWeight: "500",
-    textAlign: "right",
   },
   selectedItem: {
-    backgroundColor: "#e3f2fd",
-    borderRightWidth: 3,
-    borderRightColor: "#3498db",
+    backgroundColor: theme.activeTab,
+    borderEndWidth: 3,
+    borderEndColor: theme.secondary,
   },
   selectedItemText: {
-    color: "#1976d2",
+    color: theme.secondary,
     fontWeight: "600",
-    textAlign: "right",
   },
 });

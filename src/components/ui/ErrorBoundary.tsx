@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from "react-native";
 
 interface Props {
   children: React.ReactNode;
@@ -11,19 +11,17 @@ interface State {
   errorInfo: React.ErrorInfo | null;
 }
 
-class ErrorBoundary extends React.Component<Props, State> {
+class ErrorBoundaryClass extends React.Component<Props, State> {
   constructor(props: Props) {
     super(props);
     this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error: Error) {
-    // Update state so the next render will show the fallback UI.
     return { hasError: true };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    // Log the error to console for debugging
     console.error("Error caught by boundary:", error, errorInfo);
     this.setState({
       error,
@@ -37,7 +35,6 @@ class ErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      // Fallback UI
       return (
         <View style={styles.container}>
           <Text style={styles.title}>🚫 שגיאה בטעינת האפליקציה</Text>
@@ -100,10 +97,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   retryButtonText: {
-    color: "#ffffff",
+    color: "#fff",
     fontSize: 16,
     fontWeight: "600",
   },
 });
 
-export default ErrorBoundary;
+// ErrorBoundary must NOT use useTheme() because it sits outside ThemeProvider
+// in the component tree. It uses static styles instead.
+export default ErrorBoundaryClass;

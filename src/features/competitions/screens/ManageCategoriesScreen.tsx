@@ -414,7 +414,7 @@ export default function ManageCategoriesScreen() {
                 style={styles.textInput}
                 value={formData.name}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
-                placeholder="לדוגמה: גברים 18-35"
+                placeholder={t.competitionExt.categoryNamePlaceholder}
                 placeholderTextColor={theme.textSecondary}
               />
 
@@ -424,7 +424,7 @@ export default function ManageCategoriesScreen() {
                 style={[styles.textInput, styles.textArea]}
                 value={formData.description}
                 onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
-                placeholder="תיאור אופציונלי"
+                placeholder={t.competitionExt.categoryDescriptionPlaceholder}
                 placeholderTextColor={theme.textSecondary}
                 multiline
                 numberOfLines={2}
@@ -438,7 +438,7 @@ export default function ManageCategoriesScreen() {
                     style={styles.textInput}
                     value={formData.routePrefix}
                     onChangeText={(text) => setFormData(prev => ({ ...prev, routePrefix: text.toUpperCase() }))}
-                    placeholder='לדוגמה: M → M1, M2...'
+                    placeholder={t.competitionExt.autoPrefixPlaceholder}
                     placeholderTextColor={theme.textSecondary}
                     maxLength={3}
                     autoCapitalize="characters"
@@ -497,7 +497,7 @@ export default function ManageCategoriesScreen() {
                   style={[styles.textInput, styles.yearInput]}
                   value={formData.minAge}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, minAge: text }))}
-                  placeholder="מגיל"
+                  placeholder={t.competitionExt.fromAge}
                   placeholderTextColor={theme.textSecondary}
                   keyboardType="numeric"
                   maxLength={2}
@@ -507,7 +507,7 @@ export default function ManageCategoriesScreen() {
                   style={[styles.textInput, styles.yearInput]}
                   value={formData.maxAge}
                   onChangeText={(text) => setFormData(prev => ({ ...prev, maxAge: text }))}
-                  placeholder="עד גיל"
+                  placeholder={t.competitionExt.toAge}
                   placeholderTextColor={theme.textSecondary}
                   keyboardType="numeric"
                   maxLength={2}

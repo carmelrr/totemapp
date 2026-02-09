@@ -367,13 +367,11 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   announcementTitle: {
     fontSize: 18,
     fontWeight: '700',
-    textAlign: 'right',
     marginBottom: 4,
     color: theme.text,
   },
   announcementText: {
     fontSize: 14,
-    textAlign: 'right',
     lineHeight: 20,
     color: theme.textSecondary,
   },
@@ -385,7 +383,6 @@ const createStyles = (theme: Theme) => StyleSheet.create({
   },
   dateLabel: {
     fontSize: 12,
-    textAlign: 'right',
     color: theme.textSecondary,
   },
   actionsRow: {

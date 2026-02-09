@@ -464,9 +464,8 @@ export default function ManageParticipantsScreen() {
             style={styles.searchInput}
             value={searchQuery}
             onChangeText={handleSearch}
-            placeholder="חפש משתמשים להוספה..."
+            placeholder={t.competitionExt.searchUsersToAdd}
             placeholderTextColor={theme.textSecondary}
-            textAlign="right"
           />
           {isSearching && <ActivityIndicator size="small" color={theme.primary} />}
         </View>
@@ -679,7 +678,6 @@ const createStyles = (theme: any) =>
       fontSize: 12,
       color: theme.textSecondary,
       marginBottom: 8,
-      textAlign: 'right',
     },
     categoryTags: {
       flexDirection: 'row',
@@ -712,7 +710,6 @@ const createStyles = (theme: any) =>
       fontSize: 12,
       color: theme.textSecondary,
       marginBottom: 8,
-      textAlign: 'right',
     },
     searchResultItem: {
       flexDirection: 'row',
@@ -812,18 +809,15 @@ const createStyles = (theme: any) =>
     participantCategory: {
       fontSize: 12,
       color: theme.textSecondary,
-      textAlign: 'right',
     },
     participantDate: {
       fontSize: 11,
       color: theme.textSecondary,
-      textAlign: 'right',
       marginTop: 2,
     },
     selfRegistered: {
       fontSize: 11,
       color: theme.primary,
-      textAlign: 'right',
       marginTop: 4,
       fontWeight: '500',
     },

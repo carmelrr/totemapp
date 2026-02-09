@@ -8,6 +8,7 @@ import {
   RefreshControl,
 } from "react-native";
 import RouteDialog from "./RouteDialog";
+import { useTheme } from '@/features/theme/ThemeContext';
 import { RoutesService } from "@/features/routes-map/services/RoutesService";
 
 export default function RouteList({
@@ -20,6 +21,8 @@ export default function RouteList({
 }) {
   const [selectedRoute, setSelectedRoute] = useState(null);
   const [showRouteDialog, setShowRouteDialog] = useState(false);
+  const { theme } = useTheme();
+  const styles = createStyles(theme);
 
   // Ensure routes is an array to prevent undefined errors
   const safeRoutes = routes || [];
@@ -64,7 +67,7 @@ export default function RouteList({
       <TouchableOpacity
         style={[
           styles.item,
-          { backgroundColor: item.color || "#f0f0f0" },
+          { backgroundColor: item.color || theme.surface },
           isEditMode && styles.editModeItem,
           isSelected && styles.selectedItem,
         ]}
@@ -226,8 +229,8 @@ export default function RouteList({
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={["#3498db"]}
-              tintColor="#3498db"
+              colors={[theme.secondary]}
+              tintColor={theme.secondary}
             />
           ) : undefined
         }
@@ -245,7 +248,7 @@ export default function RouteList({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -256,11 +259,11 @@ const styles = StyleSheet.create({
   item: {
     padding: 15,
     borderBottomWidth: 1,
-    borderColor: "#ddd",
+    borderColor: theme.border,
     marginHorizontal: 10,
     marginVertical: 3,
     borderRadius: 10,
-    shadowColor: "#000",
+    shadowColor: theme.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
@@ -279,30 +282,28 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 18,
     marginBottom: 2,
-    textAlign: "right",
   },
   gradeSubtext: {
     fontSize: 11,
     fontWeight: "500",
     opacity: 0.7,
     fontStyle: "italic",
-    textAlign: "right",
   },
   ratingContainer: {
     alignItems: "flex-end",
   },
   starsText: {
     fontSize: 16,
-    color: "#FFD700",
+    color: theme.starColor,
     marginBottom: 2,
-    textShadowColor: "rgba(0, 0, 0, 0.5)",
+    textShadowColor: theme.shadow,
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
   ratingText: {
     fontSize: 11,
-    color: "#666",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    color: theme.textSecondary,
+    backgroundColor: theme.surface,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
@@ -310,8 +311,8 @@ const styles = StyleSheet.create({
   },
   completionText: {
     fontSize: 11,
-    color: "#27AE60",
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    color: theme.success,
+    backgroundColor: theme.surface,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
@@ -320,14 +321,14 @@ const styles = StyleSheet.create({
   },
   editModeItem: {
     borderWidth: 2,
-    borderColor: "#3498db",
+    borderColor: theme.secondary,
     borderStyle: "dashed",
   },
   selectedItem: {
     borderWidth: 3,
-    borderColor: "#f39c12",
+    borderColor: theme.warning,
     borderStyle: "solid",
-    shadowColor: "#f39c12",
+    shadowColor: theme.warning,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
@@ -335,24 +336,22 @@ const styles = StyleSheet.create({
   },
   editModeIndicator: {
     fontSize: 12,
-    color: "#3498db",
+    color: theme.secondary,
     fontWeight: "bold",
-    marginLeft: 5,
-    textAlign: "right",
+    marginStart: 5,
   },
   selectedIndicator: {
     position: "absolute",
     top: 5,
     right: 5,
-    backgroundColor: "#f39c12",
+    backgroundColor: theme.warning,
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   selectedIndicatorText: {
-    color: "#fff",
+    color: "#FFFFFF",
     fontSize: 10,
     fontWeight: "bold",
-    textAlign: "right",
   },
 });

@@ -182,19 +182,19 @@ export default function ManageCompetitionRoutesScreen() {
 
   const handleAddRoute = async () => {
     if (!newRouteNumber.trim() || !user) {
-      Alert.alert('שגיאה', 'יש להזין מספר מסלול');
+      Alert.alert(t.common.error, t.alerts.enterRouteNumber);
       return;
     }
 
     const routeNum = parseInt(newRouteNumber);
     if (isNaN(routeNum) || routeNum < 1) {
-      Alert.alert('שגיאה', 'מספר מסלול לא תקין');
+      Alert.alert(t.common.error, t.alerts.invalidRouteNumber);
       return;
     }
 
     // Check if route number already exists
     if (routes.some(r => r.routeNumber === routeNum)) {
-      Alert.alert('שגיאה', 'מסלול עם מספר זה כבר קיים');
+      Alert.alert(t.common.error, t.alerts.routeAlreadyExists);
       return;
     }
 
@@ -235,7 +235,7 @@ export default function ManageCompetitionRoutesScreen() {
       setNewRoutePointsZone('');
       refresh();
     } catch (error) {
-      Alert.alert('שגיאה', 'לא ניתן להוסיף את המסלול');
+      Alert.alert(t.common.error, t.alerts.routeAddFailed);
     } finally {
       setIsSubmitting(false);
     }
@@ -295,9 +295,9 @@ export default function ManageCompetitionRoutesScreen() {
               }
               
               refresh();
-              Alert.alert('הצלחה', 'המסלולים נוספו בהצלחה');
+              Alert.alert(t.common.success, t.alerts.routesAdded);
             } catch (error) {
-              Alert.alert('שגיאה', 'לא ניתן להוסיף את המסלולים');
+              Alert.alert(t.common.error, t.alerts.routesAddFailed);
             } finally {
               setIsSubmitting(false);
             }
@@ -321,7 +321,7 @@ export default function ManageCompetitionRoutesScreen() {
               await CompetitionRoutesService.deleteRoute(competitionId, routeToDelete.id);
               refresh();
             } catch (error) {
-              Alert.alert('שגיאה', 'לא ניתן למחוק את המסלול');
+              Alert.alert(t.common.error, t.alerts.routeDeleteFailed);
             }
           },
         },
@@ -375,13 +375,13 @@ export default function ManageCompetitionRoutesScreen() {
       } else {
         setSelectedRouteForPlacement(null);
         setIsPlacingRoute(false);
-        Alert.alert('הצלחה', 'כל המסלולים מוקמו על המפה');
+        Alert.alert(t.common.success, t.alerts.routesPlaced);
       }
       
       refresh();
     } catch (error) {
       console.error('Error placing route:', error);
-      Alert.alert('שגיאה', 'לא ניתן למקם את המסלול');
+      Alert.alert(t.common.error, t.alerts.routePlaceFailed);
     } finally {
       setIsSubmitting(false);
     }
@@ -392,7 +392,7 @@ export default function ManageCompetitionRoutesScreen() {
     const currentRoutes = hasCategories ? routesForMap : routes;
     const unplacedRoutes = currentRoutes.filter(r => !r.xNorm || !r.yNorm || r.xNorm === 0 || r.yNorm === 0);
     if (unplacedRoutes.length === 0) {
-      Alert.alert('שים לב', 'כל המסלולים כבר ממוקמים על המפה');
+      Alert.alert(t.alerts.attention, t.alerts.routesAlreadyPlaced);
       setViewMode('map');
       return;
     }
@@ -429,7 +429,7 @@ export default function ManageCompetitionRoutesScreen() {
     const pTop = parseFloat(editPointsTop);
     const pZone = parseFloat(editPointsZone);
     if (isNaN(pTop) || isNaN(pZone) || pTop < 0 || pZone < 0) {
-      Alert.alert(t.competitions?.error || 'שגיאה', t.competitions?.invalidPoints || 'ערך ניקוד לא תקין');
+      Alert.alert(t.common.error, t.alerts.invalidPoints);
       return;
     }
 
@@ -444,7 +444,7 @@ export default function ManageCompetitionRoutesScreen() {
       setEditingRoute(null);
       refresh();
     } catch (error) {
-      Alert.alert(t.competitions?.error || 'שגיאה', 'לא ניתן לעדכן את הניקוד');
+      Alert.alert(t.common.error, t.alerts.pointsUpdateFailed);
     } finally {
       setIsSubmitting(false);
     }
@@ -465,7 +465,7 @@ export default function ManageCompetitionRoutesScreen() {
       refresh();
     } catch (error) {
       console.error('Error updating route color:', error);
-      Alert.alert('שגיאה', 'לא ניתן לעדכן את צבע המסלול');
+      Alert.alert(t.common.error, t.alerts.colorUpdateFailed);
     } finally {
       setIsSubmitting(false);
     }
@@ -493,7 +493,7 @@ export default function ManageCompetitionRoutesScreen() {
               }
               refresh();
             } catch (error) {
-              Alert.alert('שגיאה', 'לא ניתן למחוק את המסלולים');
+              Alert.alert(t.common.error, t.alerts.routesDeleteFailed);
             } finally {
               setIsSubmitting(false);
             }
@@ -1216,7 +1216,7 @@ const createStyles = (theme: any) =>
     },
     routeInfo: {
       flex: 1,
-      marginLeft: 12,
+      marginStart: 12,
     },
     routeGrade: {
       fontSize: 16,
@@ -1232,7 +1232,7 @@ const createStyles = (theme: any) =>
     },
     editBtn: {
       padding: 8,
-      marginRight: 4,
+      marginEnd: 4,
     },
     zoneTopHint: {
       fontSize: 12,
@@ -1300,7 +1300,6 @@ const createStyles = (theme: any) =>
       fontWeight: '600',
       color: theme.text,
       marginBottom: 8,
-      textAlign: 'right',
     },
     input: {
       backgroundColor: theme.card,
@@ -1518,7 +1517,7 @@ const createStyles = (theme: any) =>
       borderRadius: 16,
       justifyContent: 'center',
       alignItems: 'center',
-      marginRight: 8,
+      marginEnd: 8,
       borderWidth: 2,
       borderColor: 'rgba(0,0,0,0.1)',
     },

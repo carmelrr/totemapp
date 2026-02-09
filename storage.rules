@@ -16,6 +16,11 @@ service firebase.storage {
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
+
+    // בדיקת admin עם Custom Claims
+    function isAdmin() {
+      return isAuthenticated() && request.auth.token.admin == true;
+    }
     
     // בדיקה שהקובץ הוא תמונה
     function isImage() {
@@ -73,8 +78,8 @@ service firebase.storage {
         isAllowedImageType() && 
         isUnderMaxSize(10 * 1024 * 1024); // 10MB max
       
-      // משתמשים מחוברים יכולים למחוק
-      allow delete: if isAuthenticated();
+      // מחיקה: רק מנהלים (לא ניתן לבדוק ownership ב-Storage rules ללא metadata)
+      allow delete: if isAdmin();
     }
     
     // ==================== Competition Images ====================
@@ -95,24 +100,24 @@ service firebase.storage {
         isAllowedImageType() && 
         isUnderMaxSize(15 * 1024 * 1024); // 15MB max for wall images
       
-      // משתמשים מחוברים יכולים למחוק
-      allow delete: if isAuthenticated();
+      // מחיקה: רק מנהלים
+      allow delete: if isAdmin();
     }
 
     // ==================== Announcement Images ====================
-    // תמונות הודעות - משתמשים מחוברים יכולים להעלות (הגבלה נוספת בקוד לתפקידים מורשים)
+    // תמונות הודעות - רק מנהלים יכולים להעלות/למחוק
     match /announcements/images/{fileName} {
       // כולם יכולים לקרוא תמונות הודעות
       allow read: if true;
       
-      // משתמשים מחוברים יכולים להעלות (הרשאות נוספות נבדקות בקוד)
-      allow create, update: if isAuthenticated() && 
+      // רק מנהלים יכולים להעלות/למחוק תמונות הודעות
+      allow create, update: if isAdmin() && 
         isImage() && 
         isAllowedImageType() && 
         isUnderMaxSize(10 * 1024 * 1024); // 10MB max
       
-      // משתמשים מחוברים יכולים למחוק
-      allow delete: if isAuthenticated();
+      // רק מנהלים יכולים למחוק
+      allow delete: if isAdmin();
     }
 
     // ==================== Default Deny ====================

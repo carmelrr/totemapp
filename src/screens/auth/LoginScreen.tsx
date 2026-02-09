@@ -43,8 +43,8 @@ const createStyles = (theme, layout, insets) => {
     scrollContent: {
       flexGrow: 1,
       justifyContent: "center",
-      paddingLeft: isLandscape ? Math.max(20, insets.left) : 0,
-      paddingRight: isLandscape ? Math.max(20, insets.right) : 0,
+      paddingStart: isLandscape ? Math.max(20, insets.left) : 0,
+      paddingEnd: isLandscape ? Math.max(20, insets.right) : 0,
     },
     formContainer: {
       padding: isPhoneLandscape ? 16 : 24,
@@ -89,7 +89,6 @@ const createStyles = (theme, layout, insets) => {
       fontWeight: "600",
       color: theme.text,
       marginBottom: 6,
-      textAlign: "right",
     },
     input: {
       borderWidth: 1,
@@ -98,7 +97,6 @@ const createStyles = (theme, layout, insets) => {
       borderRadius: 10,
       fontSize: 16,
       backgroundColor: theme.inputBackground,
-      textAlign: "right",
       color: theme.text,
     },
     inputFocused: {

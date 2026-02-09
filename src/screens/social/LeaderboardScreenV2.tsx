@@ -875,7 +875,6 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
       color: theme.text,
       paddingHorizontal: horizontalPadding,
       marginBottom: 10,
-      textAlign: "right",
     },
     leaderboardItem: {
       flexDirection: "row",
@@ -898,7 +897,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     },
     rankContainer: {
       alignItems: "center",
-      marginRight: 15,
+      marginEnd: 15,
       minWidth: 40,
     },
     rankNumber: {
@@ -910,7 +909,7 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
       width: 50,
       height: 50,
       borderRadius: 25,
-      marginRight: 15,
+      marginEnd: 15,
     },
     userInfo: {
       flex: 1,
@@ -920,7 +919,6 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
       fontWeight: "bold",
       color: theme.text,
       marginBottom: 4,
-      textAlign: "right",
     },
     currentUserName: {
       color: theme.secondary,
@@ -928,7 +926,6 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     userStat: {
       fontSize: 14,
       color: theme.textSecondary,
-      textAlign: "right",
     },
     emptyText: {
       textAlign: "center",
@@ -951,7 +948,6 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
       color: theme.textSecondary,
       paddingHorizontal: horizontalPadding,
       marginBottom: 10,
-      textAlign: 'right',
     },
   });
 };
