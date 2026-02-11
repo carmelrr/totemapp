@@ -119,7 +119,7 @@ export const HoldRingsOverlay: React.FC<HoldRingsOverlayProps> = ({
   const hasActiveAnimation = activeHold && activeHoldX && activeHoldY && activeHoldRadius;
 
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, { direction: 'ltr' }]} pointerEvents="none">
       {/* Render all static (locked) holds */}
       {holds.map((hold) => (
         <StaticRingView

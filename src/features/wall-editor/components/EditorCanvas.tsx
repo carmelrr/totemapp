@@ -651,6 +651,7 @@ const createStyles = (theme: any) =>
     },
     canvasWrapper: {
       position: 'absolute',
+      direction: 'ltr',
     },
     canvasBackground: {
       ...StyleSheet.absoluteFillObject,

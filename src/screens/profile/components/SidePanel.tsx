@@ -38,6 +38,7 @@ interface SidePanelProps {
   onThemeToggle: () => void;
   isDarkMode: boolean;
   onLogout: () => void;
+  onDeleteAccount?: () => void;
   onPrivacySettings?: () => void;
   onAdminPanel?: () => void;
   onRolesManagement?: () => void;
@@ -69,6 +70,7 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onThemeToggle,
   isDarkMode,
   onLogout,
+  onDeleteAccount,
   onPrivacySettings,
   onAdminPanel,
   onRolesManagement,
@@ -513,6 +515,18 @@ export const SidePanel: React.FC<SidePanelProps> = ({
                   <Text style={styles.adminButtonText}>ניהול הודעות</Text>
                 </TouchableOpacity>
               </View>
+            )}
+
+            {/* Delete Account Button */}
+            {onDeleteAccount && (
+              <TouchableOpacity
+                style={[styles.logoutButton, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.error, marginTop: 8 }]}
+                onPress={onDeleteAccount}
+              >
+                <Text style={[styles.logoutButtonText, { color: theme.error }]}>
+                  {t.deleteAccount?.sidePanelButton ?? 'Delete Account'}
+                </Text>
+              </TouchableOpacity>
             )}
 
             {/* Logout Button */}

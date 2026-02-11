@@ -146,6 +146,25 @@ export function useMapTransforms({
   const safeMinScale = Math.max(0.1, minScale);
   const safeMaxScale = Math.max(safeMinScale, maxScale);
   
+  // Shared values for screen/image dimensions — always up-to-date in worklets
+  // This prevents stale closures when container size changes during gestures
+  const screenWSV = useSharedValue(safeScreenWidth);
+  const screenHSV = useSharedValue(safeScreenHeight);
+  const imageWSV = useSharedValue(safeImageWidth);
+  const imageHSV = useSharedValue(safeImageHeight);
+  const minScaleSV = useSharedValue(safeMinScale);
+  const maxScaleSV = useSharedValue(safeMaxScale);
+  
+  // Keep shared values in sync with props
+  React.useEffect(() => {
+    screenWSV.value = safeScreenWidth;
+    screenHSV.value = safeScreenHeight;
+    imageWSV.value = safeImageWidth;
+    imageHSV.value = safeImageHeight;
+    minScaleSV.value = safeMinScale;
+    maxScaleSV.value = safeMaxScale;
+  }, [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale]);
+  
   // Shared values for transforms
   const scale = useSharedValue(1);
   const translateX = useSharedValue(0);
@@ -300,9 +319,9 @@ export function useMapTransforms({
         
         const clamped = clampViewport(
           scale.value, newX, newY,
-          safeScreenWidth, safeScreenHeight,
-          safeImageWidth, safeImageHeight,
-          safeMinScale, safeMaxScale
+          screenWSV.value, screenHSV.value,
+          imageWSV.value, imageHSV.value,
+          minScaleSV.value, maxScaleSV.value
         );
         
         translateX.value = clamped.translateX;
@@ -324,9 +343,9 @@ export function useMapTransforms({
         
         const clamped = clampViewport(
           scale.value, projectedX, projectedY,
-          safeScreenWidth, safeScreenHeight,
-          safeImageWidth, safeImageHeight,
-          safeMinScale, safeMaxScale
+          screenWSV.value, screenHSV.value,
+          imageWSV.value, imageHSV.value,
+          minScaleSV.value, maxScaleSV.value
         );
         
         // Smoother spring for momentum - higher damping reduces oscillation
@@ -337,7 +356,7 @@ export function useMapTransforms({
         // Immediate notification at end
         runOnJS(notifyChange)(scale.value, clamped.translateX, clamped.translateY);
       }),
-    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange, debouncedNotify]
+    [notifyChange, debouncedNotify]
   );
 
   // Pinch gesture - zoom centered on the point between your fingers
@@ -358,7 +377,7 @@ export function useMapTransforms({
       .onUpdate((event) => {
         'worklet';
         const rawScale = baseScale.value * (event.scale ?? 1);
-        const newScale = Math.max(safeMinScale, Math.min(safeMaxScale, rawScale));
+        const newScale = Math.max(minScaleSV.value, Math.min(maxScaleSV.value, rawScale));
         const oldScale = scale.value;
         
         // Focal point on screen
@@ -366,8 +385,8 @@ export function useMapTransforms({
         const focalY = event.focalY;
         
         // Image dimensions
-        const imgCenterX = safeImageWidth / 2;
-        const imgCenterY = safeImageHeight / 2;
+        const imgCenterX = imageWSV.value / 2;
+        const imgCenterY = imageHSV.value / 2;
         
         // Current transform: screenPos = (imagePos - imgCenter) * oldScale + imgCenter + translate
         // Find image position under focal point:
@@ -383,9 +402,9 @@ export function useMapTransforms({
         
         const clamped = clampViewport(
           newScale, newTranslateX, newTranslateY,
-          safeScreenWidth, safeScreenHeight,
-          safeImageWidth, safeImageHeight,
-          safeMinScale, safeMaxScale
+          screenWSV.value, screenHSV.value,
+          imageWSV.value, imageHSV.value,
+          minScaleSV.value, maxScaleSV.value
         );
         
         scale.value = clamped.scale;
@@ -400,9 +419,9 @@ export function useMapTransforms({
         
         const clamped = clampViewport(
           scale.value, translateX.value, translateY.value,
-          safeScreenWidth, safeScreenHeight,
-          safeImageWidth, safeImageHeight,
-          safeMinScale, safeMaxScale
+          screenWSV.value, screenHSV.value,
+          imageWSV.value, imageHSV.value,
+          minScaleSV.value, maxScaleSV.value
         );
         
         // Smoother spring for pinch ending - minimal bounce
@@ -414,7 +433,7 @@ export function useMapTransforms({
         // Immediate notification at end
         runOnJS(notifyChange)(clamped.scale, clamped.translateX, clamped.translateY);
       }),
-    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange, debouncedNotify]
+    [notifyChange, debouncedNotify]
   );
 
   // Double tap gesture - zooms to 3x for better view with higher max zoom
@@ -432,9 +451,9 @@ export function useMapTransforms({
           // Reset to initial centered position (same as on mount)
           const centered = clampViewport(
             1, 0, 0,
-            safeScreenWidth, safeScreenHeight,
-            safeImageWidth, safeImageHeight,
-            safeMinScale, safeMaxScale
+            screenWSV.value, screenHSV.value,
+            imageWSV.value, imageHSV.value,
+            minScaleSV.value, maxScaleSV.value
           );
           const resetTranslateY = initialTranslateYValue.value;
           
@@ -449,8 +468,8 @@ export function useMapTransforms({
           const fy = event.y;
           
           // Image center for transform calculations
-          const imgCenterX = safeImageWidth / 2;
-          const imgCenterY = safeImageHeight / 2;
+          const imgCenterX = imageWSV.value / 2;
+          const imgCenterY = imageHSV.value / 2;
           
           // Calculate image coordinates of tap point
           // Transform model: screenPos = (imagePos - imgCenter) * scale + imgCenter + translate
@@ -466,9 +485,9 @@ export function useMapTransforms({
           
           const clamped = clampViewport(
             targetScale, newTranslateX, newTranslateY,
-            safeScreenWidth, safeScreenHeight,
-            safeImageWidth, safeImageHeight,
-            safeMinScale, safeMaxScale
+            screenWSV.value, screenHSV.value,
+            imageWSV.value, imageHSV.value,
+            minScaleSV.value, maxScaleSV.value
           );
           
           scale.value = withSpring(clamped.scale, springConfig);
@@ -478,7 +497,7 @@ export function useMapTransforms({
           runOnJS(notifyChange)(clamped.scale, clamped.translateX, clamped.translateY);
         }
       }),
-    [safeScreenWidth, safeScreenHeight, safeImageWidth, safeImageHeight, safeMinScale, safeMaxScale, notifyChange]
+    [notifyChange]
   );
 
   // Compose all gestures

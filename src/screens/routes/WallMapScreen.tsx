@@ -618,6 +618,7 @@ const createStyles = (
       minHeight: 200,
       position: 'relative',
       overflow: 'hidden',
+      direction: 'ltr',
       backgroundColor: theme.surface,
       borderWidth: 2,
       borderColor: theme.border,

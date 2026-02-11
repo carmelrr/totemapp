@@ -184,6 +184,7 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 20, // Above routes (zIndex 10)
     elevation: 20, // Android needs elevation for z-ordering
+    direction: 'ltr',
   },
   labelWrapper: {
     position: 'absolute',

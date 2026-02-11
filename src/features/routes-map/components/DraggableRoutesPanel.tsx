@@ -87,7 +87,7 @@ export default function DraggableRoutesPanel({
   const maxHeight = SCREEN_HEIGHT * HEIGHT_LIMITS.MAX;
   const defaultHeight = initialHeightProp 
     ? Math.max(minHeight, Math.min(maxHeight, initialHeightProp)) 
-    : SCREEN_HEIGHT * 0.65;
+    : SCREEN_HEIGHT * 0.45;
   
   // Current panel height (animated) — use external shared value if provided
   const internalPanelHeight = useSharedValue(defaultHeight);

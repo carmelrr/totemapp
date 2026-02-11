@@ -1,28 +1,26 @@
 // App.js
-import { I18nManager } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { I18nManager, Platform } from 'react-native';
+import * as Updates from 'expo-updates';
 
-// Synchronize I18nManager RTL state with saved language preference.
-// AsyncStorage.getItem is technically async, but in practice the native
-// module returns almost instantly on subsequent launches because the
-// JS bundle waits for native modules to initialize. The RTL flag is
-// latched — once set it persists across reloads, so this only matters
-// on first launch or when the user switches language.
-(async () => {
-  try {
-    const lang = await AsyncStorage.getItem('app_language');
-    const shouldBeRTL = lang !== 'en'; // default Hebrew = RTL
-    if (I18nManager.isRTL !== shouldBeRTL) {
-      I18nManager.allowRTL(shouldBeRTL);
-      I18nManager.forceRTL(shouldBeRTL);
-    }
-  } catch (_) {
-    // First launch — default to RTL (Hebrew)
-    if (!I18nManager.isRTL) {
-      I18nManager.allowRTL(true);
-      I18nManager.forceRTL(true);
-    }
-  }
-})();
+// Force LTR layout for ALL users regardless of device language settings.
+// Hebrew text direction is handled per-component via writingDirection style,
+// but the overall app layout must always be LTR to keep the map, flash
+// rings, and all visual elements consistent.
+
+if (I18nManager.isRTL) {
+  // User has stale RTL state from a previous version — flip to LTR and
+  // reload so the change takes visual effect immediately.
+  I18nManager.allowRTL(false);
+  I18nManager.forceRTL(false);
+  // reloadAsync works in both production and dev; on Android it restarts
+  // the JS bundle, on iOS it behaves like a full re-launch.
+  Updates.reloadAsync().catch(() => {
+    // Fallback: the flags are saved — next cold start will be LTR.
+  });
+} else {
+  // Already LTR — just make sure the flags stay locked.
+  I18nManager.allowRTL(false);
+  I18nManager.forceRTL(false);
+}
 
 export { default } from "./src/App";

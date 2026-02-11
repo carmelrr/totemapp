@@ -80,6 +80,38 @@ export const he: TranslationKeys = {
     signUpError: "שגיאת הרשמה",
   },
 
+  // מחיקת חשבון
+  deleteAccount: {
+    title: "מחיקת חשבון",
+    warningTitle: "פעולה זו היא סופית",
+    warningBody: "מחיקת החשבון שלך תסיר לצמיתות:",
+    dataProfile: "פרטי הפרופיל שלך",
+    dataRoutes: "כל המסלולים השמורים וההתקדמות",
+    dataPhotos: "כל התמונות שהועלו",
+    dataSocial: "עוקבים, נעקבים ונתונים חברתיים",
+    dataCommunity: "מסלולים קהילתיים שהוגשו",
+    irreversible: "פעולה זו היא בלתי הפיכה. לא תוכל לשחזר את הנתונים שלך.",
+    typeToConfirm: 'הקלד "DELETE" לאישור:',
+    deleteButton: "מחק את החשבון שלי לצמיתות",
+    deleteForever: "מחק לצמיתות",
+    finalConfirmTitle: "האם אתה בטוח לחלוטין?",
+    finalConfirmMessage: "פעולה זו תמחק לצמיתות את החשבון שלך ואת כל הנתונים המשויכים. לא ניתן לבטל פעולה זו.",
+    successTitle: "החשבון נמחק",
+    successMessage: "החשבון שלך וכל הנתונים נמחקו לצמיתות.",
+    errorTitle: "שגיאה",
+    genericError: "משהו השתבש. נסה שוב.",
+    notLoggedIn: "עליך להיות מחובר כדי למחוק את החשבון שלך.",
+    enterPassword: "נא להזין את הסיסמה שלך.",
+    reAuthFailed: "אימות מחדש נכשל. בדוק את הסיסמה.",
+    googleReAuthFailed: "לא ניתן לאמת מחדש עם Google. נסה שוב.",
+    reAuthRequiredTitle: "נדרש אימות מחדש",
+    reAuthRequiredMessage: "לצורך אבטחה, נא לאמת מחדש לפני מחיקת החשבון.",
+    reAuthTitle: "אמת מחדש כדי להמשיך",
+    reAuthGoogle: "אמת מחדש עם Google",
+    reAuthPassword: "אמת ומחק",
+    sidePanelButton: "מחיקת חשבון",
+  },
+
   // Profile
   profile: {
     title: "פרופיל",

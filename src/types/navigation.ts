@@ -14,6 +14,7 @@ export type RootStackParamList = {
   MainTabs: NavigatorScreenParams<RootTabParamList>;
   Competitions: NavigatorScreenParams<CompetitionStackParamList>;
   RolesManagement: undefined;
+  DeleteAccount: undefined;
 };
 
 // ===== Main Tab Navigator =====

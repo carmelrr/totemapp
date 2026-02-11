@@ -355,6 +355,181 @@ exports.setUserRoles = onCall(
 const objToTopView = require("./objToTopView");
 exports.objToTopView = objToTopView.objToTopView;
 
+// ==================== Delete Account ====================
+/**
+ * Callable Cloud Function: deleteAccount
+ *
+ * – Authenticated users only; deletes data for request.auth.uid.
+ * – Recursively deletes /users/{uid} and all subcollections.
+ * – Deletes docs referencing the uid in related collections.
+ * – Deletes user files from Storage.
+ * – Finally deletes the Firebase Auth user record.
+ */
+exports.deleteAccount = onCall(
+  { maxInstances: 5 },
+  async (request) => {
+    // 1. Must be authenticated
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Authentication required");
+    }
+
+    const uid = request.auth.uid;
+    logger.info(`[deleteAccount] Starting deletion for uid=${uid}`);
+
+    // Helper: recursively delete a document and all its subcollections
+    async function deleteDocRecursive(docRef) {
+      const subcollections = await docRef.listCollections();
+      for (const subcol of subcollections) {
+        const snap = await subcol.get();
+        for (const subDoc of snap.docs) {
+          await deleteDocRecursive(subDoc.ref);
+        }
+      }
+      await docRef.delete();
+    }
+
+    // Helper: delete docs in a collection where a field matches uid
+    async function deleteByField(collectionName, fieldName) {
+      const snapshot = await db
+        .collection(collectionName)
+        .where(fieldName, "==", uid)
+        .get();
+      if (snapshot.empty) return 0;
+      const batch = db.batch();
+      let count = 0;
+      snapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+        count++;
+      });
+      await batch.commit();
+      return count;
+    }
+
+    try {
+      // ---- A) Delete /users/{uid} doc + subcollections ----
+      const userDocRef = db.collection("users").doc(uid);
+      const userDocSnap = await userDocRef.get();
+      if (userDocSnap.exists) {
+        await deleteDocRecursive(userDocRef);
+        logger.info(`[deleteAccount] Deleted /users/${uid} and subcollections`);
+      }
+
+      // ---- B) Delete docs in related collections ----
+      // Community routes created by this user
+      const communityRoutes = await db
+        .collection("communityRoutes")
+        .where("userId", "==", uid)
+        .get();
+      for (const routeDoc of communityRoutes.docs) {
+        const routeId = routeDoc.id;
+        const routeData = routeDoc.data();
+
+        // Delete the route image from Storage
+        if (routeData.imageUrl) {
+          try {
+            const match = routeData.imageUrl.match(/\/o\/(.+?)\?/);
+            if (match) {
+              const storagePath = decodeURIComponent(match[1]);
+              await storage.bucket().file(storagePath).delete();
+            }
+          } catch (imgErr) {
+            logger.warn(`[deleteAccount] Image delete failed: ${imgErr.message}`);
+          }
+        }
+
+        // Delete associated comments, likes, feedback, sends
+        const relatedCollections = [
+          "communityRouteComments",
+          "communityRouteLikes",
+          "communityRouteFeedback",
+          "communityRouteSends",
+        ];
+        for (const col of relatedCollections) {
+          const snap = await db.collection(col).where("routeId", "==", routeId).get();
+          if (!snap.empty) {
+            const batch = db.batch();
+            snap.forEach((d) => batch.delete(d.ref));
+            await batch.commit();
+          }
+        }
+
+        // Delete the route doc
+        await routeDoc.ref.delete();
+      }
+      logger.info(`[deleteAccount] Deleted ${communityRoutes.size} community routes`);
+
+      // Delete user's likes / comments / sends / feedback across all routes
+      const userReferenceCollections = [
+        { collection: "communityRouteComments", field: "userId" },
+        { collection: "communityRouteLikes", field: "userId" },
+        { collection: "communityRouteFeedback", field: "userId" },
+        { collection: "communityRouteSends", field: "userId" },
+        // TODO: Add more collections as needed, e.g.:
+        // { collection: "bookings", field: "userId" },
+        // { collection: "orders", field: "userId" },
+        // { collection: "sessions", field: "userId" },
+      ];
+
+      for (const { collection, field } of userReferenceCollections) {
+        const count = await deleteByField(collection, field);
+        if (count > 0) {
+          logger.info(`[deleteAccount] Deleted ${count} docs from ${collection}`);
+        }
+      }
+
+      // Delete follower / following relationships
+      const followersSnap = await db
+        .collection("followers")
+        .where("followerId", "==", uid)
+        .get();
+      if (!followersSnap.empty) {
+        const batch = db.batch();
+        followersSnap.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+      const followingSnap = await db
+        .collection("followers")
+        .where("followingId", "==", uid)
+        .get();
+      if (!followingSnap.empty) {
+        const batch = db.batch();
+        followingSnap.forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+
+      // ---- C) Delete user files from Storage ----
+      // Best practice: store all user files under  users/{uid}/
+      // Then delete the entire prefix.
+      try {
+        const bucket = storage.bucket();
+        const [files] = await bucket.getFiles({ prefix: `users/${uid}/` });
+        for (const file of files) {
+          await file.delete();
+        }
+        logger.info(`[deleteAccount] Deleted ${files.length} storage files`);
+      } catch (storageErr) {
+        // Storage might throw if no files exist; that's fine.
+        logger.warn(`[deleteAccount] Storage cleanup: ${storageErr.message}`);
+      }
+
+      // ---- D) Delete Firebase Auth user ----
+      await getAuth().deleteUser(uid);
+      logger.info(`[deleteAccount] Deleted auth user ${uid}`);
+
+      return { success: true, message: "Account and all data deleted successfully." };
+    } catch (error) {
+      logger.error(`[deleteAccount] Error for uid=${uid}:`, error);
+
+      // If it's a "user not found" from Auth, the user was already deleted
+      if (error.code === "auth/user-not-found") {
+        return { success: true, message: "Account already deleted." };
+      }
+
+      throw new HttpsError("internal", "Failed to delete account. Please try again.");
+    }
+  }
+);
+
 // Create and deploy your first functions
 // https://firebase.google.com/docs/functions/get-started
 

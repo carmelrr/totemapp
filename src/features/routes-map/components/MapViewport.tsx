@@ -194,7 +194,14 @@ export default function MapViewport({
     <View style={styles.container} onLayout={handleLayout}>
       <GestureDetector gesture={combinedGesture}>
         <Animated.View style={styles.gestureContainer} collapsable={false}>
-          <Animated.View style={[styles.mapContainer, transforms.mapContainerStyle]} collapsable={false}>
+          <Animated.View
+            style={[
+              styles.mapContainer,
+              { width: imageDimensions.imgW, height: imageDimensions.imgH },
+              transforms.mapContainerStyle,
+            ]}
+            collapsable={false}
+          >
             <DynamicWallMap
               room={room}
               width={imageDimensions.imgW}
@@ -223,6 +230,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
+    direction: 'ltr',
   },
   loadingContainer: {
     flex: 1,

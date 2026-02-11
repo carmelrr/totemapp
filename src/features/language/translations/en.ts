@@ -78,6 +78,38 @@ export const en = {
     signUpError: "Sign Up Error",
   },
 
+  // Delete Account
+  deleteAccount: {
+    title: "Delete Account",
+    warningTitle: "This action is permanent",
+    warningBody: "Deleting your account will permanently remove:",
+    dataProfile: "Your profile information",
+    dataRoutes: "All your saved routes and progress",
+    dataPhotos: "All uploaded photos",
+    dataSocial: "Followers, following, and social data",
+    dataCommunity: "Community route submissions",
+    irreversible: "This action is IRREVERSIBLE. You will not be able to recover your data.",
+    typeToConfirm: 'Type "DELETE" to confirm:',
+    deleteButton: "Permanently Delete My Account",
+    deleteForever: "Delete Forever",
+    finalConfirmTitle: "Are you absolutely sure?",
+    finalConfirmMessage: "This will permanently delete your account and all associated data. This action CANNOT be undone.",
+    successTitle: "Account Deleted",
+    successMessage: "Your account and all data have been permanently deleted.",
+    errorTitle: "Error",
+    genericError: "Something went wrong. Please try again.",
+    notLoggedIn: "You must be logged in to delete your account.",
+    enterPassword: "Please enter your password.",
+    reAuthFailed: "Re-authentication failed. Check your password.",
+    googleReAuthFailed: "Could not re-authenticate with Google. Please try again.",
+    reAuthRequiredTitle: "Re-authentication Required",
+    reAuthRequiredMessage: "For security, please re-authenticate before deleting your account.",
+    reAuthTitle: "Re-authenticate to continue",
+    reAuthGoogle: "Re-authenticate with Google",
+    reAuthPassword: "Verify & Delete",
+    sidePanelButton: "Delete Account",
+  },
+
   // Profile
   profile: {
     title: "Profile",

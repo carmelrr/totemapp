@@ -488,6 +488,7 @@ const styles = StyleSheet.create({
   },
   imageWrapper: {
     flex: 1,
+    direction: 'ltr' as const,
   },
   image: {
     width: "100%",

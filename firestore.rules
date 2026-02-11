@@ -210,8 +210,12 @@ service cloud.firestore {
       // משתמשים יכולים לעדכן רק את התגובות שלהם
       allow update: if isAuthenticated() && 
         resource.data.userId == request.auth.uid;
-      // משתמשים יכולים למחוק רק את התגובות שלהם או מנהל
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      // מחיקה: בעל התגובה, מנהל, או יוצר המסלול
+      allow delete: if isAdmin() || 
+        (isAuthenticated() && resource.data.userId == request.auth.uid) ||
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/communityRoutes/$(resource.data.routeId)) &&
+         get(/databases/$(database)/documents/communityRoutes/$(resource.data.routeId)).data.createdBy == request.auth.uid);
     }
     
     match /communityRouteLikes/{likeId} {
@@ -219,9 +223,12 @@ service cloud.firestore {
       // משתמש יכול ליצור לייק רק עם ה-userId שלו
       allow create: if isAuthenticated() && 
         request.resource.data.userId == request.auth.uid;
-      // משתמש יכול למחוק רק את הלייקים שלו
-      allow delete: if isAuthenticated() && 
-        resource.data.userId == request.auth.uid;
+      // מחיקה: בעל הלייק, מנהל, או יוצר המסלול
+      allow delete: if isAdmin() ||
+        (isAuthenticated() && resource.data.userId == request.auth.uid) ||
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/communityRoutes/$(resource.data.routeId)) &&
+         get(/databases/$(database)/documents/communityRoutes/$(resource.data.routeId)).data.createdBy == request.auth.uid);
     }
 
     // משוב על מסלולי קהילה (דירוג כוכבים ודרגה מוצעת)
@@ -233,8 +240,12 @@ service cloud.firestore {
       // משתמשים יכולים לעדכן רק את המשוב שלהם
       allow update: if isAuthenticated() && 
         resource.data.userId == request.auth.uid;
-      // משתמשים יכולים למחוק רק את המשוב שלהם או מנהל
-      allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      // מחיקה: בעל המשוב, מנהל, או יוצר המסלול
+      allow delete: if isAdmin() || 
+        (isAuthenticated() && resource.data.userId == request.auth.uid) ||
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/communityRoutes/$(resource.data.routeId)) &&
+         get(/databases/$(database)/documents/communityRoutes/$(resource.data.routeId)).data.createdBy == request.auth.uid);
     }
 
     // ==================== Spray Wall Collections ====================
@@ -469,9 +480,12 @@ service cloud.firestore {
       // משתמשים יכולים לעדכן רק את שלהם
       allow update: if isAuthenticated() && 
         resource.data.userId == request.auth.uid;
-      // משתמשים יכולים למחוק רק את שלהם
-      allow delete: if isAuthenticated() && 
-        resource.data.userId == request.auth.uid;
+      // מחיקה: בעל השליחה, מנהל, או יוצר המסלול
+      allow delete: if isAdmin() ||
+        (isAuthenticated() && resource.data.userId == request.auth.uid) ||
+        (isAuthenticated() && 
+         exists(/databases/$(database)/documents/communityRoutes/$(resource.data.routeId)) &&
+         get(/databases/$(database)/documents/communityRoutes/$(resource.data.routeId)).data.createdBy == request.auth.uid);
     }
 
     // ==================== User Routes ====================

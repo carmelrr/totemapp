@@ -5,7 +5,7 @@
  */
 
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions, I18nManager } from 'react-native';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,7 +51,7 @@ export function SwipeableRouteContainer({
         <View style={styles.indicatorContent}>
           {hasPrev && (
             <Ionicons
-              name={I18nManager.isRTL ? 'chevron-forward' : 'chevron-back'}
+              name={'chevron-back'}
               size={16}
               color={theme.textSecondary}
               style={styles.arrowIcon}
@@ -62,7 +62,7 @@ export function SwipeableRouteContainer({
           </Text>
           {hasNext && (
             <Ionicons
-              name={I18nManager.isRTL ? 'chevron-back' : 'chevron-forward'}
+              name={'chevron-forward'}
               size={16}
               color={theme.textSecondary}
               style={styles.arrowIcon}

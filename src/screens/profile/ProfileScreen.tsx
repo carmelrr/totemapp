@@ -163,6 +163,11 @@ const ProfileScreen: React.FC = () => {
         onThemeToggle={toggleTheme}
         isDarkMode={isDarkMode}
         onLogout={profileData.handleLogout}
+        onDeleteAccount={() => {
+          sidePanelData.toggleSidePanel();
+          // Navigate to DeleteAccount in the root stack
+          (navigation as any).getParent()?.getParent()?.navigate('DeleteAccount');
+        }}
         onPrivacySettings={() => {
           sidePanelData.toggleSidePanel();
           // Navigate to UserProfile with settings tab open

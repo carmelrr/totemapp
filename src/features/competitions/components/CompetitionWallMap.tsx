@@ -212,7 +212,14 @@ export default function CompetitionWallMap({
     <View style={styles.container} onLayout={handleLayout}>
       <GestureDetector gesture={composedGesture}>
         <Animated.View style={styles.gestureContainer} collapsable={false}>
-          <Animated.View style={[styles.mapContainer, transforms.mapContainerStyle]} collapsable={false}>
+          <Animated.View
+            style={[
+              styles.mapContainer,
+              { width: imageDimensions.imgW, height: imageDimensions.imgH },
+              transforms.mapContainerStyle,
+            ]}
+            collapsable={false}
+          >
             {/* Wall image - dynamic map from wall editor */}
             {room ? (
               <DynamicWallMap
@@ -224,32 +231,34 @@ export default function CompetitionWallMap({
             ) : (
               <View style={{ width: imageDimensions.imgW, height: imageDimensions.imgH, backgroundColor: theme.card }} />
             )}
-            
-            {/* Route circles layer */}
-            <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents={isEditing ? 'none' : 'box-none'}>
-              {routes.map((route) => (
-                <CompetitionRouteCircle
-                  key={route.id}
-                  route={route}
-                  imageWidth={imageDimensions.imgW}
-                  imageHeight={imageDimensions.imgH}
-                  wallWidth={wallWidth}
-                  wallHeight={wallHeight}
-                  scale={transforms.scale}
-                  onPress={onRoutePress}
-                  selected={selectedRouteId === route.id}
-                  interactive={isInteractive || isEditing}
-                  isCompleted={userCompletedRoutes.includes(route.id)}
-                  completionCount={routeCompletionCounts[route.id]}
-                  circleSize={circleSize}
-                  displayLabel={routePrefix ? `${routePrefix}${route.routeNumber}` : undefined}
-                />
-              ))}
-            </View>
 
             {/* Children (e.g., editing indicator) */}
             {children}
           </Animated.View>
+          
+          {/* Route circles layer - outside scaled container for crisp rendering on iOS */}
+          <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents={isEditing ? 'none' : 'box-none'}>
+            {routes.map((route) => (
+              <CompetitionRouteCircle
+                key={route.id}
+                route={route}
+                imageWidth={imageDimensions.imgW}
+                imageHeight={imageDimensions.imgH}
+                wallWidth={wallWidth}
+                wallHeight={wallHeight}
+                scale={transforms.scale}
+                translateX={transforms.translateX}
+                translateY={transforms.translateY}
+                onPress={onRoutePress}
+                selected={selectedRouteId === route.id}
+                interactive={isInteractive || isEditing}
+                isCompleted={userCompletedRoutes.includes(route.id)}
+                completionCount={routeCompletionCounts[route.id]}
+                circleSize={circleSize}
+                displayLabel={routePrefix ? `${routePrefix}${route.routeNumber}` : undefined}
+              />
+            ))}
+          </View>
         </Animated.View>
       </GestureDetector>
 
@@ -280,6 +289,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   mapContainer: {
     position: 'absolute',
     transformOrigin: 'center center',
+    direction: 'ltr',
   },
   editingBadge: {
     position: 'absolute',

@@ -138,15 +138,14 @@ export default function RoutesMapScreen() {
   const [headerHeight, setHeaderHeight] = useState(insets.top + 46); // Dynamic header height
 
   // Shared value for panel height — used by the DraggableRoutesPanel
-  const panelHeightSV = useSharedValue(height * 0.65);
+  const panelHeightSV = useSharedValue(height * 0.45);
 
   // Shared value for current zoom level — drives the map constraint animation
   const zoomScaleSV = useSharedValue(1);
 
-  // Zoom threshold: when seeing ~80% of the map (scale ≈ 1.25), free the map
-  // from the panel constraint. Below this, the map stays centered between
-  // the header and the routes panel.
-  const ZOOM_FREE_THRESHOLD = 1.25;
+  // Zoom threshold: free the map from the panel constraint almost immediately
+  // when zooming. This ensures the user can navigate freely.
+  const ZOOM_FREE_THRESHOLD = 1.05;
 
   // Animated style: constrain map between header and panel when not zoomed,
   // let it extend behind the panel when zoomed in past threshold

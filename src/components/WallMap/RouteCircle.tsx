@@ -13,6 +13,8 @@ interface RouteCircleProps {
   wallWidth: number;
   wallHeight: number;
   scale: SharedValue<number>;
+  translateX: SharedValue<number>;
+  translateY: SharedValue<number>;
   onPress?: (route: RouteDoc) => void;
   onLongPress?: (route: RouteDoc) => void;
   selected?: boolean;
@@ -30,6 +32,8 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   wallWidth,
   wallHeight,
   scale,
+  translateX,
+  translateY,
   onPress,
   onLongPress,
   selected = false,
@@ -97,12 +101,16 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   const baseOffset = baseSize / 2;
   const baseBorderWidth = selected ? 3 : 1;
 
-  // עיצוב העיגול - מיקום קבוע, transform לפיצוי זום
+  // עיצוב העיגול - ממוקם בקואורדינטות מסך (לא בתוך קונטיינר מוגדל)
+  // זה מונע טשטוש ב-iOS כי העיגול לא עובר rasterization ברזולוציה נמוכה
   const circleStyle = useAnimatedStyle(() => {
     const currentScale = scale?.value ?? 1;
     const safeScale = Number.isFinite(currentScale) && currentScale > 0 
       ? Math.min(Math.max(currentScale, 0.1), 10) 
       : 1;
+    
+    const tx = translateX?.value ?? 0;
+    const ty = translateY?.value ?? 0;
     
     // At low zoom (scale ≤ 1.8), show circles at HALF size to reduce overlap.
     // Smoothly transition to full size between scale 1.8 and 2.2.
@@ -114,10 +122,17 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       Extrapolation.CLAMP
     );
     
+    // Calculate screen position from image coordinates
+    // Transform model: screenPos = (imagePos - imgCenter) * scale + imgCenter + translate
+    const imgCenterX = imageWidth / 2;
+    const imgCenterY = imageHeight / 2;
+    const screenX = (precomputedValues.xImg - imgCenterX) * safeScale + imgCenterX + tx;
+    const screenY = (precomputedValues.yImg - imgCenterY) * safeScale + imgCenterY + ty;
+    
     return {
       position: 'absolute',
-      left: precomputedValues.xImg - baseOffset,
-      top: precomputedValues.yImg - baseOffset,
+      left: screenX - baseOffset,
+      top: screenY - baseOffset,
       width: baseSize,
       height: baseSize,
       borderRadius: baseSize / 2,
@@ -127,7 +142,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       elevation: selected ? 8 : 4,
       justifyContent: 'center',
       alignItems: 'center',
-      transform: [{ scale: sizeFactor / safeScale }],
+      transform: [{ scale: sizeFactor }],
     };
   });
 
@@ -186,6 +201,8 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     prevProps.wallWidth === nextProps.wallWidth &&
     prevProps.wallHeight === nextProps.wallHeight &&
     prevProps.scale === nextProps.scale && // השוואת reference במקום קריאת value
+    prevProps.translateX === nextProps.translateX &&
+    prevProps.translateY === nextProps.translateY &&
     prevProps.gesturesDisabled === nextProps.gesturesDisabled &&
     prevProps.onPress === nextProps.onPress &&
     prevProps.onLongPress === nextProps.onLongPress

@@ -509,7 +509,14 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
     <View style={containerStyle} onLayout={handleLayout}>
       <GestureDetector gesture={composedGesture}>
         <Animated.View style={styles.gestureContainer} collapsable={false}>
-          <Animated.View style={[styles.mapContainer, transforms.mapContainerStyle]} collapsable={false}>
+          <Animated.View
+            style={[
+              styles.mapContainer,
+              { width: imageDimensions.imgW, height: imageDimensions.imgH },
+              transforms.mapContainerStyle,
+            ]}
+            collapsable={false}
+          >
             {/* Wall image - dynamic map from wall editor */}
             {room ? (
               <DynamicWallMap
@@ -521,28 +528,31 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
               />
             ) : null}
             
-            {/* שכבת המסלולים */}
-            <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents={onMapTap ? 'none' : 'box-none'}>
-              {routes.map((route) => (
-                <RouteCircle
-                  key={route.id}
-                  route={route}
-                  imageWidth={imageDimensions.imgW}
-                  imageHeight={imageDimensions.imgH}
-                  wallWidth={wallWidth}
-                  wallHeight={wallHeight}
-                  scale={transforms.scale}
-                  onPress={onRoutePress}
-                  onLongPress={onRouteLongPress}
-                  selected={selectedRouteId === route.id}
-                  gesturesDisabled={!!onMapTap} // Disable route gestures when in move mode
-                />
-              ))}
-            </View>
-            
             {/* תוכן נוסף */}
             {children}
           </Animated.View>
+          
+          {/* שכבת המסלולים - מחוץ לקונטיינר המוגדל כדי למנוע טשטוש ב-iOS */}
+          {/* העיגולים ממוקמים בקואורדינטות מסך ונשארים חדים בכל רמת זום */}
+          <View style={[StyleSheet.absoluteFill, { zIndex: 10 }]} pointerEvents={onMapTap ? 'none' : 'box-none'}>
+            {routes.map((route) => (
+              <RouteCircle
+                key={route.id}
+                route={route}
+                imageWidth={imageDimensions.imgW}
+                imageHeight={imageDimensions.imgH}
+                wallWidth={wallWidth}
+                wallHeight={wallHeight}
+                scale={transforms.scale}
+                translateX={transforms.translateX}
+                translateY={transforms.translateY}
+                onPress={onRoutePress}
+                onLongPress={onRouteLongPress}
+                selected={selectedRouteId === route.id}
+                gesturesDisabled={!!onMapTap} // Disable route gestures when in move mode
+              />
+            ))}
+          </View>
         </Animated.View>
       </GestureDetector>
       
@@ -583,6 +593,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     position: 'absolute',
     top: 0,
     left: 0,
+    direction: 'ltr',
   },
   loadingContainer: {
     flex: 1,

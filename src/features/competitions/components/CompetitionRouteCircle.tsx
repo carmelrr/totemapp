@@ -7,10 +7,9 @@
  */
 
 import React, { useMemo } from 'react';
-import { Vibration } from 'react-native';
+import { Vibration, Text } from 'react-native';
 import Animated, { 
   useAnimatedStyle, 
-  useDerivedValue, 
   SharedValue, 
   runOnJS 
 } from 'react-native-reanimated';
@@ -25,6 +24,8 @@ interface CompetitionRouteCircleProps {
   wallWidth: number;
   wallHeight: number;
   scale: SharedValue<number>;
+  translateX: SharedValue<number>;
+  translateY: SharedValue<number>;
   onPress?: (route: CompetitionRoute) => void;
   selected?: boolean;
   interactive?: boolean; // true for totemtition, false for national_league display-only
@@ -77,6 +78,8 @@ const arePropsEqual = (
   if (prevProps.completionCount !== nextProps.completionCount) return false;
   if (prevProps.circleSize !== nextProps.circleSize) return false;
   if (prevProps.displayLabel !== nextProps.displayLabel) return false;
+  if (prevProps.translateX !== nextProps.translateX) return false;
+  if (prevProps.translateY !== nextProps.translateY) return false;
   
   return true;
 };
@@ -91,6 +94,8 @@ const CompetitionRouteCircle = React.memo<CompetitionRouteCircleProps>(({
   wallWidth,
   wallHeight,
   scale,
+  translateX,
+  translateY,
   onPress,
   selected = false,
   interactive = true,
@@ -149,53 +154,36 @@ const CompetitionRouteCircle = React.memo<CompetitionRouteCircleProps>(({
     return null;
   }
 
-  // Compensated size - stays constant on screen regardless of zoom
-  const compensatedSize = useDerivedValue(() => {
-    const currentScale = scale?.value ?? 1;
-    const safeScale = Number.isFinite(currentScale) && currentScale > 0 
-      ? Math.min(Math.max(currentScale, 0.1), 10) 
-      : 1;
-    return precomputedValues.baseSize / safeScale;
-  });
+  // Base sizes (constant)
+  const baseSize = precomputedValues.baseSize;
+  const baseOffset = baseSize / 2;
+  const baseBorderWidth = selected ? 3 : (isCompleted ? 2 : 1);
 
-  const compensatedFontSize = useDerivedValue(() => {
-    const currentScale = scale?.value ?? 1;
-    const safeScale = Number.isFinite(currentScale) && currentScale > 0 
-      ? Math.min(Math.max(currentScale, 0.1), 10) 
-      : 1;
-    return precomputedValues.baseFontSize / safeScale;
-  });
-
-  // Offset for centering the circle
-  const compensatedOffset = useDerivedValue(() => {
-    return compensatedSize.value / 2;
-  });
-
-  // Border width that compensates for zoom
-  const compensatedBorderWidth = useDerivedValue(() => {
-    const currentScale = scale?.value ?? 1;
-    const safeScale = Number.isFinite(currentScale) && currentScale > 0 
-      ? Math.min(Math.max(currentScale, 0.1), 10) 
-      : 1;
-    const baseBorder = selected ? 3 : (isCompleted ? 2 : 1);
-    return baseBorder / safeScale;
-  });
-
-  // Circle style with animation
+  // Circle style - positioned at screen coordinates for crisp rendering on iOS
   const circleStyle = useAnimatedStyle(() => {
-    const size = compensatedSize.value;
-    const offset = compensatedOffset.value;
-    const borderW = compensatedBorderWidth.value;
+    const currentScale = scale?.value ?? 1;
+    const safeScale = Number.isFinite(currentScale) && currentScale > 0 
+      ? Math.min(Math.max(currentScale, 0.1), 10) 
+      : 1;
+    
+    const tx = translateX?.value ?? 0;
+    const ty = translateY?.value ?? 0;
+    
+    // Calculate screen position from image coordinates
+    const imgCenterX = imageWidth / 2;
+    const imgCenterY = imageHeight / 2;
+    const screenX = (precomputedValues.xImg - imgCenterX) * safeScale + imgCenterX + tx;
+    const screenY = (precomputedValues.yImg - imgCenterY) * safeScale + imgCenterY + ty;
     
     return {
       position: 'absolute',
-      left: precomputedValues.xImg - offset,
-      top: precomputedValues.yImg - offset,
-      width: size,
-      height: size,
-      borderRadius: size / 2,
+      left: screenX - baseOffset,
+      top: screenY - baseOffset,
+      width: baseSize,
+      height: baseSize,
+      borderRadius: baseSize / 2,
       backgroundColor: isCompleted ? '#22c55e' : precomputedValues.colorHex,
-      borderWidth: borderW,
+      borderWidth: baseBorderWidth,
       borderColor: selected ? '#0066cc' : (isCompleted ? '#16a34a' : '#ffffff'),
       elevation: selected ? 8 : 4,
       justifyContent: 'center',
@@ -203,12 +191,12 @@ const CompetitionRouteCircle = React.memo<CompetitionRouteCircleProps>(({
     };
   });
 
-  const textStyle = useAnimatedStyle(() => ({
-    fontSize: compensatedFontSize.value,
+  const textStyle = {
+    fontSize: precomputedValues.baseFontSize,
     fontWeight: 'bold' as const,
     color: isCompleted ? '#ffffff' : precomputedValues.textColor,
     textAlign: 'center' as const,
-  }));
+  };
 
   const shadowStyle = {
     shadowColor: '#000000',
@@ -242,9 +230,9 @@ const CompetitionRouteCircle = React.memo<CompetitionRouteCircleProps>(({
   return (
     <GestureDetector gesture={tapGesture}>
       <Animated.View style={[circleStyle, shadowStyle]}>
-        <Animated.Text style={textStyle} allowFontScaling={false}>
+        <Text style={textStyle} allowFontScaling={false}>
           {routeLabel}
-        </Animated.Text>
+        </Text>
       </Animated.View>
     </GestureDetector>
   );

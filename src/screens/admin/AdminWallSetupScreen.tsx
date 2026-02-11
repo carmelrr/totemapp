@@ -402,6 +402,7 @@ const createStyles = (theme, layout, insets) => {
     },
     imageHolder: {
       position: "relative",
+      direction: "ltr",
     },
     image: {
       backgroundColor: "#f0f0f0",

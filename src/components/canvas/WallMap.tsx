@@ -120,7 +120,13 @@ export default function WallMap({
         <View style={styles.container} onLayout={handleLayout}>
             <GestureDetector gesture={transforms.composedGestures}>
                 <Animated.View style={styles.gestureContainer}>
-                    <Animated.View style={[styles.mapContainer, transforms.animatedStyle]}>
+                    <Animated.View
+                        style={[
+                            styles.mapContainer,
+                            { width: imageDimensions.imgW, height: imageDimensions.imgH },
+                            transforms.animatedStyle,
+                        ]}
+                    >
                         {/* תמונת הקיר - מפה דינמית מעורך הקירות */}
                         <DynamicWallMap
                             room={room}
@@ -176,6 +182,7 @@ const createStyles = (theme: any) => StyleSheet.create({
         position: 'absolute',
         top: 0,
         left: 0,
+        direction: 'ltr',
     },
     loadingContainer: {
         flex: 1,

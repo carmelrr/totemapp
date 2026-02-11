@@ -40,7 +40,7 @@ export default function CompetitionNavigator() {
       id={undefined}
       screenOptions={{
         headerShown: false,
-        animation: 'slide_from_left', // RTL friendly
+        animation: 'slide_from_right', // LTR layout
         contentStyle: {
           backgroundColor: theme.background,
         },

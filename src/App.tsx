@@ -3,7 +3,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { AccessibilityInfo, I18nManager } from "react-native";
+import { AccessibilityInfo } from "react-native";
 import { enableScreens } from "react-native-screens";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -24,15 +24,15 @@ import {
   AnnouncementEditorScreen 
 } from "@/features/announcements";
 import { WallEditorScreen } from "@/features/wall-editor";
+import DeleteAccountScreen from "@/screens/profile/DeleteAccountScreen";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 
 if (__DEV__) {
   console.log("🚀 App.tsx starting to load...");
 }
 
-// RTL is now managed dynamically by LanguageContext + App.js.
-// Hebrew → RTL, English → LTR.  I18nManager state is set in App.js at
-// launch and updated in LanguageContext.setLanguage on switch.
+// Layout is always forced to LTR in App.js for consistent visual layout.
+// Hebrew text direction is handled per-component via writingDirection style.
 
 // Enable React Native Screens for better performance and native feel
 enableScreens();
@@ -63,9 +63,25 @@ const Stack = createNativeStackNavigator();
 const RootStack = createNativeStackNavigator();
 
 // Navigation wrapper that uses the new Tab Navigator
+// Deep-link configuration
+const linking = {
+  prefixes: ['totem-app://'],
+  config: {
+    screens: {
+      DeleteAccount: 'delete-account',
+      MainTabs: {
+        screens: {
+          HomeTab: 'home',
+          ProfileTab: 'profile',
+        },
+      },
+    },
+  },
+};
+
 function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
   return (
-    <NavigationContainer>
+    <NavigationContainer linking={linking}>
       <RootStack.Navigator 
         id={undefined}
         screenOptions={{ headerShown: false }}
@@ -74,7 +90,7 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
         <RootStack.Group 
           screenOptions={{ 
             presentation: 'card',
-            animation: 'slide_from_left',
+            animation: 'slide_from_right',
           }}
         >
           <RootStack.Screen name="Competitions" component={CompetitionNavigator} />
@@ -106,6 +122,14 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
           <RootStack.Screen 
             name="WallEditor" 
             component={WallEditorScreen}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <RootStack.Screen 
+            name="DeleteAccount" 
+            component={DeleteAccountScreen}
             options={{
               headerShown: false,
               animation: 'slide_from_right',
@@ -170,7 +194,7 @@ export default function App() {
   if (!user) {
     if (__DEV__) console.log("🔧 No user, showing login screen");
     return (
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1, direction: 'ltr' }}>
         <SafeAreaProvider>
           <ThemeProvider>
             <LanguageProvider>
@@ -195,7 +219,7 @@ export default function App() {
   if (__DEV__) console.log("🔧 User logged in, rendering main app");
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureHandlerRootView style={{ flex: 1, direction: 'ltr' }}>
         <SafeAreaProvider>
           <ThemeProvider>
             <LanguageProvider>
