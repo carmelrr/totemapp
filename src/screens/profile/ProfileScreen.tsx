@@ -5,7 +5,7 @@ import { useNavigation } from "@react-navigation/native";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
 import { useAdmin } from "@/context/AdminContext";
-import { useRolesContext } from "@/features/roles";
+import { useMyShiftRoles } from "@/features/shifts";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import {
   createStyles,
@@ -29,8 +29,8 @@ const ProfileScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
   const navigation = useNavigation();
-  const { isAdmin, adminModeEnabled, toggleAdminMode } = useAdmin();
-  const { canManageRoles, canManageAnnouncements } = useRolesContext();
+  const { isAdmin } = useAdmin();
+  const { isWorker } = useMyShiftRoles();
 
   // Local state for modals
   const [statsModalVisible, setStatsModalVisible] = useState(false);
@@ -178,27 +178,16 @@ const ProfileScreen: React.FC = () => {
             });
           }
         }}
-        onAdminPanel={() => { }} // Placeholder - need to implement
-        onRolesManagement={() => {
+        onAdminPanel={() => {
           sidePanelData.toggleSidePanel();
-          // Navigate to RolesManagement in the root stack
-          (navigation as any).getParent()?.getParent()?.navigate('RolesManagement');
+          (navigation as any).getParent()?.getParent()?.navigate('AdminPanel');
         }}
-        onAnnouncementsManagement={() => {
+        onShiftsManagement={() => {
           sidePanelData.toggleSidePanel();
-          // Navigate to AnnouncementsManagement in the root stack
-          (navigation as any).getParent()?.getParent()?.navigate('AnnouncementsManagement');
+          (navigation as any).getParent()?.getParent()?.navigate('Shifts');
         }}
-        onWallEditor={() => {
-          sidePanelData.toggleSidePanel();
-          // Navigate to WallEditor in the root stack
-          (navigation as any).getParent()?.getParent()?.navigate('WallEditor');
-        }}
+        isWorker={isWorker}
         isAdmin={isAdmin}
-        adminModeEnabled={adminModeEnabled}
-        onAdminModeToggle={toggleAdminMode}
-        canManageRoles={canManageRoles}
-        canManageAnnouncements={canManageAnnouncements}
       />
     </SafeAreaView>
   );

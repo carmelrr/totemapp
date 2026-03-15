@@ -63,13 +63,16 @@ export const useWallTransform = (p: Params) => {
         let maxTy = 0;
 
         if (scaledImgW > viewW) {
-            minTx = -(scaledImgW - viewW);
-            maxTx = 0;
+            // Allow overscroll (30% of viewport) so edges can come into view
+            const overscrollX = viewW * 0.3;
+            minTx = -(scaledImgW - viewW) - overscrollX;
+            maxTx = overscrollX;
         }
 
         if (scaledImgH > viewH) {
-            minTy = -(scaledImgH - viewH);
-            maxTy = 0;
+            const overscrollY = viewH * 0.3;
+            minTy = -(scaledImgH - viewH) - overscrollY;
+            maxTy = overscrollY;
         }
 
         // אם התמונה קטנה מהמסך, נאפס לאמצע

@@ -219,6 +219,15 @@ export function useCompetitionLeaderboard(
         },
         category
       );
+    } else if (format === 'points_competition') {
+      unsubscribe = ResultsService.subscribeToPointsCompetitionLeaderboard(
+        competitionId,
+        (leaderboard) => {
+          setEntries(leaderboard);
+          setLoading(false);
+        },
+        category
+      );
     } else {
       unsubscribe = ResultsService.subscribeToLeaderboard(
         competitionId,

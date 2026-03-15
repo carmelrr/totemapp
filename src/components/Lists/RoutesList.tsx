@@ -1,11 +1,13 @@
 import React, { useCallback, useMemo } from 'react';
 import { View, FlatList, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { RouteDoc } from '@/features/routes-map/types/route';
 import { useFiltersStore, filterRoutes } from '@/store/useFiltersStore';
 import { getColorHex, getContrastTextColor } from '@/constants/colors';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language/LanguageContext';
 import { getColorTranslationKey } from '@/features/routes-map/utils/colors';
+import { getRouteDisplayName } from '@/features/routes-map/utils/colors';
 
 interface RoutesListProps {
   routes: RouteDoc[];
@@ -13,6 +15,10 @@ interface RoutesListProps {
   onRoutePress?: (route: RouteDoc) => void;
   onRouteLongPress?: (route: RouteDoc) => void;
   compact?: boolean; // For landscape mode - reduced padding
+  /** Multi-select mode */
+  multiSelectMode?: boolean;
+  multiSelectedIds?: Set<string>;
+  onToggleSelect?: (routeId: string) => void;
 }
 
 interface RouteItemProps {
@@ -21,6 +27,10 @@ interface RouteItemProps {
   onLongPress?: (route: RouteDoc) => void;
   theme: any;
   t: any;
+  language: 'he' | 'en';
+  multiSelectMode?: boolean;
+  isMultiSelected?: boolean;
+  onToggleSelect?: (routeId: string) => void;
 }
 
 // Helper function to get the actual color - handles both hex and color names
@@ -32,19 +42,12 @@ const getRouteColor = (color?: string): string => {
   return getColorHex(color) || '#808080';
 };
 
-const RouteItem = React.memo(({ route, onPress, onLongPress, theme, t }: RouteItemProps) => {
+const RouteItem = React.memo(({ route, onPress, onLongPress, theme, t, language, multiSelectMode, isMultiSelected, onToggleSelect }: RouteItemProps) => {
   const styles = createStyles(theme);
   
   // Get translated display name using color hex and grade
   const getDisplayName = (route: RouteDoc) => {
-    // Use color hex to get translated color name
-    if (route.color && route.grade) {
-      const colorKey = getColorTranslationKey(route.color);
-      const colorName = t.colors?.[colorKey] || t.colors?.custom || 'Custom';
-      return `${colorName} ${route.grade}`;
-    }
-    // Fallback to original name or generic fallback
-    return route.name || `${t.routes?.route || 'Route'} ${route.id.slice(-6)}`;
+    return getRouteDisplayName(route, language, t);
   };
   
   // Get community grade display for the right side of the list
@@ -69,6 +72,10 @@ const RouteItem = React.memo(({ route, onPress, onLongPress, theme, t }: RouteIt
   const starInfo = getStarDisplay(route.averageStarRating);
 
   const handlePress = () => {
+    if (multiSelectMode && onToggleSelect) {
+      onToggleSelect(route.id);
+      return;
+    }
     onPress?.(route);
   };
 
@@ -81,13 +88,27 @@ const RouteItem = React.memo(({ route, onPress, onLongPress, theme, t }: RouteIt
 
   return (
     <TouchableOpacity 
-      style={[styles.routeItem, { borderStartColor: routeColor }]} 
+      style={[
+        styles.routeItem, 
+        { borderStartColor: routeColor },
+        multiSelectMode && isMultiSelected && styles.routeItemSelected,
+      ]} 
       onPress={handlePress}
       onLongPress={handleLongPress}
       delayLongPress={500}
       activeOpacity={0.7}
     >
       <View style={styles.routeContent}>
+        {/* Multi-select checkbox */}
+        {multiSelectMode && (
+          <View style={styles.checkboxContainer}>
+            <Ionicons 
+              name={isMultiSelected ? "checkbox" : "square-outline"} 
+              size={22} 
+              color={isMultiSelected ? '#E53935' : theme.textSecondary} 
+            />
+          </View>
+        )}
         {/* Color accent circle */}
         <View style={styles.colorAccentContainer}>
           <View
@@ -172,9 +193,12 @@ const RoutesList = React.memo(function RoutesList({
   onRoutePress,
   onRouteLongPress,
   compact = false,
+  multiSelectMode = false,
+  multiSelectedIds,
+  onToggleSelect,
 }: RoutesListProps) {
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const styles = useMemo(() => createStyles(theme, compact), [theme, compact]);
   const filters = useFiltersStore(state => state.filters);
   const sorting = useFiltersStore(state => state.sorting);
@@ -189,8 +213,18 @@ const RoutesList = React.memo(function RoutesList({
   }, [routes, visibleRouteIds, filters, sorting, searchQuery]);
 
   const renderItem = useCallback(({ item }: { item: RouteDoc }) => (
-    <RouteItem route={item} onPress={onRoutePress} onLongPress={onRouteLongPress} theme={theme} t={t} />
-  ), [onRoutePress, onRouteLongPress, theme, t]);
+    <RouteItem 
+      route={item} 
+      onPress={onRoutePress} 
+      onLongPress={onRouteLongPress} 
+      theme={theme} 
+      t={t}
+      language={language}
+      multiSelectMode={multiSelectMode}
+      isMultiSelected={multiSelectedIds?.has(item.id) ?? false}
+      onToggleSelect={onToggleSelect}
+    />
+  ), [onRoutePress, onRouteLongPress, theme, t, multiSelectMode, multiSelectedIds, onToggleSelect]);
 
   const keyExtractor = useCallback((item: RouteDoc) => item.id, []);
 
@@ -248,6 +282,16 @@ const createStyles = (theme: any, compact: boolean = false) => StyleSheet.create
     shadowRadius: 6,
     elevation: 3,
     marginBottom: 4,
+  },
+  routeItemSelected: {
+    backgroundColor: 'rgba(229, 57, 53, 0.08)',
+    borderWidth: 1,
+    borderColor: '#E53935',
+  },
+  checkboxContainer: {
+    marginEnd: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   routeContent: {
     flexDirection: 'row',

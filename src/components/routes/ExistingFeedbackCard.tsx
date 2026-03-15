@@ -14,11 +14,13 @@ export interface ExistingFeedbackCardProps {
   comment?: string;
   videoUrl?: string;
   onEdit: () => void;
+  onUndoSend?: () => void;
   /** Labels for the rows */
   ratingLabel?: string;
   gradeLabel?: string;
   commentLabel?: string;
   editLabel?: string;
+  undoSendLabel?: string;
 }
 
 export const ExistingFeedbackCard: React.FC<ExistingFeedbackCardProps> = ({
@@ -27,10 +29,12 @@ export const ExistingFeedbackCard: React.FC<ExistingFeedbackCardProps> = ({
   comment,
   videoUrl,
   onEdit,
+  onUndoSend,
   ratingLabel,
   gradeLabel,
   commentLabel,
   editLabel,
+  undoSendLabel,
 }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
@@ -65,10 +69,17 @@ export const ExistingFeedbackCard: React.FC<ExistingFeedbackCardProps> = ({
       {/* Video */}
       {videoUrl ? <VideoLinkButton url={videoUrl} /> : null}
 
-      {/* Edit button */}
-      <TouchableOpacity style={styles.editButton} onPress={onEdit}>
-        <Text style={styles.editText}>✏️ {editLabel ?? t.common.edit}</Text>
-      </TouchableOpacity>
+      {/* Action buttons */}
+      <View style={styles.actionRow}>
+        <TouchableOpacity style={styles.editButton} onPress={onEdit}>
+          <Text style={styles.editText}>✏️ {editLabel ?? t.common.edit}</Text>
+        </TouchableOpacity>
+        {onUndoSend && (
+          <TouchableOpacity style={styles.undoButton} onPress={onUndoSend}>
+            <Text style={styles.undoText}>↩️ {undoSendLabel ?? t.routes?.undoSend ?? 'Undo Send'}</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 };
@@ -121,13 +132,26 @@ const createStyles = (theme: any) =>
       marginTop: 4,
       lineHeight: 20,
     },
-    editButton: {
+    actionRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
       marginTop: 14,
+    },
+    editButton: {
       alignSelf: 'flex-end',
     },
     editText: {
       fontSize: 14,
       color: theme.isDark ? '#4ade80' : '#15803D',
+      fontWeight: '700',
+    },
+    undoButton: {
+      alignSelf: 'flex-end',
+    },
+    undoText: {
+      fontSize: 14,
+      color: theme.isDark ? '#f87171' : '#DC2626',
       fontWeight: '700',
     },
   });

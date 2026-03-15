@@ -8,6 +8,7 @@ import {
   Switch 
 } from "react-native";
 import { useTheme } from "@/features/theme/ThemeContext";
+import { useLanguage } from "@/features/language";
 import { createStyles } from "../styles";
 import type { UserStats, GradeStatsMap, PrivacySettings } from "../types";
 
@@ -29,6 +30,7 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
   onPrivacyChange,
 }) => {
   const { theme } = useTheme();
+  const { t, language } = useLanguage();
   const styles = createStyles(theme);
 
   // Sort grades from easy to hard (V0, V1, V2, ... V17)
@@ -57,7 +59,7 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
     return (
       <View key={grade} style={styles.gradeStatRow}>
         <View style={styles.gradeStatHeader}>
-          <Text style={styles.gradeLabel}>גרייד {grade}</Text>
+          <Text style={styles.gradeLabel}>{t.gradeStats.grade(grade)}</Text>
           <Text style={styles.gradePercentage}>{percentage.toFixed(1)}%</Text>
         </View>
         <View style={styles.progressBarContainer}>
@@ -72,7 +74,7 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
           />
         </View>
         <Text style={styles.gradeStatDetails}>
-          {completed} מתוך {total} קווים הושלמו
+          {t.gradeStats.routesCompleted(completed, total)}
         </Text>
       </View>
     );
@@ -112,7 +114,7 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
       <View style={styles.modalContainer}>
         <View style={styles.modalContent}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>סטטיסטיקות מפורטות</Text>
+            <Text style={styles.modalTitle}>{t.gradeStats.detailedStats}</Text>
             <TouchableOpacity style={styles.modalCloseButton} onPress={onClose}>
               <Text style={styles.modalCloseText}>✕</Text>
             </TouchableOpacity>
@@ -123,20 +125,20 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
             {stats && (
               <View style={styles.overallStatsContainer}>
                 <Text style={styles.overallStatsText}>
-                  סה״כ {stats.totalRoutesSent} קווים נשלחו
+                  {t.gradeStats.totalRoutesSent(stats.totalRoutesSent)}
                 </Text>
                 <Text style={styles.overallStatsText}>
-                  גרייד הכי גבוה: {stats.highestGrade}
+                  {t.gradeStats.highestGrade(stats.highestGrade)}
                 </Text>
                 <Text style={styles.overallStatsText}>
-                  דירוג ממוצע: {stats.averageStarRating.toFixed(1)} ⭐
+                  {t.gradeStats.avgRating(stats.averageStarRating.toFixed(1))}
                 </Text>
               </View>
             )}
 
             {/* Grade Stats */}
             <View style={styles.sectionTitle}>
-              <Text style={styles.modalTitle}>סטטיסטיקות לפי גרייד</Text>
+              <Text style={styles.modalTitle}>{t.gradeStats.statsByGrade}</Text>
             </View>
             {sortedGradeEntries.map(([grade, data]) =>
               renderGradeStat(grade, data)
@@ -147,10 +149,10 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
               <View style={styles.joinDateContainer}>
                 <View style={styles.joinDateContent}>
                   <Text style={styles.joinDateText}>
-                    תאריך הצטרפות: {stats.joinDate.toLocaleDateString("he-IL")}
+                    {t.gradeStats.joinDate(stats.joinDate.toLocaleDateString(language === "he" ? "he-IL" : "en-US"))}
                   </Text>
                   <View style={styles.joinDatePrivacy}>
-                    {renderPrivacyToggle("showJoinDate", "הצג תאריך")}
+                    {renderPrivacyToggle("showJoinDate", t.gradeStats.showJoinDate)}
                   </View>
                 </View>
               </View>
@@ -158,32 +160,32 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
 
             {/* Privacy Settings */}
             <View style={styles.preferencesSection}>
-              <Text style={styles.sectionTitle}>הגדרות פרטיות</Text>
+              <Text style={styles.sectionTitle}>{t.gradeStats.privacySettings}</Text>
               <View style={styles.privacyEditNotification}>
                 <Text style={styles.privacyEditText}>
-                  בחר אילו נתונים יוצגו לאחרים בפרופיל שלך
+                  {t.gradeStats.privacyDescription}
                 </Text>
               </View>
               
               {renderPrivacyToggle(
                 "showHighestGrade",
-                "הצג גרייד הכי גבוה",
-                "הגרייד הכי קשה שהשלמת"
+                t.gradeStats.showHighestGrade,
+                t.gradeStats.showHighestGradeDesc
               )}
               {renderPrivacyToggle(
                 "showFeedbackCount",
-                "הצג כמות פידבקים",
-                "כמה פידבקים קיבלת על הקווים שלך"
+                t.gradeStats.showFeedbackCount,
+                t.gradeStats.showFeedbackCountDesc
               )}
               {renderPrivacyToggle(
                 "showAverageRating",
-                "הצג דירוג ממוצע",
-                "הדירוג הממוצע שקיבלת מאחרים"
+                t.gradeStats.showAvgRating,
+                t.gradeStats.showAvgRatingDesc
               )}
               {renderPrivacyToggle(
                 "showGradeStats",
-                "הצג סטטיסטיקות גרייד",
-                "פירוט הצלחות לפי רמת קושי"
+                t.gradeStats.showGradeStats,
+                t.gradeStats.showGradeStatsDesc
               )}
             </View>
           </ScrollView>

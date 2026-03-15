@@ -34,12 +34,15 @@ import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
 import { useAdmin } from "@/context/AdminContext";
 import { useActiveCompetitions, useOpenRegistrationCompetitions, useCompletedCompetitionsWithResults, Competition } from "@/features/competitions";
+import { ParticipantService } from "@/features/competitions/services/ParticipantService";
+import { CompetitionService } from "@/features/competitions/services/CompetitionService";
 import { ActiveCompetitionBanner } from "@/features/competitions/components/ActiveCompetitionBanner";
 import { OpenRegistrationBanner } from "@/features/competitions/components/OpenRegistrationBanner";
 import { CompletedCompetitionBanner } from "@/features/competitions/components/CompletedCompetitionBanner";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { CachedAvatar, prefetchAvatarImages } from "@/components/ui/CachedAvatar";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { useBlockedUsers } from "@/features/moderation/useBlockedUsers";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -118,6 +121,7 @@ export default function LeaderboardScreen() {
   const navigation = useNavigation<any>();
   const { isAdmin } = useAdmin();
   const layout = useResponsiveLayout();
+  const { isBlocked } = useBlockedUsers();
   const insets = useSafeAreaInsets();
   const { isLandscape, isTablet, width } = layout;
   const isPhoneLandscape = !isTablet && isLandscape;
@@ -142,6 +146,49 @@ export default function LeaderboardScreen() {
 
   // Completed competitions with visible results
   const { competitions: completedCompetitions, hasCompletedWithResults } = useCompletedCompetitionsWithResults();
+
+  // Track which points_competition IDs the user is registered for
+  const [registeredPointsCompIds, setRegisteredPointsCompIds] = useState<Set<string>>(new Set());
+  // Non-active points competitions where user is registered (to show even when not active)
+  const [userPointsCompetitions, setUserPointsCompetitions] = useState<Competition[]>([]);
+
+  // Check registration for points_competition format
+  useEffect(() => {
+    if (!currentUserId) return;
+    let cancelled = false;
+
+    const checkRegistrations = async () => {
+      try {
+        // Get all competitions to find points_competitions
+        const allComps = await CompetitionService.getAllCompetitions();
+        const pointsComps = allComps.filter(c => c.format === 'points_competition' && c.status !== 'cancelled');
+        
+        const registeredIds = new Set<string>();
+        const nonActiveRegistered: Competition[] = [];
+
+        await Promise.all(pointsComps.map(async (comp) => {
+          const participant = await ParticipantService.getParticipantByUserId(comp.id, currentUserId);
+          if (participant && (participant.status === 'approved' || participant.status === 'pending')) {
+            registeredIds.add(comp.id);
+            // If not active, add to the displayed list for registered users
+            if (comp.status !== 'active') {
+              nonActiveRegistered.push(comp);
+            }
+          }
+        }));
+
+        if (!cancelled) {
+          setRegisteredPointsCompIds(registeredIds);
+          setUserPointsCompetitions(nonActiveRegistered);
+        }
+      } catch (error) {
+        console.warn('Error checking points competition registrations:', error);
+      }
+    };
+
+    checkRegistrations();
+    return () => { cancelled = true; };
+  }, [currentUserId, activeCompetitions, openRegistrationCompetitions]);
 
   // Load users data with filtering - OPTIMIZED VERSION
   // Instead of querying per-user, we fetch all data once and compute locally
@@ -272,8 +319,8 @@ export default function LeaderboardScreen() {
 
   // Get users with points > 0
   const usersWithPoints = useMemo(
-    () => allUsers.filter((user) => user.points > 0),
-    [allUsers]
+    () => allUsers.filter((user) => user.points > 0 && !isBlocked(user.userId)),
+    [allUsers, isBlocked]
   );
 
   // Calculate ranks with tie handling
@@ -345,12 +392,30 @@ export default function LeaderboardScreen() {
   };
 
   // Combine active and open registration competitions for the carousel
-  // Filter out active competitions from open registration to avoid duplicates
+  // Filter out points_competition for non-registered users, add registered non-active ones
   const allDisplayCompetitions = useMemo(() => {
     const activeIds = new Set(activeCompetitions.map(c => c.id));
     const openNotActive = openRegistrationCompetitions.filter(c => !activeIds.has(c.id) && c.status !== 'active');
-    return [...activeCompetitions, ...openNotActive];
-  }, [activeCompetitions, openRegistrationCompetitions]);
+    let combined = [...activeCompetitions, ...openNotActive];
+    
+    // Filter out points_competition for users who are not registered
+    combined = combined.filter(c => {
+      if (c.format === 'points_competition') {
+        return registeredPointsCompIds.has(c.id);
+      }
+      return true;
+    });
+
+    // Add non-active points competitions where user IS registered (unique only)
+    const existingIds = new Set(combined.map(c => c.id));
+    userPointsCompetitions.forEach(c => {
+      if (!existingIds.has(c.id)) {
+        combined.push(c);
+      }
+    });
+
+    return combined;
+  }, [activeCompetitions, openRegistrationCompetitions, registeredPointsCompIds, userPointsCompetitions]);
 
   const hasMultipleCompetitions = allDisplayCompetitions.length > 1;
 
@@ -362,11 +427,18 @@ export default function LeaderboardScreen() {
   }, []);
 
   const handleCompetitionPress = (competition: Competition) => {
-    // Navigate to competition leaderboard tab
-    navigation.navigate('Competitions', {
-      screen: 'ManageCompetition',
-      params: { competitionId: competition.id, initialTab: 'leaderboard' }
-    });
+    // Navigate to appropriate screen based on competition format
+    if (competition.format === 'points_competition') {
+      navigation.navigate('Competitions', {
+        screen: 'PointsCompetition',
+        params: { competitionId: competition.id }
+      });
+    } else {
+      navigation.navigate('Competitions', {
+        screen: 'ManageCompetition',
+        params: { competitionId: competition.id, initialTab: 'leaderboard' }
+      });
+    }
   };
 
   const handleEnterResultsPress = (competition: Competition) => {
@@ -607,7 +679,7 @@ export default function LeaderboardScreen() {
                 >
                   {allDisplayCompetitions.map((competition) => (
                     <View key={competition.id} style={styles.competitionSlide}>
-                      {competition.status === 'active' ? (
+                      {competition.status === 'active' || competition.format === 'points_competition' ? (
                         <ActiveCompetitionBanner
                           competition={competition}
                           onPress={() => handleCompetitionPress(competition)}
@@ -638,23 +710,22 @@ export default function LeaderboardScreen() {
             ) : (
               <>
                 {/* Single competition - show without carousel */}
-                {activeCompetitions.map((competition) => (
-                  <ActiveCompetitionBanner
-                    key={competition.id}
-                    competition={competition}
-                    onPress={() => handleCompetitionPress(competition)}
-                    onEnterResults={() => handleEnterResultsPress(competition)}
-                  />
-                ))}
-                {openRegistrationCompetitions
-                  .filter((competition) => competition.status !== 'active')
-                  .map((competition) => (
+                {allDisplayCompetitions.map((competition) => (
+                  competition.status === 'active' || competition.format === 'points_competition' ? (
+                    <ActiveCompetitionBanner
+                      key={competition.id}
+                      competition={competition}
+                      onPress={() => handleCompetitionPress(competition)}
+                      onEnterResults={() => handleEnterResultsPress(competition)}
+                    />
+                  ) : (
                     <OpenRegistrationBanner
                       key={competition.id}
                       competition={competition}
                       onRegisterPress={() => handleRegistrationPress(competition)}
                     />
-                  ))}
+                  )
+                ))}
               </>
             )}
           </View>

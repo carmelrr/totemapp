@@ -57,6 +57,7 @@ export default function CompetitionsListScreen() {
     const formatMap = {
       national_league: { label: t.competitionsList.formatNationalLeague, icon: '🏅' },
       totemtition: { label: t.competitionsList.formatTotemtition, icon: '🎯' },
+      points_competition: { label: t.competitionsList.formatPointsCompetition, icon: '⭐' },
       custom: { label: t.competitionsList.formatCustom, icon: '⚙️' },
     };
     return formatMap[format] || formatMap.custom;
@@ -73,6 +74,13 @@ export default function CompetitionsListScreen() {
   };
 
   const handleCompetitionPress = (competition: Competition) => {
+    if (competition.format === 'points_competition') {
+      // For Points Competition: non-admins go directly to the participant screen
+      if (!isAdmin) {
+        navigation.navigate('PointsCompetition', { competitionId: competition.id });
+        return;
+      }
+    }
     navigation.navigate('ManageCompetition', { competitionId: competition.id });
   };
 
@@ -158,8 +166,20 @@ export default function CompetitionsListScreen() {
         </View>
 
         <View style={styles.cardFooter}>
+          {/* Points Competition: Enter button - always accessible for viewing */}
+          {item.format === 'points_competition' && item.status !== 'draft' && item.status !== 'cancelled' && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.registerButton]}
+              onPress={() => navigation.navigate('PointsCompetition', { competitionId: item.id })}
+            >
+              <Text style={styles.registerButtonText}>
+                {item.status === 'active' ? '⭐ ' + (language === 'he' ? 'כנס לתחרות' : 'Enter Competition') : '📊 ' + (language === 'he' ? 'צפה בתוצאות' : 'View Results')}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {/* Show register button for competitions with open registration */}
-          {item.registrationStatus === 'open' && (
+          {item.registrationStatus === 'open' && item.format !== 'points_competition' && (
             <TouchableOpacity
               style={[styles.actionButton, styles.registerButton]}
               onPress={() => navigation.navigate('CompetitionRegistration', { competitionId: item.id })}

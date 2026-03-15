@@ -9,6 +9,9 @@ import {
   StatusBar,
   ActivityIndicator,
   Dimensions,
+  Modal,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRoute, useNavigation, RouteProp } from '@react-navigation/native';
@@ -27,6 +30,7 @@ import { useLanguage } from '@/features/language';
 import { RouteStatsSection } from '@/components/feedback/RouteStatsSection';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
 import { usePublishedRooms } from '@/features/wall-editor';
+import { getRouteDisplayName } from '@/features/routes-map/utils/colors';
 import { V_GRADES, getGradeIndex, getAllowedGrades, getContrastTextColor, formatDate } from '@/components/routes/routeDetailUtils';
 import { RouteFeedbackForm } from '@/components/routes/RouteFeedbackForm';
 import { ExistingFeedbackCard } from '@/components/routes/ExistingFeedbackCard';
@@ -186,12 +190,21 @@ export default function RouteDetailsScreen() {
     setLoadingUserFeedback(true);
     try {
       const feedback = await FeedbackService.getUserFeedbackForRoute(user.uid, routeData.id);
-      if (feedback) {
+      if (feedback && feedback.isCompleted) {
         setUserSentFeedback(feedback as RouteFeedback);
         setSentStarRating(feedback.starRating || 0);
         setSentSuggestedGrade(feedback.suggestedGrade || '');
         setSentComment(feedback.comment || '');
         setSentVideoUrl(feedback.videoUrl || '');
+      } else if (feedback && !feedback.isCompleted) {
+        // Feedback exists but completion was undone — pre-fill form but don't show as sent
+        setUserSentFeedback(null);
+        setSentStarRating(feedback.starRating || 0);
+        setSentSuggestedGrade(feedback.suggestedGrade || '');
+        setSentComment(feedback.comment || '');
+        setSentVideoUrl(feedback.videoUrl || '');
+      } else {
+        setUserSentFeedback(null);
       }
     } catch (error) {
       console.error('Error loading user sent feedback:', error);
@@ -228,7 +241,7 @@ export default function RouteDetailsScreen() {
       const feedbackData = {
         userId: user.uid,
         userDisplayName: user.displayName || user.email || 'Anonymous',
-        userPhotoURL: user.photoURL || undefined,
+        userPhotoURL: user.photoURL || null,
         starRating: sentStarRating,
         suggestedGrade: sentSuggestedGrade,
         comment: sentComment.trim(),
@@ -239,7 +252,13 @@ export default function RouteDetailsScreen() {
       if (userSentFeedback) {
         await FeedbackService.updateFeedback(userSentFeedback.id, feedbackData);
       } else {
-        await FeedbackService.addFeedbackToRoute(routeData.id, feedbackData);
+        // Check if there's an existing non-completed feedback (e.g. after undo)
+        const existingFeedback = await FeedbackService.getUserFeedbackForRoute(user.uid, routeData.id);
+        if (existingFeedback) {
+          await FeedbackService.updateFeedback(existingFeedback.id, feedbackData);
+        } else {
+          await FeedbackService.addFeedbackToRoute(routeData.id, feedbackData);
+        }
       }
       
       setShowSentForm(false);
@@ -308,9 +327,7 @@ export default function RouteDetailsScreen() {
         
         <View style={styles.headerContent}>
           <Text style={[styles.routeName, { color: textColor }]}>
-            {language === 'he' && routeData.nameHe ? routeData.nameHe : 
-             language === 'en' && routeData.nameEn ? routeData.nameEn : 
-             routeData.name}
+            {getRouteDisplayName(routeData, language, t)}
           </Text>
           {/* שורה שנייה: ממוצע קהל (או דירוג מקורי) + ממוצע כוכבים */}
           <View style={styles.headerSubtitle}>
@@ -369,7 +386,7 @@ export default function RouteDetailsScreen() {
 
           {loadingUserFeedback ? (
             <ActivityIndicator color={theme.primary} />
-          ) : !showSentForm && !userSentFeedback ? (
+          ) : !userSentFeedback ? (
             // Show Sent! button
             <TouchableOpacity 
               style={styles.sentButton} 
@@ -379,7 +396,7 @@ export default function RouteDetailsScreen() {
               <Text style={styles.sentButtonEmoji}>🎯</Text>
               <Text style={styles.sentButtonText}>Sent!</Text>
             </TouchableOpacity>
-          ) : !showSentForm && userSentFeedback ? (
+          ) : userSentFeedback ? (
             // Show existing feedback
             <ExistingFeedbackCard
               starRating={userSentFeedback.starRating}
@@ -387,41 +404,36 @@ export default function RouteDetailsScreen() {
               comment={userSentFeedback.comment}
               videoUrl={userSentFeedback.videoUrl}
               onEdit={() => setShowSentForm(true)}
-            />
-          ) : (
-            // Show Sent! form
-            <RouteFeedbackForm
-              starRating={sentStarRating}
-              onStarRatingChange={setSentStarRating}
-              suggestedGrade={sentSuggestedGrade}
-              onGradeChange={setSentSuggestedGrade}
-              grades={getAllowedGrades(originalGrade)}
-              gradeRangeHint={`(טווח מותר: ${getAllowedGrades(originalGrade)[0]} - ${getAllowedGrades(originalGrade).slice(-1)[0]})`}
-              comment={sentComment}
-              onCommentChange={setSentComment}
-              videoUrl={sentVideoUrl}
-              onVideoUrlChange={setSentVideoUrl}
-              isVideoLinkValid={isVideoLinkValid}
-              onVideoLinkValidChange={setIsVideoLinkValid}
-              onSubmit={handleSubmitSent}
-              onCancel={() => {
-                setShowSentForm(false);
-                if (userSentFeedback) {
-                  setSentStarRating(userSentFeedback.starRating || 0);
-                  setSentSuggestedGrade(userSentFeedback.suggestedGrade || '');
-                  setSentComment(userSentFeedback.comment || '');
-                  setSentVideoUrl(userSentFeedback.videoUrl || '');
-                } else {
-                  setSentStarRating(0);
-                  setSentSuggestedGrade('');
-                  setSentComment('');
-                  setSentVideoUrl('');
-                }
+              onUndoSend={() => {
+                Alert.alert(
+                  t.routes?.undoSend || 'Undo Send',
+                  t.routes?.undoSendConfirm || 'Are you sure you want to undo the send?',
+                  [
+                    { text: t.common?.cancel || 'Cancel', style: 'cancel' },
+                    {
+                      text: t.routes?.undoSend || 'Undo Send',
+                      style: 'destructive',
+                      onPress: async () => {
+                        try {
+                          await FeedbackService.undoCompletion(userSentFeedback.id);
+                          setUserSentFeedback(null);
+                          setSentStarRating(0);
+                          setSentSuggestedGrade('');
+                          setSentComment('');
+                          setSentVideoUrl('');
+                          await loadUserSentFeedback();
+                          Alert.alert(t.common?.success || 'Success', t.routes?.undoSendSuccess || 'Send undone successfully');
+                        } catch (error) {
+                          console.error('Error undoing send:', error);
+                          Alert.alert(t.common?.error || 'Error', t.routes?.undoSendError || 'Error undoing send');
+                        }
+                      },
+                    },
+                  ]
+                );
               }}
-              isSubmitting={isSubmittingSent}
-              isUpdate={!!userSentFeedback}
             />
-          )}
+          ) : null}
           
           {!user && (
             <Text style={styles.loginHint}>{t.errors.unauthorized}</Text>
@@ -454,6 +466,110 @@ export default function RouteDetailsScreen() {
         {/* Bottom padding */}
         <View style={{ height: 32 }} />
       </ScrollView>
+
+      {/* Feedback form Modal popup */}
+      <Modal
+        visible={showSentForm}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowSentForm(false);
+          if (userSentFeedback) {
+            setSentStarRating(userSentFeedback.starRating || 0);
+            setSentSuggestedGrade(userSentFeedback.suggestedGrade || '');
+            setSentComment(userSentFeedback.comment || '');
+            setSentVideoUrl(userSentFeedback.videoUrl || '');
+          } else {
+            setSentStarRating(0);
+            setSentSuggestedGrade('');
+            setSentComment('');
+            setSentVideoUrl('');
+          }
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.feedbackModalOverlay}
+        >
+          <TouchableOpacity
+            style={styles.feedbackModalBackdrop}
+            activeOpacity={1}
+            onPress={() => {
+              setShowSentForm(false);
+              if (userSentFeedback) {
+                setSentStarRating(userSentFeedback.starRating || 0);
+                setSentSuggestedGrade(userSentFeedback.suggestedGrade || '');
+                setSentComment(userSentFeedback.comment || '');
+                setSentVideoUrl(userSentFeedback.videoUrl || '');
+              } else {
+                setSentStarRating(0);
+                setSentSuggestedGrade('');
+                setSentComment('');
+                setSentVideoUrl('');
+              }
+            }}
+          />
+          <View style={styles.feedbackModalContent}>
+            <View style={styles.feedbackModalHeader}>
+              <Text style={styles.feedbackModalTitle}>
+                {userSentFeedback ? t.routes.alreadySent : `${t.routes.sendRoute}? 🏆`}
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowSentForm(false);
+                  if (userSentFeedback) {
+                    setSentStarRating(userSentFeedback.starRating || 0);
+                    setSentSuggestedGrade(userSentFeedback.suggestedGrade || '');
+                    setSentComment(userSentFeedback.comment || '');
+                    setSentVideoUrl(userSentFeedback.videoUrl || '');
+                  } else {
+                    setSentStarRating(0);
+                    setSentSuggestedGrade('');
+                    setSentComment('');
+                    setSentVideoUrl('');
+                  }
+                }}
+                style={styles.feedbackModalClose}
+              >
+                <Text style={styles.feedbackModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+              <RouteFeedbackForm
+                starRating={sentStarRating}
+                onStarRatingChange={setSentStarRating}
+                suggestedGrade={sentSuggestedGrade}
+                onGradeChange={setSentSuggestedGrade}
+                grades={getAllowedGrades(originalGrade)}
+                gradeRangeHint={`(טווח מותר: ${getAllowedGrades(originalGrade)[0]} - ${getAllowedGrades(originalGrade).slice(-1)[0]})`}
+                comment={sentComment}
+                onCommentChange={setSentComment}
+                videoUrl={sentVideoUrl}
+                onVideoUrlChange={setSentVideoUrl}
+                isVideoLinkValid={isVideoLinkValid}
+                onVideoLinkValidChange={setIsVideoLinkValid}
+                onSubmit={handleSubmitSent}
+                onCancel={() => {
+                  setShowSentForm(false);
+                  if (userSentFeedback) {
+                    setSentStarRating(userSentFeedback.starRating || 0);
+                    setSentSuggestedGrade(userSentFeedback.suggestedGrade || '');
+                    setSentComment(userSentFeedback.comment || '');
+                    setSentVideoUrl(userSentFeedback.videoUrl || '');
+                  } else {
+                    setSentStarRating(0);
+                    setSentSuggestedGrade('');
+                    setSentComment('');
+                    setSentVideoUrl('');
+                  }
+                }}
+                isSubmitting={isSubmittingSent}
+                isUpdate={!!userSentFeedback}
+              />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
     </SwipeableRouteContainer>
   );
@@ -634,6 +750,57 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
   backButtonErrorText: {
     color: theme.primary,
     fontSize: 16,
+    fontWeight: '600',
+  },
+  // Feedback Modal Styles
+  feedbackModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  feedbackModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  feedbackModalContent: {
+    backgroundColor: theme.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingBottom: Math.max(34, (insets?.bottom ?? 0) + 24),
+    maxHeight: Dimensions.get('window').height * 0.75,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  feedbackModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    marginBottom: 8,
+  },
+  feedbackModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.text,
+    flex: 1,
+  },
+  feedbackModalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.card || theme.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  feedbackModalCloseText: {
+    fontSize: 14,
+    color: theme.textSecondary,
     fontWeight: '600',
   },
 });

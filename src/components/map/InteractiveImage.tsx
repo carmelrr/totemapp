@@ -113,9 +113,10 @@ export default function InteractiveImage({
       minX = margin;
       maxX = margin;
     } else {
-      // התמונה רחבה מהמסגרת - מניעת חשיפת רקע
-      minX = fw - scaledW; // שלילי כאשר התמונה גדולה יותר
-      maxX = 0;
+      // התמונה רחבה מהמסגרת - אפשר overscroll של 30% כדי לראות קצוות
+      const overscrollX = fw * 0.3;
+      minX = fw - scaledW - overscrollX;
+      maxX = overscrollX;
     }
     
     if (scaledH <= fh) {
@@ -124,9 +125,10 @@ export default function InteractiveImage({
       minY = margin;
       maxY = margin;
     } else {
-      // התמונה גבוהה מהמסגרת - מניעת חשיפת רקע
-      minY = fh - scaledH; // שלילי כאשר התמונה גדולה יותר
-      maxY = 0;
+      // התמונה גבוהה מהמסגרת - אפשר overscroll של 30% כדי לראות קצוות
+      const overscrollY = fh * 0.3;
+      minY = fh - scaledH - overscrollY;
+      maxY = overscrollY;
     }
     
     return { minX, maxX, minY, maxY };

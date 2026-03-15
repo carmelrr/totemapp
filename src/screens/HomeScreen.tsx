@@ -12,6 +12,7 @@ import { getFollowingFeed } from "@/features/social/socialService";
 import { UserAvatar } from "@/components/ui/UserAvatar";
 import { AnnouncementsList } from "@/features/announcements/components/AnnouncementsList";
 import { BrandLogo } from "@/components/ui/BrandLogo";
+import { getRouteDisplayName as getRouteDisplayNameUtil } from "@/features/routes-map/utils/colors";
 
 interface FeedItem {
   id: string;
@@ -242,16 +243,18 @@ export default function HomeScreen() {
 
   // Get route name based on language
   const getRouteDisplayName = useCallback((item: FeedItem): string => {
-    // If we have language-specific names, use them
-    if (language === 'he' && item.routeNameHe) {
-      return item.routeNameHe;
-    }
-    if (language === 'en' && item.routeNameEn) {
-      return item.routeNameEn;
-    }
-    // Fall back to default name
-    return item.routeName;
-  }, [language]);
+    return getRouteDisplayNameUtil(
+      {
+        name: item.routeName,
+        nameHe: item.routeNameHe,
+        nameEn: item.routeNameEn,
+        color: item.routeColor,
+        grade: item.routeGrade,
+      },
+      language,
+      t
+    );
+  }, [language, t]);
 
   const loadFeed = useCallback(async (refresh = false) => {
     const userId = auth.currentUser?.uid;

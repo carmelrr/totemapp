@@ -30,6 +30,13 @@ service cloud.firestore {
          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isAdmin == true);
     }
+
+    // בדיקה שהמשתמש הוא מנהל משמרת
+    function isShiftManager() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/userShiftRoles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/userShiftRoles/$(request.auth.uid)).data.isShiftManager == true;
+    }
     
     // בדיקה אם השופט קיים בתחרות
     function isJudge(competitionId) {
@@ -113,6 +120,12 @@ service cloud.firestore {
         // רק בעל ההתראה או מנהל יכולים לעדכן/למחוק
         allow update, delete: if isOwner(userId) || isAdmin();
       }
+
+      // Blocked Users subcollection - חסימת משתמשים
+      match /blockedUsers/{blockedId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create, delete: if isOwner(userId);
+      }
     }
 
     // ==================== Routes Collection ====================
@@ -156,6 +169,18 @@ service cloud.firestore {
           (isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid));
         allow delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
       }
+    }
+
+    // ==================== Wall Tapes Collection ====================
+    // טייפים של הקיר - ניהול על ידי מנהלים
+    match /wallTapes/{tapeId} {
+      // כולם יכולים לקרוא טייפים
+      allow read: if true;
+      
+      // רק מנהלים יכולים ליצור, לעדכן ולמחוק טייפים
+      allow create: if isAdmin() && isReasonableSize();
+      allow update: if isAdmin() && isReasonableSize();
+      allow delete: if isAdmin();
     }
 
     // ==================== Route Feedbacks Collection ====================
@@ -370,9 +395,13 @@ service cloud.firestore {
       match /results/{participantId} {
         allow read: if true;
         allow create: if isCompetitionActive(competitionId) && 
-          (isAdmin() || canJudgeEnterResults(competitionId));
+          (isAdmin() || canJudgeEnterResults(competitionId) ||
+           // Self-entry: participant can create their own results (points_competition / totemtition)
+           (isAuthenticated() && request.auth.uid == participantId));
         allow update: if (isCompetitionActive(competitionId) && 
-          (isAdmin() || canJudgeEditResults(competitionId))) ||
+          (isAdmin() || canJudgeEditResults(competitionId) ||
+           // Self-entry: participant can update their own results (points_competition / totemtition)
+           (isAuthenticated() && request.auth.uid == participantId))) ||
           isAdmin();
         allow delete: if isAdmin();
       }
@@ -445,6 +474,19 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ==================== Content Reports ====================
+    // דיווחים על תוכן ומשתמשים - UGC מודרציה
+    match /contentReports/{reportId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isReasonableSize();
+      allow update, delete: if isAdmin();
+    }
+
+    // ==================== Blocked Users ====================
+    // חסימת משתמשים - כל משתמש מנהל את רשימת החסומים שלו
+    // Note: stored as subcollection under users/{userId}/blockedUsers/{blockedId}
+    // Rules already covered by users collection match with subcollection write
+
     // ==================== App Settings ====================
     // הגדרות אפליקציה (default avatar, etc.)
     match /settings/{settingId} {
@@ -467,6 +509,13 @@ service cloud.firestore {
       // כולם יכולים לקרוא הגדרות צבעים
       allow read: if true;
       // רק מנהלים יכולים לשנות הגדרות צבעים
+      allow write: if isAdmin();
+    }
+
+    // ==================== App Settings ====================
+    // הגדרות אפליקציה כלליות (צבעים מוסתרים וכו')
+    match /appSettings/{settingId} {
+      allow read: if true;
       allow write: if isAdmin();
     }
 
@@ -520,6 +569,76 @@ service cloud.firestore {
       // משתמש יכול למחוק רק את החדרים שהוא יצר, או מנהל
       allow delete: if isAuthenticated() && 
         (resource.data.createdBy == request.auth.uid || isAdmin());
+    }
+
+    // ==================== Shift Management ====================
+    // ניהול משמרות - מערכת שיבוץ עובדים
+
+    // תפקידי משמרת - ניהול על ידי מנהלים
+    match /shiftRoles/{roleId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isReasonableSize();
+      allow update: if isAdmin() && isReasonableSize();
+      allow delete: if isAdmin();
+    }
+
+    // שיוך עובדים לתפקידי משמרת - ניהול על ידי מנהלים
+    match /userShiftRoles/{userId} {
+      // כל משתמש מחובר יכול לקרוא (כדי לבדוק אם הוא עובד)
+      allow read: if isAuthenticated();
+      // רק מנהלים יכולים לשנות שיוך תפקידים
+      allow write: if isAdmin();
+    }
+
+    // משמרות
+    // משמרות
+    match /shifts/{shiftId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isReasonableSize();
+      // מנהלים יכולים לעדכן הכל, מנהלי משמרות יכולים לעדכן assignedWorkerIds, עובדים יכולים רק להסיר את עצמם
+      allow update: if isReasonableSize() && (
+        isAdmin() ||
+        isShiftManager() ||
+        (isAuthenticated() &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['assignedWorkerIds', 'updatedAt']) &&
+         !(request.auth.uid in request.resource.data.assignedWorkerIds) &&
+         request.auth.uid in resource.data.assignedWorkerIds)
+      );
+      allow delete: if isAdmin();
+    }
+
+    // הרשמות למשמרות
+    match /shiftRegistrations/{registrationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isReasonableSize() &&
+        request.resource.data.userId == request.auth.uid;
+      // מנהלים ומנהלי משמרות יכולים לעדכן הרשמות
+      // עובדים יכולים לבטל רק הרשמות שטרם אושרו (pending)
+      // מערכת ההחלפה (swap_system) מטופלת דרך batch writes עם הרשמות חדשות
+      allow update: if isAdmin() || isShiftManager() ||
+        (isAuthenticated() && resource.data.userId == request.auth.uid &&
+         resource.data.status == 'pending' &&
+         request.resource.data.status == 'cancelled');
+      allow delete: if isAdmin();
+    }
+
+    // בקשות החלפת משמרות
+    match /shiftSwapRequests/{requestId} {
+      allow read: if isAuthenticated();
+      // יצירה: רק המבקש יכול ליצור בקשת החלפה
+      allow create: if isAuthenticated() && isReasonableSize() &&
+        request.resource.data.requesterId == request.auth.uid;
+      // עדכון: המשתמש המבוקש, מנהלים או מנהלי משמרות יכולים לעדכן
+      allow update: if isAdmin() || isShiftManager() ||
+        (isAuthenticated() && resource.data.targetUserId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // היסטוריית משמרות
+    match /shiftHistory/{historyId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isReasonableSize();
+      allow update, delete: if isAdmin();
     }
 
     // ==================== Default Deny ====================

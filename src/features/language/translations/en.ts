@@ -76,6 +76,12 @@ export const en = {
     dontHaveAccount: "Don't have an account? Sign Up",
     loginError: "Login Error",
     signUpError: "Sign Up Error",
+    continueAsGuest: "Continue as Guest",
+    loginRequired: "Login Required",
+    loginRequiredMessage: "This feature requires an account. Would you like to log in?",
+    acceptTerms: "I agree to the Terms of Use",
+    termsOfUse: "Terms of Use",
+    mustAcceptTerms: "You must accept the Terms of Use to create an account",
   },
 
   // Delete Account
@@ -234,6 +240,88 @@ export const en = {
     setDefaultAvatar: "Set Image",
     changeDefaultAvatar: "Change Image",
     removeDefaultAvatar: "Remove Image",
+    // Admin Panel Operations
+    resetAllTimePoints: "Reset All-Time Points",
+    resetPointsConfirm: "This action will delete all all-time points for all users. This action cannot be undone.",
+    reset: "Reset",
+    resetComplete: "Complete!",
+    resetResult: (deleted: number) => `Deleted ${deleted} records`,
+    resetError: "An error occurred while resetting points",
+    refreshRouteData: "Refresh Route Data",
+    selectAction: "Select the desired action:",
+    refreshCalc: "Refresh Calculations",
+    refreshComplete: "Complete!",
+    syncClosureFilter: "Sync Closure Filter",
+    syncComplete: "Complete!",
+    wallEditor: "Wall Editor",
+    refreshRouteCalc: "Refresh Route Calculations",
+    resetPoints: "Reset Points",
+    normalizeColors: "Normalize Route Colors",
+    normalizeColorsConfirm: "This will go through all routes and match each color and name to the closest color from the color list. Continue?",
+    normalize: "Normalize",
+    normalizeResult: (updated: number, skipped: number, total: number) => `${updated} routes updated out of ${total}\n${skipped} did not require changes`,
+    normalizeError: "Error normalizing route colors",
+    balancePositions: "Balance Positions",
+    balancePositionsDesc: "Select a date to balance the positions of routes added on that day",
+    balanceSelectDate: "Select Date",
+    balanceResult: (updated: number, total: number) => `${updated} routes updated out of ${total}`,
+    balanceError: "Error balancing route positions",
+    balanceNotEnough: "Need at least 2 routes on that date to balance positions",
+    socialManagement: "Social Management",
+    messageManagement: "Message Management",
+  },
+
+  // Statistics
+  statistics: {
+    title: "Statistics",
+    loading: "Loading statistics...",
+    errorLoading: "Error loading statistics",
+    retry: "Retry",
+    // Overview
+    overview: "Overview",
+    activeRoutes: "Active Routes",
+    archivedRoutes: "Archived Routes",
+    avgRating: "Average Rating",
+    totalFeedbacks: "Total Feedbacks",
+    totalCompletions: "Total Completions",
+    totalUsers: "Total Users",
+    // Popular routes
+    popularRoutes: "Popular Routes",
+    completions: "completions",
+    noRoutes: "No routes to display",
+    // Grade distribution
+    gradeDistribution: "Grade Distribution",
+    routes: "routes",
+    // User engagement
+    userEngagement: "User Engagement",
+    activeUsers: "Active Users",
+    sends: "Sends",
+    flashes: "Flashes",
+    flashRate: "Flash Rate",
+    // Spray wall
+    sprayWall: "Spray Wall",
+    sprayRoutes: "Spray Routes",
+    topSprayRoutes: "Top Spray Routes",
+    tops: "tops",
+    // Rating distribution
+    ratingDistribution: "Rating Distribution",
+    star: "star",
+    stars: "stars",
+    feedbacks: "feedbacks",
+    // Activity patterns
+    activityPatterns: "Activity Patterns",
+    peakHours: "Peak Hours",
+    peakDays: "Peak Days",
+    // Lowest rated
+    lowestRated: "Lowest Rated",
+    minFeedbacks: "(min. 3 feedbacks)",
+    // Competitions
+    competitions: "Competitions",
+    activeCompetitions: "Active Competitions",
+    totalParticipants: "Total Participants",
+    // Community routes
+    communityRoutes: "Community Routes",
+    communitySends: "Community Sends",
   },
 
   // Colors
@@ -277,6 +365,19 @@ export const en = {
     editColorDescription: "Change the name and shade of this color. Changes will be saved for all routes.",
     colorSaved: "Color settings saved",
     colorSaveError: "Failed to save color settings",
+    // Color management
+    manageColors: "Manage Colors",
+    deleteColor: "Delete Color",
+    deleteColorConfirm: "Are you sure you want to delete this color?",
+    deleteError: "Error deleting",
+    addError: "Error adding color",
+    add: "Add",
+    tapToSelectLongPressEdit: "Tap to select, long press to edit",
+    editColor: "Edit Color",
+    addNewColor: "Add New Color",
+    hebrewName: "Hebrew name",
+    englishName: "English name",
+    colorAlreadyExists: "This color already exists",
   },
 
   // Routes
@@ -294,6 +395,10 @@ export const en = {
     markAsSent: "Mark as Sent",
     alreadySent: "You've already sent this route! 🎉",
     sendRoute: "Send Route",
+    undoSend: "Undo Send",
+    undoSendConfirm: "Are you sure you want to undo the send? This will remove your completion and update your stats.",
+    undoSendSuccess: "Send undone successfully",
+    undoSendError: "Error undoing send",
     updateRating: "Update Rating",
     saveRating: "Save Rating",
     communityGrade: "Community Grade",
@@ -319,6 +424,7 @@ export const en = {
     completed: "Routes Completed",
     clickForDetails: "Click for details",
     routeUpdated: "Route updated successfully",
+    additionalRoutesUpdated: "additional routes updated",
     cannotUpdateRoute: "Cannot update route",
     deleteRoute: "Delete Route",
     deleteRouteConfirm: "Are you sure you want to delete this route?",
@@ -425,6 +531,15 @@ export const en = {
     failedToLoadRoutes: "Failed to load routes",
     filterDialogPlaceholder: "Filter dialog will be here",
     sortDialogPlaceholder: "Sort dialog will be here",
+    multiSelect: "Multi Select",
+    selectAll: "Select All",
+    deselectAll: "Deselect All",
+    deleteSelected: "Delete Selected",
+    selectedCount: (count: number) => `${count} selected`,
+    batchArchiveConfirm: (count: number) => `Move ${count} routes to archive? They will be permanently deleted after 14 days.`,
+    batchArchiveSuccess: (count: number) => `${count} routes moved to archive`,
+    batchArchiveError: "Error archiving routes",
+    exitMultiSelect: "Exit Selection",
   },
 
   // Home
@@ -449,6 +564,11 @@ export const en = {
     leaderboard: "Leaderboard",
     sprayWall: "Spray Wall",
     profile: "Profile",
+    addRoute: "Add Route",
+    colorPicker: "Color Picker",
+    addNewWall: "Add New Wall",
+    markHolds: "Mark Holds",
+    routeDetails: "Route Details",
   },
 
   // Community Routes (Flashes)
@@ -649,6 +769,26 @@ export const en = {
     save: "Save",
     randomName: "🎲 Random",
     randomNameHint: "Tap for a new random name",
+    // Hold numbering
+    numberHolds: "Number Holds",
+    numberingMode: "Numbering Mode",
+    tapHoldToNumber: "Tap a hold to number it",
+    exitNumbering: "Done Numbering",
+    clearNumbering: "Clear Numbering",
+    // Drawing mask
+    drawMask: "Hide Holds",
+    drawingMode: "Drawing Mode",
+    drawToHide: "Draw to hide distracting holds",
+    exitDrawing: "Done Drawing",
+    clearDrawing: "Clear Drawing",
+    // Undo/Redo
+    undo: "Undo",
+    redo: "Redo",
+    // Color legend
+    holdColorLegend: "Hold Color Legend",
+    startTopColor: "Start / Top",
+    middleColor: "Middle",
+    feetColor: "Feet",
   },
 
   // Route Statistics
@@ -723,6 +863,9 @@ export const en = {
     shareRoute: (name: string) => `Share route: ${name}`,
     reportTitle: "Report",
     reportRoute: (name: string) => `Report route: ${name}`,
+    reportSubmitted: "Report Submitted",
+    reportSubmittedMessage: "Thank you. Your report will be reviewed within 24 hours.",
+    reportFailed: "Failed to submit report. Please try again.",
 
     // Wall Editor
     wallSaved: "Wall saved successfully!",
@@ -963,6 +1106,13 @@ export const en = {
     notDefined: "Not defined",
     statisticsTab: "📊 Statistics",
     settingsTab: "⚙️ Profile Settings",
+    blockUser: "Block User",
+    unblockUser: "Unblock User",
+    reportUser: "Report User",
+    blockConfirm: "Are you sure you want to block this user? Their content will be hidden from your feed.",
+    blockSuccess: "User blocked",
+    unblockSuccess: "User unblocked",
+    blockFailed: "Failed to block user",
   },
 
   // SprayWall
@@ -1013,17 +1163,84 @@ export const en = {
     routesOfTotal: (completed: number, total: number) => `${completed} of ${total} routes`,
     privacySettings: "Privacy Settings",
     showGradeStatsToOthers: "Show grade statistics to others",
+    grade: (grade: string) => `Grade ${grade}`,
+    routesCompleted: (completed: number, total: number) => `${completed} of ${total} routes completed`,
+    detailedStats: "Detailed Statistics",
+    totalRoutesSent: (count: number) => `Total ${count} routes sent`,
+    highestGrade: (grade: string) => `Highest grade: ${grade}`,
+    avgRating: (rating: string) => `Average rating: ${rating} ⭐`,
+    statsByGrade: "Statistics by Grade",
+    joinDate: (date: string) => `Join date: ${date}`,
+    showJoinDate: "Show date",
+    privacyDescription: "Choose which data will be visible to others on your profile",
+    showHighestGrade: "Show highest grade",
+    showHighestGradeDesc: "The hardest grade you've completed",
+    showFeedbackCount: "Show feedback count",
+    showFeedbackCountDesc: "How many feedbacks you received on your routes",
+    showAvgRating: "Show average rating",
+    showAvgRatingDesc: "The average rating you received from others",
+    showGradeStats: "Show grade statistics",
+    showGradeStatsDesc: "Breakdown by difficulty level",
   },
 
   // ErrorBoundary
   errorBoundary: {
     errorLoading: "🚫 Error Loading App",
+    unexpectedError: "An unexpected error occurred. Please try again.",
     tryAgain: "Try Again",
   },
 
   // Route Status
   routeStatus: {
     label: "Route Status:",
+    unsent: "Not Sent",
+    project: "Project",
+    sent: "Sent",
+    flashed: "Flash",
+  },
+
+  // RouteDialog
+  routeDialog: {
+    routeGrade: (grade: string) => `Route ${grade}`,
+    routeInfo: "Route Information",
+    rating: "Rating:",
+    color: "Color:",
+    completionCount: "Completions:",
+    avgStarRating: "Average star rating:",
+    suggestedGradeUsers: "Suggested grade (users):",
+    updateFeedback: "Update your feedback",
+    addFeedback: "Add feedback",
+    starRating: "Star rating:",
+    suggestedGrade: "Suggested grade:",
+    comment: "Comment:",
+    completedRoute: "I completed the route",
+    submitting: "Submitting...",
+    updateFeedbackBtn: "Update Feedback",
+    submitFeedback: "Submit Feedback",
+    feedbacksCount: (count: number) => `Feedbacks (${count})`,
+    noFeedbacksYet: "No feedbacks for this route yet",
+    suggestedGradeValue: (grade: string) => `Suggested grade: ${grade}`,
+    completed: "✓ Completed",
+  },
+
+  // FeedbackForm
+  feedbackForm: {
+    rating: "Rating:",
+    comment: "Comment:",
+    searchingUsers: "Searching users...",
+    submitting: "Submitting...",
+    submitFeedback: "Submit Feedback",
+  },
+
+  // Image Cropper
+  imageCropper: {
+    cropError: "Error cropping image",
+    loadingImage: "Loading image...",
+    loadError: "Error loading image",
+    dragInstruction: "Drag with finger to move, pinch to zoom",
+    cancel: "Cancel",
+    cropping: "Cropping...",
+    save: "✓ Save",
   },
 
   // Competitions List Screen
@@ -1051,6 +1268,7 @@ export const en = {
     formatNationalLeague: "National League",
     formatTotemtition: "Totemtition",
     formatCustom: "Custom",
+    formatPointsCompetition: "Points Competition",
   },
 
   // Competition Extended
@@ -1348,6 +1566,7 @@ export const en = {
     registeredParticipant: "Registered Participant",
     waitingForApproval: "Waiting for Approval",
     enterResultsAction: "Enter Results",
+    enterCompetition: "Enter Competition",
     // Open Registration Banner - additional
     waitingApproval: "Waiting for Approval",
     registeredAndApproved: "Registered & Approved ✓",
@@ -1400,6 +1619,31 @@ export const en = {
     // Competition Registration - additional hardcoded
     defaultParticipantName: "Participant",
     registrationInfoBox: "After registration, your request will be sent for approval. You can enter results only after the competition starts.",
+
+    // Points Competition
+    pointsCompetition: "Points Competition",
+    pointsCompetitionDescription: "Existing wall routes. Each grade = points (V0=0, V8=8).",
+    pointsCompetitionRoutesHeader: "Wall Routes",
+    pointsCompetitionYourScore: "Your Score",
+    pointsCompetitionMarkAsSent: "Sent!",
+    pointsCompetitionUndo: "Undo",
+    pointsCompetitionCompleted: "Completed",
+    pointsCompetitionPoints: (pts: number) => `${pts} pts`,
+    pointsCompetitionTotalPoints: (pts: number) => `Total: ${pts} points`,
+    pointsCompetitionRoutesCompleted: (n: number, total: number) => `Completed ${n} of ${total} routes`,
+    pointsCompetitionNoRoutes: "No routes on the wall yet",
+    pointsCompetitionAlsoMarkedOnWall: "Also marked on your routes map \u2713",
+    pointsCompetitionLeaderboard: "Leaderboard",
+    pointsCompetitionRank: "Rank",
+    pointsCompetitionNotStarted: "Competition has not started yet",
+    pointsCompetitionEnded: "Competition has ended",
+    pointsCompetitionNotRegistered: "You are not registered for this competition",
+    pointsCompetitionJoin: "Join Competition",
+    pointsCompetitionJoinConfirm: "Join this competition? You'll be able to report your sends and earn points.",
+    pointsCompetitionJoining: "Joining...",
+    pointsCompetitionJoined: "Successfully joined the competition!",
+    pointsCompetitionJoinError: "Error joining competition",
+    pointsCompetitionGradePoints: "Grade = Points",
   },
 
   // Announcements
@@ -1479,6 +1723,35 @@ export const en = {
     rolesUpdated: "Roles updated successfully",
     cancel: "Cancel",
     save: "Save",
+  },
+
+  // Wall Tape
+  wallTape: {
+    wallTape: "Wall Tape",
+    manageTapes: "Manage Wall Tapes",
+    addTape: "Add Tape",
+    deleteTape: "Delete Tape",
+    deleteConfirm: "Delete the tape",
+    tapeNameHe: "Tape name (Hebrew)",
+    tapeNameEn: "Tape name (English)",
+    tapeColor: "Tape Color",
+    nameRequired: "Please enter a tape name",
+    noTapes: "No tapes defined yet",
+    none: "None",
+  },
+
+  // Moderation
+  moderation: {
+    reportTitle: "Report Content",
+    selectReason: "Why are you reporting this?",
+    reasonOffensive: "Offensive or hateful",
+    reasonSpam: "Spam",
+    reasonInappropriate: "Inappropriate content",
+    reasonOther: "Other",
+    reportSubmitted: "Report Submitted",
+    reportSubmittedMessage: "Thank you. Your report will be reviewed within 24 hours.",
+    reportFailed: "Failed to submit report. Please try again.",
+    contentBlocked: "This content contains inappropriate language.",
   },
 };
 

@@ -34,6 +34,9 @@ export interface RouteFilters {
   // סינון לפי תגיות
   tags: string[];
   
+  // סינון לפי טייפ של הקיר
+  wallTapes: string[];
+  
   // הצגת מסלולים נראים במפה בלבד
   showOnlyVisibleOnMap: boolean;
 }
@@ -75,6 +78,7 @@ const defaultFilters: RouteFilters = {
   personalStatus: [],
   completionStatus: 'all',
   tags: [],
+  wallTapes: [],
   showOnlyVisibleOnMap: true, // Default to true for map-list synchronization
 };
 
@@ -173,6 +177,12 @@ export function filterRoutes(
     );
   }
 
+  if (filters.wallTapes.length > 0) {
+    filteredRoutes = filteredRoutes.filter(route =>
+      route.wallTape && filters.wallTapes.includes(route.wallTape)
+    );
+  }
+
   filteredRoutes = [...filteredRoutes].sort((a, b) => {
     let comparison = 0;
     switch (sorting.sortBy) {
@@ -260,6 +270,7 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
     if (filters.personalStatus.length > 0) count++;
     if (filters.completionStatus && filters.completionStatus !== 'all') count++;
     if (filters.tags.length > 0) count++;
+    if (filters.wallTapes.length > 0) count++;
     if (!filters.showOnlyVisibleOnMap) count++;
     
     return count;

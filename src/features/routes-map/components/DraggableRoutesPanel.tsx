@@ -8,6 +8,7 @@ import {
   StyleSheet,
   Dimensions,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -23,6 +24,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 import { RoutesList } from '@/components/Lists';
 import { FiltersBar } from '@/components/Filters';
 import type { SortOption } from '@/components/Filters/FiltersBar';
@@ -53,6 +55,15 @@ interface DraggableRoutesPanelProps {
   isLoading?: boolean;
   movingRoute?: boolean;
   onCancelMove?: () => void;
+  /** Multi-select mode state */
+  multiSelectMode?: boolean;
+  multiSelectedIds?: Set<string>;
+  onToggleMultiSelect?: () => void;
+  onToggleRouteSelection?: (routeId: string) => void;
+  onSelectAll?: () => void;
+  onDeselectAll?: () => void;
+  onDeleteSelected?: () => void;
+  isDeletingBatch?: boolean;
   /** Initial panel height in pixels. If provided, overrides the default height */
   initialHeight?: number;
   /** External shared value to sync the panel height (for coordinating with map) */
@@ -76,10 +87,19 @@ export default function DraggableRoutesPanel({
   isLoading = false,
   movingRoute = false,
   onCancelMove,
+  multiSelectMode = false,
+  multiSelectedIds,
+  onToggleMultiSelect,
+  onToggleRouteSelection,
+  onSelectAll,
+  onDeselectAll,
+  onDeleteSelected,
+  isDeletingBatch = false,
   initialHeight: initialHeightProp,
   panelHeightSV,
 }: DraggableRoutesPanelProps) {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   
   // Calculate height limits in pixels
@@ -185,6 +205,49 @@ export default function DraggableRoutesPanel({
         </View>
       )}
 
+      {/* Multi-Select Toolbar */}
+      {multiSelectMode && (
+        <View style={styles.multiSelectBanner}>
+          <View style={styles.multiSelectLeft}>
+            <TouchableOpacity onPress={onToggleMultiSelect} style={styles.multiSelectExitBtn}>
+              <Ionicons name="close" size={18} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.multiSelectText}>
+              {t.map.selectedCount(multiSelectedIds?.size || 0)}
+            </Text>
+          </View>
+          <View style={styles.multiSelectActions}>
+            <TouchableOpacity
+              onPress={multiSelectedIds?.size === routes.length ? onDeselectAll : onSelectAll}
+              style={styles.multiSelectActionBtn}
+            >
+              <Ionicons 
+                name={multiSelectedIds?.size === routes.length ? "checkbox-outline" : "checkbox"} 
+                size={18} 
+                color="#fff" 
+              />
+              <Text style={styles.multiSelectActionText}>
+                {multiSelectedIds?.size === routes.length ? t.map.deselectAll : t.map.selectAll}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onDeleteSelected}
+              style={[styles.multiSelectDeleteBtn, (!multiSelectedIds || multiSelectedIds.size === 0) && { opacity: 0.4 }]}
+              disabled={!multiSelectedIds || multiSelectedIds.size === 0 || isDeletingBatch}
+            >
+              {isDeletingBatch ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="trash" size={16} color="#fff" />
+                  <Text style={styles.multiSelectDeleteText}>{t.map.deleteSelected}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
       {/* Filter Bar */}
       <View style={styles.filterBarContainer}>
         <View style={styles.filterBarWithActions}>
@@ -220,7 +283,22 @@ export default function DraggableRoutesPanel({
                 />
               </TouchableOpacity>
             )}
-            {editModeEnabled && onAddRoute && (
+            {editModeEnabled && onToggleMultiSelect && (
+              <TouchableOpacity
+                style={[
+                  styles.actionButton,
+                  multiSelectMode && styles.multiSelectButtonActive
+                ]}
+                onPress={onToggleMultiSelect}
+              >
+                <Ionicons 
+                  name="checkbox-outline" 
+                  size={18} 
+                  color={multiSelectMode ? '#fff' : theme.text} 
+                />
+              </TouchableOpacity>
+            )}
+            {editModeEnabled && onAddRoute && !multiSelectMode && (
               <TouchableOpacity
                 style={[styles.actionButton, styles.addButton]}
                 onPress={onAddRoute}
@@ -242,8 +320,11 @@ export default function DraggableRoutesPanel({
           <RoutesList
             routes={routes}
             visibleRouteIds={visibleRouteIds}
-            onRoutePress={onRoutePress}
+            onRoutePress={multiSelectMode ? undefined : onRoutePress}
             onRouteLongPress={editModeEnabled ? onRouteLongPress : undefined}
+            multiSelectMode={multiSelectMode}
+            multiSelectedIds={multiSelectedIds}
+            onToggleSelect={onToggleRouteSelection}
           />
         )}
       </View>
@@ -317,6 +398,69 @@ const createStyles = (theme: any, insets: { bottom: number }) => {
     addButton: {
       backgroundColor: theme.success,
       borderColor: theme.success,
+    },
+    multiSelectButtonActive: {
+      backgroundColor: '#E53935',
+      borderColor: '#E53935',
+    },
+    multiSelectBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: '#E53935',
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+    },
+    multiSelectLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    multiSelectExitBtn: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: 'rgba(255, 255, 255, 0.25)',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    multiSelectText: {
+      color: '#ffffff',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    multiSelectActions: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    multiSelectActionBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderRadius: 6,
+    },
+    multiSelectActionText: {
+      color: '#ffffff',
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    multiSelectDeleteBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderRadius: 6,
+    },
+    multiSelectDeleteText: {
+      color: '#ffffff',
+      fontSize: 12,
+      fontWeight: '700',
     },
     movingBanner: {
       flexDirection: 'row',

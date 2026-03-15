@@ -18,6 +18,19 @@ export const ROUTE_COLORS = [
   '#FFFFFF', // white
 ] as const;
 
+import { getHiddenColors, getCustomColors, getColorSettingSync } from '@/features/routes-map/services/ColorSettingsService';
+
+/**
+ * Get the list of visible colors (predefined minus hidden + custom).
+ * Call this instead of using ROUTE_COLORS directly when displaying a color list.
+ */
+export function getVisibleColors(): string[] {
+  const hidden = getHiddenColors();
+  const visiblePredefined = ROUTE_COLORS.filter(c => !hidden.has(c.toUpperCase()));
+  const customs = getCustomColors().map(c => c.hex);
+  return [...visiblePredefined, ...customs];
+}
+
 // Color key to translation key mapping
 export const COLOR_TRANSLATION_KEYS: Record<string, string> = {
   '#D2691E': 'wood',
@@ -68,7 +81,122 @@ export function getContrastTextColor(backgroundColor: string): string {
   return luminance > 0.5 ? '#000000' : '#ffffff';
 }
 
+/**
+ * Get the display name for a route based on the current language.
+ * Checks: nameHe/nameEn fields → custom color name from settings → translation-based color+grade → route.name fallback
+ */
+export function getRouteDisplayName(
+  route: { name: string; nameHe?: string; nameEn?: string; color?: string; grade?: string },
+  language: 'he' | 'en',
+  translations?: any
+): string {
+  // 1. If the route has explicit bilingual names, use the correct one
+  if (language === 'en' && route.nameEn) return route.nameEn;
+  if (language === 'he' && route.nameHe) return route.nameHe;
+
+  // 2. Try to get custom color name from ColorSettingsService
+  if (route.color && route.grade) {
+    const setting = getColorSettingSync(route.color);
+    if (setting) {
+      const colorName = language === 'he' ? setting.nameHe : setting.nameEn;
+      if (colorName) return `${colorName} ${route.grade}`;
+    }
+  }
+
+  // 3. Try to build name from static color translation + grade
+  if (route.color && route.grade && translations?.colors) {
+    const colorKey = getColorTranslationKey(route.color);
+    if (colorKey !== 'custom') {
+      const colorName = translations.colors[colorKey as keyof typeof translations.colors];
+      if (colorName) return `${colorName} ${route.grade}`;
+    }
+  }
+
+  // 4. Fallback to stored name
+  return route.name;
+}
+
 // Validate hex color format
 export function isValidHexColor(color: string): boolean {
   return /^#[0-9A-Fa-f]{6}$/.test(color);
+}
+
+/**
+ * Parse a hex color string to RGB components.
+ */
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const clean = hex.replace('#', '');
+  return {
+    r: parseInt(clean.substr(0, 2), 16),
+    g: parseInt(clean.substr(2, 2), 16),
+    b: parseInt(clean.substr(4, 2), 16),
+  };
+}
+
+/**
+ * Calculate the Euclidean distance between two colors in RGB space.
+ */
+function colorDistance(hex1: string, hex2: string): number {
+  const c1 = hexToRgb(hex1);
+  const c2 = hexToRgb(hex2);
+  return Math.sqrt(
+    (c1.r - c2.r) ** 2 +
+    (c1.g - c2.g) ** 2 +
+    (c1.b - c2.b) ** 2
+  );
+}
+
+/**
+ * Find the closest color from the visible colors list to a given hex color.
+ * Uses the display hex of each visible color for comparison.
+ * Returns the display hex of the closest match.
+ */
+export function findClosestVisibleColor(hex: string): string {
+  const { getColorDisplayHex } = require('@/features/routes-map/services/ColorSettingsService');
+  const visibleKeys = getVisibleColors();
+  
+  if (visibleKeys.length === 0) return hex;
+
+  let bestKey = visibleKeys[0];
+  let bestDisplayHex = getColorDisplayHex(visibleKeys[0]);
+  let bestDistance = colorDistance(hex, bestDisplayHex);
+
+  for (let i = 1; i < visibleKeys.length; i++) {
+    const displayHex = getColorDisplayHex(visibleKeys[i]);
+    const dist = colorDistance(hex, displayHex);
+    if (dist < bestDistance) {
+      bestDistance = dist;
+      bestKey = visibleKeys[i];
+      bestDisplayHex = displayHex;
+    }
+  }
+
+  return bestDisplayHex;
+}
+
+/**
+ * Find the closest color key from the visible colors list.
+ * Returns both the original key and the display hex.
+ */
+export function findClosestVisibleColorWithKey(hex: string): { key: string; displayHex: string } {
+  const { getColorDisplayHex } = require('@/features/routes-map/services/ColorSettingsService');
+  const visibleKeys = getVisibleColors();
+  
+  if (visibleKeys.length === 0) return { key: hex, displayHex: hex };
+
+  let bestKey = visibleKeys[0];
+  let bestDisplayHex = getColorDisplayHex(visibleKeys[0]);
+  let bestDistance = colorDistance(hex, bestDisplayHex);
+
+  for (let i = 1; i < visibleKeys.length; i++) {
+    const displayHex = getColorDisplayHex(visibleKeys[i]);
+    const dist = colorDistance(hex, displayHex);
+    if (dist < bestDistance) {
+      bestDistance = dist;
+      bestKey = visibleKeys[i];
+      bestDisplayHex = displayHex;
+    }
+  }
+
+  return { key: bestKey, displayHex: bestDisplayHex };
 }

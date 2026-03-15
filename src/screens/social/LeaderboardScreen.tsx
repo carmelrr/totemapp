@@ -304,7 +304,7 @@ export default function LeaderboardScreen() {
   };
 
   // Create styles based on current theme
-  const styles = createStyles(theme);
+  const styles = createStyles(theme, layout);
 
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
@@ -344,15 +344,19 @@ export default function LeaderboardScreen() {
   );
 }
 
-const createStyles = (theme) =>
-  StyleSheet.create({
+const createStyles = (theme, layout?) => {
+  const isLandscape = layout?.isLandscape ?? false;
+  const isTablet = layout?.isTablet ?? false;
+  const contentMaxWidth = isTablet ? 600 : undefined;
+  
+  return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.background,
     },
     headerContainer: {
       backgroundColor: theme.surface,
-      paddingVertical: 20,
+      paddingVertical: isLandscape ? 14 : 20,
       paddingHorizontal: 15,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
@@ -371,6 +375,9 @@ const createStyles = (theme) =>
       backgroundColor: theme.surface,
       padding: 20,
       marginBottom: 10,
+      maxWidth: contentMaxWidth,
+      alignSelf: isTablet ? 'center' : undefined,
+      width: isTablet ? '100%' : undefined,
     },
     podiumRow: {
       flexDirection: "row",
@@ -442,6 +449,9 @@ const createStyles = (theme) =>
       backgroundColor: theme.surface,
       marginTop: 10,
       paddingTop: 15,
+      maxWidth: contentMaxWidth,
+      alignSelf: isTablet ? 'center' : undefined,
+      width: isTablet ? '100%' : undefined,
     },
     listTitle: {
       fontSize: 16,
@@ -507,3 +517,4 @@ const createStyles = (theme) =>
       margin: 20,
     },
   });
+};

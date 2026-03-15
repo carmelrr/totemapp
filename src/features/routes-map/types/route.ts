@@ -15,6 +15,7 @@ export type RouteDoc = {
   comments: number;
   setter?: string;
   tags?: string[];
+  wallTape?: string;   // Wall tape color identifier (managed by admin)
   // Community feedback stats
   averageStarRating?: number;   // Average star rating (1-5) from user feedback
   calculatedGrade?: string;     // Community consensus grade (replaces original if exists)

@@ -7,17 +7,34 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:720872675049:android:850cb87d2c35e95807c278",
+        "mobilesdk_app_id": "1:720872675049:android:885260407bea618c07c278",
         "android_client_info": {
           "package_name": "com.totemapp.climbing"
         }
       },
       "oauth_client": [
         {
+          "client_id": "720872675049-cs1lmofnvra8h235irim4pigk2120hvq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.totemapp.climbing",
+            "certificate_hash": "e63df452fe99f91e9d99afe27b8a012e98818418"
+          }
+        },
+        {
           "client_id": "720872675049-ubhok243tvh36cut4ptchnubsckulj04.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.totemapp.climbing"
+            "package_name": "com.totemapp.climbing",
+            "certificate_hash": "73207548424ef05eb5b63222f2987354a2e03ad2"
+          }
+        },
+        {
+          "client_id": "720872675049-ucfm287ulfo3dl0vj9brqflujk6qsgsi.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.totemapp.climbing",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
           }
         },
         {
@@ -38,7 +55,7 @@
               "client_type": 3
             },
             {
-              "client_id": "720872675049-e0du1dtbe53puak85sr4da6c8i0gjhak.apps.googleusercontent.com",
+              "client_id": "720872675049-b08oil4c0qv2nktt7ua4k4cf6vkcoslr.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
                 "bundle_id": "totemapp.com"

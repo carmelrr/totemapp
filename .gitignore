@@ -28,6 +28,10 @@ expo-debug.log
 firebase-debug.log
 # firebase-config.js - uncommented to include in build
 
+# Google Cloud service account keys
+*.json.key
+totemapp-*.json
+
 # TypeScript build artifacts (למקרה שתשתמש ב־tsc בהמשך)
 *.tsbuildinfo
 

@@ -6,7 +6,7 @@ import { View, TouchableOpacity, StyleSheet, Text, ScrollView } from "react-nati
 import { useLanguage } from "@/features/language";
 import { useTheme } from '@/features/theme/ThemeContext';
 
-const V_GRADES = ["VB", "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10+"];
+const V_GRADES = ["?", "VB", "V0", "V1", "V2", "V3", "V4", "V5", "V6", "V7", "V8", "V9", "V10+"];
 
 interface GradePickerProps {
   selectedGrade: string;

@@ -21,11 +21,13 @@ import {
 import { collection, query, where, getDocs, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/features/data/firebase";
 import GoogleLoginButton from "@/features/auth/GoogleAuth";
+import AppleLoginButton from "@/features/auth/AppleAuth";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useGuest } from "@/context/GuestContext";
 
 const createStyles = (theme, layout, insets) => {
   const { isLandscape, isTablet, width, height, scaleFactor } = layout;
@@ -154,6 +156,51 @@ const createStyles = (theme, layout, insets) => {
       fontSize: 14,
       textDecorationLine: "underline",
     },
+    termsRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: isPhoneLandscape ? 8 : 12,
+      marginTop: isPhoneLandscape ? 4 : 8,
+    },
+    checkbox: {
+      width: 22,
+      height: 22,
+      borderWidth: 2,
+      borderColor: theme.primary,
+      borderRadius: 4,
+      marginEnd: 10,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    checkboxChecked: {
+      backgroundColor: theme.primary,
+    },
+    checkboxMark: {
+      color: "#fff",
+      fontSize: 14,
+      fontWeight: "bold",
+    },
+    termsText: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      flex: 1,
+    },
+    termsLink: {
+      color: theme.primary,
+      textDecorationLine: "underline",
+    },
+    guestButton: {
+      alignItems: "center",
+      padding: isPhoneLandscape ? 10 : 14,
+      marginTop: isPhoneLandscape ? 8 : 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 10,
+    },
+    guestButtonText: {
+      color: theme.textSecondary,
+      fontSize: 15,
+    },
   });
 };
 
@@ -163,12 +210,14 @@ export default function LoginScreen() {
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
+  const { setIsGuest } = useGuest();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Refresh function
   const onRefresh = async () => {
@@ -209,9 +258,12 @@ export default function LoginScreen() {
         case "auth/user-not-found":
           return false;
         case "auth/wrong-password":
-        case "auth/invalid-credential":
           // User exists but password is wrong (expected)
           return true;
+        case "auth/invalid-credential":
+          // Firebase returns this for BOTH non-existent users and wrong passwords
+          // so we cannot reliably distinguish — return null to fall back to Firestore check
+          return null;
         case "auth/invalid-email":
           return null; // Invalid email format
         default:
@@ -228,6 +280,11 @@ export default function LoginScreen() {
 
     if (isSignUp && !displayName.trim()) {
       Alert.alert(t.common.error, t.auth.displayName);
+      return;
+    }
+
+    if (isSignUp && !acceptedTerms) {
+      Alert.alert(t.common.error, t.auth.mustAcceptTerms);
       return;
     }
 
@@ -250,6 +307,7 @@ export default function LoginScreen() {
           displayName: displayName.trim(),
           createdAt: serverTimestamp(),
           isAdmin: false,
+          acceptedTermsAt: serverTimestamp(),
           privacy: {
             showProfile: true,
             showTotalRoutes: true,
@@ -525,6 +583,29 @@ export default function LoginScreen() {
             />
           </View>
 
+          {isSignUp && (
+            <View style={styles.termsRow}>
+              <TouchableOpacity
+                style={[styles.checkbox, acceptedTerms && styles.checkboxChecked]}
+                onPress={() => setAcceptedTerms(!acceptedTerms)}
+              >
+                {acceptedTerms && <Text style={styles.checkboxMark}>✓</Text>}
+              </TouchableOpacity>
+              <Text style={styles.termsText}>
+                {t.auth.acceptTerms}{" "}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() => {
+                    const { Linking } = require("react-native");
+                    Linking.openURL("https://carmelrr.github.io/totemapp/terms.html");
+                  }}
+                >
+                  {t.auth.termsOfUse}
+                </Text>
+              </Text>
+            </View>
+          )}
+
           <TouchableOpacity
             style={[styles.button, loading && styles.buttonDisabled]}
             onPress={handleAuth}
@@ -542,6 +623,7 @@ export default function LoginScreen() {
           </View>
 
           <GoogleLoginButton />
+          <AppleLoginButton />
 
           <TouchableOpacity
             style={styles.switchButton}
@@ -564,6 +646,15 @@ export default function LoginScreen() {
               </Text>
             </TouchableOpacity>
           )}
+
+          <TouchableOpacity
+            style={styles.guestButton}
+            onPress={() => setIsGuest(true)}
+          >
+            <Text style={styles.guestButtonText}>
+              {t.auth.continueAsGuest}
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

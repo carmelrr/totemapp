@@ -28,7 +28,32 @@ const ROUTE_NAMES: string[] = [
   'Frost Bear',
   'Venom Spider',
   'King Cobra',
-  
+  'Snow Owl',
+  'Copper Falcon',
+  'Sapphire Dolphin',
+  'Iron Mantis',
+  'Crystal Heron',
+  'Turbo Cheetah',
+  'Velvet Bat',
+  'Solar Lizard',
+  'Rusty Wolverine',
+  'Jade Monkey',
+  'Amber Wasp',
+  'Neon Chameleon',
+  'Platinum Tiger',
+  'Volcanic Salamander',
+  'Twilight Raven',
+  'Thunder Moose',
+  'Ice Lynx',
+  'Magma Crab',
+  'Echo Parrot',
+  'Blazing Rooster',
+  'Titanium Ant',
+  'Silver Stingray',
+  'Storm Pelican',
+  'Onyx Beetle',
+  'Bronze Crane',
+
   // Mythological & Fantasy
   'Dragon\'s Breath',
   'Phoenix Rising',
@@ -55,7 +80,28 @@ const ROUTE_NAMES: string[] = [
   'Elven Arrow',
   'Dwarf\'s Hammer',
   'Giant\'s Footstep',
-  
+  'Goblin\'s Gold',
+  'Troll Bridge',
+  'Fairy Dust',
+  'Warlock\'s Pact',
+  'Ogre\'s Den',
+  'Siren\'s Song',
+  'Centaur\'s Charge',
+  'Sphinx Riddle',
+  'Atlas Burden',
+  'Cyclops Fury',
+  'Nymph\'s Pool',
+  'Faun\'s Dance',
+  'Satyr\'s Leap',
+  'Oracle\'s Vision',
+  'Golem\'s March',
+  'Djinn\'s Wish',
+  'Basilisk\'s Stare',
+  'Wraith Walk',
+  'Lich King',
+  'Demon\'s Ladder',
+  'Seraph\'s Wings',
+
   // Nature & Elements
   'Solar Flare',
   'Lunar Eclipse',
@@ -82,7 +128,32 @@ const ROUTE_NAMES: string[] = [
   'Magma Flow',
   'Ice Age',
   'Fire & Ice',
-  
+  'Coral Reef',
+  'Amber Forest',
+  'Emerald Valley',
+  'Obsidian Peak',
+  'Silver Creek',
+  'Sapphire Lake',
+  'Crimson Canyon',
+  'Golden Dunes',
+  'Iron Ridge',
+  'Crystal Cave',
+  'Jade Summit',
+  'Marble Falls',
+  'Shadow Canyon',
+  'Thunder Valley',
+  'Misty Summit',
+  'Sun Kissed',
+  'Moon Shadow',
+  'Wind Whisper',
+  'Riptide',
+  'Frostbite',
+  'Heatwave',
+  'Sandstorm',
+  'Mudslide',
+  'Rockslide',
+  'Whirlpool',
+
   // Action & Power
   'Full Send',
   'No Retreat',
@@ -109,7 +180,32 @@ const ROUTE_NAMES: string[] = [
   'Terminal Velocity',
   'Breaking Point',
   'Total Chaos',
-  
+  'Rocket Fuel',
+  'Chain Reaction',
+  'Shockwave',
+  'Iron Will',
+  'Afterburner',
+  'Cruise Missile',
+  'Double Down',
+  'All In',
+  'No Brakes',
+  'Pedal to Metal',
+  'Rapid Fire',
+  'Heavy Hitter',
+  'Knockout Punch',
+  'Power Play',
+  'Turbo Charge',
+  'Blitz Attack',
+  'Force Field',
+  'Sonic Boom',
+  'Steamroller',
+  'Unstoppable',
+  'Juggernaut',
+  'Ballistic',
+  'Rampage',
+  'Onslaught',
+  'Berserker',
+
   // Climbing Specific
   'Crimp City',
   'Dyno Dynasty',
@@ -136,7 +232,38 @@ const ROUTE_NAMES: string[] = [
   'Beta Spray',
   'Slab Master',
   'Roof Runner',
-  
+  'Pocket Rocket',
+  'Crack Attack',
+  'Volume Control',
+  'Send Train',
+  'Chalk Dust',
+  'Tape Job',
+  'Skin Tax',
+  'Barn Door',
+  'Rose Move',
+  'Knee Bar King',
+  'Match Point',
+  'Cross Through',
+  'Lock Off',
+  'Figure Four',
+  'Mono Pocket',
+  'Compression King',
+  'Tension Master',
+  'Smear Campaign',
+  'Friction Fiction',
+  'Pinch Hitter',
+  'Crimp Reaper',
+  'Whip Lash',
+  'Clipstick',
+  'Rest Day',
+  'Approach Shoes',
+  'Chalk Bag',
+  'Tick Marks',
+  'Spray Lord',
+  'Circuit Breaker',
+  'Wall Flower',
+  'Hang Time',
+
   // Pop Culture & Fun
   'Pizza Time',
   'Coffee Break',
@@ -163,7 +290,32 @@ const ROUTE_NAMES: string[] = [
   'Infinite Loop',
   'Stack Overflow',
   'Syntax Error',
-  
+  'Copy Paste',
+  'Dark Mode',
+  'Incognito',
+  'Pixel Perfect',
+  'Lag Spike',
+  'Respawn',
+  'Side Quest',
+  'Boss Fight',
+  'Loot Drop',
+  'Critical Hit',
+  'Double XP',
+  'Spawn Point',
+  'Hit Points',
+  'Power Up',
+  'Combo Breaker',
+  'Easter Egg',
+  'Glitch',
+  'No Clip',
+  'God Mode',
+  'New Game Plus',
+  'Speedrun Any%',
+  'Tutorial Skip',
+  'Plot Twist',
+  'Season Finale',
+  'Cliffhanger',
+
   // Abstract & Philosophical
   'Sweet Pain',
   'Beautiful Chaos',
@@ -190,7 +342,27 @@ const ROUTE_NAMES: string[] = [
   'Empty Full',
   'Heavy Feather',
   'Solid Smoke',
-  
+  'Gentle Storm',
+  'Bright Shadow',
+  'Frozen Flame',
+  'Soft Steel',
+  'Quick Patience',
+  'Living Ghost',
+  'Waking Dream',
+  'Open Secret',
+  'Known Mystery',
+  'Distant Close',
+  'Ancient Modern',
+  'Fresh Fossil',
+  'Digital Nature',
+  'Analog Cloud',
+  'Silent Thunder',
+  'Invisible Light',
+  'Timeless Moment',
+  'Weightless Stone',
+  'Liquid Steel',
+  'Burning Ice',
+
   // Space & Cosmic
   'Black Hole',
   'Event Horizon',
@@ -217,7 +389,27 @@ const ROUTE_NAMES: string[] = [
   'Neutron Star',
   'Gamma Burst',
   'Dark Energy',
-  
+  'Asteroid Belt',
+  'Comet Tail',
+  'Satellite Orbit',
+  'Lunar Drift',
+  'Mars Dust',
+  'Jupiter Storm',
+  'Saturn Ring',
+  'Pluto Heart',
+  'Venus Cloud',
+  'Mercury Burn',
+  'Neptune Deep',
+  'Uranus Tilt',
+  'Andromeda',
+  'Milky Way',
+  'Stardust',
+  'Moonwalk',
+  'Starfall',
+  'Eclipse Path',
+  'Gravity Well',
+  'Ion Drive',
+
   // Edgy & Bold
   'No Mercy',
   'Blood Moon',
@@ -244,7 +436,22 @@ const ROUTE_NAMES: string[] = [
   'Annihilator',
   'Obliterator',
   'Terminator',
-  
+  'Wrecking Ball',
+  'Iron Fist',
+  'Hellfire',
+  'Crossfire',
+  'Warpath',
+  'Predator',
+  'Scorched Earth',
+  'Dark Side',
+  'Blackout',
+  'Inferno',
+  'Plague',
+  'Frenzy',
+  'Vengeance',
+  'Fury Road',
+  'Warlord',
+
   // Movie/Music References
   'Enter Sandman',
   'Stairway Up',
@@ -266,6 +473,136 @@ const ROUTE_NAMES: string[] = [
   'Back in Black',
   'Sweet Victory',
   'Livin\' on Edge',
+  'Welcome Jungle',
+  'Crazy Train',
+  'Iron Man',
+  'War Pigs',
+  'Paranoid',
+  'Black Sabbath',
+  'Purple Haze',
+  'Free Bird',
+  'Comfortably Numb',
+  'Another Brick',
+  'Wish You Were',
+  'Money',
+  'Kashmir',
+  'Whole Lotta',
+  'Black Dog',
+  'Ace of Spades',
+  'Breaking the Law',
+  'Holy Diver',
+  'Rainbow Rising',
+  'Ride Lightning',
+
+  // Food & Drink
+  'Spicy Mango',
+  'Maple Syrup',
+  'Wasabi Bomb',
+  'Espresso Shot',
+  'Lemon Drop',
+  'Chili Pepper',
+  'Honey Trap',
+  'Sugar Rush',
+  'Salty Dog',
+  'Vanilla Sky',
+  'Cinnamon Roll',
+  'Pepper Spray',
+  'Hot Sauce',
+  'Ginger Snap',
+  'Mint Condition',
+  'Caramel Crunch',
+  'Coconut Dream',
+  'Berry Blast',
+  'Peach Fuzz',
+  'Lime Squeeze',
+
+  // Ocean & Water
+  'Deep Blue',
+  'Coral Storm',
+  'Ocean Floor',
+  'Sea Serpent',
+  'Mariana Trench',
+  'Tidal Force',
+  'Pearl Diver',
+  'Wave Rider',
+  'Shipwreck',
+  'Anchor Drop',
+  'Lighthouse',
+  'Harbor Lights',
+  'Bermuda Triangle',
+  'Kraken Bay',
+  'Salt Spray',
+  'Kelp Forest',
+  'Barnacle',
+  'Undertow',
+  'Surf Break',
+  'Reef Shark',
+
+  // Colors & Art
+  'Crimson Tide',
+  'Azure Dream',
+  'Emerald City',
+  'Onyx Night',
+  'Ruby Red',
+  'Cobalt Blue',
+  'Ivory Tower',
+  'Scarlet Letter',
+  'Golden Hour',
+  'Silver Lining',
+  'Copper Tone',
+  'Indigo Child',
+  'Violet Storm',
+  'Magenta Pulse',
+  'Teal Wave',
+  'Ochre Dust',
+  'Burnt Sienna',
+  'Titanium White',
+  'Carbon Black',
+  'Neon Green',
+
+  // Travel & Places
+  'Tokyo Drift',
+  'Paris Night',
+  'Berlin Wall',
+  'Havana Club',
+  'Sahara Wind',
+  'Amazon Rush',
+  'Alps Summit',
+  'Silk Road',
+  'Route 66',
+  'Vegas Strip',
+  'Brooklyn Bridge',
+  'Kilimanjaro',
+  'Everest Base',
+  'Patagonia',
+  'Bali Sunrise',
+  'Kyoto Garden',
+  'Cairo Dust',
+  'Viking Trail',
+  'Outback',
+  'Tundra',
+
+  // Time & Speed
+  'Midnight Run',
+  'Dawn Breaker',
+  'Dusk Rider',
+  'Noon Sun',
+  'Witching Hour',
+  'Golden Minute',
+  'Split Second',
+  'Overtime',
+  'Crunch Time',
+  'Zero Hour',
+  'Last Call',
+  'First Light',
+  'Eleventh Hour',
+  'Time Warp',
+  'Fast Forward',
+  'Rewind',
+  'Slow Motion',
+  'Freeze Frame',
+  'Quick Sand',
+  'Rush Hour',
 ];
 
 /**
@@ -297,22 +634,28 @@ export function getRandomRouteNames(count: number = 5): string[] {
 
 /**
  * Get a random route name that's different from the current one
+ * and doesn't exist in the list of existing route names
  * @param currentName - The current name to avoid
+ * @param existingNames - Optional array of existing route names to avoid duplicates
  * @returns A different random route name
  */
-export function getNewRandomRouteName(currentName: string): string {
-  // If somehow we only have one name, just return it
-  if (ROUTE_NAMES.length <= 1) return ROUTE_NAMES[0] || 'Route';
-  
-  let newName = currentName;
-  let attempts = 0;
-  const maxAttempts = 10;
-  
-  while (newName === currentName && attempts < maxAttempts) {
-    const randomIndex = Math.floor(Math.random() * ROUTE_NAMES.length);
-    newName = ROUTE_NAMES[randomIndex];
-    attempts++;
+export function getNewRandomRouteName(currentName: string, existingNames?: string[]): string {
+  // Build a set of names to exclude (current name + existing names)
+  const excludeSet = new Set<string>();
+  excludeSet.add(currentName.toLowerCase());
+  if (existingNames) {
+    existingNames.forEach(name => excludeSet.add(name.toLowerCase()));
   }
-  
-  return newName;
+
+  // Filter available names that are not in the exclude set
+  const available = ROUTE_NAMES.filter(name => !excludeSet.has(name.toLowerCase()));
+
+  // If all names are taken, fall back to any name different from current
+  if (available.length === 0) {
+    const fallback = ROUTE_NAMES.filter(name => name.toLowerCase() !== currentName.toLowerCase());
+    if (fallback.length === 0) return ROUTE_NAMES[0] || 'Route';
+    return fallback[Math.floor(Math.random() * fallback.length)];
+  }
+
+  return available[Math.floor(Math.random() * available.length)];
 }

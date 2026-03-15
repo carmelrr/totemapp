@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity, useColorScheme } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, I18nManager } from "react-native";
 
 interface Props {
   children: React.ReactNode;
@@ -10,6 +10,15 @@ interface State {
   error: Error | null;
   errorInfo: React.ErrorInfo | null;
 }
+
+// Use RTL detection as a proxy for language since hooks can't be used in class components
+const isHebrew = I18nManager.isRTL;
+
+const errorTexts = {
+  title: isHebrew ? "🚫 שגיאה בטעינת האפליקציה" : "🚫 Error Loading App",
+  message: isHebrew ? "אירעה שגיאה בלתי צפויה. אנא נסה שוב." : "An unexpected error occurred. Please try again.",
+  retry: isHebrew ? "נסה שוב" : "Try Again",
+};
 
 class ErrorBoundaryClass extends React.Component<Props, State> {
   constructor(props: Props) {
@@ -37,9 +46,9 @@ class ErrorBoundaryClass extends React.Component<Props, State> {
     if (this.state.hasError) {
       return (
         <View style={styles.container}>
-          <Text style={styles.title}>🚫 שגיאה בטעינת האפליקציה</Text>
+          <Text style={styles.title}>{errorTexts.title}</Text>
           <Text style={styles.message}>
-            אירעה שגיאה בלתי צפויה. אנא נסה שוב.
+            {errorTexts.message}
           </Text>
           {this.state.error && (
             <Text style={styles.errorText}>{this.state.error.toString()}</Text>
@@ -48,7 +57,7 @@ class ErrorBoundaryClass extends React.Component<Props, State> {
             style={styles.retryButton}
             onPress={this.handleRetry}
           >
-            <Text style={styles.retryButtonText}>נסה שוב</Text>
+            <Text style={styles.retryButtonText}>{errorTexts.retry}</Text>
           </TouchableOpacity>
         </View>
       );

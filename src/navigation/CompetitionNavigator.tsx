@@ -17,6 +17,7 @@ import {
   ManageCompetitionRoutesScreen,
   JudgeEntryScreen,
   CompetitionRegistrationScreen,
+  PointsCompetitionScreen,
 } from '@/features/competitions';
 
 export type CompetitionStackParamList = {
@@ -28,6 +29,7 @@ export type CompetitionStackParamList = {
   ManageCompetitionRoutes: { competitionId: string };
   JudgeEntry: { competitionId: string };
   CompetitionRegistration: { competitionId: string };
+  PointsCompetition: { competitionId: string };
 };
 
 const Stack = createNativeStackNavigator<CompetitionStackParamList>();
@@ -83,6 +85,10 @@ export default function CompetitionNavigator() {
       <Stack.Screen 
         name="CompetitionRegistration" 
         component={CompetitionRegistrationScreen}
+      />
+      <Stack.Screen 
+        name="PointsCompetition" 
+        component={PointsCompetitionScreen}
       />
     </Stack.Navigator>
   );

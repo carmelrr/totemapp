@@ -23,7 +23,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useWalls } from "@/features/walls/hooks";
 import { useRoutesForWall, useUserCompletedSprayRoutes } from "@/features/spraywall/hooks";
 import { WallImageWithHolds } from "@/components/spray/WallImageWithHolds";
-import { SprayRoute } from "@/features/spraywall/types";
+import { SprayRoute, HOLD_TYPES, HoldType } from "@/features/spraywall/types";
 import { useAdmin } from "@/context/AdminContext";
 import { useRolesContext } from "@/features/roles";
 import { useLanguage } from "@/features/language";
@@ -31,6 +31,7 @@ import { useTheme } from "@/features/theme/ThemeContext";
 import { BrandLogo } from "@/components/ui/BrandLogo";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useRouteNavigationStore } from '@/store/useRouteNavigationStore';
+import { CollapsibleFilterSection } from '@/components/Filters/CollapsibleFilterSection';
 import * as ImagePicker from "expo-image-picker";
 import { updateWallImage } from "@/features/walls/wallsService";
 
@@ -83,6 +84,7 @@ export const WallDetailScreen: React.FC = () => {
   const [selectedRoute, setSelectedRoute] = useState<SprayRoute | null>(null);
   const [updatingWall, setUpdatingWall] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [showLegend, setShowLegend] = useState(false);
   
   // Draggable bottom sheet state
   // Image aspect ratio based on actual wall image (adjust as needed)
@@ -141,6 +143,7 @@ export const WallDetailScreen: React.FC = () => {
   // Sort and filter state
   const [sortBy, setSortBy] = useState<SortOption>('newest');
   const [filterGrades, setFilterGrades] = useState<string[]>([]);
+  const [filterCreators, setFilterCreators] = useState<string[]>([]);
   const [completionFilter, setCompletionFilter] = useState<CompletionFilter>('all');
   const [showSortModal, setShowSortModal] = useState(false);
   const [showFilterModal, setShowFilterModal] = useState(false);
@@ -156,6 +159,17 @@ export const WallDetailScreen: React.FC = () => {
       if (grade) grades.add(grade);
     });
     return Array.from(grades).sort((a, b) => V_GRADES.indexOf(a) - V_GRADES.indexOf(b));
+  }, [rawRoutes]);
+
+  // Get unique creators/builders from routes
+  const uniqueCreators = useMemo(() => {
+    const creators = new Map<string, string>();
+    rawRoutes.forEach(r => {
+      if (r.createdBy && r.creatorName) {
+        creators.set(r.createdBy, r.creatorName);
+      }
+    });
+    return Array.from(creators.entries()).map(([id, name]) => ({ id, name }));
   }, [rawRoutes]);
   
   // Apply sort and filter to routes
@@ -175,6 +189,11 @@ export const WallDetailScreen: React.FC = () => {
         const grade = r.calculatedGrade || r.grade;
         return filterGrades.includes(grade);
       });
+    }
+    
+    // Apply creator filter
+    if (filterCreators.length > 0) {
+      filtered = filtered.filter(r => r.createdBy && filterCreators.includes(r.createdBy));
     }
     
     // Apply sort
@@ -211,9 +230,9 @@ export const WallDetailScreen: React.FC = () => {
     }
     
     return filtered;
-  }, [rawRoutes, sortBy, filterGrades, completionFilter, completedRouteIds]);
+  }, [rawRoutes, sortBy, filterGrades, filterCreators, completionFilter, completedRouteIds]);
   
-  const hasActiveFilters = filterGrades.length > 0 || completionFilter !== 'all';
+  const hasActiveFilters = filterGrades.length > 0 || filterCreators.length > 0 || completionFilter !== 'all';
   
   const handleSortChange = (newSort: SortOption) => {
     setSortBy(newSort);
@@ -225,9 +244,16 @@ export const WallDetailScreen: React.FC = () => {
       prev.includes(grade) ? prev.filter(g => g !== grade) : [...prev, grade]
     );
   };
+
+  const toggleFilterCreator = (creatorId: string) => {
+    setFilterCreators(prev =>
+      prev.includes(creatorId) ? prev.filter(c => c !== creatorId) : [...prev, creatorId]
+    );
+  };
   
   const clearFilters = () => {
     setFilterGrades([]);
+    setFilterCreators([]);
     setCompletionFilter('all');
     setShowFilterModal(false);
   };
@@ -383,6 +409,8 @@ export const WallDetailScreen: React.FC = () => {
         <Text style={dynamicStyles.mainHeaderTitle}>{t.spray?.title || 'ספריי וואל'}</Text>
       </View>
 
+      {/* Content Row - horizontal in landscape, vertical in portrait */}
+      <View style={dynamicStyles.contentRow}>
       {/* Wall Image with Selected Route's Holds */}
       <View style={dynamicStyles.imageContainer}>
         <WallImageWithHolds
@@ -390,6 +418,8 @@ export const WallDetailScreen: React.FC = () => {
           holds={selectedRoute?.holds || []}
           routeColor={selectedRoute?.color || "#FF4444"}
           editable={false}
+          holdNumbering={selectedRoute?.holdNumbering}
+          maskPaths={selectedRoute?.maskPaths}
         />
         {selectedRoute && (
           <View style={dynamicStyles.selectedRouteOverlay}>
@@ -404,10 +434,30 @@ export const WallDetailScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
         )}
+        {/* Hold Color Legend Toggle */}
+        <TouchableOpacity
+          style={dynamicStyles.legendToggleButton}
+          onPress={() => setShowLegend((prev) => !prev)}
+        >
+          <Ionicons name="color-palette-outline" size={20} color="#fff" />
+        </TouchableOpacity>
+        {showLegend && (
+          <View style={dynamicStyles.legendContainer}>
+            <Text style={dynamicStyles.legendTitle}>{t.spray.holdColorLegend}</Text>
+            {(['start', 'middle', 'feet'] as HoldType[]).map((type) => (
+              <View key={type} style={dynamicStyles.legendRow}>
+                <View style={[dynamicStyles.legendDot, { backgroundColor: HOLD_TYPES[type].color }]} />
+                <Text style={dynamicStyles.legendText}>
+                  {type === 'start' ? t.spray.startTopColor : type === 'middle' ? t.spray.middleColor : t.spray.feetColor}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
 
       {/* Draggable Routes List */}
-      <Animated.View style={[dynamicStyles.routesSection, { height: sheetHeight }]}>
+      <Animated.View style={[dynamicStyles.routesSection, !isLandscape && { height: sheetHeight }]}>
         {/* Drag Handle */}
         <View {...panResponder.panHandlers} style={dynamicStyles.dragHandle}>
           <View style={dynamicStyles.dragIndicator} />
@@ -464,7 +514,7 @@ export const WallDetailScreen: React.FC = () => {
             <Text style={dynamicStyles.sortFilterButtonText}>{t.community?.filter || 'סינון'}</Text>
             {hasActiveFilters && (
               <View style={dynamicStyles.filterBadge}>
-                <Text style={dynamicStyles.filterBadgeText}>{filterGrades.length}</Text>
+                <Text style={dynamicStyles.filterBadgeText}>{filterGrades.length + filterCreators.length + (completionFilter !== 'all' ? 1 : 0)}</Text>
               </View>
             )}
           </TouchableOpacity>
@@ -499,6 +549,7 @@ export const WallDetailScreen: React.FC = () => {
           />
         )}
       </Animated.View>
+      </View>
 
       {/* Sort Modal */}
       <Modal
@@ -574,71 +625,112 @@ export const WallDetailScreen: React.FC = () => {
             
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Completion Filter */}
-              <Text style={dynamicStyles.filterSectionTitle}>{t.filters.completionStatus}</Text>
-              <View style={dynamicStyles.completionOptionsRow}>
-                <TouchableOpacity
-                  style={[
-                    dynamicStyles.completionChip,
-                    completionFilter === 'all' && dynamicStyles.completionChipSelected
-                  ]}
-                  onPress={() => setCompletionFilter('all')}
-                >
-                  <Text style={[
-                    dynamicStyles.completionChipText,
-                    completionFilter === 'all' && dynamicStyles.completionChipTextSelected
-                  ]}>
-                    {t.filters.showAll}
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    dynamicStyles.completionChip,
-                    completionFilter === 'completed' && dynamicStyles.completionChipSelected
-                  ]}
-                  onPress={() => setCompletionFilter('completed')}
-                >
-                  <Text style={[
-                    dynamicStyles.completionChipText,
-                    completionFilter === 'completed' && dynamicStyles.completionChipTextSelected
-                  ]}>
-                    ✓ {t.filters.showCompleted}
-                  </Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    dynamicStyles.completionChip,
-                    completionFilter === 'not-completed' && dynamicStyles.completionChipSelected
-                  ]}
-                  onPress={() => setCompletionFilter('not-completed')}
-                >
-                  <Text style={[
-                    dynamicStyles.completionChipText,
-                    completionFilter === 'not-completed' && dynamicStyles.completionChipTextSelected
-                  ]}>
-                    {t.filters.showNotCompleted}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <CollapsibleFilterSection
+                title={t.filters.completionStatus}
+                activeCount={completionFilter !== 'all' ? 1 : 0}
+              >
+                <View style={dynamicStyles.completionOptionsRow}>
+                  <TouchableOpacity
+                    style={[
+                      dynamicStyles.completionChip,
+                      completionFilter === 'all' && dynamicStyles.completionChipSelected
+                    ]}
+                    onPress={() => setCompletionFilter('all')}
+                  >
+                    <Text style={[
+                      dynamicStyles.completionChipText,
+                      completionFilter === 'all' && dynamicStyles.completionChipTextSelected
+                    ]}>
+                      {t.filters.showAll}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      dynamicStyles.completionChip,
+                      completionFilter === 'completed' && dynamicStyles.completionChipSelected
+                    ]}
+                    onPress={() => setCompletionFilter('completed')}
+                  >
+                    <Text style={[
+                      dynamicStyles.completionChipText,
+                      completionFilter === 'completed' && dynamicStyles.completionChipTextSelected
+                    ]}>
+                      ✓ {t.filters.showCompleted}
+                    </Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      dynamicStyles.completionChip,
+                      completionFilter === 'not-completed' && dynamicStyles.completionChipSelected
+                    ]}
+                    onPress={() => setCompletionFilter('not-completed')}
+                  >
+                    <Text style={[
+                      dynamicStyles.completionChipText,
+                      completionFilter === 'not-completed' && dynamicStyles.completionChipTextSelected
+                    ]}>
+                      {t.filters.showNotCompleted}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </CollapsibleFilterSection>
               
               {/* Grade Filter */}
-              <Text style={[dynamicStyles.filterSectionTitle, { marginTop: 16 }]}>{t.community?.filterByGrade || 'סנן לפי דרגה'}</Text>
-              {uniqueGrades.map((grade) => (
-                <TouchableOpacity
-                  key={grade}
-                  style={[
-                    dynamicStyles.modalOption,
-                    filterGrades.includes(grade) && dynamicStyles.modalOptionSelected
-                  ]}
-                  onPress={() => toggleFilterGrade(grade)}
+              <CollapsibleFilterSection
+                title={t.community?.filterByGrade || 'סנן לפי דרגה'}
+                activeCount={filterGrades.length}
+              >
+                {uniqueGrades.map((grade) => (
+                  <TouchableOpacity
+                    key={grade}
+                    style={[
+                      dynamicStyles.modalOption,
+                      filterGrades.includes(grade) && dynamicStyles.modalOptionSelected
+                    ]}
+                    onPress={() => toggleFilterGrade(grade)}
+                  >
+                    <Text style={dynamicStyles.gradeOptionText}>{grade}</Text>
+                    {filterGrades.includes(grade) && (
+                      <Ionicons name="checkmark" size={20} color={theme.primary} />
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </CollapsibleFilterSection>
+
+              {/* Creator/Builder Filter */}
+              {uniqueCreators.length > 0 && (
+                <CollapsibleFilterSection
+                  title={t.community?.filterByCreator || 'סינון לפי בונה'}
+                  activeCount={filterCreators.length}
                 >
-                  <Text style={dynamicStyles.gradeOptionText}>{grade}</Text>
-                  {filterGrades.includes(grade) && (
-                    <Ionicons name="checkmark" size={20} color={theme.primary} />
-                  )}
-                </TouchableOpacity>
-              ))}
+                  {uniqueCreators.map((creator) => (
+                    <TouchableOpacity
+                      key={creator.id}
+                      style={[
+                        dynamicStyles.modalOption,
+                        filterCreators.includes(creator.id) && dynamicStyles.modalOptionSelected
+                      ]}
+                      onPress={() => toggleFilterCreator(creator.id)}
+                    >
+                      <Ionicons
+                        name={filterCreators.includes(creator.id) ? "checkbox" : "square-outline"}
+                        size={22}
+                        color={filterCreators.includes(creator.id) ? theme.primary : theme.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          dynamicStyles.modalOptionText,
+                          filterCreators.includes(creator.id) && { color: theme.primary },
+                        ]}
+                      >
+                        {creator.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </CollapsibleFilterSection>
+              )}
             </ScrollView>
             
             <TouchableOpacity 
@@ -665,6 +757,10 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
   container: {
     flex: 1,
     backgroundColor: theme.background,
+    // Always column - header on top, contentRow below
+  },
+  contentRow: {
+    flex: 1,
     flexDirection: isLandscape ? 'row' : 'column',
   },
   mainHeader: {
@@ -673,11 +769,11 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     justifyContent: 'center',
     gap: 8,
     backgroundColor: theme.headerGradient,
-    paddingVertical: isPhoneLandscape ? 8 : 14,
+    paddingVertical: isLandscape ? 8 : 14,
     paddingHorizontal: Math.max(horizontalPadding, 16),
   },
   mainHeaderTitle: {
-    fontSize: isPhoneLandscape ? 18 : 20,
+    fontSize: isLandscape ? 18 : 20,
     fontWeight: 'bold',
     color: '#fff',
   },
@@ -708,13 +804,57 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     fontSize: 14,
     fontWeight: "600",
   },
+  // Hold color legend styles
+  legendToggleButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  legendContainer: {
+    position: 'absolute',
+    top: 54,
+    right: 12,
+    backgroundColor: theme.isDark ? 'rgba(0,0,0,0.85)' : 'rgba(0,0,0,0.75)',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    minWidth: 140,
+  },
+  legendTitle: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  legendRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  legendDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+  },
+  legendText: {
+    color: '#fff',
+    fontSize: 13,
+  },
   routesSection: {
     position: isLandscape ? 'relative' : "absolute",
     bottom: isLandscape ? undefined : 0,
     left: isLandscape ? undefined : 0,
     right: isLandscape ? undefined : 0,
     width: isLandscape ? '40%' : undefined,
-    height: isLandscape ? '100%' : undefined,
+    flex: isLandscape ? 1 : undefined,
     backgroundColor: theme.surface,
     borderTopLeftRadius: isLandscape ? 0 : 24,
     borderTopRightRadius: isLandscape ? 0 : 24,

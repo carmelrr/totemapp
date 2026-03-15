@@ -21,7 +21,7 @@ import {
   collectionGroup,
   setDoc,
 } from "firebase/firestore";
-import { SprayRoute, Hold, SprayRouteFeedback } from "./types";
+import { SprayRoute, Hold, SprayRouteFeedback, HoldNumberEntry, MaskPath } from "./types";
 
 // V-Scale grades for calculations
 const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12'];
@@ -36,8 +36,10 @@ export async function addRoute(payload: {
   holds: Hold[];
   createdBy?: string | null;
   creatorName?: string;
+  holdNumbering?: HoldNumberEntry[];
+  maskPaths?: MaskPath[];
 }): Promise<string> {
-  const { wallId, name, grade, holds, createdBy, creatorName } = payload;
+  const { wallId, name, grade, holds, createdBy, creatorName, holdNumbering, maskPaths } = payload;
 
   console.log('🔵 [addRoute] Starting to add route...');
   console.log('🔵 [addRoute] Current auth user:', auth.currentUser?.uid);
@@ -49,7 +51,7 @@ export async function addRoute(payload: {
     throw new Error('יש להתחבר כדי להוסיף מסלול');
   }
 
-  const routeData = {
+  const routeData: any = {
     wallId,
     name,
     grade,
@@ -63,6 +65,15 @@ export async function addRoute(payload: {
     feedbackCount: 0,
     topsCount: 0,
   };
+
+  // Add optional fields
+  if (holdNumbering && holdNumbering.length > 0) {
+    routeData.holdNumbering = holdNumbering;
+  }
+  if (maskPaths && maskPaths.length > 0) {
+    routeData.maskPaths = maskPaths;
+  }
+
 
   console.log('🔵 [addRoute] Route data to save:', { ...routeData, holds: `${holds.length} holds` });
 
@@ -128,8 +139,15 @@ export async function updateRoute(
   console.log('🟠 [updateRoute] Updating route:', routeId, 'with:', updates);
   const docRef = doc(db, "sprayRoutes", routeId);
   try {
+    // Filter out undefined values — Firestore does not accept them
+    const cleanUpdates: Record<string, any> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        cleanUpdates[key] = value;
+      }
+    }
     await updateDoc(docRef, {
-      ...updates,
+      ...cleanUpdates,
       updatedAt: serverTimestamp(),
     });
     console.log('✅ [updateRoute] Route updated successfully');
@@ -346,6 +364,7 @@ export function listenToFeedbacksForRoute(
 
 /**
  * Recalculate route statistics based on feedbacks
+ * When route grade is "?", the first completer's suggestedGrade sets the route's grade
  */
 async function recalculateRouteStats(routeId: string): Promise<void> {
   console.log('🟡 [recalculateRouteStats] Starting for route:', routeId);
@@ -373,6 +392,9 @@ async function recalculateRouteStats(routeId: string): Promise<void> {
   let totalStars = 0;
   const gradeVotes: Record<string, number> = {};
   
+  // Track earliest feedback for "?" grade resolution
+  let earliestFeedback: { suggestedGrade: string; createdAt: any } | null = null;
+  
   snapshot.forEach((doc) => {
     const data = doc.data();
     totalStars += data.starRating || 0;
@@ -380,6 +402,14 @@ async function recalculateRouteStats(routeId: string): Promise<void> {
     const grade = data.suggestedGrade;
     if (grade) {
       gradeVotes[grade] = (gradeVotes[grade] || 0) + 1;
+    }
+    
+    // Track earliest feedback (for "?" grade resolution)
+    const createdAt = data.createdAt;
+    if (grade && createdAt) {
+      if (!earliestFeedback || (createdAt.seconds < earliestFeedback.createdAt.seconds)) {
+        earliestFeedback = { suggestedGrade: grade, createdAt };
+      }
     }
   });
   
@@ -397,12 +427,27 @@ async function recalculateRouteStats(routeId: string): Promise<void> {
     }
   }
   
-  const statsToUpdate = {
+  const statsToUpdate: Record<string, any> = {
     averageStarRating: Math.round(averageStarRating * 10) / 10,
     feedbackCount,
     topsCount: feedbackCount,
     calculatedGrade,
   };
+  
+  // If route grade is "?", set the base grade from the first completer's suggestion
+  try {
+    const routeDoc = await getDoc(doc(db, "sprayRoutes", routeId));
+    if (routeDoc.exists()) {
+      const routeData = routeDoc.data();
+      if (routeData.grade === '?' && earliestFeedback && earliestFeedback.suggestedGrade) {
+        statsToUpdate.grade = earliestFeedback.suggestedGrade;
+        console.log('🟡 [recalculateRouteStats] Route grade was "?", setting to first completer grade:', earliestFeedback.suggestedGrade);
+      }
+    }
+  } catch (error) {
+    console.error('❌ [recalculateRouteStats] Error checking route grade:', error);
+  }
+  
   console.log('🟡 [recalculateRouteStats] Updating route with stats:', statsToUpdate);
   
   try {

@@ -10,11 +10,24 @@ import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import type { Hold } from '@/features/spraywall/types';
 
 // ===== Root Stack (App.tsx) =====
+// Import shift types
+import type { Shift } from '@/features/shifts/types';
+
 export type RootStackParamList = {
   MainTabs: NavigatorScreenParams<RootTabParamList>;
   Competitions: NavigatorScreenParams<CompetitionStackParamList>;
+  Shifts: NavigatorScreenParams<ShiftsStackParamList>;
   RolesManagement: undefined;
+  AdminStatistics: undefined;
   DeleteAccount: undefined;
+};
+
+// ===== Shifts Stack =====
+export type ShiftsStackParamList = {
+  ShiftsCalendar: undefined;
+  ShiftEditor: { shift?: Shift } | undefined;
+  ShiftDetail: { shift: Shift };
+  ShiftRolesManagement: undefined;
 };
 
 // ===== Main Tab Navigator =====

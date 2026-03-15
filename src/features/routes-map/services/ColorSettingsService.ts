@@ -1,5 +1,5 @@
 // Service for managing custom color settings stored in Firestore
-import { doc, getDoc, setDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, onSnapshot, collection, getDocs } from 'firebase/firestore';
 import { db } from '@/features/data/firebase';
 
 export interface CustomColorSetting {
@@ -13,6 +13,9 @@ export interface CustomColorSetting {
 // Cache for color settings to avoid repeated Firestore reads
 let colorSettingsCache: Map<string, CustomColorSetting> = new Map();
 let cacheInitialized = false;
+
+// Cache for hidden predefined colors
+let hiddenColorsCache: Set<string> = new Set();
 
 /**
  * Initialize the color settings cache by loading all settings from Firestore
@@ -31,6 +34,19 @@ export async function initializeColorSettings(): Promise<void> {
         updatedAt: data.updatedAt instanceof Date ? data.updatedAt : new Date(),
       });
     });
+    
+    // Load hidden colors
+    try {
+      const hiddenDoc = await getDoc(doc(db, 'appSettings', 'hiddenColors'));
+      if (hiddenDoc.exists()) {
+        const data = hiddenDoc.data();
+        if (Array.isArray(data.colors)) {
+          hiddenColorsCache = new Set(data.colors.map((c: string) => c.toUpperCase()));
+        }
+      }
+    } catch (e) {
+      console.warn('Error loading hidden colors:', e);
+    }
     
     cacheInitialized = true;
   } catch (error) {
@@ -174,4 +190,131 @@ export function getColorDisplayName(
 export function getColorDisplayHex(originalHex: string): string {
   const setting = getColorSettingSync(originalHex.toUpperCase());
   return setting?.hex || originalHex;
+}
+
+/**
+ * Reverse lookup: given a display hex (or original key), resolve back to the original key.
+ * This is needed because ColorPickerScreen writes the display hex to route.color,
+ * but getVisibleColors() returns original keys.
+ * 
+ * Example: if original key is #FFFF00 and display hex is #FFD700,
+ *   resolveOriginalColorKey('#FFD700') → '#FFFF00'
+ *   resolveOriginalColorKey('#FFFF00') → '#FFFF00'  (already a key)
+ */
+export function resolveOriginalColorKey(hex: string): string {
+  const normalizedHex = hex.toUpperCase();
+  
+  // 1. If it's already a known key in the cache, return as-is
+  if (colorSettingsCache.has(normalizedHex)) {
+    return normalizedHex;
+  }
+  
+  // 2. Reverse lookup: find a setting whose display hex matches
+  for (const [key, setting] of colorSettingsCache.entries()) {
+    if (setting.hex.toUpperCase() === normalizedHex) {
+      return key; // return the original key
+    }
+  }
+  
+  // 3. Not found in settings at all — return as-is
+  return hex;
+}
+
+/**
+ * Delete a color setting from Firestore and cache
+ * @param hex - The hex color code to delete
+ */
+export async function deleteColorSetting(hex: string): Promise<void> {
+  const normalizedHex = hex.toUpperCase();
+  try {
+    const docRef = doc(db, 'colorSettings', normalizedHex);
+    await deleteDoc(docRef);
+    colorSettingsCache.delete(normalizedHex);
+  } catch (error) {
+    console.error('Error deleting color setting:', error);
+    throw error;
+  }
+}
+
+/**
+ * Save a new custom color (not from predefined list)
+ * @param setting - The color setting to save
+ */
+export async function addCustomColor(
+  setting: Omit<CustomColorSetting, 'updatedAt'>
+): Promise<void> {
+  const normalizedHex = setting.hex.toUpperCase();
+  const fullSetting: CustomColorSetting = {
+    ...setting,
+    hex: normalizedHex,
+    updatedAt: new Date(),
+  };
+
+  try {
+    const docRef = doc(db, 'colorSettings', normalizedHex);
+    await setDoc(docRef, fullSetting);
+    colorSettingsCache.set(normalizedHex, fullSetting);
+  } catch (error) {
+    console.error('Error adding custom color:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get the list of custom (non-predefined) colors from cache
+ */
+export function getCustomColors(): CustomColorSetting[] {
+  const customs: CustomColorSetting[] = [];
+  colorSettingsCache.forEach((setting, key) => {
+    if (setting.originalHex === undefined || setting.originalHex === null) {
+      customs.push(setting);
+    }
+  });
+  return customs;
+}
+
+/**
+ * Invalidate the cache so it reloads on next init
+ */
+export function invalidateColorSettingsCache(): void {
+  cacheInitialized = false;
+}
+
+/**
+ * Hide a predefined color so it no longer appears in the color list
+ */
+export async function hidePredefinedColor(hex: string): Promise<void> {
+  const normalizedHex = hex.toUpperCase();
+  hiddenColorsCache.add(normalizedHex);
+  try {
+    const docRef = doc(db, 'appSettings', 'hiddenColors');
+    await setDoc(docRef, { colors: Array.from(hiddenColorsCache) }, { merge: true });
+  } catch (error) {
+    hiddenColorsCache.delete(normalizedHex);
+    console.error('Error hiding color:', error);
+    throw error;
+  }
+}
+
+/**
+ * Unhide a predefined color
+ */
+export async function unhidePredefinedColor(hex: string): Promise<void> {
+  const normalizedHex = hex.toUpperCase();
+  hiddenColorsCache.delete(normalizedHex);
+  try {
+    const docRef = doc(db, 'appSettings', 'hiddenColors');
+    await setDoc(docRef, { colors: Array.from(hiddenColorsCache) }, { merge: true });
+  } catch (error) {
+    hiddenColorsCache.add(normalizedHex);
+    console.error('Error unhiding color:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get the set of hidden predefined color hex codes
+ */
+export function getHiddenColors(): Set<string> {
+  return new Set(hiddenColorsCache);
 }

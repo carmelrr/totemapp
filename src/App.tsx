@@ -11,6 +11,7 @@ import { auth, db } from "@/features/data/firebase";
 import LoginScreen from "@/screens/auth/LoginScreen";
 import MainTabNavigator from "@/navigation/MainTabNavigator";
 import CompetitionNavigator from "@/navigation/CompetitionNavigator";
+import ShiftsNavigator from "@/navigation/ShiftsNavigator";
 import { UserProvider } from "@/features/auth/UserContext";
 import { ThemeProvider } from "@/features/theme/ThemeContext";
 import { LanguageProvider } from "@/features/language";
@@ -24,8 +25,12 @@ import {
   AnnouncementEditorScreen 
 } from "@/features/announcements";
 import { WallEditorScreen } from "@/features/wall-editor";
+import AdminPanelScreen from "@/screens/admin/AdminPanelScreen";
+import AdminStatisticsScreen from "@/screens/admin/AdminStatisticsScreen";
+import WallTapeManagementScreen from "@/features/routes-map/screens/WallTapeManagementScreen";
 import DeleteAccountScreen from "@/screens/profile/DeleteAccountScreen";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
+import { GuestProvider, useGuest } from "@/context/GuestContext";
 
 if (__DEV__) {
   console.log("🚀 App.tsx starting to load...");
@@ -95,6 +100,15 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
         >
           <RootStack.Screen name="Competitions" component={CompetitionNavigator} />
           <RootStack.Screen 
+            name="Shifts" 
+            component={ShiftsNavigator}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+              gestureEnabled: false,
+            }}
+          />
+          <RootStack.Screen 
             name="RolesManagement" 
             component={RolesManagementScreen}
             options={{
@@ -128,6 +142,30 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
             }}
           />
           <RootStack.Screen 
+            name="AdminPanel" 
+            component={AdminPanelScreen}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <RootStack.Screen 
+            name="AdminStatistics" 
+            component={AdminStatisticsScreen}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <RootStack.Screen 
+            name="WallTapeManagement" 
+            component={WallTapeManagementScreen}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <RootStack.Screen 
             name="DeleteAccount" 
             component={DeleteAccountScreen}
             options={{
@@ -143,6 +181,25 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
 
 export default function App() {
   if (__DEV__) console.log("🔧 App function starting...");
+  return (
+    <GestureHandlerRootView style={{ flex: 1, direction: 'ltr', backgroundColor: '#0B0B0F' }}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <LanguageProvider>
+            <GuestProvider>
+              <AuthProvider>
+                <AppContent />
+              </AuthProvider>
+            </GuestProvider>
+          </LanguageProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
+  );
+}
+
+function AppContent() {
+  const { isGuest } = useGuest();
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -190,54 +247,34 @@ export default function App() {
     return null;
   }
 
-  // If user is not logged in, show login screen
-  if (!user) {
+  // If user is not logged in and not a guest, show login screen
+  if (!user && !isGuest) {
     if (__DEV__) console.log("🔧 No user, showing login screen");
     return (
-      <GestureHandlerRootView style={{ flex: 1, direction: 'ltr' }}>
-        <SafeAreaProvider>
-          <ThemeProvider>
-            <LanguageProvider>
-              <AuthProvider>
-                <NavigationContainer>
-                  <Stack.Navigator id={undefined}>
-                    <Stack.Screen
-                      name="Login"
-                      component={LoginScreen}
-                      options={{ headerShown: false }}
-                    />
-                  </Stack.Navigator>
-                </NavigationContainer>
-              </AuthProvider>
-            </LanguageProvider>
-          </ThemeProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
+      <NavigationContainer>
+        <Stack.Navigator id={undefined}>
+          <Stack.Screen
+            name="Login"
+            component={LoginScreen}
+            options={{ headerShown: false }}
+          />
+        </Stack.Navigator>
+      </NavigationContainer>
     );
   }
 
-  if (__DEV__) console.log("🔧 User logged in, rendering main app");
+  if (__DEV__) console.log("🔧 User logged in or guest, rendering main app");
   return (
     <ErrorBoundary>
-      <GestureHandlerRootView style={{ flex: 1, direction: 'ltr' }}>
-        <SafeAreaProvider>
-          <ThemeProvider>
-            <LanguageProvider>
-              <AuthProvider>
-                <AdminProvider>
-                  <DefaultAvatarProvider>
-                    <RolesProvider>
-                      <UserProvider isAdmin={isAdmin}>
-                        <ThemedNavigator isAdmin={isAdmin} />
-                      </UserProvider>
-                    </RolesProvider>
-                  </DefaultAvatarProvider>
-                </AdminProvider>
-              </AuthProvider>
-            </LanguageProvider>
-          </ThemeProvider>
-        </SafeAreaProvider>
-      </GestureHandlerRootView>
+      <AdminProvider>
+        <DefaultAvatarProvider>
+          <RolesProvider>
+            <UserProvider isAdmin={isAdmin}>
+              <ThemedNavigator isAdmin={isAdmin} />
+            </UserProvider>
+          </RolesProvider>
+        </DefaultAvatarProvider>
+      </AdminProvider>
     </ErrorBoundary>
   );
 }

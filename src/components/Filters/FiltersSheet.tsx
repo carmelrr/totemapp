@@ -14,6 +14,8 @@ import { useFiltersStore } from '@/store/useFiltersStore';
 import { getColorHex } from '@/constants/colors';
 import { useLanguage } from '@/features/language';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useWallTapes } from '@/features/routes-map/hooks/useWallTapes';
+import { CollapsibleFilterSection } from '@/components/Filters/CollapsibleFilterSection';
 
 interface FiltersSheetProps {
   availableColors?: string[];
@@ -44,6 +46,9 @@ export default function FiltersSheet({
   const { t, language } = useLanguage();
   const { theme } = useTheme();
   const dynamicStyles = useMemo(() => createStyles(theme), [theme]);
+
+  // Wall tapes from Firestore
+  const { tapes: wallTapes } = useWallTapes();
   
   // Sort available grades in proper order
   const sortedGrades = useMemo(() => {
@@ -74,6 +79,13 @@ export default function FiltersSheet({
       ? filters.colors.filter(c => c !== color)
       : [...filters.colors, color];
     setFilter('colors', newColors);
+  };
+
+  const handleWallTapeToggle = (tapeId: string) => {
+    const newTapes = filters.wallTapes.includes(tapeId)
+      ? filters.wallTapes.filter(t => t !== tapeId)
+      : [...filters.wallTapes, tapeId];
+    setFilter('wallTapes', newTapes);
   };
 
   const handleGradeToggle = (grade: string) => {
@@ -185,8 +197,10 @@ export default function FiltersSheet({
 
           <ScrollView style={dynamicStyles.content} showsVerticalScrollIndicator={false}>
             {/* Colors Section */}
-            <View style={dynamicStyles.section}>
-              <Text style={dynamicStyles.sectionTitle}>{t.filters.colors}</Text>
+            <CollapsibleFilterSection
+              title={t.filters.colors}
+              activeCount={filters.colors.length}
+            >
               {availableColors.length > 0 ? (
                 <View style={dynamicStyles.colorsGrid}>
                   {availableColors.map((color) => {
@@ -215,12 +229,57 @@ export default function FiltersSheet({
             ) : (
               <Text style={dynamicStyles.emptyText}>{t.filters.noColorsAvailable}</Text>
             )}
-          </View>
+          </CollapsibleFilterSection>
+
+          {/* Wall Tape Section */}
+          {wallTapes.length > 0 && (
+            <CollapsibleFilterSection
+              title={t.wallTape?.wallTape || 'Wall Tape'}
+              activeCount={filters.wallTapes.length}
+            >
+              <View style={dynamicStyles.tapeGrid}>
+                {wallTapes.map((tape) => {
+                  const isSelected = filters.wallTapes.includes(tape.id);
+                  const contrastColor = (() => {
+                    const c = tape.hex.replace('#', '');
+                    const r = parseInt(c.substr(0, 2), 16) || 0;
+                    const g = parseInt(c.substr(2, 2), 16) || 0;
+                    const b = parseInt(c.substr(4, 2), 16) || 0;
+                    return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? '#000' : '#fff';
+                  })();
+                  return (
+                    <TouchableOpacity
+                      key={tape.id}
+                      style={[
+                        dynamicStyles.tapeChip,
+                        { borderColor: tape.hex },
+                        isSelected && { backgroundColor: tape.hex, borderColor: tape.hex },
+                      ]}
+                      onPress={() => handleWallTapeToggle(tape.id)}
+                    >
+                      <View style={[dynamicStyles.tapeDot, { backgroundColor: tape.hex }]} />
+                      <Text style={[
+                        dynamicStyles.tapeChipText,
+                        isSelected && { color: contrastColor },
+                      ]}>
+                        {language === 'he' ? tape.nameHe : tape.nameEn}
+                      </Text>
+                      {isSelected && (
+                        <Text style={[dynamicStyles.tapeCheckmark, { color: contrastColor }]}>✓</Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </CollapsibleFilterSection>
+          )}
 
           {/* Grades Section */}
-          <View style={dynamicStyles.section}>
+          <CollapsibleFilterSection
+            title={t.filters.difficultyGrade}
+            activeCount={filters.gradeRange.min ? 1 : 0}
+          >
             <View style={dynamicStyles.sectionHeader}>
-              <Text style={dynamicStyles.sectionTitle}>{t.filters.difficultyGrade}</Text>
               <Text style={dynamicStyles.selectedText}>{getSelectedGradesText()}</Text>
             </View>
             {sortedGrades.length > 0 ? (
@@ -252,11 +311,13 @@ export default function FiltersSheet({
             ) : (
               <Text style={dynamicStyles.emptyText}>{t.filters.noGradesAvailable || 'No grades available'}</Text>
             )}
-          </View>
+          </CollapsibleFilterSection>
 
           {/* Date Filter Section - Specific dates from routes */}
-          <View style={dynamicStyles.section}>
-            <Text style={dynamicStyles.sectionTitle}>{t.filters.addedDate}</Text>
+          <CollapsibleFilterSection
+            title={t.filters.addedDate}
+            activeCount={filters.dateRange !== 'all' ? 1 : 0}
+          >
             <ScrollView 
               horizontal 
               showsHorizontalScrollIndicator={false}
@@ -300,11 +361,13 @@ export default function FiltersSheet({
                 );
               })}
             </ScrollView>
-          </View>
+          </CollapsibleFilterSection>
 
           {/* Completion Status Section */}
-          <View style={dynamicStyles.section}>
-            <Text style={dynamicStyles.sectionTitle}>{t.filters.completionStatus}</Text>
+          <CollapsibleFilterSection
+            title={t.filters.completionStatus}
+            activeCount={filters.completionStatus && filters.completionStatus !== 'all' ? 1 : 0}
+          >
             <View style={dynamicStyles.completionOptionsRow}>
               <TouchableOpacity
                 style={[
@@ -351,7 +414,7 @@ export default function FiltersSheet({
                 </Text>
               </TouchableOpacity>
             </View>
-          </View>
+          </CollapsibleFilterSection>
         </ScrollView>
 
         {/* Apply Button */}
@@ -555,5 +618,36 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#ffffff',
+  },
+  tapeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  tapeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: theme.border,
+    backgroundColor: theme.card,
+    gap: 6,
+  },
+  tapeDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+  },
+  tapeChipText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: theme.textSecondary,
+  },
+  tapeCheckmark: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginLeft: 2,
   },
 });

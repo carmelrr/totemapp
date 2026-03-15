@@ -2,8 +2,10 @@
  * Shared feedback form used across all route detail screens.
  * Handles star rating, grade selection, comment, optional video link,
  * and submit/cancel flow.
+ * Sections are collapsible – stars & grade are open by default,
+ * comment + video link are collapsed.
  */
-import React from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,10 +14,20 @@ import {
   ScrollView,
   ActivityIndicator,
   StyleSheet,
+  Animated,
+  LayoutAnimation,
+  Platform,
+  UIManager,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
 import { VideoLinkInput } from '@/components/feedback';
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 export interface RouteFeedbackFormProps {
   /** Current star rating (0-5) */
@@ -95,11 +107,27 @@ export const RouteFeedbackForm: React.FC<RouteFeedbackFormProps> = ({
   const { t } = useLanguage();
   const styles = React.useMemo(() => createStyles(theme), [theme]);
 
+  // Collapsible state: stars & grade open, comment collapsed
+  const [starsExpanded, setStarsExpanded] = useState(true);
+  const [gradeExpanded, setGradeExpanded] = useState(true);
+  const [commentExpanded, setCommentExpanded] = useState(false);
+
+  const toggleSection = useCallback((setter: React.Dispatch<React.SetStateAction<boolean>>) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setter(prev => !prev);
+  }, []);
+
   return (
     <View style={styles.card}>
-      {/* Star Rating */}
-      <View style={styles.section}>
-        <Text style={styles.label}>{starLabel ?? `${t.routes?.starRating ?? 'Star rating'} ⭐`}</Text>
+      {/* Star Rating - collapsible, open by default */}
+      <CollapsibleSection
+        title={starLabel ?? `${t.routes?.starRating ?? 'Star rating'} ⭐`}
+        expanded={starsExpanded}
+        onToggle={() => toggleSection(setStarsExpanded)}
+        hasValue={starRating > 0}
+        valueSummary={starRating > 0 ? '★'.repeat(starRating) : undefined}
+        theme={theme}
+      >
         <View style={styles.starsRow}>
           {[1, 2, 3, 4, 5].map((star) => (
             <TouchableOpacity
@@ -111,11 +139,17 @@ export const RouteFeedbackForm: React.FC<RouteFeedbackFormProps> = ({
             </TouchableOpacity>
           ))}
         </View>
-      </View>
+      </CollapsibleSection>
 
-      {/* Grade Selector */}
-      <View style={styles.section}>
-        <Text style={styles.label}>{gradeLabel ?? `${t.routes?.suggestedGrade ?? 'Suggested grade'} 📊`}</Text>
+      {/* Grade Selector - collapsible, open by default */}
+      <CollapsibleSection
+        title={gradeLabel ?? `${t.routes?.suggestedGrade ?? 'Suggested grade'} 📊`}
+        expanded={gradeExpanded}
+        onToggle={() => toggleSection(setGradeExpanded)}
+        hasValue={!!suggestedGrade}
+        valueSummary={suggestedGrade || undefined}
+        theme={theme}
+      >
         {gradeRangeHint ? <Text style={styles.hint}>{gradeRangeHint}</Text> : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gradeScroll}>
           {grades.map((grade) => (
@@ -135,11 +169,16 @@ export const RouteFeedbackForm: React.FC<RouteFeedbackFormProps> = ({
             </TouchableOpacity>
           ))}
         </ScrollView>
-      </View>
+      </CollapsibleSection>
 
-      {/* Comment */}
-      <View style={styles.section}>
-        <Text style={styles.label}>{commentLabel ?? `${t.routes?.comment ?? 'Comment'} 💬`}</Text>
+      {/* Comment + Video Link - collapsible, collapsed by default */}
+      <CollapsibleSection
+        title={commentLabel ?? `${t.routes?.comment ?? 'Comment'} 💬`}
+        expanded={commentExpanded}
+        onToggle={() => toggleSection(setCommentExpanded)}
+        hasValue={!!comment.trim() || !!(videoUrl && videoUrl.trim())}
+        theme={theme}
+      >
         <TextInput
           style={styles.commentInput}
           placeholder={commentPlaceholder ?? t.spray?.betaTipsExperience ?? 'Beta, tips, experience...'}
@@ -150,17 +189,19 @@ export const RouteFeedbackForm: React.FC<RouteFeedbackFormProps> = ({
           numberOfLines={3}
           textAlignVertical="top"
         />
-      </View>
 
-      {/* Video Link (optional) */}
-      {videoUrl !== undefined && onVideoUrlChange && (
-        <VideoLinkInput
-          value={videoUrl}
-          onChange={onVideoUrlChange}
-          onValidationChange={onVideoLinkValidChange}
-          disabled={isSubmitting}
-        />
-      )}
+        {/* Video Link (optional) */}
+        {videoUrl !== undefined && onVideoUrlChange && (
+          <View style={{ marginTop: 12 }}>
+            <VideoLinkInput
+              value={videoUrl}
+              onChange={onVideoUrlChange}
+              onValidationChange={onVideoLinkValidChange}
+              disabled={isSubmitting}
+            />
+          </View>
+        )}
+      </CollapsibleSection>
 
       {/* Buttons */}
       <View style={styles.buttons}>
@@ -181,6 +222,90 @@ export const RouteFeedbackForm: React.FC<RouteFeedbackFormProps> = ({
           )}
         </TouchableOpacity>
       </View>
+    </View>
+  );
+};
+
+/* ── Collapsible Section ─────────────────────────────────── */
+
+interface CollapsibleSectionProps {
+  title: string;
+  expanded: boolean;
+  onToggle: () => void;
+  hasValue?: boolean;
+  valueSummary?: string;
+  theme: any;
+  children: React.ReactNode;
+}
+
+const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
+  title,
+  expanded,
+  onToggle,
+  hasValue,
+  valueSummary,
+  theme,
+  children,
+}) => {
+  const rotateAnim = useRef(new Animated.Value(expanded ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(rotateAnim, {
+      toValue: expanded ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [expanded]);
+
+  const rotation = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '90deg'],
+  });
+
+  return (
+    <View style={{ marginBottom: expanded ? 16 : 4 }}>
+      <TouchableOpacity
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingVertical: 10,
+        }}
+        onPress={onToggle}
+        activeOpacity={0.7}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+          <Animated.View style={{ transform: [{ rotate: rotation }] }}>
+            <Ionicons
+              name="chevron-forward"
+              size={16}
+              color={hasValue ? theme.primary : theme.textSecondary}
+            />
+          </Animated.View>
+          <Text style={{
+            fontSize: 15,
+            fontWeight: '600',
+            color: hasValue ? theme.primary : theme.text,
+          }}>
+            {title}
+          </Text>
+        </View>
+        {!expanded && valueSummary && (
+          <Text style={{
+            fontSize: 13,
+            color: theme.primary,
+            fontWeight: '500',
+            marginStart: 8,
+          }}>
+            {valueSummary}
+          </Text>
+        )}
+      </TouchableOpacity>
+      {expanded && (
+        <View style={{ paddingBottom: 4 }}>
+          {children}
+        </View>
+      )}
     </View>
   );
 };

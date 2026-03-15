@@ -196,7 +196,10 @@ export default function CompetitionWallMap({
   const isReady = containerDimensions.width > 0 && imageDimensions.imgW > 0;
 
   // Determine if routes are interactive based on format
-  const isInteractive = format === 'totemtition' && !isEditing;
+  const isInteractive = (format === 'totemtition' || format === 'points_competition') && !isEditing;
+
+  // For points_competition, show grade as label instead of route number
+  const isPointsCompetition = format === 'points_competition';
 
   const styles = createStyles(theme);
 
@@ -255,7 +258,11 @@ export default function CompetitionWallMap({
                 isCompleted={userCompletedRoutes.includes(route.id)}
                 completionCount={routeCompletionCounts[route.id]}
                 circleSize={circleSize}
-                displayLabel={routePrefix ? `${routePrefix}${route.routeNumber}` : undefined}
+                displayLabel={
+                  isPointsCompetition
+                    ? (route.grade || '?')
+                    : (routePrefix ? `${routePrefix}${route.routeNumber}` : undefined)
+                }
               />
             ))}
           </View>

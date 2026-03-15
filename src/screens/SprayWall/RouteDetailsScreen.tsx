@@ -18,10 +18,10 @@ import {
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { GradePicker } from "@/components/spray/GradePicker";
-import { useAddRoute } from "@/features/spraywall/hooks";
+import { useAddRoute, useRoutesForWall } from "@/features/spraywall/hooks";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/features/language";
-import { Hold } from "@/features/spraywall/types";
+import { Hold, HoldNumberEntry, MaskPath } from "@/features/spraywall/types";
 import { getNewRandomRouteName } from "@/utils/randomRouteNames";
 import { useTheme, lightTheme } from "@/features/theme/ThemeContext";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
@@ -42,14 +42,23 @@ export const RouteDetailsScreen: React.FC = () => {
   const { t } = useLanguage();
 
   // Get data from previous screen
-  const { wallId, holds } = route.params as { wallId: string; holds: Hold[] };
+  const { wallId, holds, holdNumbering, maskPaths } = route.params as { 
+    wallId: string; 
+    holds: Hold[];
+    holdNumbering?: HoldNumberEntry[];
+    maskPaths?: MaskPath[];
+  };
+
+  // Existing routes for dedup in random name generator
+  const { routes: existingRoutes } = useRoutesForWall(wallId || '');
+  const existingNames = useMemo(() => existingRoutes.map(r => r.name), [existingRoutes]);
 
   const [routeName, setRouteName] = useState("");
   const [routeGrade, setRouteGrade] = useState("V0");
 
   // Handler for random name button
   const handleRandomName = () => {
-    const newName = getNewRandomRouteName(routeName);
+    const newName = getNewRandomRouteName(routeName, existingNames);
     setRouteName(newName);
   };
 
@@ -82,6 +91,8 @@ export const RouteDetailsScreen: React.FC = () => {
         holds,
         createdBy: user.uid,
         creatorName: user.displayName || user.email || undefined,
+        holdNumbering,
+        maskPaths,
       });
 
       // Reset navigation stack to SprayHome to prevent back button issues
@@ -206,7 +217,7 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   },
   summarySection: {
     backgroundColor: theme.surface,
-    padding: isPhoneLandscape ? 12 : 16,
+    padding: isLandscape ? 12 : 16,
     margin: horizontalPadding,
     borderRadius: 12,
     maxWidth: contentMaxWidth,
@@ -215,7 +226,7 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   },
   summaryTitle: {
     color: theme.text,
-    fontSize: isPhoneLandscape ? 14 : 16,
+    fontSize: isLandscape ? 14 : 16,
     fontWeight: "bold",
     marginBottom: 12,
     textAlign: "center",
@@ -247,7 +258,7 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   },
   inputSection: {
     paddingHorizontal: horizontalPadding,
-    paddingVertical: isPhoneLandscape ? 8 : 12,
+    paddingVertical: isLandscape ? 8 : 12,
     backgroundColor: theme.surface,
     marginTop: 8,
     maxWidth: contentMaxWidth,
@@ -298,12 +309,12 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   },
   saveButtonText: {
     color: "#fff",
-    fontSize: isPhoneLandscape ? 16 : 18,
+    fontSize: isLandscape ? 16 : 18,
     fontWeight: "bold",
   },
   backButton: {
     marginHorizontal: horizontalPadding,
-    marginBottom: isPhoneLandscape ? 12 : 16,
+    marginBottom: isLandscape ? 12 : 16,
     padding: 12,
     alignItems: "center",
     maxWidth: contentMaxWidth,

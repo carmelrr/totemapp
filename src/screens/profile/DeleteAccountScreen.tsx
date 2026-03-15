@@ -363,8 +363,13 @@ const DeleteAccountScreen: React.FC = () => {
 };
 
 // ===== Styles =====
-const createStyles = (theme: any, layout: any, insets: any) =>
-  StyleSheet.create({
+const createStyles = (theme: any, layout: any, insets: any) => {
+  const isLandscape = layout?.isLandscape ?? false;
+  const isTablet = layout?.isTablet ?? false;
+  const horizontalPadding = isLandscape ? Math.max(insets?.left ?? 0, insets?.right ?? 0, 24) : 24;
+  const contentMaxWidth = (isLandscape || isTablet) ? 500 : undefined;
+  
+  return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.background,
@@ -373,14 +378,14 @@ const createStyles = (theme: any, layout: any, insets: any) =>
       flex: 1,
       justifyContent: "center",
       alignItems: "center",
-      padding: 24,
+      padding: horizontalPadding,
     },
     header: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      paddingHorizontal: 16,
-      paddingVertical: 12,
+      paddingHorizontal: horizontalPadding,
+      paddingVertical: isLandscape ? 8 : 12,
       borderBottomWidth: 1,
       borderBottomColor: theme.border,
     },
@@ -396,8 +401,11 @@ const createStyles = (theme: any, layout: any, insets: any) =>
       color: theme.text,
     },
     scrollContent: {
-      padding: 24,
+      padding: horizontalPadding,
       paddingBottom: 60,
+      maxWidth: contentMaxWidth,
+      alignSelf: (isLandscape || isTablet) ? 'center' : undefined,
+      width: (isLandscape || isTablet) ? '100%' : undefined,
     },
     warningIconContainer: {
       alignItems: "center",
@@ -535,5 +543,6 @@ const createStyles = (theme: any, layout: any, insets: any) =>
       fontWeight: "bold",
     },
   });
+};
 
 export default DeleteAccountScreen;

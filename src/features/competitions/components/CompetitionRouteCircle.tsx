@@ -216,7 +216,8 @@ const CompetitionRouteCircle = React.memo<CompetitionRouteCircleProps>(({
   const tapGesture = useMemo(() => 
     Gesture.Tap()
       .enabled(interactive && !!onPress)
-      .hitSlop({ top: 15, bottom: 15, left: 15, right: 15 })
+      .hitSlop({ top: 8, bottom: 8, left: 8, right: 8 })
+      .maxDistance(12)
       .onEnd(() => {
         'worklet';
         runOnJS(handlePress)();

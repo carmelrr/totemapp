@@ -11,11 +11,13 @@ import {
 } from 'react-native';
 import { FeedbackService } from '../services/FeedbackService';
 import { RouteDoc } from '../types/route';
-import { ROUTE_COLORS, getColorTranslationKey, getContrastTextColor } from '../utils/colors';
+import { ROUTE_COLORS, getVisibleColors, getColorTranslationKey, getContrastTextColor, getRouteDisplayName } from '../utils/colors';
 import { GRADES } from '../utils/grades';
 import { RoutesService } from '../services/RoutesService';
+import { getColorSettingSync, initializeColorSettings, getColorDisplayHex, resolveOriginalColorKey } from '../services/ColorSettingsService';
 import { useLanguage } from '@/features/language';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useWallTapes } from '../hooks/useWallTapes';
 
 interface RouteEditModalProps {
   visible: boolean;
@@ -45,21 +47,41 @@ export default function RouteEditModal({
   onDelete,
   onMoveRoute,
 }: RouteEditModalProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { theme } = useTheme();
   const styles = createStyles(theme);
   const [grade, setGrade] = useState(route?.grade || 'V0');
   const [color, setColor] = useState(route?.color || ROUTE_COLORS[0]);
+  const [wallTape, setWallTape] = useState(route?.wallTape || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [feedbacks, setFeedbacks] = useState<RouteFeedback[]>([]);
   const [loadingFeedbacks, setLoadingFeedbacks] = useState(false);
   const [deletingFeedbackId, setDeletingFeedbackId] = useState<string | null>(null);
+  const [colorSettingsReady, setColorSettingsReady] = useState(false);
 
-  // Reset state when route changes
+  // Wall tapes
+  const { tapes } = useWallTapes();
+
+  // Initialize color settings cache when modal opens
+  useEffect(() => {
+    if (visible) {
+      initializeColorSettings().then(() => {
+        setColorSettingsReady(prev => !prev); // toggle to trigger re-render
+        // Re-resolve color after cache is loaded
+        if (route) {
+          setColor(resolveOriginalColorKey(route.color));
+        }
+      });
+    }
+  }, [visible]);
+
+  // Reset state when route changes — resolve color back to original key
+  // so it matches getVisibleColors() keys for the grid selection
   React.useEffect(() => {
     if (route) {
       setGrade(route.grade);
-      setColor(route.color);
+      setColor(resolveOriginalColorKey(route.color));
+      setWallTape(route.wallTape || '');
     }
   }, [route]);
 
@@ -88,23 +110,88 @@ export default function RouteEditModal({
     return () => unsubscribe();
   }, [visible, route?.id]);
 
+  // Generate bilingual names from grade and color (same logic as AddRouteMapScreen)
+  const getRouteNames = (selectedColor: string, selectedGrade: string): { nameHe: string; nameEn: string } => {
+    const colorKey = getColorTranslationKey(selectedColor);
+    let colorNameHe: string;
+    let colorNameEn: string;
+
+    // First check if there's a custom color setting saved
+    const customSetting = getColorSettingSync(selectedColor);
+    if (customSetting) {
+      colorNameHe = customSetting.nameHe;
+      colorNameEn = customSetting.nameEn;
+    } else {
+      // Get from translations for both languages
+      const { he: heTranslations } = require('@/features/language/translations/he');
+      const { en: enTranslations } = require('@/features/language/translations/en');
+      colorNameHe = heTranslations?.colors?.[colorKey] || colorKey;
+      colorNameEn = enTranslations?.colors?.[colorKey] || colorKey;
+    }
+
+    return {
+      nameHe: `${colorNameHe} ${selectedGrade}`,
+      nameEn: `${colorNameEn} ${selectedGrade}`,
+    };
+  };
+
   const handleSave = async () => {
     if (!route) return;
 
     setIsSubmitting(true);
     try {
-      // Generate new name based on grade and color
-      const colorKey = getColorTranslationKey(color);
-      const colorName = t.colors[colorKey as keyof typeof t.colors] || colorKey;
-      const newName = `${colorName} ${grade}`;
+      // Generate bilingual names based on grade and color
+      const names = getRouteNames(color, grade);
+      // Use the display hex (customized shade) to stay consistent with ColorPickerScreen
+      const displayColor = getColorDisplayHex(color);
 
       await RoutesService.updateRoute(route.id, {
-        name: newName,
+        name: names.nameHe, // Default name (Hebrew for backward compat)
+        nameHe: names.nameHe,
+        nameEn: names.nameEn,
         grade,
-        color,
+        color: displayColor,
+        wallTape: wallTape || '',
       });
 
-      Alert.alert(t.common.success, t.routes.routeUpdated);
+      // Also update other routes with the same color that don't have bilingual names yet
+      // Check both display hex AND original key to catch all variants
+      const colorKey = getColorTranslationKey(color);
+      const customSetting = getColorSettingSync(color);
+      const colorNameHe = customSetting?.nameHe ||
+        require('@/features/language/translations/he').he?.colors?.[colorKey] || colorKey;
+      const colorNameEn = customSetting?.nameEn ||
+        require('@/features/language/translations/en').en?.colors?.[colorKey] || colorKey;
+
+      let updatedCount = 0;
+
+      // Normalize routes that still have the OLD original hex to the correct display hex
+      if (color.toUpperCase() !== displayColor.toUpperCase()) {
+        updatedCount += await RoutesService.normalizeRouteColor(
+          color,
+          displayColor,
+          colorNameHe,
+          colorNameEn,
+          route.id
+        );
+      }
+
+      // Update bilingual names for routes with the display hex that don't have them yet
+      updatedCount += await RoutesService.updateRouteNamesByColor(
+        displayColor,
+        colorNameHe,
+        colorNameEn,
+        route.id
+      );
+
+      if (updatedCount > 0) {
+        Alert.alert(
+          t.common.success,
+          `${t.routes.routeUpdated}\n${updatedCount} ${t.routes.additionalRoutesUpdated || 'מסלולים נוספים עודכנו'}`
+        );
+      } else {
+        Alert.alert(t.common.success, t.routes.routeUpdated);
+      }
       onSave();
       onClose();
     } catch (error) {
@@ -233,7 +320,21 @@ export default function RouteEditModal({
           {/* Current Route Info */}
           <View style={styles.infoSection}>
             <Text style={styles.infoLabel}>{t.routes.currentRoute}</Text>
-            <Text style={styles.infoValue}>{route.name}</Text>
+            <Text style={styles.infoValue}>{getRouteDisplayName(route, language, t)}</Text>
+            {/* Preview of updated name */}
+            {(() => {
+              const names = getRouteNames(color, grade);
+              const newDisplayName = language === 'he' ? names.nameHe : names.nameEn;
+              const currentName = getRouteDisplayName(route, language, t);
+              if (newDisplayName !== currentName) {
+                return (
+                  <Text style={styles.infoPreview}>
+                    → {newDisplayName}
+                  </Text>
+                );
+              }
+              return null;
+            })()}
           </View>
 
           {/* Grade Selection */}
@@ -268,23 +369,33 @@ export default function RouteEditModal({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t.routes.color}</Text>
             <View style={styles.colorGrid}>
-              {ROUTE_COLORS.map((colorOption) => (
-                <TouchableOpacity
-                  key={colorOption}
-                  style={[
-                    styles.colorChip,
-                    { backgroundColor: colorOption },
-                    color === colorOption && styles.selectedColorChip,
-                  ]}
-                  onPress={() => setColor(colorOption)}
-                >
-                  {color === colorOption && (
-                    <Text style={[styles.colorCheckmark, { color: getContrastTextColor(colorOption) }]}>
-                      ✓
-                    </Text>
-                  )}
-                </TouchableOpacity>
-              ))}
+              {getVisibleColors().map((colorOption) => {
+                const displayColor = getColorDisplayHex(colorOption);
+                const cSetting = getColorSettingSync(colorOption);
+                const cKey = getColorTranslationKey(colorOption);
+                const colorLabel = cSetting
+                  ? (language === 'he' ? cSetting.nameHe : cSetting.nameEn)
+                  : (t.colors[cKey as keyof typeof t.colors] || cKey);
+                return (
+                  <View key={colorOption} style={styles.colorChipContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.colorChip,
+                        { backgroundColor: displayColor },
+                        color === colorOption && styles.selectedColorChip,
+                      ]}
+                      onPress={() => setColor(colorOption)}
+                    >
+                      {color === colorOption && (
+                        <Text style={[styles.colorCheckmark, { color: getContrastTextColor(displayColor) }]}>
+                          ✓
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                    <Text style={styles.colorLabel} numberOfLines={1}>{colorLabel}</Text>
+                  </View>
+                );
+              })}
             </View>
           </View>
 
@@ -296,6 +407,61 @@ export default function RouteEditModal({
             >
               <Text style={styles.moveButtonText}>{t.routes.moveLocationOnMap}</Text>
             </TouchableOpacity>
+          )}
+
+          {/* Wall Tape Selection */}
+          {tapes.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t.wallTape?.wallTape || 'Wall Tape'}</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={styles.tapeRow}>
+                  {/* "None" option */}
+                  <TouchableOpacity
+                    style={[
+                      styles.tapeChip,
+                      !wallTape && styles.tapeChipSelected,
+                    ]}
+                    onPress={() => setWallTape('')}
+                  >
+                    <Text style={[
+                      styles.tapeChipText,
+                      !wallTape && styles.tapeChipTextSelected,
+                    ]}>
+                      {t.wallTape?.none || '—'}
+                    </Text>
+                  </TouchableOpacity>
+                  {tapes.map((tape) => {
+                    const isSelected = wallTape === tape.id;
+                    const contrastColor = (() => {
+                      const c = tape.hex.replace('#', '');
+                      const r = parseInt(c.substr(0, 2), 16) || 0;
+                      const g = parseInt(c.substr(2, 2), 16) || 0;
+                      const b = parseInt(c.substr(4, 2), 16) || 0;
+                      return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? '#000' : '#fff';
+                    })();
+                    return (
+                      <TouchableOpacity
+                        key={tape.id}
+                        style={[
+                          styles.tapeChip,
+                          { borderColor: tape.hex },
+                          isSelected && { backgroundColor: tape.hex, borderColor: tape.hex },
+                        ]}
+                        onPress={() => setWallTape(tape.id)}
+                      >
+                        <View style={[styles.tapeDot, { backgroundColor: tape.hex }]} />
+                        <Text style={[
+                          styles.tapeChipText,
+                          isSelected && { color: contrastColor },
+                        ]}>
+                          {language === 'he' ? tape.nameHe : tape.nameEn}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
           )}
 
           {/* Delete Button */}
@@ -419,6 +585,12 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontWeight: '600',
     color: theme.text,
   },
+  infoPreview: {
+    fontSize: 15,
+    color: theme.primary,
+    marginTop: 4,
+    fontWeight: '500',
+  },
   section: {
     marginBottom: 24,
   },
@@ -456,7 +628,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   colorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 10,
   },
   colorChip: {
     width: 48,
@@ -469,6 +641,16 @@ const createStyles = (theme: any) => StyleSheet.create({
   },
   selectedColorChip: {
     borderColor: theme.text,
+  },
+  colorChipContainer: {
+    alignItems: 'center' as const,
+    width: 56,
+  },
+  colorLabel: {
+    fontSize: 9,
+    color: theme.textSecondary,
+    textAlign: 'center' as const,
+    marginTop: 3,
   },
   colorCheckmark: {
     fontSize: 20,
@@ -500,6 +682,37 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  tapeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  tapeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: theme.border,
+    gap: 4,
+  },
+  tapeChipSelected: {
+    backgroundColor: theme.primary,
+    borderColor: theme.primary,
+  },
+  tapeChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: theme.text,
+  },
+  tapeChipTextSelected: {
+    color: '#fff',
+  },
+  tapeDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   feedbacksSection: {
     marginTop: 32,

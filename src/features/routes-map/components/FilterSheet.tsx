@@ -10,7 +10,7 @@ import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteFilters, RouteSortBy, CompletionFilter } from '../types/route';
 import { GRADES } from '../utils/grades';
-import { ROUTE_COLORS } from '../utils/colors';
+import { ROUTE_COLORS, getVisibleColors } from '../utils/colors';
 import { useLanguage } from '@/features/language';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useUserRouteStatus } from '@/hooks/useUserRouteStatus';
@@ -245,7 +245,7 @@ export default function FilterSheet({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Colors</Text>
             <View style={styles.colorGrid}>
-              {ROUTE_COLORS.map(color => (
+              {getVisibleColors().map(color => (
                 <TouchableOpacity
                   key={color}
                   style={[

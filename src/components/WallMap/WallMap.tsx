@@ -192,6 +192,10 @@ interface WallMapProps {
   onLongPress?: (coordinates: { xImg: number; yImg: number }) => void;
   onMapTap?: (coordinates: { xImg: number; yImg: number }) => void; // For placing routes
   selectedRouteId?: string;
+  /** Set of route IDs currently selected in multi-select mode */
+  multiSelectedRouteIds?: Set<string>;
+  /** Whether multi-select mode is active */
+  multiSelectMode?: boolean;
   children?: React.ReactNode;
   gesturesEnabled?: boolean;
   onGestureStateChange?: (enabled: boolean) => void;
@@ -216,6 +220,8 @@ export interface WallMapRef {
   getMaxScale: () => number;
   /** Zoom and pan to fit a rectangle (in room coordinates) in view */
   zoomToSector: (bounds: { x: number; y: number; width: number; height: number }) => void;
+  /** Reset view to initial position (zoom 1, centered) */
+  resetView: () => void;
 }
 
 /**
@@ -231,6 +237,8 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
   onLongPress,
   onMapTap,
   selectedRouteId,
+  multiSelectedRouteIds,
+  multiSelectMode = false,
   children,
   gesturesEnabled = true,
   onGestureStateChange,
@@ -300,7 +308,11 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
         width: bounds.width * scaleX,
         height: bounds.height * scaleY,
       };
-      transforms.zoomToRect(imgRect, 0.15, { verticalAlign: 'top' });
+      // Cap zoom at 1.5 so sector labels stay fully visible (they fade at 1.6-1.8)
+      transforms.zoomToRect(imgRect, 0.15, { verticalAlign: 'top', maxScale: 1.5 });
+    },
+    resetView: () => {
+      transforms?.resetView();
     },
   }), [transforms, imageDimensions, wallWidth, wallHeight]);
 
@@ -549,6 +561,8 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
                 onPress={onRoutePress}
                 onLongPress={onRouteLongPress}
                 selected={selectedRouteId === route.id}
+                multiSelected={multiSelectedRouteIds?.has(route.id) ?? false}
+                multiSelectMode={multiSelectMode}
                 gesturesDisabled={!!onMapTap} // Disable route gestures when in move mode
               />
             ))}

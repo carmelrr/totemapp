@@ -26,7 +26,7 @@ import { BrandLogo } from '@/components/ui/BrandLogo';
 import { WallImageWithHolds } from '@/components/spray/WallImageWithHolds';
 import { HoldTypePicker } from '@/components/spray/HoldTypePicker';
 import { GradePicker } from '@/components/spray/GradePicker';
-import { useCreateCommunityRoute, Hold, HoldType, HOLD_TYPES } from '@/features/community-routes';
+import { useCreateCommunityRoute, useCommunityRoutes, Hold, HoldType, HOLD_TYPES } from '@/features/community-routes';
 import { getNewRandomRouteName } from '@/utils/randomRouteNames';
 
 type Theme = typeof lightTheme;
@@ -41,6 +41,8 @@ export const AddCommunityRouteScreen: React.FC = () => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { create, saving } = useCreateCommunityRoute();
+  const { routes: existingCommunityRoutes } = useCommunityRoutes({ sortBy: 'newest' });
+  const existingNames = useMemo(() => existingCommunityRoutes.map(r => r.name), [existingCommunityRoutes]);
   const layout = useResponsiveLayout();
   const insets = useSafeAreaInsets();
   const { isLandscape, isTablet } = layout;
@@ -314,7 +316,7 @@ export const AddCommunityRouteScreen: React.FC = () => {
 
   // Render step 3: Route details
   const handleRandomName = () => {
-    const newName = getNewRandomRouteName(routeName);
+    const newName = getNewRandomRouteName(routeName, existingNames);
     setRouteName(newName);
   };
 

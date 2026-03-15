@@ -10,11 +10,13 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
+import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import {
   ROUTE_COLORS,
   getColorTranslationKey,
@@ -25,8 +27,14 @@ import {
   initializeColorSettings,
   getColorSettingSync,
   saveColorSetting,
+  deleteColorSetting,
+  addCustomColor,
+  getCustomColors,
+  hidePredefinedColor,
+  getHiddenColors,
   CustomColorSetting,
 } from "@/features/routes-map/services/ColorSettingsService";
+import { RoutesService } from "@/features/routes-map/services/RoutesService";
 
 interface ColorPickerScreenProps {
   route: {
@@ -44,7 +52,9 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
 }) => {
   const { t, language, isLoading: languageLoading } = useLanguage();
   const { theme } = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const layout = useResponsiveLayout();
+  const styles = useMemo(() => createStyles(theme, layout), [theme, layout]);
+  const numColumns = layout.isLandscape ? (layout.isTablet ? 4 : 3) : 2;
 
   const onColorSelect = route.params?.onColorSelect;
   const initialSelected = route.params?.selectedColor || "";
@@ -52,9 +62,13 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
   const [selectedColor, setSelectedColor] = useState(initialSelected);
   const [settingsVersion, setSettingsVersion] = useState(0);
 
+  // Custom (non-predefined) colors list
+  const [customColors, setCustomColors] = useState<string[]>([]);
+
   // Edit modal state
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingOriginalHex, setEditingOriginalHex] = useState<string | null>(null);
+  const [editingIsCustom, setEditingIsCustom] = useState(false);
   const [editHex, setEditHex] = useState("");
   const [editNameHe, setEditNameHe] = useState("");
   const [editNameEn, setEditNameEn] = useState("");
@@ -63,9 +77,35 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
   const [editB, setEditB] = useState(128);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Add new color modal state
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addHex, setAddHex] = useState("#FF0000");
+  const [addNameHe, setAddNameHe] = useState("");
+  const [addNameEn, setAddNameEn] = useState("");
+  const [addR, setAddR] = useState(255);
+  const [addG, setAddG] = useState(0);
+  const [addB, setAddB] = useState(0);
+  const [isAdding, setIsAdding] = useState(false);
+
   useEffect(() => {
-    initializeColorSettings().then(() => setSettingsVersion((v) => v + 1));
+    initializeColorSettings().then(() => {
+      setSettingsVersion((v) => v + 1);
+      refreshCustomColors();
+    });
   }, []);
+
+  const refreshCustomColors = () => {
+    const customs = getCustomColors();
+    setCustomColors(customs.map((c) => c.hex));
+  };
+
+  // All colors = predefined (minus hidden) + custom
+  const allColors = useMemo(() => {
+    void settingsVersion; // react to changes
+    const hidden = getHiddenColors();
+    const visiblePredefined = ROUTE_COLORS.filter(c => !hidden.has(c.toUpperCase()));
+    return [...visiblePredefined, ...customColors];
+  }, [settingsVersion, customColors]);
 
   // --- helpers ---
   const hexToRgb = (hex: string) => {
@@ -108,10 +148,12 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
 
   // --- edit modal ---
   const openEditModal = (originalHex: string) => {
+    const isPredefined = (ROUTE_COLORS as readonly string[]).includes(originalHex);
     const setting = getColorSettingSync(originalHex);
     const currentHex = setting?.hex || originalHex;
     const rgb = hexToRgb(currentHex);
     setEditingOriginalHex(originalHex);
+    setEditingIsCustom(!isPredefined);
     setEditHex(currentHex);
     setEditNameHe(setting?.nameHe || "");
     setEditNameEn(setting?.nameEn || "");
@@ -145,27 +187,138 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
   const handleSaveEdit = async () => {
     if (!editingOriginalHex) return;
     if (!isValidHexColor(editHex)) {
-      Alert.alert(t.common.error, t.colors.invalidColorCode);
+      Alert.alert(t.common.error, t.colors?.invalidColorCode || "Invalid color code");
       return;
     }
     if (!editNameHe.trim() || !editNameEn.trim()) {
-      Alert.alert(t.common.error, t.colors.colorNameRequired);
+      Alert.alert(t.common.error, t.colors?.colorNameRequired || "Color name required");
       return;
     }
     setIsSaving(true);
     try {
+      const oldDisplayHex = getDisplayColor(editingOriginalHex);
+
       await saveColorSetting(editingOriginalHex, {
         hex: editHex,
         nameHe: editNameHe.trim(),
         nameEn: editNameEn.trim(),
         originalHex: editingOriginalHex,
       });
+
+      // If the display color changed, update existing routes that use this color
+      if (oldDisplayHex.toUpperCase() !== editHex.toUpperCase()) {
+        try {
+          const count = await RoutesService.updateRoutesByColor(editingOriginalHex, editHex);
+          // Also try updating routes that had the old display hex
+          if (oldDisplayHex.toUpperCase() !== editingOriginalHex.toUpperCase()) {
+            await RoutesService.updateRoutesByColor(oldDisplayHex, editHex);
+          }
+          console.log(`Updated ${count} routes from ${oldDisplayHex} to ${editHex}`);
+        } catch (err) {
+          console.warn('Could not update existing routes:', err);
+        }
+      }
+
       setSettingsVersion((v) => v + 1);
+      refreshCustomColors();
       setShowEditModal(false);
     } catch (e) {
-      Alert.alert(t.common.error, t.colors.colorSaveError);
+      Alert.alert(t.common.error, t.colors?.colorSaveError || "Error saving color");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // --- delete color ---
+  const handleDeleteColor = (hex: string) => {
+    const isPredefined = (ROUTE_COLORS as readonly string[]).includes(hex);
+    const displayName = getDisplayName(hex);
+    Alert.alert(
+      t.colors.deleteColor,
+      `${t.colors.deleteColorConfirm}\n\n${displayName}`,
+      [
+        { text: t.common.cancel, style: "cancel" },
+        {
+          text: t.common.delete,
+          style: "destructive",
+          onPress: async () => {
+            try {
+              if (isPredefined) {
+                // Hide predefined color from the list
+                await hidePredefinedColor(hex);
+                // Also remove any custom setting override
+                await deleteColorSetting(hex).catch(() => {});
+              } else {
+                // For custom colors, remove from Firestore entirely
+                await deleteColorSetting(hex);
+              }
+              setSettingsVersion((v) => v + 1);
+              refreshCustomColors();
+            } catch (e) {
+              Alert.alert(t.common.error, t.colors.deleteError);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // --- add new color ---
+  const handleAddRgbChange = (channel: "r" | "g" | "b", value: number) => {
+    const r = channel === "r" ? value : addR;
+    const g = channel === "g" ? value : addG;
+    const b = channel === "b" ? value : addB;
+    if (channel === "r") setAddR(value);
+    if (channel === "g") setAddG(value);
+    if (channel === "b") setAddB(value);
+    setAddHex(rgbToHex(r, g, b));
+  };
+
+  const handleAddHexInput = (text: string) => {
+    let hex = text.startsWith("#") ? text : "#" + text;
+    setAddHex(hex.toUpperCase());
+    if (isValidHexColor(hex)) {
+      const rgb = hexToRgb(hex);
+      setAddR(rgb.r);
+      setAddG(rgb.g);
+      setAddB(rgb.b);
+    }
+  };
+
+  const handleAddNewColor = async () => {
+    if (!isValidHexColor(addHex)) {
+      Alert.alert(t.common.error, t.colors.invalidColorCode);
+      return;
+    }
+    if (!addNameHe.trim() || !addNameEn.trim()) {
+      Alert.alert(t.common.error, t.colors.colorNameRequired);
+      return;
+    }
+    // Check if color already exists
+    if (allColors.some((c) => c.toUpperCase() === addHex.toUpperCase())) {
+      Alert.alert(t.common.error, t.colors.colorAlreadyExists);
+      return;
+    }
+    setIsAdding(true);
+    try {
+      await addCustomColor({
+        hex: addHex.toUpperCase(),
+        nameHe: addNameHe.trim(),
+        nameEn: addNameEn.trim(),
+      });
+      setSettingsVersion((v) => v + 1);
+      refreshCustomColors();
+      setShowAddModal(false);
+      setAddHex("#FF0000");
+      setAddNameHe("");
+      setAddNameEn("");
+      setAddR(255);
+      setAddG(0);
+      setAddB(0);
+    } catch (e) {
+      Alert.alert(t.common.error, t.colors.addError);
+    } finally {
+      setIsAdding(false);
     }
   };
 
@@ -182,6 +335,7 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
     const name = getDisplayName(item);
     const isSelected = selectedColor === item;
     const textColor = getContrastTextColor(displayHex);
+    const isCustom = !(ROUTE_COLORS as readonly string[]).includes(item);
 
     return (
       <TouchableOpacity
@@ -205,6 +359,14 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
         <View style={styles.editHint}>
           <Ionicons name="create-outline" size={12} color={textColor} style={{ opacity: 0.5 }} />
         </View>
+        {/* Delete button */}
+        <TouchableOpacity
+          style={styles.deleteBadge}
+          onPress={() => handleDeleteColor(item)}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="close-circle" size={22} color="#E53935" />
+        </TouchableOpacity>
       </TouchableOpacity>
     );
   };
@@ -216,20 +378,23 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
           <Ionicons name="arrow-back" size={24} color={theme.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>
-          {language === "he" ? "ניהול צבעים" : "Manage Colors"}
+          {t.colors.manageColors}
         </Text>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity onPress={() => setShowAddModal(true)} style={styles.addButton}>
+          <Ionicons name="add-circle-outline" size={28} color={theme.primary} />
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.instruction}>
-        {language === "he" ? "לחץ לבחירה, לחיצה ארוכה לעריכה" : "Tap to select, long press to edit"}
+        {t.colors.tapToSelectLongPressEdit}
       </Text>
 
       <FlatList
-        data={[...ROUTE_COLORS]}
+        data={allColors}
         renderItem={renderColorItem}
         keyExtractor={(item) => item}
-        numColumns={2}
+        key={numColumns}
+        numColumns={numColumns}
         contentContainerStyle={styles.colorGrid}
         extraData={settingsVersion}
       />
@@ -239,7 +404,7 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>
-              {language === "he" ? "עריכת צבע" : "Edit Color"}
+              {t.colors.editColorTitle}
             </Text>
 
             {/* Color preview */}
@@ -300,7 +465,7 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
             />
 
             {/* Names */}
-            <Text style={styles.fieldLabel}>{language === "he" ? "שם בעברית" : "Hebrew name"}</Text>
+            <Text style={styles.fieldLabel}>{t.colors.hebrewName}</Text>
             <TextInput
               style={styles.textInput}
               value={editNameHe}
@@ -308,7 +473,7 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
               placeholder={t.addRoute.colorExampleHe}
               placeholderTextColor={theme.textSecondary}
             />
-            <Text style={styles.fieldLabel}>{language === "he" ? "שם באנגלית" : "English name"}</Text>
+            <Text style={styles.fieldLabel}>{t.colors.englishName}</Text>
             <TextInput
               style={styles.textInput}
               value={editNameEn}
@@ -323,7 +488,7 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
                 style={styles.modalCancelBtn}
                 onPress={() => setShowEditModal(false)}
               >
-                <Text style={styles.modalCancelText}>{t.common?.cancel || "ביטול"}</Text>
+                <Text style={styles.modalCancelText}>{t.common.cancel}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalSaveBtn, isSaving && { opacity: 0.6 }]}
@@ -333,10 +498,131 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
                 {isSaving ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.modalSaveText}>{t.common?.save || "שמור"}</Text>
+                  <Text style={styles.modalSaveText}>{t.common.save}</Text>
                 )}
               </TouchableOpacity>
             </View>
+
+            {/* Delete button */}
+            <TouchableOpacity
+              style={styles.modalDeleteBtn}
+              onPress={() => {
+                setShowEditModal(false);
+                if (editingOriginalHex) handleDeleteColor(editingOriginalHex);
+              }}
+            >
+              <Ionicons name="trash-outline" size={18} color="#E53935" />
+              <Text style={styles.modalDeleteText}>{t.colors.deleteColor}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add New Color Modal */}
+      <Modal visible={showAddModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>
+                {t.colors.addNewColor}
+              </Text>
+
+              {/* Color preview */}
+              <View style={[styles.previewSwatch, { backgroundColor: addHex }]}>
+                <Text style={[styles.previewHex, { color: isValidHexColor(addHex) ? getContrastTextColor(addHex) : "#fff" }]}>
+                  {addHex}
+                </Text>
+              </View>
+
+              {/* Hex input */}
+              <Text style={styles.fieldLabel}>Hex</Text>
+              <TextInput
+                style={styles.textInput}
+                value={addHex}
+                onChangeText={handleAddHexInput}
+                placeholder="#FF0000"
+                placeholderTextColor={theme.textSecondary}
+                autoCapitalize="characters"
+                maxLength={7}
+              />
+
+              {/* RGB sliders */}
+              <Text style={[styles.fieldLabel, { color: "#E53935" }]}>R: {addR}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={255}
+                step={1}
+                value={addR}
+                onValueChange={(v) => handleAddRgbChange("r", v)}
+                minimumTrackTintColor="#E53935"
+                maximumTrackTintColor={theme.border}
+                thumbTintColor="#E53935"
+              />
+              <Text style={[styles.fieldLabel, { color: "#43A047" }]}>G: {addG}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={255}
+                step={1}
+                value={addG}
+                onValueChange={(v) => handleAddRgbChange("g", v)}
+                minimumTrackTintColor="#43A047"
+                maximumTrackTintColor={theme.border}
+                thumbTintColor="#43A047"
+              />
+              <Text style={[styles.fieldLabel, { color: "#1E88E5" }]}>B: {addB}</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={255}
+                step={1}
+                value={addB}
+                onValueChange={(v) => handleAddRgbChange("b", v)}
+                minimumTrackTintColor="#1E88E5"
+                maximumTrackTintColor={theme.border}
+                thumbTintColor="#1E88E5"
+              />
+
+              {/* Names */}
+              <Text style={styles.fieldLabel}>{t.colors.hebrewName}</Text>
+              <TextInput
+                style={styles.textInput}
+                value={addNameHe}
+                onChangeText={setAddNameHe}
+                placeholder={t.addRoute.colorExampleHe}
+                placeholderTextColor={theme.textSecondary}
+              />
+              <Text style={styles.fieldLabel}>{t.colors.englishName}</Text>
+              <TextInput
+                style={styles.textInput}
+                value={addNameEn}
+                onChangeText={setAddNameEn}
+                placeholder="e.g. Orange"
+                placeholderTextColor={theme.textSecondary}
+              />
+
+              {/* Buttons */}
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={styles.modalCancelBtn}
+                  onPress={() => setShowAddModal(false)}
+                >
+                  <Text style={styles.modalCancelText}>{t.common.cancel}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.modalSaveBtn, isAdding && { opacity: 0.6 }]}
+                  onPress={handleAddNewColor}
+                  disabled={isAdding}
+                >
+                  {isAdding ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.modalSaveText}>{t.colors.add}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -345,8 +631,11 @@ const ColorPickerScreen: React.FC<ColorPickerScreenProps> = ({
 };
 
 // Dynamic styles factory for theme support
-const createStyles = (theme: any) =>
-  StyleSheet.create({
+const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout>) => {
+  const isLandscape = layout?.isLandscape ?? false;
+  const isTablet = layout?.isTablet ?? false;
+  
+  return StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.background,
@@ -367,6 +656,9 @@ const createStyles = (theme: any) =>
     closeButton: {
       padding: 8,
     },
+    addButton: {
+      padding: 8,
+    },
     instruction: {
       fontSize: 14,
       color: theme.textSecondary,
@@ -374,13 +666,13 @@ const createStyles = (theme: any) =>
       marginVertical: 10,
     },
     colorGrid: {
-      paddingHorizontal: 8,
+      paddingHorizontal: isLandscape ? 16 : 8,
       paddingBottom: 20,
     },
     colorItem: {
       flex: 1,
       margin: 6,
-      height: 80,
+      height: isTablet ? 100 : 80,
       borderRadius: 14,
       justifyContent: "center",
       alignItems: "center",
@@ -419,6 +711,22 @@ const createStyles = (theme: any) =>
       bottom: 4,
       right: 6,
     },
+    deleteBadge: {
+      position: "absolute",
+      top: -8,
+      left: -8,
+      backgroundColor: "#fff",
+      borderRadius: 14,
+      width: 28,
+      height: 28,
+      alignItems: "center",
+      justifyContent: "center",
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.25,
+      shadowRadius: 3,
+      elevation: 5,
+    },
     // Modal
     modalOverlay: {
       flex: 1,
@@ -431,6 +739,9 @@ const createStyles = (theme: any) =>
       borderRadius: 20,
       padding: 20,
       maxHeight: "85%",
+      maxWidth: isTablet ? 500 : undefined,
+      alignSelf: isTablet ? 'center' : undefined,
+      width: isTablet ? '80%' : undefined,
     },
     modalTitle: {
       fontSize: 18,
@@ -504,6 +815,23 @@ const createStyles = (theme: any) =>
       fontWeight: "700",
       color: "#fff",
     },
+    modalDeleteBtn: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      marginTop: 12,
+      paddingVertical: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: "#E5393520",
+    },
+    modalDeleteText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: "#E53935",
+    },
   });
+};
 
 export default ColorPickerScreen;

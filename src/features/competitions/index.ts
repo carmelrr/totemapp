@@ -43,4 +43,5 @@ export {
   ManageCompetitionRoutesScreen,
   JudgeEntryScreen,
   CompetitionRegistrationScreen,
+  PointsCompetitionScreen,
 } from './screens';

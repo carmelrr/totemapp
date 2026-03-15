@@ -20,12 +20,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import MapViewport from '../components/MapViewport';
 
 import { GRADES } from '../utils/grades';
-import { ROUTE_COLORS, getRandomRouteColor, getColorTranslationKey, isValidHexColor, getContrastTextColor } from '../utils/colors';
+import { ROUTE_COLORS, getVisibleColors, getRandomRouteColor, getColorTranslationKey, isValidHexColor, getContrastTextColor } from '../utils/colors';
 import { RoutesService } from '../services/RoutesService';
 import { 
   initializeColorSettings, 
   getColorSettingSync, 
   saveColorSetting,
+  getColorDisplayHex,
   CustomColorSetting 
 } from '../services/ColorSettingsService';
 import { MapTransforms, RouteDoc } from '../types/route';
@@ -298,12 +299,14 @@ export default function AddRouteMapScreen() {
 
     try {
       const names = getRouteNames();
+      // Use the display hex (customized shade) consistent with ColorPickerScreen
+      const displayColor = getColorDisplayHex(color);
       const routeData: any = {
         name: names.nameHe, // Default name (Hebrew)
         nameHe: names.nameHe,
         nameEn: names.nameEn,
         grade,
-        color,
+        color: displayColor,
         xNorm: preview.xNorm,
         yNorm: preview.yNorm,
         status,
@@ -621,7 +624,7 @@ export default function AddRouteMapScreen() {
         <View style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>{t.routes.colorRequired} *</Text>
           <View style={styles.colorGrid}>
-            {ROUTE_COLORS.map((colorOption) => {
+            {getVisibleColors().map((colorOption) => {
               const displayColor = getDisplayColor(colorOption);
               return (
                 <TouchableOpacity

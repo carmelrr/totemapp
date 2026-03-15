@@ -20,6 +20,7 @@ import { DraggableModal } from '@/components/ui/DraggableModal';
 import { FeedbackForm } from './FeedbackForm';
 import { FeedbackList } from './FeedbackList';
 import { useFeedbackForm } from '@/hooks/useFeedbackForm';
+import { containsProfanity } from '@/features/moderation/contentFilter';
 
 interface Route {
     id: string;
@@ -126,6 +127,11 @@ export const RouteFeedbackContainer: React.FC<RouteFeedbackContainerProps> = ({
     async function handleFeedbackSubmit(data: any) {
         if (!user || !route) {
             Alert.alert(t.common.error, t.alerts.userOrRouteNotFound);
+            return;
+        }
+
+        if (data.comment && containsProfanity(data.comment)) {
+            Alert.alert(t.common.error, t.moderation.contentBlocked);
             return;
         }
 

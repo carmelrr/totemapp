@@ -11,6 +11,7 @@ import { useLanguage } from "@/features/language";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { usePublishedRooms } from "@/features/wall-editor";
 import { DynamicWallMap } from "@/features/wall-editor/components";
+import { getRouteDisplayName } from "@/features/routes-map/utils/colors";
 
 interface Route {
   id: string;
@@ -96,7 +97,7 @@ const OUTER_RADIUS = 20;
  * תומך ב-Portrait ו-Landscape עם layout אדפטיבי
  */
 const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { theme } = useTheme();
   const [routes, setRoutes] = useState<Route[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string | undefined>();
@@ -260,7 +261,9 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
       color: selectedRoute.color,
       difficulty: selectedRoute.grade, // Use grade as difficulty
       grade: selectedRoute.grade,
-      description: `מסלול ${selectedRoute.name} ברמת קושי ${selectedRoute.grade}`,
+      description: language === 'he'
+        ? `מסלול ${getRouteDisplayName(selectedRoute, language, t)} ברמת קושי ${selectedRoute.grade}`
+        : `Route ${getRouteDisplayName(selectedRoute, language, t)} difficulty ${selectedRoute.grade}`,
       coordinates: {
         x: selectedRoute.x,
         y: selectedRoute.y,

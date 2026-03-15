@@ -279,16 +279,18 @@ export function clampViewport(
     let clampedTranslateY = safeTranslateY;
 
     // If scaled image is larger than screen, keep edges within bounds
+    // Allow overscroll so edges can come into view (30% of viewport as breathing room)
     if (scaledWidth > safeScreenW) {
+        const overscrollX = safeScreenW * 0.3;
         // Don't let left edge go past screen left (leftEdge <= 0)
         // leftEdge = imgCenterX * (1 - scale) + translateX <= 0
         // translateX <= imgCenterX * (scale - 1)
-        const maxTranslateX = imgCenterX * (safeScale - 1);
+        const maxTranslateX = imgCenterX * (safeScale - 1) + overscrollX;
         
         // Don't let right edge go before screen right (rightEdge >= screenW)
         // rightEdge = imgCenterX * (1 + scale) + translateX >= screenW
         // translateX >= screenW - imgCenterX * (1 + scale)
-        const minTranslateX = safeScreenW - imgCenterX * (1 + safeScale);
+        const minTranslateX = safeScreenW - imgCenterX * (1 + safeScale) - overscrollX;
         
         clampedTranslateX = Math.max(minTranslateX, Math.min(maxTranslateX, safeTranslateX));
     } else if (allowPanAtMinZoom) {
@@ -303,8 +305,9 @@ export function clampViewport(
     }
 
     if (scaledHeight > safeScreenH) {
-        const maxTranslateY = imgCenterY * (safeScale - 1);
-        const minTranslateY = safeScreenH - imgCenterY * (1 + safeScale);
+        const overscrollY = safeScreenH * 0.3;
+        const maxTranslateY = imgCenterY * (safeScale - 1) + overscrollY;
+        const minTranslateY = safeScreenH - imgCenterY * (1 + safeScale) - overscrollY;
         clampedTranslateY = Math.max(minTranslateY, Math.min(maxTranslateY, safeTranslateY));
     } else if (allowPanAtMinZoom) {
         // Allow vertical panning too, keep at least 25% visible on each side

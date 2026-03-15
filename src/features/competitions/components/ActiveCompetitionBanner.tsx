@@ -33,7 +33,7 @@ export function ActiveCompetitionBanner({
   onEnterResults,
 }: ActiveCompetitionBannerProps) {
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { user } = useAuth();
   const rolesContext = useRolesContext();
   const timer = useCompetitionTimer(competition);
@@ -45,10 +45,11 @@ export function ActiveCompetitionBanner({
   
   const styles = createStyles(theme);
   
-  // Check if user is registered - applies to Totemtition and National League formats
+  // Check if user is registered - applies to Totemtition, National League, and Points Competition formats
   const isTotemtition = competition.format === 'totemtition';
   const isNationalLeague = competition.format === 'national_league';
-  const supportsRegistration = isTotemtition || isNationalLeague;
+  const isPointsCompetition = competition.format === 'points_competition';
+  const supportsRegistration = isTotemtition || isNationalLeague || isPointsCompetition;
   
   // Check if user is a judge (global role) - can enter results for National League
   const isJudge = rolesContext.canEnterResults;
@@ -75,7 +76,12 @@ export function ActiveCompetitionBanner({
     };
 
     checkRegistration();
-  }, [competition.id, user, isTotemtition]);
+  }, [competition.id, user, supportsRegistration]);
+
+  // Hide banner for points_competition if user is not registered
+  if (isPointsCompetition && !loading && !isRegistered) {
+    return null;
+  }
 
   return (
     <TouchableOpacity
@@ -84,11 +90,19 @@ export function ActiveCompetitionBanner({
       activeOpacity={0.8}
     >
       <View style={styles.header}>
-        <Text style={styles.liveIndicator}>{t.competition.activeCompetition}</Text>
-        <View style={styles.timerContainer}>
-          <Text style={styles.timerLabel}>⏱️ {t.competition.remaining}</Text>
-          <Text style={styles.timerValue}>{timer.formatted}</Text>
-        </View>
+        <Text style={styles.liveIndicator}>
+          {competition.status === 'active' 
+            ? t.competition.activeCompetition 
+            : (competition.status === 'completed' || competition.status === 'closed')
+              ? (language === 'he' ? 'תחרות הסתיימה' : 'Competition Ended')
+              : (language === 'he' ? 'תחרות' : 'Competition')}
+        </Text>
+        {competition.status === 'active' && (
+          <View style={styles.timerContainer}>
+            <Text style={styles.timerLabel}>⏱️ {t.competition.remaining}</Text>
+            <Text style={styles.timerValue}>{timer.formatted}</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.content}>
@@ -118,7 +132,8 @@ export function ActiveCompetitionBanner({
       <View style={styles.buttonContainer}>
         {/* Show Enter Results button:
             - Totemtition: approved participants can self-report
-            - National League: judges (global role) can enter results */}
+            - National League: judges (global role) can enter results
+            - Points Competition: no enter results button (self-entry from competition screen) */}
         {onEnterResults && (
           (isTotemtition && isApproved) || 
           (isNationalLeague && isJudge)
@@ -133,7 +148,11 @@ export function ActiveCompetitionBanner({
         )}
         
         <TouchableOpacity style={styles.viewButton} onPress={onPress}>
-          <Text style={styles.viewButtonText}>{t.competition.viewLeaderboard}</Text>
+          <Text style={styles.viewButtonText}>
+            {isPointsCompetition 
+              ? (t.competitionExt?.enterCompetition || (language === 'he' ? 'כנס לתחרות' : 'Enter Competition'))
+              : t.competition.viewLeaderboard}
+          </Text>
         </TouchableOpacity>
       </View>
     </TouchableOpacity>

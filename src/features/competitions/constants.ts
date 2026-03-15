@@ -81,6 +81,24 @@ export const CUSTOM_FORMAT_SETTINGS: CompetitionSettings = {
 };
 
 /**
+ * Default settings for Points Competition format
+ * Uses existing wall map routes. Scoring: V0=0, V1=1 ... V8=8 points.
+ * Self-entry, no categories, no attempt penalty, all routes count.
+ */
+export const POINTS_COMPETITION_SETTINGS: CompetitionSettings = {
+  maxRoutes: 999,                    // Uses wall map routes, no limit
+  maxAttempts: 999,                  // Unlimited attempts
+  topRoutesForScoring: 999,          // All routes count
+  attemptPenalty: 0,                 // No penalty
+  allowSelfEntry: true,              // Self-reporting
+  judgesOnly: false,
+  enableCategories: false,
+  enableRounds: false,
+  resultsEntryMode: 'selfEntry',
+  registrationMode: 'openRegistration',    // Users can join while competition is active
+};
+
+/**
  * Default settings for Zone/Top format (Zone + Top scoring with configurable penalties)
  */
 export const ZONE_TOP_SETTINGS: CompetitionSettings = {
@@ -114,6 +132,8 @@ export function getDefaultSettingsForFormat(format: string): CompetitionSettings
       return { ...TOTEMTITION_SETTINGS };
     case 'zone_top':
       return { ...ZONE_TOP_SETTINGS };
+    case 'points_competition':
+      return { ...POINTS_COMPETITION_SETTINGS };
     case 'custom':
     default:
       return { ...CUSTOM_FORMAT_SETTINGS };
@@ -207,6 +227,13 @@ export const COMPETITION_FORMAT_INFO = {
     description: 'ניקוד Zone ו-Top לכל מסלול, עם קנסות ניסיונות. ניתן להגדיר ניקוד שונה לכל מסלול.',
     descriptionEn: 'Zone & Top scoring per route with attempt penalties. Per-route points are customizable.',
     icon: '🏆',
+  },
+  points_competition: {
+    label: 'תחרות נקודות',
+    labelEn: 'Points Competition',
+    description: 'מסלולי הקיר הקיימים. כל דירוג שווה את הנקודות שלו (V0=0, V8=8). צבור כמה שיותר נקודות!',
+    descriptionEn: 'Existing wall routes. Each grade equals its points (V0=0, V8=8). Accumulate as many points as possible!',
+    icon: '⭐',
   },
 } as const;
 
@@ -426,4 +453,42 @@ export function calculateZoneTopRoutePoints(
  */
 export function isZoneTopFormat(format: string): boolean {
   return format === 'zone_top';
+}
+
+// =============== Points Competition Scoring ===============
+
+/**
+ * Points per grade in Points Competition format
+ * VB = 1, V0 = 1, V1 = 1, V2 = 2, ... V8 = 8 (grade number = points, minimum 1)
+ */
+export const POINTS_COMPETITION_GRADE_POINTS: Record<string, number> = {
+  'VB': 1,
+  'V0': 1,
+  'V1': 1,
+  'V2': 2,
+  'V3': 3,
+  'V4': 4,
+  'V5': 5,
+  'V6': 6,
+  'V7': 7,
+  'V8': 8,
+  'V9': 9,
+  'V10': 10,
+};
+
+/**
+ * Calculate points for a completed route in Points Competition format
+ * Grade number = points (VB=1, V0=1, V1=1, V2=2 ... V8=8), minimum 1 point
+ * @param grade - Route grade (VB-V10)
+ * @returns Points for the route
+ */
+export function calculatePointsCompetitionRoutePoints(grade: string): number {
+  return POINTS_COMPETITION_GRADE_POINTS[grade] ?? 1;
+}
+
+/**
+ * Check if a competition format is points_competition
+ */
+export function isPointsCompetitionFormat(format: string): boolean {
+  return format === 'points_competition';
 }

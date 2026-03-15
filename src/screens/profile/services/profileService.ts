@@ -3,6 +3,7 @@ import { doc, getDoc, setDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { FeedbackService } from "@/features/routes-map/services/FeedbackService";
 import type { PrivacySettings } from "../types";
+import { containsProfanity } from "@/features/moderation/contentFilter";
 
 export async function fetchProfile(userId: string) {
   if (!userId) return {};
@@ -27,6 +28,10 @@ export async function saveProfile(userId: string, profile: { displayName: string
   const user = auth.currentUser;
   if (!user || user.uid !== userId) {
     throw new Error("User not authenticated");
+  }
+
+  if (containsProfanity(profile.displayName)) {
+    throw new Error("Display name contains inappropriate language");
   }
 
   // Update Firebase Authentication profile

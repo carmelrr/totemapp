@@ -1598,4 +1598,92 @@ export class ParticipantService {
       throw error;
     }
   }
+
+  /**
+   * Join a points competition - simplified flow with auto-approval.
+   * No registration form needed: uses current user data directly.
+   * Only works for points_competition format with active status.
+   */
+  static async joinPointsCompetition(
+    competitionId: string,
+    userId: string,
+    userData: {
+      displayName: string;
+      email?: string;
+      photoURL?: string;
+    }
+  ): Promise<string> {
+    try {
+      const competitionRef = doc(db, 'competitions', competitionId);
+      const competitionSnap = await getDoc(competitionRef);
+
+      if (!competitionSnap.exists()) {
+        throw new Error('Competition not found');
+      }
+
+      const competition = competitionSnap.data();
+
+      if (competition.format !== 'points_competition') {
+        throw new Error('This method is only for points competitions');
+      }
+
+      if (competition.status !== 'active') {
+        throw new Error('Competition is not active');
+      }
+
+      // Check if user is already registered
+      const existing = await this.getParticipantByUserId(competitionId, userId);
+      if (existing) {
+        if (existing.isActive && existing.status === 'approved') {
+          throw new Error('You are already participating in this competition');
+        }
+        if (existing.isActive && existing.status === 'pending_approval') {
+          throw new Error('Your join request is pending approval');
+        }
+        if (!existing.isActive) {
+          await this.reactivateParticipant(competitionId, existing.id, {
+            name: userData.displayName,
+            registeredBy: userId,
+          });
+          // Auto-approve on reactivation
+          await this.updateParticipantStatus(competitionId, existing.id, 'approved');
+          return existing.id;
+        }
+      }
+
+      const participantsRef = collection(
+        db,
+        'competitions',
+        competitionId,
+        'participants'
+      );
+
+      const participantData = {
+        competitionId,
+        name: userData.displayName,
+        userName: userData.displayName,
+        idNumber: null,
+        userId,
+        email: userData.email || null,
+        phone: null,
+        photoURL: userData.photoURL || null,
+        gender: null,
+        birthYear: null,
+        skillLevel: null,
+        category: null,
+        categoryName: null,
+        status: 'approved',  // Auto-approved for points competition
+        registeredAt: serverTimestamp(),
+        registeredBy: userId,
+        isActive: true,
+      };
+
+      const docRef = await addDoc(participantsRef, participantData);
+      console.log('Points competition joined:', docRef.id);
+      return docRef.id;
+    } catch (error) {
+      console.error('Error joining points competition:', error);
+      throw error;
+    }
+  }
 }

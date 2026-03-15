@@ -24,6 +24,18 @@ export interface Hold {
   color: string;  // צבע הטבעת (נגזר מה-type)
 }
 
+// מספור אחיזות - רשומה של אחיזה ממוספרת
+export interface HoldNumberEntry {
+  holdId: string;  // מזהה האחיזה
+  number: number;  // מספר סידורי
+}
+
+// נתיב מסיכה שחור להסתרת אחיזות מפריעות
+export interface MaskPath {
+  points: Vec2[];       // נקודות הנתיב בקואורדינטות 0-1
+  strokeWidth: number;  // רוחב הקו יחסית לרוחב התמונה
+}
+
 export interface SprayRouteFeedback {
   id?: string;
   routeId: string;
@@ -43,6 +55,8 @@ export interface SprayRoute {
   name: string;
   grade: string;                  // הדירוג המקורי של היוצר
   holds: Hold[];
+  holdNumbering?: HoldNumberEntry[];  // מספור אחיזות (אופציונלי)
+  maskPaths?: MaskPath[];             // נתיבי מסיכה שחורים (אופציונלי)
   createdAt?: any;
   createdBy?: string | null;
   creatorName?: string;           // שם היוצר

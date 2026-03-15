@@ -10,6 +10,7 @@ import {
 import { FeedbackItem } from './FeedbackItem';
 import { useLanguage } from '@/features/language';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useBlockedUsers } from '@/features/moderation/useBlockedUsers';
 
 interface Feedback {
     id: string;
@@ -44,7 +45,14 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
 }) => {
     const { t } = useLanguage();
     const { theme } = useTheme();
+    const { isBlocked } = useBlockedUsers();
     const styles = createStyles(theme);
+
+    // Filter out feedbacks from blocked users
+    const visibleFeedbacks = useMemo(
+        () => feedbacks.filter(fb => !isBlocked(fb.userId)),
+        [feedbacks, isBlocked]
+    );
     const [refreshing, setRefreshing] = useState(false);
 
     const handleRefresh = async () => {
@@ -60,7 +68,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
 
     // Memoize stats calculation to avoid recalculating on every render
     const stats = useMemo(() => {
-        if (feedbacks.length === 0) {
+        if (visibleFeedbacks.length === 0) {
             return {
                 averageRating: 0,
                 totalCount: 0,
@@ -68,11 +76,11 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
             };
         }
 
-        const totalRating = feedbacks.reduce((sum, fb) => sum + fb.starRating, 0);
-        const averageRating = totalRating / feedbacks.length;
+        const totalRating = visibleFeedbacks.reduce((sum, fb) => sum + fb.starRating, 0);
+        const averageRating = totalRating / visibleFeedbacks.length;
 
         const gradeDistribution: Record<string, number> = {};
-        feedbacks.forEach(fb => {
+        visibleFeedbacks.forEach(fb => {
             if (fb.suggestedGrade) {
                 gradeDistribution[fb.suggestedGrade] = (gradeDistribution[fb.suggestedGrade] || 0) + 1;
             }
@@ -80,14 +88,14 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
 
         return {
             averageRating: Math.round(averageRating * 10) / 10,
-            totalCount: feedbacks.length,
+            totalCount: visibleFeedbacks.length,
             gradeDistribution,
         };
-    }, [feedbacks]);
+    }, [visibleFeedbacks]);
 
     // Memoize sorted feedbacks
     const sortedFeedbacks = useMemo(() => {
-        return [...feedbacks].sort((a, b) => {
+        return [...visibleFeedbacks].sort((a, b) => {
             if (!a.createdAt && !b.createdAt) return 0;
             if (!a.createdAt) return 1;
             if (!b.createdAt) return -1;
@@ -97,7 +105,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
 
             return dateB.getTime() - dateA.getTime(); // Most recent first
         });
-    }, [feedbacks]);
+    }, [visibleFeedbacks]);
 
     // Memoize renderItem to prevent recreation on each render
     const renderFeedbackItem = useCallback(({ item }: { item: Feedback }) => (
@@ -114,7 +122,7 @@ export const FeedbackList: React.FC<FeedbackListProps> = ({
         <View style={styles.header}>
             <Text style={styles.title}>{t.feedbackList.userFeedbacks}</Text>
 
-            {showStatistics && feedbacks.length > 0 && (
+            {showStatistics && visibleFeedbacks.length > 0 && (
                 <View style={styles.statsContainer}>
                     <View style={styles.statItem}>
                         <Text style={styles.statLabel}>{t.feedbackList.avgRating}</Text>

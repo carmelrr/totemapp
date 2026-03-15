@@ -13,6 +13,8 @@ import {
   ActivityIndicator,
   Modal,
   Dimensions,
+  Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { useNavigation, useRoute } from "@react-navigation/native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,7 +28,7 @@ import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { RouteFeedbackForm } from "@/components/routes/RouteFeedbackForm";
 import { ExistingFeedbackCard } from "@/components/routes/ExistingFeedbackCard";
 import { FeedbacksList } from "@/components/routes/FeedbacksList";
-import { V_GRADES, formatDate } from "@/components/routes/routeDetailUtils";
+import { V_GRADES, V_GRADES_WITH_UNKNOWN, formatDate } from "@/components/routes/routeDetailUtils";
 import {
   addFeedbackToRoute,
   listenToFeedbacksForRoute,
@@ -96,13 +98,13 @@ export const SprayRouteDetailScreen: React.FC = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
-  // Initialize edit fields when route loads
+  // Initialize edit fields when route loads or when route data changes
   useEffect(() => {
     if (currentRoute) {
       setEditName(currentRoute.name);
       setEditGrade(currentRoute.grade);
     }
-  }, [currentRoute?.id]);
+  }, [currentRoute?.id, currentRoute?.grade, currentRoute?.name]);
 
   // Check if current user is the route creator
   const isRouteCreator = user?.uid && currentRoute?.createdBy === user.uid;
@@ -176,11 +178,11 @@ export const SprayRouteDetailScreen: React.FC = () => {
       await addFeedbackToRoute(routeId, {
         userId: user.uid,
         userDisplayName: user.displayName || user.email || "Anonymous",
-        userPhotoURL: user.photoURL || undefined,
+        userPhotoURL: user.photoURL || null,
         starRating,
         suggestedGrade,
         comment: comment.trim(),
-        videoUrl: videoUrl.trim() || undefined,
+        videoUrl: videoUrl.trim() || null,
       });
 
       Alert.alert(t.spray.congratulations, t.spray.ratingSubmitted);
@@ -202,10 +204,18 @@ export const SprayRouteDetailScreen: React.FC = () => {
 
     setIsUpdating(true);
     try {
-      await updateRoute(routeId, {
+      const updates: Record<string, any> = {
         name: editName.trim(),
         grade: editGrade,
-      });
+      };
+
+      // Also update calculatedGrade when there are no community feedbacks yet,
+      // since calculatedGrade was initialized to the original grade at creation.
+      if (!currentRoute?.feedbackCount || currentRoute.feedbackCount === 0) {
+        updates.calculatedGrade = editGrade;
+      }
+
+      await updateRoute(routeId, updates);
       
       setShowEditModal(false);
     } catch (error) {
@@ -255,6 +265,8 @@ export const SprayRouteDetailScreen: React.FC = () => {
       editMode: true,
       routeId: routeId,
       existingHolds: currentRoute.holds,
+      existingHoldNumbering: currentRoute.holdNumbering,
+      existingMaskPaths: currentRoute.maskPaths,
       routeName: currentRoute.name,
       routeGrade: currentRoute.grade,
     });
@@ -284,15 +296,30 @@ export const SprayRouteDetailScreen: React.FC = () => {
       onNavigateToRoute={handleSwipeNavigate}
     >
     <SafeAreaView style={styles.container} edges={[]}>
+      {/* Wall Image - outside ScrollView in landscape for side-by-side layout */}
+      {isLandscape && wall && (
+        <View style={styles.imageContainer}>
+          <WallImageWithHolds
+            imageUrl={wall.imageUrl}
+            holds={currentRoute.holds || []}
+            routeColor={currentRoute.color || "#FF4444"}
+            editable={false}
+            holdNumbering={currentRoute.holdNumbering}
+            maskPaths={currentRoute.maskPaths}
+          />
+        </View>
+      )}
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Wall Image with Holds */}
-        {wall && (
+        {/* Wall Image with Holds - inside ScrollView in portrait */}
+        {!isLandscape && wall && (
           <View style={styles.imageContainer}>
             <WallImageWithHolds
               imageUrl={wall.imageUrl}
               holds={currentRoute.holds || []}
               routeColor={currentRoute.color || "#FF4444"}
               editable={false}
+              holdNumbering={currentRoute.holdNumbering}
+              maskPaths={currentRoute.maskPaths}
             />
           </View>
         )}
@@ -426,43 +453,113 @@ export const SprayRouteDetailScreen: React.FC = () => {
             />
           )}
 
-          {showFeedbackForm && (
-            <RouteFeedbackForm
-              starRating={starRating}
-              onStarRatingChange={setStarRating}
-              suggestedGrade={suggestedGrade}
-              onGradeChange={setSuggestedGrade}
-              grades={V_GRADES}
-              comment={comment}
-              onCommentChange={setComment}
-              commentPlaceholder={t.spray.betaTipsExperience}
-              videoUrl={videoUrl}
-              onVideoUrlChange={setVideoUrl}
-              isVideoLinkValid={isVideoLinkValid}
-              onVideoLinkValidChange={setIsVideoLinkValid}
-              onSubmit={handleSubmitFeedback}
-              onCancel={() => {
-                setShowFeedbackForm(false);
-                if (userFeedback) {
-                  setStarRating(userFeedback.starRating || 0);
-                  setSuggestedGrade(userFeedback.suggestedGrade || "");
-                  setComment(userFeedback.comment || "");
-                  setVideoUrl(userFeedback.videoUrl || "");
-                } else {
-                  setStarRating(0);
-                  setSuggestedGrade("");
-                  setComment("");
-                  setVideoUrl("");
-                }
-              }}
-              isSubmitting={isSubmitting}
-              isUpdate={!!userFeedback}
-              submitLabel={t.spray.saveRating}
-              starLabel={t.spray.howMuchEnjoy}
-              gradeLabel={t.spray.whatGrade}
-              commentLabel={t.spray.wantToAddComment}
-            />
-          )}
+          {/* Feedback form rendered as a Modal popup */}
+          <Modal
+            visible={showFeedbackForm}
+            animationType="slide"
+            transparent={true}
+            onRequestClose={() => {
+              setShowFeedbackForm(false);
+              if (userFeedback) {
+                setStarRating(userFeedback.starRating || 0);
+                setSuggestedGrade(userFeedback.suggestedGrade || "");
+                setComment(userFeedback.comment || "");
+                setVideoUrl(userFeedback.videoUrl || "");
+              } else {
+                setStarRating(0);
+                setSuggestedGrade("");
+                setComment("");
+                setVideoUrl("");
+              }
+            }}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+              style={styles.feedbackModalOverlay}
+            >
+              <TouchableOpacity
+                style={styles.feedbackModalBackdrop}
+                activeOpacity={1}
+                onPress={() => {
+                  setShowFeedbackForm(false);
+                  if (userFeedback) {
+                    setStarRating(userFeedback.starRating || 0);
+                    setSuggestedGrade(userFeedback.suggestedGrade || "");
+                    setComment(userFeedback.comment || "");
+                    setVideoUrl(userFeedback.videoUrl || "");
+                  } else {
+                    setStarRating(0);
+                    setSuggestedGrade("");
+                    setComment("");
+                    setVideoUrl("");
+                  }
+                }}
+              />
+              <View style={styles.feedbackModalContent}>
+                <View style={styles.feedbackModalHeader}>
+                  <Text style={styles.feedbackModalTitle}>
+                    {userFeedback ? t.spray.editRating : t.spray.completedRoute}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowFeedbackForm(false);
+                      if (userFeedback) {
+                        setStarRating(userFeedback.starRating || 0);
+                        setSuggestedGrade(userFeedback.suggestedGrade || "");
+                        setComment(userFeedback.comment || "");
+                        setVideoUrl(userFeedback.videoUrl || "");
+                      } else {
+                        setStarRating(0);
+                        setSuggestedGrade("");
+                        setComment("");
+                        setVideoUrl("");
+                      }
+                    }}
+                    style={styles.feedbackModalClose}
+                  >
+                    <Text style={styles.feedbackModalCloseText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+                <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+                  <RouteFeedbackForm
+                  starRating={starRating}
+                  onStarRatingChange={setStarRating}
+                  suggestedGrade={suggestedGrade}
+                  onGradeChange={setSuggestedGrade}
+                  grades={V_GRADES}
+                  comment={comment}
+                  onCommentChange={setComment}
+                  commentPlaceholder={t.spray.betaTipsExperience}
+                  videoUrl={videoUrl}
+                  onVideoUrlChange={setVideoUrl}
+                  isVideoLinkValid={isVideoLinkValid}
+                  onVideoLinkValidChange={setIsVideoLinkValid}
+                  onSubmit={handleSubmitFeedback}
+                  onCancel={() => {
+                    setShowFeedbackForm(false);
+                    if (userFeedback) {
+                      setStarRating(userFeedback.starRating || 0);
+                      setSuggestedGrade(userFeedback.suggestedGrade || "");
+                      setComment(userFeedback.comment || "");
+                      setVideoUrl(userFeedback.videoUrl || "");
+                    } else {
+                      setStarRating(0);
+                      setSuggestedGrade("");
+                      setComment("");
+                      setVideoUrl("");
+                    }
+                  }}
+                  isSubmitting={isSubmitting}
+                  isUpdate={!!userFeedback}
+                  submitLabel={t.spray.saveRating}
+                  starLabel={t.spray.howMuchEnjoy}
+                  gradeLabel={t.spray.whatGrade}
+                  commentLabel={t.spray.wantToAddComment}
+                />
+                </ScrollView>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
         </View>
 
         {/* Community Feedbacks */}
@@ -509,7 +606,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
                 showsHorizontalScrollIndicator={false}
                 style={styles.gradeScroller}
               >
-                {V_GRADES.map((grade) => (
+                {V_GRADES_WITH_UNKNOWN.map((grade) => (
                   <TouchableOpacity
                     key={grade}
                     onPress={() => setEditGrade(grade)}
@@ -597,15 +694,16 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     flex: 1,
   },
   imageContainer: {
-    height: isLandscape ? '100%' : 350,
-    width: isLandscape ? '50%' : '100%',
+    height: isLandscape ? undefined : 350,
+    width: isLandscape ? '45%' : '100%',
+    flex: isLandscape ? 1 : undefined,
     position: "relative",
   },
   routeHeaderSection: {
     backgroundColor: theme.surface,
     paddingHorizontal: horizontalPadding,
-    paddingTop: isPhoneLandscape ? 12 : 16,
-    paddingBottom: isPhoneLandscape ? 8 : 12,
+    paddingTop: isLandscape ? 12 : 16,
+    paddingBottom: isLandscape ? 8 : 12,
   },
   routeName: {
     color: theme.text,
@@ -780,7 +878,58 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     fontSize: 14,
     fontWeight: "600",
   },
-  // Modal Styles
+  // Feedback Modal Styles
+  feedbackModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  feedbackModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  feedbackModalContent: {
+    backgroundColor: theme.modalBackground || theme.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingBottom: Math.max(34, (insets?.bottom ?? 0) + 24),
+    maxHeight: Dimensions.get('window').height * 0.75,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  feedbackModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    marginBottom: 8,
+  },
+  feedbackModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.text,
+    flex: 1,
+  },
+  feedbackModalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  feedbackModalCloseText: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    fontWeight: '600',
+  },
+  // Edit Route Modal Styles
   modalOverlay: {
     flex: 1,
     backgroundColor: theme.overlay,
@@ -858,9 +1007,9 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.surface,
-    paddingVertical: isPhoneLandscape ? 10 : 14,
+    paddingVertical: isLandscape ? 10 : 14,
     borderRadius: 10,
-    marginBottom: isPhoneLandscape ? 12 : 16,
+    marginBottom: isLandscape ? 12 : 16,
     gap: 8,
   },
   editHoldsIcon: {

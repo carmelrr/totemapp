@@ -22,7 +22,7 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import { HoldRingsOverlay } from "./HoldRingsOverlay";
-import { Hold } from "@/features/spraywall/types";
+import { Hold, HoldNumberEntry, MaskPath } from "@/features/spraywall/types";
 
 interface WallImageWithHoldsProps {
   imageUrl: string;
@@ -33,6 +33,14 @@ interface WallImageWithHoldsProps {
   onUpdateActiveHold?: (updated: Hold) => void;
   onSelectHold?: (hold: Hold) => void;    // Callback when existing hold is tapped
   editable?: boolean;
+  // Numbering mode
+  numberingMode?: boolean;
+  onNumberHold?: (hold: Hold) => void;    // Callback when hold is tapped in numbering mode
+  holdNumbering?: HoldNumberEntry[];      // Numbers to display on holds
+  // Drawing mode
+  drawingMode?: boolean;
+  onAddMaskPath?: (path: MaskPath) => void; // Callback when a mask stroke is completed
+  maskPaths?: MaskPath[];                   // Mask paths to display
 }
 
 export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
@@ -44,6 +52,12 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
   onUpdateActiveHold,
   onSelectHold,
   editable = true,
+  numberingMode = false,
+  onNumberHold,
+  holdNumbering,
+  drawingMode = false,
+  onAddMaskPath,
+  maskPaths,
 }) => {
   // Container dimensions (from onLayout)
   const [containerWidth, setContainerWidth] = useState(0);
@@ -98,6 +112,28 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
   // Ref to always have the latest holds array
   const holdsRef = React.useRef<Hold[]>([]);
   holdsRef.current = holds;
+
+  // Refs for drawing and numbering modes
+  const drawingModeRef = React.useRef(false);
+  drawingModeRef.current = drawingMode;
+  const numberingModeRef = React.useRef(false);
+  numberingModeRef.current = numberingMode;
+
+  // Drawing state - current stroke being drawn
+  const currentDrawingPoints = React.useRef<{ x: number; y: number }[]>([]);
+
+  // Shared values to track modes in worklets
+  const isDrawingMode = useSharedValue(false);
+  const isNumberingMode = useSharedValue(false);
+
+  // Sync mode shared values
+  useEffect(() => {
+    isDrawingMode.value = drawingMode;
+  }, [drawingMode]);
+
+  useEffect(() => {
+    isNumberingMode.value = numberingMode;
+  }, [numberingMode]);
 
   // Image zoom/pan state
   const imageScale = useSharedValue(1);
@@ -287,7 +323,17 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
     const normalizedY = imageY / imageHeight;
     
     if (normalizedX >= 0 && normalizedX <= 1 && normalizedY >= 0 && normalizedY <= 1) {
-      // First check if there's an existing hold at this position
+      // Numbering mode: tap a hold to number it
+      if (numberingModeRef.current) {
+        const existingHold = findHoldAtPosition(normalizedX, normalizedY);
+        if (existingHold && onNumberHold) {
+          onNumberHold(existingHold);
+        }
+        return;
+      }
+      // Drawing mode: don't create holds on tap
+      if (drawingModeRef.current) return;
+      // Normal mode: select or create
       const existingHold = findHoldAtPosition(normalizedX, normalizedY);
       if (existingHold && onSelectHold) {
         onSelectHold(existingHold);
@@ -295,7 +341,7 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
         onCreateHold(normalizedX, normalizedY);
       }
     }
-  }, [imageWidth, imageHeight, imageOffsetX, imageOffsetY, findHoldAtPosition, onSelectHold, onCreateHold]);
+  }, [imageWidth, imageHeight, imageOffsetX, imageOffsetY, findHoldAtPosition, onSelectHold, onCreateHold, onNumberHold]);
 
   // Reset zoom
   const resetZoom = useCallback(() => {
@@ -306,6 +352,55 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
     savedTranslateX.value = 0;
     savedTranslateY.value = 0;
   }, []);
+
+  // Convert screen coordinates to normalized 0-1 coordinates
+  const screenToNormalized = useCallback((x: number, y: number) => {
+    if (!imageWidth || !imageHeight) return null;
+    const scale = imageScale.value;
+    const translateX = imageTranslateX.value;
+    const translateY = imageTranslateY.value;
+    const tapInImageAreaX = x - imageOffsetX;
+    const tapInImageAreaY = y - imageOffsetY;
+    const centerX = imageWidth / 2;
+    const centerY = imageHeight / 2;
+    const tapFromCenterX = tapInImageAreaX - centerX;
+    const tapFromCenterY = tapInImageAreaY - centerY;
+    const relativeToImageCenterX = tapFromCenterX - translateX;
+    const relativeToImageCenterY = tapFromCenterY - translateY;
+    const unscaledX = relativeToImageCenterX / scale;
+    const unscaledY = relativeToImageCenterY / scale;
+    const normalizedX = (centerX + unscaledX) / imageWidth;
+    const normalizedY = (centerY + unscaledY) / imageHeight;
+    if (normalizedX >= 0 && normalizedX <= 1 && normalizedY >= 0 && normalizedY <= 1) {
+      return { x: normalizedX, y: normalizedY };
+    }
+    return null;
+  }, [imageWidth, imageHeight, imageOffsetX, imageOffsetY]);
+
+  // Drawing: start stroke
+  const handleDrawingStart = useCallback((x: number, y: number) => {
+    const pt = screenToNormalized(x, y);
+    if (pt) {
+      currentDrawingPoints.current = [pt];
+    }
+  }, [screenToNormalized]);
+
+  // Drawing: update stroke (add point)
+  const handleDrawingMove = useCallback((x: number, y: number) => {
+    const pt = screenToNormalized(x, y);
+    if (pt) {
+      currentDrawingPoints.current.push(pt);
+    }
+  }, [screenToNormalized]);
+
+  // Drawing: end stroke
+  const handleDrawingEnd = useCallback(() => {
+    const points = currentDrawingPoints.current;
+    if (points.length >= 2 && onAddMaskPath) {
+      onAddMaskPath({ points: [...points], strokeWidth: 0.03 });
+    }
+    currentDrawingPoints.current = [];
+  }, [onAddMaskPath]);
 
   // === GESTURES ===
 
@@ -359,11 +454,14 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
       }
     });
 
-  // Pan gesture - move image OR move active hold
+  // Pan gesture - move image OR move active hold OR draw mask
   const panGesture = Gesture.Pan()
     .minDistance(10)
-    .onStart(() => {
-      if (hasActiveHold.value) {
+    .onStart((event) => {
+      if (isDrawingMode.value) {
+        // Drawing mode - start a new stroke
+        runOnJS(handleDrawingStart)(event.x, event.y);
+      } else if (hasActiveHold.value) {
         startHoldX.value = currentHoldX.value;
         startHoldY.value = currentHoldY.value;
       } else {
@@ -372,7 +470,10 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
       }
     })
     .onUpdate((event) => {
-      if (hasActiveHold.value) {
+      if (isDrawingMode.value) {
+        // Drawing mode - add point to stroke
+        runOnJS(handleDrawingMove)(event.x, event.y);
+      } else if (hasActiveHold.value) {
         // Move hold - only update shared values (smooth)
         const deltaX = event.translationX / (imageWidth * imageScale.value);
         const deltaY = event.translationY / (imageHeight * imageScale.value);
@@ -396,7 +497,10 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
       }
     })
     .onEnd(() => {
-      if (hasActiveHold.value) {
+      if (isDrawingMode.value) {
+        // Drawing mode - finish stroke
+        runOnJS(handleDrawingEnd)();
+      } else if (hasActiveHold.value) {
         // Update React state only at the end
         runOnJS(updateHoldPosition)(currentHoldX.value, currentHoldY.value);
       }
@@ -454,6 +558,8 @@ export const WallImageWithHolds: React.FC<WallImageWithHoldsProps> = ({
                 activeHoldX={currentHoldX}
                 activeHoldY={currentHoldY}
                 activeHoldRadius={currentRadius}
+                holdNumbering={holdNumbering}
+                maskPaths={maskPaths}
               />
             )}
           </Animated.View>

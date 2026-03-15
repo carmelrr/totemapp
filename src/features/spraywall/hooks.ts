@@ -2,7 +2,7 @@
 // Custom hooks for Spray Wall feature
 
 import { useEffect, useState, useCallback } from "react";
-import { SprayRoute, Hold } from "./types";
+import { SprayRoute, Hold, HoldNumberEntry, MaskPath } from "./types";
 import {
   addRoute as addRouteService,
   getRoutesForWall,
@@ -58,6 +58,9 @@ export function useAddRoute() {
       grade: string;
       holds: Hold[];
       createdBy?: string | null;
+      creatorName?: string;
+      holdNumbering?: HoldNumberEntry[];
+      maskPaths?: MaskPath[];
     }) => {
       setLoading(true);
       setError(null);

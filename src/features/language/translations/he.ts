@@ -78,6 +78,12 @@ export const he: TranslationKeys = {
     dontHaveAccount: "אין לך חשבון? הירשם",
     loginError: "שגיאת התחברות",
     signUpError: "שגיאת הרשמה",
+    continueAsGuest: "המשך כאורח",
+    loginRequired: "נדרשת התחברות",
+    loginRequiredMessage: "פיצ'ר זה דורש חשבון. האם תרצה להתחבר?",
+    acceptTerms: "אני מסכים לתנאי השימוש",
+    termsOfUse: "תנאי שימוש",
+    mustAcceptTerms: "יש לאשר את תנאי השימוש כדי ליצור חשבון",
   },
 
   // מחיקת חשבון
@@ -236,6 +242,88 @@ export const he: TranslationKeys = {
     setDefaultAvatar: "הגדר תמונה",
     changeDefaultAvatar: "שנה תמונה",
     removeDefaultAvatar: "הסר תמונה",
+    // Admin Panel Operations
+    resetAllTimePoints: "איפוס נקודות כל הזמנים",
+    resetPointsConfirm: "פעולה זו תמחק את כל הנקודות של כל המשתמשים. פעולה זו בלתי הפיכה.",
+    reset: "איפוס",
+    resetComplete: "הושלם!",
+    resetResult: (deleted: number) => `נמחקו ${deleted} רשומות`,
+    resetError: "אירעה שגיאה באיפוס הנקודות",
+    refreshRouteData: "רענון נתוני מסלולים",
+    selectAction: "בחר את הפעולה הרצויה:",
+    refreshCalc: "רענון חישובים",
+    refreshComplete: "הושלם!",
+    syncClosureFilter: "סנכרון פילטר סגירות",
+    syncComplete: "הושלם!",
+    wallEditor: "עורך קירות",
+    refreshRouteCalc: "רענון חישובי מסלולים",
+    resetPoints: "איפוס נקודות",
+    normalizeColors: "נרמול צבעי מסלולים",
+    normalizeColorsConfirm: "פעולה זו תעבור על כל המסלולים ותתאים את הצבע והשם לצבע הקרוב ביותר מרשימת הצבעים. להמשיך?",
+    normalize: "נרמל",
+    normalizeResult: (updated: number, skipped: number, total: number) => `${updated} מסלולים עודכנו מתוך ${total}\n${skipped} לא דרשו שינוי`,
+    normalizeError: "שגיאה בנרמול צבעי המסלולים",
+    balancePositions: "איזון מיקום",
+    balancePositionsDesc: "בחר תאריך לאיזון מיקום המסלולים שנוספו באותו יום",
+    balanceSelectDate: "בחר תאריך",
+    balanceResult: (updated: number, total: number) => `${updated} מסלולים עודכנו מתוך ${total}`,
+    balanceError: "שגיאה באיזון מיקום המסלולים",
+    balanceNotEnough: "צריך לפחות 2 מסלולים באותו תאריך לאיזון מיקום",
+    socialManagement: "ניהול סושיאל",
+    messageManagement: "ניהול הודעות",
+  },
+
+  // Statistics
+  statistics: {
+    title: "סטטיסטיקות",
+    loading: "טוען סטטיסטיקות...",
+    errorLoading: "שגיאה בטעינת סטטיסטיקות",
+    retry: "נסה שוב",
+    // Overview
+    overview: "סקירה כללית",
+    activeRoutes: "מסלולים פעילים",
+    archivedRoutes: "מסלולים בארכיון",
+    avgRating: "דירוג ממוצע",
+    totalFeedbacks: "סה\"כ פידבקים",
+    totalCompletions: "סה\"כ השלמות",
+    totalUsers: "סה\"כ משתמשים",
+    // Popular routes
+    popularRoutes: "מסלולים פופולריים",
+    completions: "השלמות",
+    noRoutes: "אין מסלולים להצגה",
+    // Grade distribution
+    gradeDistribution: "התפלגות דרגות",
+    routes: "מסלולים",
+    // User engagement
+    userEngagement: "מעורבות משתמשים",
+    activeUsers: "משתמשים פעילים",
+    sends: "שליחות",
+    flashes: "פלאשים",
+    flashRate: "אחוז פלאש",
+    // Spray wall
+    sprayWall: "ספריי וואל",
+    sprayRoutes: "מסלולי ספריי",
+    topSprayRoutes: "פופולריים בספריי",
+    tops: "טופים",
+    // Rating distribution
+    ratingDistribution: "התפלגות דירוגים",
+    star: "כוכב",
+    stars: "כוכבים",
+    feedbacks: "פידבקים",
+    // Activity patterns
+    activityPatterns: "דפוסי פעילות",
+    peakHours: "שעות שיא",
+    peakDays: "ימים עמוסים",
+    // Lowest rated
+    lowestRated: "דירוג נמוך",
+    minFeedbacks: "(מינימום 3 פידבקים)",
+    // Competitions
+    competitions: "תחרויות",
+    activeCompetitions: "תחרויות פעילות",
+    totalParticipants: "סה\"כ משתתפים",
+    // Community routes
+    communityRoutes: "מסלולי קהילה",
+    communitySends: "שליחות קהילה",
   },
 
   // Colors
@@ -279,6 +367,19 @@ export const he: TranslationKeys = {
     editColorDescription: "שנה את השם והגוון של צבע זה. השינויים יישמרו לכל המסלולים.",
     colorSaved: "הגדרות הצבע נשמרו",
     colorSaveError: "שגיאה בשמירת הגדרות הצבע",
+    // Color management
+    manageColors: "ניהול צבעים",
+    deleteColor: "מחיקת צבע",
+    deleteColorConfirm: "האם אתה בטוח שברצונך למחוק את הצבע הזה?",
+    deleteError: "שגיאה במחיקה",
+    addError: "שגיאה בהוספה",
+    add: "הוסף",
+    tapToSelectLongPressEdit: "לחץ לבחירה, לחיצה ארוכה לעריכה",
+    editColor: "עריכת צבע",
+    addNewColor: "הוספת צבע חדש",
+    hebrewName: "שם בעברית",
+    englishName: "שם באנגלית",
+    colorAlreadyExists: "צבע זה כבר קיים",
   },
 
   // Routes
@@ -296,6 +397,10 @@ export const he: TranslationKeys = {
     markAsSent: "סמן כנסגר",
     alreadySent: "כבר סגרת את המסלול הזה! 🎉",
     sendRoute: "סגור מסלול",
+    undoSend: "בטל סגירה",
+    undoSendConfirm: "בטוח שברצונך לבטל את הסגירה? זה יסיר את ההשלמה ויעדכן את הסטטיסטיקות שלך.",
+    undoSendSuccess: "הסגירה בוטלה בהצלחה",
+    undoSendError: "שגיאה בביטול הסגירה",
     updateRating: "עדכן דירוג",
     saveRating: "שמור דירוג",
     communityGrade: "ממוצע קהל",
@@ -321,6 +426,7 @@ export const he: TranslationKeys = {
     completed: "מסלולים שסגר",
     clickForDetails: "לחץ לפרטים",
     routeUpdated: "המסלול עודכן בהצלחה",
+    additionalRoutesUpdated: "מסלולים נוספים עודכנו",
     cannotUpdateRoute: "לא ניתן לעדכן את המסלול",
     deleteRoute: "מחיקת מסלול",
     deleteRouteConfirm: "האם אתה בטוח שברצונך למחוק את המסלול?",
@@ -427,6 +533,15 @@ export const he: TranslationKeys = {
     failedToLoadRoutes: "נכשל בטעינת המסלולים",
     filterDialogPlaceholder: "כאן יהיה דיאלוג סינון",
     sortDialogPlaceholder: "כאן יהיה דיאלוג מיון",
+    multiSelect: "בחירה מרובה",
+    selectAll: "בחר הכל",
+    deselectAll: "בטל בחירה",
+    deleteSelected: "מחק נבחרים",
+    selectedCount: (count: number) => `${count} נבחרו`,
+    batchArchiveConfirm: (count: number) => `להעביר ${count} מסלולים לארכיון? יימחקו לצמיתות אחרי 14 יום.`,
+    batchArchiveSuccess: (count: number) => `${count} מסלולים הועברו לארכיון`,
+    batchArchiveError: "שגיאה בארכוב מסלולים",
+    exitMultiSelect: "צא מבחירה",
   },
 
   // Home
@@ -451,6 +566,11 @@ export const he: TranslationKeys = {
     leaderboard: "לוח שיאים",
     sprayWall: "ספריי וואל",
     profile: "פרופיל",
+    addRoute: "הוסף מסלול",
+    colorPicker: "בחירת צבע",
+    addNewWall: "הוסף קיר חדש",
+    markHolds: "סמן אחיזות",
+    routeDetails: "פרטי מסלול",
   },
 
   // Community Routes (Flashes)
@@ -651,6 +771,26 @@ export const he: TranslationKeys = {
     save: "שמור",
     randomName: "🎲 רנדומלי",
     randomNameHint: "לחץ לשם רנדומלי חדש",
+    // Hold numbering
+    numberHolds: "מספור אחיזות",
+    numberingMode: "מצב מספור",
+    tapHoldToNumber: "לחץ על אחיזה למספור",
+    exitNumbering: "סיום מספור",
+    clearNumbering: "נקה מספור",
+    // Drawing mask
+    drawMask: "הסתר אחיזות",
+    drawingMode: "מצב ציור",
+    drawToHide: "צייר כדי להסתיר אחיזות",
+    exitDrawing: "סיום ציור",
+    clearDrawing: "נקה ציור",
+    // Undo/Redo
+    undo: "בטל",
+    redo: "שחזר",
+    // Color legend
+    holdColorLegend: "מילון צבעי אחיזות",
+    startTopColor: "התחלה / טופ",
+    middleColor: "ביניים",
+    feetColor: "רגליים",
   },
 
   // Route Statistics
@@ -725,6 +865,9 @@ export const he: TranslationKeys = {
     shareRoute: (name: string) => `שיתוף מסלול: ${name}`,
     reportTitle: "דיווח",
     reportRoute: (name: string) => `דיווח על מסלול: ${name}`,
+    reportSubmitted: "הדיווח נשלח",
+    reportSubmittedMessage: "תודה. הדיווח ייבדק תוך 24 שעות.",
+    reportFailed: "שליחת הדיווח נכשלה. נסה שוב.",
 
     // Wall Editor
     wallSaveTitle: "שמירה הצליחה",
@@ -966,6 +1109,13 @@ export const he: TranslationKeys = {
     notDefined: "לא מוגדר",
     statisticsTab: "📊 סטטיסטיקה",
     settingsTab: "⚙️ הגדרות פרופיל",
+    blockUser: "חסום משתמש",
+    unblockUser: "בטל חסימה",
+    reportUser: "דווח על משתמש",
+    blockConfirm: "האם אתה בטוח שברצונך לחסום משתמש זה? התוכן שלו יוסתר מהפיד שלך.",
+    blockSuccess: "המשתמש נחסם",
+    unblockSuccess: "החסימה בוטלה",
+    blockFailed: "נכשל בחסימת המשתמש",
   },
 
   // SprayWall
@@ -1016,17 +1166,84 @@ export const he: TranslationKeys = {
     routesOfTotal: (completed: number, total: number) => `${completed} מתוך ${total} מסלולים`,
     privacySettings: "הגדרות פרטיות",
     showGradeStatsToOthers: "הצג סטטיסטיקות דירוגים לאחרים",
+    grade: (grade: string) => `גרייד ${grade}`,
+    routesCompleted: (completed: number, total: number) => `${completed} מתוך ${total} קווים הושלמו`,
+    detailedStats: "סטטיסטיקות מפורטות",
+    totalRoutesSent: (count: number) => `סה״כ ${count} קווים נשלחו`,
+    highestGrade: (grade: string) => `גרייד הכי גבוה: ${grade}`,
+    avgRating: (rating: string) => `דירוג ממוצע: ${rating} ⭐`,
+    statsByGrade: "סטטיסטיקות לפי גרייד",
+    joinDate: (date: string) => `תאריך הצטרפות: ${date}`,
+    showJoinDate: "הצג תאריך",
+    privacyDescription: "בחר אילו נתונים יוצגו לאחרים בפרופיל שלך",
+    showHighestGrade: "הצג גרייד הכי גבוה",
+    showHighestGradeDesc: "הגרייד הכי קשה שהשלמת",
+    showFeedbackCount: "הצג כמות פידבקים",
+    showFeedbackCountDesc: "כמה פידבקים קיבלת על הקווים שלך",
+    showAvgRating: "הצג דירוג ממוצע",
+    showAvgRatingDesc: "הדירוג הממוצע שקיבלת מאחרים",
+    showGradeStats: "הצג סטטיסטיקות גרייד",
+    showGradeStatsDesc: "פירוט הצלחות לפי רמת קושי",
   },
 
   // ErrorBoundary
   errorBoundary: {
     errorLoading: "🚫 שגיאה בטעינת האפליקציה",
+    unexpectedError: "אירעה שגיאה בלתי צפויה. אנא נסה שוב.",
     tryAgain: "נסה שוב",
   },
 
   // Route Status
   routeStatus: {
     label: "סטטוס מסלול:",
+    unsent: "לא שלח",
+    project: "פרויקט",
+    sent: "שלח",
+    flashed: "פלאש",
+  },
+
+  // RouteDialog
+  routeDialog: {
+    routeGrade: (grade: string) => `מסלול ${grade}`,
+    routeInfo: "מידע על המסלול",
+    rating: "דירוג:",
+    color: "צבע:",
+    completionCount: "מספר סגירות:",
+    avgStarRating: "דירוג כוכבים ממוצע:",
+    suggestedGradeUsers: "דירוג מוצע (משתמשים):",
+    updateFeedback: "עדכן את הפידבק שלך",
+    addFeedback: "הוסף פידבק",
+    starRating: "דירוג כוכבים:",
+    suggestedGrade: "דירוג מוצע:",
+    comment: "תגובה:",
+    completedRoute: "סגרתי את המסלול",
+    submitting: "שולח...",
+    updateFeedbackBtn: "עדכן פידבק",
+    submitFeedback: "שלח פידבק",
+    feedbacksCount: (count: number) => `פידבקים (${count})`,
+    noFeedbacksYet: "עדיין אין פידבקים למסלול זה",
+    suggestedGradeValue: (grade: string) => `דירוג מוצע: ${grade}`,
+    completed: "✓ סגר",
+  },
+
+  // FeedbackForm
+  feedbackForm: {
+    rating: "דירוג:",
+    comment: "תגובה:",
+    searchingUsers: "מחפש משתמשים...",
+    submitting: "שולח...",
+    submitFeedback: "שלח משוב",
+  },
+
+  // Image Cropper
+  imageCropper: {
+    cropError: "שגיאה בחיתוך התמונה",
+    loadingImage: "טוען תמונה...",
+    loadError: "שגיאה בטעינת התמונה",
+    dragInstruction: "גרור עם אצבע כדי להזיז. צבוט כדי לשנות גודל",
+    cancel: "ביטול",
+    cropping: "חותך...",
+    save: "✓ שמור",
   },
 
   // Competitions List Screen
@@ -1054,6 +1271,7 @@ export const he: TranslationKeys = {
     formatNationalLeague: "ליגה ארצית",
     formatTotemtition: "תחרוטוטם",
     formatCustom: "מותאם אישית",
+    formatPointsCompetition: "תחרות נקודות",
   },
 
   // Competition Extended
@@ -1351,6 +1569,7 @@ export const he: TranslationKeys = {
     registeredParticipant: "משתתף רשום",
     waitingForApproval: "ממתין לאישור",
     enterResultsAction: "הזן תוצאות",
+    enterCompetition: "כנס לתחרות",
     // Open Registration Banner - additional
     waitingApproval: "ממתין לאישור",
     registeredAndApproved: "רשום ומאושר ✓",
@@ -1403,6 +1622,31 @@ export const he: TranslationKeys = {
     // Competition Registration - additional hardcoded
     defaultParticipantName: "משתתף",
     registrationInfoBox: "לאחר ההרשמה, הבקשה תישלח לאישור. תוכל להזין תוצאות רק לאחר תחילת התחרות.",
+
+    // Points Competition
+    pointsCompetition: "תחרות נקודות",
+    pointsCompetitionDescription: "מסלולי הקיר הקיימים. כל דירוג = נקודות (V0=0, V8=8).",
+    pointsCompetitionRoutesHeader: "מסלולי הקיר",
+    pointsCompetitionYourScore: "הנקודות שלך",
+    pointsCompetitionMarkAsSent: "סגור!",
+    pointsCompetitionUndo: "בטל סגירה",
+    pointsCompetitionCompleted: "הושלם",
+    pointsCompetitionPoints: (pts: number) => `${pts} נק'`,
+    pointsCompetitionTotalPoints: (pts: number) => `סה"כ: ${pts} נקודות`,
+    pointsCompetitionRoutesCompleted: (n: number, total: number) => `סגרת ${n} מתוך ${total} מסלולים`,
+    pointsCompetitionNoRoutes: "אין מסלולים על הקיר כרגע",
+    pointsCompetitionAlsoMarkedOnWall: "נסמן גם במפת המסלולים ✓",
+    pointsCompetitionLeaderboard: "לוח תוצאות",
+    pointsCompetitionRank: "מקום",
+    pointsCompetitionNotStarted: "התחרות עדיין לא התחילה",
+    pointsCompetitionEnded: "התחרות הסתיימה",
+    pointsCompetitionNotRegistered: "אתה לא רשום לתחרות זו",
+    pointsCompetitionJoin: "הצטרף לתחרות",
+    pointsCompetitionJoinConfirm: "להצטרף לתחרות? תוכל לדווח על מסלולים שסגרת ולצבור נקודות.",
+    pointsCompetitionJoining: "מצטרף...",
+    pointsCompetitionJoined: "הצטרפת לתחרות בהצלחה!",
+    pointsCompetitionJoinError: "שגיאה בהצטרפות לתחרות",
+    pointsCompetitionGradePoints: "דירוג = נקודות",
   },
 
   // Announcements
@@ -1482,5 +1726,34 @@ export const he: TranslationKeys = {
     rolesUpdated: "התפקידים עודכנו בהצלחה",
     cancel: "ביטול",
     save: "שמור",
+  },
+
+  // Wall Tape
+  wallTape: {
+    wallTape: "טייפ של הקיר",
+    manageTapes: "ניהול טייפים",
+    addTape: "הוסף טייפ",
+    deleteTape: "מחק טייפ",
+    deleteConfirm: "האם למחוק את הטייפ",
+    tapeNameHe: "שם הטייפ (עברית)",
+    tapeNameEn: "שם הטייפ (אנגלית)",
+    tapeColor: "צבע הטייפ",
+    nameRequired: "יש להזין שם לטייפ",
+    noTapes: "עדיין לא הוגדרו טייפים",
+    none: "ללא",
+  },
+
+  // מודרציה
+  moderation: {
+    reportTitle: "דיווח על תוכן",
+    selectReason: "למה אתה מדווח?",
+    reasonOffensive: "פוגעני או שנאה",
+    reasonSpam: "ספאם",
+    reasonInappropriate: "תוכן לא הולם",
+    reasonOther: "אחר",
+    reportSubmitted: "הדיווח נשלח",
+    reportSubmittedMessage: "תודה. הדיווח ייבדק תוך 24 שעות.",
+    reportFailed: "שליחת הדיווח נכשלה. נסה שוב.",
+    contentBlocked: "תוכן זה מכיל שפה לא הולמת.",
   },
 };

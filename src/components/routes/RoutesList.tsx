@@ -9,6 +9,8 @@ import {
     RefreshControl,
 } from 'react-native';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
+import { getRouteDisplayName } from '@/features/routes-map/utils/colors';
 
 interface Route {
     id: string;
@@ -36,6 +38,7 @@ const RoutesList = memo<RoutesListProps>(({
     selectedRouteId
 }) => {
     const { theme } = useTheme();
+    const { t, language } = useLanguage();
     const styles = useMemo(() => createStyles(theme), [theme]);
     
     const renderRoute = ({ item: route }: { item: Route }) => (
@@ -45,10 +48,10 @@ const RoutesList = memo<RoutesListProps>(({
                 selectedRouteId === route.id && styles.selectedRoute
             ]}
             onPress={() => onRoutePress?.(route)}
-            accessibilityLabel={`מסלול ${route.name}`}
+            accessibilityLabel={`${t.routes?.route || 'Route'} ${getRouteDisplayName(route, language, t)}`}
         >
             <View style={styles.routeInfo}>
-                <Text style={styles.routeName}>{route.name}</Text>
+                <Text style={styles.routeName}>{getRouteDisplayName(route, language, t)}</Text>
                 {route.grade && (
                     <Text style={styles.routeGrade}>{route.grade}</Text>
                 )}

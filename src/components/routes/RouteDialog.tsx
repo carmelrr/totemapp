@@ -16,6 +16,7 @@ import { FeedbackService } from "@/features/routes-map/services/FeedbackService"
 import { useUser } from "@/features/auth/UserContext";
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
+import { getColorTranslationKey } from '@/features/routes-map/utils/colors';
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -95,7 +96,7 @@ export default function RouteDialog({ visible, route, onClose }) {
 
   const { isAdmin } = useUser();
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const styles = createStyles(theme);
   const user = auth.currentUser;
 
@@ -184,9 +185,9 @@ export default function RouteDialog({ visible, route, onClose }) {
 
   const handleDeleteFeedback = async (feedbackId) => {
     Alert.alert(t.alerts.deleteFeedbackTitle, t.alerts.deleteFeedbackConfirm, [
-      { text: "ביטול", style: "cancel" },
+      { text: t.common.cancel, style: "cancel" },
       {
-        text: "מחק",
+        text: t.common.delete,
         style: "destructive",
         onPress: async () => {
           try {
@@ -216,10 +217,14 @@ export default function RouteDialog({ visible, route, onClose }) {
   const formatDate = (timestamp) => {
     if (!timestamp) return "";
     const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return date.toLocaleDateString("he-IL");
+    return date.toLocaleDateString(language === "he" ? "he-IL" : "en-US");
   };
 
   if (!visible || !route) return null;
+
+  // Get translated color name
+  const colorKey = getColorTranslationKey(route.color);
+  const colorName = t.colors[colorKey as keyof typeof t.colors] || route.color;
 
   return (
     <Modal
@@ -230,7 +235,7 @@ export default function RouteDialog({ visible, route, onClose }) {
     >
       <View style={styles.container}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>מסלול {route.grade}</Text>
+          <Text style={styles.headerTitle}>{t.routeDialog.routeGrade(route.grade)}</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
             <Text style={styles.closeButtonText}>✕</Text>
           </TouchableOpacity>
@@ -239,29 +244,29 @@ export default function RouteDialog({ visible, route, onClose }) {
         <ScrollView style={styles.content}>
           {/* Route Info */}
           <View style={styles.routeInfo}>
-            <Text style={styles.routeTitle}>מידע על המסלול</Text>
+            <Text style={styles.routeTitle}>{t.routeDialog.routeInfo}</Text>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>דירוג:</Text>
+              <Text style={styles.infoLabel}>{t.routeDialog.rating}</Text>
               <Text style={styles.infoValue}>{route.grade}</Text>
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>צבע:</Text>
+              <Text style={styles.infoLabel}>{t.routeDialog.color}</Text>
               <View
                 style={[styles.colorDot, { backgroundColor: route.color }]}
               />
-              <Text style={styles.infoValue}>{route.color}</Text>
+              <Text style={styles.infoValue}>{colorName}</Text>
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>מספר סגירות:</Text>
+              <Text style={styles.infoLabel}>{t.routeDialog.completionCount}</Text>
               <Text style={styles.infoValue}>{getCompletionCount()}</Text>
             </View>
             <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>דירוג כוכבים ממוצע:</Text>
+              <Text style={styles.infoLabel}>{t.routeDialog.avgStarRating}</Text>
               <Text style={styles.infoValue}>⭐ {getAverageStarRating()}</Text>
             </View>
             {getSmartAverageGrade() && (
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>דירוג מוצע (משתמשים):</Text>
+                <Text style={styles.infoLabel}>{t.routeDialog.suggestedGradeUsers}</Text>
                 <Text style={styles.infoValue}>{getSmartAverageGrade()}</Text>
               </View>
             )}
@@ -271,11 +276,11 @@ export default function RouteDialog({ visible, route, onClose }) {
           {user && (
             <View style={styles.feedbackForm}>
               <Text style={styles.formTitle}>
-                {userFeedback ? "עדכן את הפידבק שלך" : "הוסף פידבק"}
+                {userFeedback ? t.routeDialog.updateFeedback : t.routeDialog.addFeedback}
               </Text>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>דירוג כוכבים:</Text>
+                <Text style={styles.formLabel}>{t.routeDialog.starRating}</Text>
                 <StarRating
                   rating={starRating}
                   onRatingChange={setStarRating}
@@ -284,7 +289,7 @@ export default function RouteDialog({ visible, route, onClose }) {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>דירוג מוצע:</Text>
+                <Text style={styles.formLabel}>{t.routeDialog.suggestedGrade}</Text>
                 <GradeSelector
                   selectedGrade={suggestedGrade}
                   onGradeChange={setSuggestedGrade}
@@ -293,7 +298,7 @@ export default function RouteDialog({ visible, route, onClose }) {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>תגובה:</Text>
+                <Text style={styles.formLabel}>{t.routeDialog.comment}</Text>
                 <TextInput
                   style={styles.commentInput}
                   multiline
@@ -323,7 +328,7 @@ export default function RouteDialog({ visible, route, onClose }) {
                   >
                     {closedRoute && <Text style={styles.checkmark}>✓</Text>}
                   </View>
-                  <Text style={styles.checkboxLabel}>סגרתי את המסלול</Text>
+                  <Text style={styles.checkboxLabel}>{t.routeDialog.completedRoute}</Text>
                 </TouchableOpacity>
               </View>
 
@@ -337,10 +342,10 @@ export default function RouteDialog({ visible, route, onClose }) {
               >
                 <Text style={styles.submitButtonText}>
                   {isSubmitting
-                    ? "שולח..."
+                    ? t.routeDialog.submitting
                     : userFeedback
-                      ? "עדכן פידבק"
-                      : "שלח פידבק"}
+                      ? t.routeDialog.updateFeedbackBtn
+                      : t.routeDialog.submitFeedback}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -349,11 +354,11 @@ export default function RouteDialog({ visible, route, onClose }) {
           {/* Feedbacks List */}
           <View style={styles.feedbacksList}>
             <Text style={styles.feedbacksTitle}>
-              פידבקים ({feedbacks.length})
+              {t.routeDialog.feedbacksCount(feedbacks.length)}
             </Text>
             {feedbacks.length === 0 ? (
               <Text style={styles.noFeedbacks}>
-                עדיין אין פידבקים למסלול זה
+                {t.routeDialog.noFeedbacksYet}
               </Text>
             ) : (
               feedbacks.map((feedback) => {
@@ -383,10 +388,10 @@ export default function RouteDialog({ visible, route, onClose }) {
                           disabled={true}
                         />
                         <Text style={styles.feedbackGrade}>
-                          דירוג מוצע: {feedback.suggestedGrade}
+                          {t.routeDialog.suggestedGradeValue(feedback.suggestedGrade)}
                         </Text>
                         {feedback.closedRoute && (
-                          <Text style={styles.closedBadge}>✓ סגר</Text>
+                          <Text style={styles.closedBadge}>{t.routeDialog.completed}</Text>
                         )}
                       </View>
 

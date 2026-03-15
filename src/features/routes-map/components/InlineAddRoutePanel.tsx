@@ -27,9 +27,10 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
 import { GRADES } from '../utils/grades';
-import { ROUTE_COLORS, getRandomRouteColor, getColorTranslationKey, getContrastTextColor } from '../utils/colors';
+import { ROUTE_COLORS, getVisibleColors, getRandomRouteColor, getColorTranslationKey, getContrastTextColor } from '../utils/colors';
 import { RoutesService } from '../services/RoutesService';
 import { getColorSettingSync } from '../services/ColorSettingsService';
+import { useWallTapes } from '../hooks/useWallTapes';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -60,8 +61,12 @@ export default function InlineAddRoutePanel({
   // Form state
   const [grade, setGrade] = useState('V0');
   const [color, setColor] = useState<string>(getRandomRouteColor());
+  const [wallTape, setWallTape] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [colorSettingsVersion, setColorSettingsVersion] = useState(0);
+
+  // Wall tapes
+  const { tapes } = useWallTapes();
 
   const styles = useMemo(() => createStyles(theme, insets), [theme, insets]);
 
@@ -104,15 +109,18 @@ export default function InlineAddRoutePanel({
 
     try {
       const names = getRouteNames();
+      // Use the display hex (customized shade) consistent with ColorPickerScreen
+      const displayColor = getDisplayColor(color);
       const routeData: any = {
         name: names.nameHe,
         nameHe: names.nameHe,
         nameEn: names.nameEn,
         grade,
-        color,
+        color: displayColor,
         xNorm: coordinates.xNorm,
         yNorm: coordinates.yNorm,
         status: 'active',
+        ...(wallTape ? { wallTape } : {}),
       };
 
       await RoutesService.addRoute(routeData);
@@ -194,22 +202,31 @@ export default function InlineAddRoutePanel({
         <Text style={styles.sectionLabel}>{t.routes?.color || 'Color'}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorScroll}>
           <View style={styles.colorRow}>
-            {ROUTE_COLORS.map((colorOption) => {
+            {getVisibleColors().map((colorOption) => {
               const displayColor = getDisplayColor(colorOption);
+              // Determine contrast ring color based on luminance
+              const hex = displayColor.replace('#', '');
+              const r = parseInt(hex.substr(0, 2), 16) || 0;
+              const g = parseInt(hex.substr(2, 2), 16) || 0;
+              const b = parseInt(hex.substr(4, 2), 16) || 0;
+              const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+              const contrastRing = luminance > 0.7 ? '#333333' : '#FFFFFF';
+
               return (
-                <TouchableOpacity
-                  key={colorOption}
-                  style={[
-                    styles.colorChip,
-                    { backgroundColor: displayColor },
-                    color === colorOption && styles.colorChipSelected,
-                  ]}
-                  onPress={() => setColor(colorOption)}
-                >
-                  {color === colorOption && (
-                    <Ionicons name="checkmark" size={16} color={getContrastTextColor(displayColor)} />
-                  )}
-                </TouchableOpacity>
+                <View key={colorOption} style={[styles.colorChipOuter, { borderColor: contrastRing }]}>
+                  <TouchableOpacity
+                    style={[
+                      styles.colorChip,
+                      { backgroundColor: displayColor },
+                      color === colorOption && styles.colorChipSelected,
+                    ]}
+                    onPress={() => setColor(colorOption)}
+                  >
+                    {color === colorOption && (
+                      <Ionicons name="checkmark" size={16} color={getContrastTextColor(displayColor)} />
+                    )}
+                  </TouchableOpacity>
+                </View>
               );
             })}
             {/* "+" button to open color management page */}
@@ -230,6 +247,54 @@ export default function InlineAddRoutePanel({
           </View>
         </ScrollView>
       </View>
+
+      {/* Wall Tape Selection */}
+      {tapes.length > 0 && (
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionLabel}>{t.wallTape?.wallTape || 'Wall Tape'}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.gradeScroll}>
+            <View style={styles.gradeRow}>
+              {/* "None" option */}
+              <TouchableOpacity
+                style={[
+                  styles.tapeChip,
+                  !wallTape && styles.tapeChipSelected,
+                ]}
+                onPress={() => setWallTape('')}
+              >
+                <Text style={[
+                  styles.tapeChipText,
+                  !wallTape && styles.tapeChipTextSelected,
+                ]}>
+                  {t.wallTape?.none || '—'}
+                </Text>
+              </TouchableOpacity>
+              {tapes.map((tape) => {
+                const isSelected = wallTape === tape.id;
+                return (
+                  <TouchableOpacity
+                    key={tape.id}
+                    style={[
+                      styles.tapeChip,
+                      { borderColor: tape.hex },
+                      isSelected && { backgroundColor: tape.hex, borderColor: tape.hex },
+                    ]}
+                    onPress={() => setWallTape(tape.id)}
+                  >
+                    <View style={[styles.tapeDot, { backgroundColor: tape.hex }]} />
+                    <Text style={[
+                      styles.tapeChipText,
+                      isSelected && { color: getContrastTextColor(tape.hex) },
+                    ]}>
+                      {language === 'he' ? tape.nameHe : tape.nameEn}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      )}
 
       {/* Action buttons */}
       <View style={styles.actionsRow}>
@@ -388,13 +453,21 @@ const createStyles = (theme: any, insets: { bottom: number }) =>
       flexDirection: 'row',
       gap: 8,
     },
-    colorChip: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
+    colorChipOuter: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      borderWidth: 2,
       alignItems: 'center',
       justifyContent: 'center',
-      borderWidth: 2,
+    },
+    colorChip: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 0,
       borderColor: 'transparent',
     },
     colorChipSelected: {
@@ -415,6 +488,34 @@ const createStyles = (theme: any, insets: { bottom: number }) =>
       borderColor: theme.border,
       borderStyle: 'dashed',
       backgroundColor: theme.surface,
+    },
+    tapeChip: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      borderWidth: 1.5,
+      borderColor: theme.border,
+      marginRight: 6,
+      gap: 4,
+    },
+    tapeChipSelected: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
+    tapeChipText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    tapeChipTextSelected: {
+      color: '#fff',
+    },
+    tapeDot: {
+      width: 10,
+      height: 10,
+      borderRadius: 5,
     },
     actionsRow: {
       flexDirection: 'row',

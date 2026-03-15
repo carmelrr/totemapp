@@ -102,7 +102,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
         <View style={styles.container}>
             {/* Star Rating */}
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>דירוג:</Text>
+                <Text style={styles.sectionTitle}>{t.feedbackForm.rating}</Text>
                 <StarRatingInput
                     rating={starRating}
                     onRatingChange={onStarRatingChange}
@@ -122,7 +122,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
 
             {/* Comment Input */}
             <View style={styles.section}>
-                <Text style={styles.sectionTitle}>תגובה:</Text>
+                <Text style={styles.sectionTitle}>{t.feedbackForm.comment}</Text>
                 <TextInput
                     style={[
                         styles.commentInput,
@@ -178,7 +178,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
                 >
                     <View style={styles.suggestionsContainer}>
                         {isSearching ? (
-                            <Text style={styles.loadingText}>מחפש משתמשים...</Text>
+                            <Text style={styles.loadingText}>{t.feedbackForm.searchingUsers}</Text>
                         ) : (
                             <FlatList
                                 data={userSuggestions}
@@ -215,7 +215,7 @@ export const FeedbackForm: React.FC<FeedbackFormProps> = ({
                 disabled={isSubmitting || disabled}
             >
                 <Text style={styles.submitButtonText}>
-                    {isSubmitting ? 'שולח...' : 'שלח משוב'}
+                    {isSubmitting ? t.feedbackForm.submitting : t.feedbackForm.submitFeedback}
                 </Text>
             </TouchableOpacity>
         </View>

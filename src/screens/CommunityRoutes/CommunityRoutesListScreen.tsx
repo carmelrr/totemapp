@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme, lightTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
 import { useResponsiveLayout } from '@/hooks/useResponsiveLayout';
+import { useBlockedUsers } from '@/features/moderation/useBlockedUsers';
 import {
   useCommunityRoutes,
   useUserSentRoutes,
@@ -32,6 +33,7 @@ import {
 } from '@/features/community-routes';
 import { BrandLogo } from '@/components/ui/BrandLogo';
 import { useRouteNavigationStore } from '@/store/useRouteNavigationStore';
+import { CollapsibleFilterSection } from '@/components/Filters/CollapsibleFilterSection';
 
 type Theme = typeof lightTheme;
 type SortOption = 'newest' | 'oldest' | 'top-rated' | 'most-sends' | 'easy-to-hard' | 'hard-to-easy' | 'most-repeats';
@@ -41,6 +43,7 @@ export const CommunityRoutesListScreen: React.FC = () => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const layout = useResponsiveLayout();
+  const { isBlocked } = useBlockedUsers();
   const insets = useSafeAreaInsets();
   const { isLandscape, isTablet, width } = layout;
   const isPhoneLandscape = !isTablet && isLandscape;
@@ -66,16 +69,17 @@ export const CommunityRoutesListScreen: React.FC = () => {
   // User's sent routes for completion filtering (from communityRouteSends collection)
   const { sentRouteIds: completedRouteIds } = useUserSentRoutes();
   
-  // Apply completion filter locally
+  // Apply completion filter locally + filter blocked users
   const routes = useMemo(() => {
+    let filtered = rawRoutes.filter(route => !isBlocked(route.createdBy));
     if (!filters.completionStatus || filters.completionStatus === 'all') {
-      return rawRoutes;
+      return filtered;
     }
     if (filters.completionStatus === 'completed') {
-      return rawRoutes.filter(route => completedRouteIds.has(route.id));
+      return filtered.filter(route => completedRouteIds.has(route.id));
     }
-    return rawRoutes.filter(route => !completedRouteIds.has(route.id));
-  }, [rawRoutes, filters.completionStatus, completedRouteIds]);
+    return filtered.filter(route => !completedRouteIds.has(route.id));
+  }, [rawRoutes, filters.completionStatus, completedRouteIds, isBlocked]);
 
   // Get unique grades from ALL routes for filter options (sorted by difficulty)
   const uniqueGrades = useMemo(() => {
@@ -372,9 +376,10 @@ export const CommunityRoutesListScreen: React.FC = () => {
             
             <ScrollView showsVerticalScrollIndicator={false}>
               {/* Filter by Completion Status */}
-              <Text style={[styles.filterSectionTitle, { color: theme.textSecondary }]}>
-                {t.filters.completionStatus}
-              </Text>
+              <CollapsibleFilterSection
+                title={t.filters.completionStatus}
+                activeCount={filters.completionStatus && filters.completionStatus !== 'all' ? 1 : 0}
+              >
               <View style={styles.completionOptionsRow}>
                 <TouchableOpacity
                   style={[
@@ -406,7 +411,7 @@ export const CommunityRoutesListScreen: React.FC = () => {
                     { color: theme.textSecondary },
                     filters.completionStatus === 'completed' && { color: '#ffffff' }
                   ]}>
-                    âœ“ {t.filters.showCompleted}
+                    ✓ {t.filters.showCompleted}
                   </Text>
                 </TouchableOpacity>
                 
@@ -427,11 +432,13 @@ export const CommunityRoutesListScreen: React.FC = () => {
                   </Text>
                 </TouchableOpacity>
               </View>
+              </CollapsibleFilterSection>
               
               {/* Filter by Grade */}
-              <Text style={[styles.filterSectionTitle, { color: theme.textSecondary, marginTop: 16 }]}>
-                {t.community.filterByGrade}
-              </Text>
+              <CollapsibleFilterSection
+                title={t.community.filterByGrade}
+                activeCount={filters.filterGrades?.length || 0}
+              >
               {uniqueGrades.map((grade) => (
                 <TouchableOpacity
                   key={grade}
@@ -456,11 +463,13 @@ export const CommunityRoutesListScreen: React.FC = () => {
                   </Text>
                 </TouchableOpacity>
               ))}
+              </CollapsibleFilterSection>
               
               {/* Filter by Creator */}
-              <Text style={[styles.filterSectionTitle, { color: theme.textSecondary, marginTop: 16 }]}>
-                {t.community.filterByCreator}
-              </Text>
+              <CollapsibleFilterSection
+                title={t.community.filterByCreator}
+                activeCount={filters.filterCreators?.length || 0}
+              >
               {uniqueCreators.map((creator) => (
                 <TouchableOpacity
                   key={creator.id}
@@ -485,6 +494,7 @@ export const CommunityRoutesListScreen: React.FC = () => {
                   </Text>
                 </TouchableOpacity>
               ))}
+              </CollapsibleFilterSection>
             </ScrollView>
           </View>
         </View>

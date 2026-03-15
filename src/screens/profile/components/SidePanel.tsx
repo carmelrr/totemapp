@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React from "react";
 import {
   View,
   Text,
@@ -6,16 +6,10 @@ import {
   ScrollView,
   Animated,
   TextInput,
-  Alert,
-  ActivityIndicator,
 } from "react-native";
-import { Image as ExpoImage } from "expo-image";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage, Language } from "@/features/language";
-import { useDefaultAvatar } from "@/context/DefaultAvatarContext";
-import { useUser } from "@/features/auth/UserContext";
 import { createStyles } from "../styles";
-import { RouteStatsService } from "@/features/routes-map/services/RouteStatsService";
 import { CachedAvatar } from "@/components/ui/CachedAvatar";
 import type { PrivacySettings } from "../types";
 
@@ -41,14 +35,9 @@ interface SidePanelProps {
   onDeleteAccount?: () => void;
   onPrivacySettings?: () => void;
   onAdminPanel?: () => void;
-  onRolesManagement?: () => void;
-  onAnnouncementsManagement?: () => void;
-  onWallEditor?: () => void;
+  onShiftsManagement?: () => void;
+  isWorker?: boolean;
   isAdmin?: boolean;
-  adminModeEnabled?: boolean;
-  onAdminModeToggle?: () => void;
-  canManageRoles?: boolean;
-  canManageAnnouncements?: boolean;
 }
 
 export const SidePanel: React.FC<SidePanelProps> = ({
@@ -73,77 +62,13 @@ export const SidePanel: React.FC<SidePanelProps> = ({
   onDeleteAccount,
   onPrivacySettings,
   onAdminPanel,
-  onRolesManagement,
-  onAnnouncementsManagement,
-  onWallEditor,
+  onShiftsManagement,
+  isWorker,
   isAdmin,
-  adminModeEnabled,
-  onAdminModeToggle,
-  canManageRoles,
-  canManageAnnouncements,
 }) => {
   const { theme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
-  const { defaultAvatarUrl, uploadDefaultAvatar, removeDefaultAvatar } = useDefaultAvatar();
   const styles = createStyles(theme);
-  const [isRecalculating, setIsRecalculating] = useState(false);
-
-  // Function to recalculate all route statistics and names
-  const handleRecalculateRoutes = async () => {
-    Alert.alert(
-      "רענון נתוני מסלולים",
-      "בחר את הפעולה הרצויה:",
-      [
-        { text: "ביטול", style: "cancel" },
-        {
-          text: "רענון חישובים",
-          onPress: async () => {
-            setIsRecalculating(true);
-            try {
-              // Run both operations - forceUpdate=true to update all routes including existing ones
-              const [statsResult, namesResult] = await Promise.all([
-                RouteStatsService.recalculateAllRoutes(),
-                RouteStatsService.recalculateAllRouteNames(true), // Force update all routes
-              ]);
-              
-              Alert.alert(
-                "הושלם!",
-                `ממוצעי קהל: עודכנו ${statsResult.success} מסלולים${statsResult.failed > 0 ? `, ${statsResult.failed} נכשלו` : ""}\n\nשמות מסלולים: עודכנו ${namesResult.success}${namesResult.failed > 0 ? `, ${namesResult.failed} נכשלו` : ""}${namesResult.skipped > 0 ? `, ${namesResult.skipped} דלגו (חסר צבע/דירוג)` : ""}`
-              );
-            } catch (error) {
-              console.error("Error recalculating:", error);
-              Alert.alert(t.common.error, t.alerts.refreshCalcError);
-            } finally {
-              setIsRecalculating(false);
-            }
-          },
-        },
-        {
-          text: "סנכרון פילטר סגירות",
-          onPress: async () => {
-            setIsRecalculating(true);
-            try {
-              const [sprayResult, communityResult, mapResult] = await Promise.all([
-                RouteStatsService.syncSprayRouteSends(),
-                RouteStatsService.syncCommunityRouteSends(),
-                RouteStatsService.syncRouteFeedbacksToUserRoutes(),
-              ]);
-              
-              Alert.alert(
-                "הושלם!",
-                `SprayWall: סונכרנו ${sprayResult.success} רשומות${sprayResult.failed > 0 ? `, ${sprayResult.failed} נכשלו` : ""}\n\nמסלולי קהילה: ${communityResult.success} רשומות קיימות\n\nמפת מסלולים: סונכרנו ${mapResult.success} מסלולים${mapResult.failed > 0 ? `, ${mapResult.failed} נכשלו` : ""}`
-              );
-            } catch (error) {
-              console.error("Error syncing sends:", error);
-              Alert.alert(t.common.error, t.alerts.syncFiltersError);
-            } finally {
-              setIsRecalculating(false);
-            }
-          },
-        },
-      ]
-    );
-  };
 
   if (!visible) return null;
 
@@ -393,129 +318,37 @@ export const SidePanel: React.FC<SidePanelProps> = ({
             </View>
 
             {/* Admin Panel */}
-            {isAdmin && (
+            {isAdmin && onAdminPanel && (
               <View style={styles.adminSection}>
                 <Text style={styles.adminTitle}>{t.admin.title}</Text>
-
-                {/* Default Avatar Section */}
-                <View style={styles.defaultAvatarSection}>
-                  <Text style={styles.defaultAvatarTitle}>{t.admin.defaultAvatar || 'תמונת פרופיל ברירת מחדל'}</Text>
-                  <View style={styles.defaultAvatarPreview}>
-                    {defaultAvatarUrl ? (
-                      <ExpoImage
-                        source={{ uri: defaultAvatarUrl }}
-                        style={styles.defaultAvatarImage}
-                        contentFit="cover"
-                        cachePolicy="memory-disk"
-                        transition={200}
-                      />
-                    ) : (
-                      <View style={styles.defaultAvatarPlaceholder}>
-                        <Text style={styles.defaultAvatarPlaceholderText}>?</Text>
-                      </View>
-                    )}
-                  </View>
-                  <View style={styles.defaultAvatarButtons}>
-                    <TouchableOpacity
-                      style={styles.defaultAvatarButton}
-                      onPress={uploadDefaultAvatar}
-                      activeOpacity={0.7}
-                    >
-                      <Text style={styles.defaultAvatarButtonText}>
-                        {defaultAvatarUrl ? (t.admin.changeDefaultAvatar || 'שנה תמונה') : (t.admin.setDefaultAvatar || 'הגדר תמונה')}
-                      </Text>
-                    </TouchableOpacity>
-                    {defaultAvatarUrl && (
-                      <TouchableOpacity
-                        style={[styles.defaultAvatarButton, styles.defaultAvatarRemoveButton]}
-                        onPress={removeDefaultAvatar}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={styles.defaultAvatarRemoveButtonText}>
-                          {t.admin.removeDefaultAvatar || 'הסר תמונה'}
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </View>
-                
-                {onAdminPanel && (
-                  <View style={styles.adminButtons}>
-                    <TouchableOpacity
-                      style={styles.adminButton}
-                      onPress={onAdminPanel}
-                    >
-                      <Text style={styles.adminButtonText}>{t.admin.adminPanel}</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-                
-                {canManageRoles && onRolesManagement && (
-                  <View style={styles.adminButtons}>
-                    <TouchableOpacity
-                      style={[styles.adminButton, { backgroundColor: '#9C27B0' }]}
-                      onPress={onRolesManagement}
-                    >
-                      <Text style={styles.adminButtonText}>{t.admin.rolesManagement}</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* Wall Editor Button */}
-                {onWallEditor && (
-                  <View style={styles.adminButtons}>
-                    <TouchableOpacity
-                      style={[styles.adminButton, { backgroundColor: '#00BCD4' }]}
-                      onPress={onWallEditor}
-                    >
-                      <Text style={styles.adminButtonText}>עורך קירות</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {/* Recalculate Routes Button */}
                 <View style={styles.adminButtons}>
                   <TouchableOpacity
-                    style={[styles.adminButton, { backgroundColor: '#2196F3' }]}
-                    onPress={handleRecalculateRoutes}
-                    disabled={isRecalculating}
+                    style={styles.adminButton}
+                    onPress={onAdminPanel}
+                    activeOpacity={0.7}
                   >
-                    {isRecalculating ? (
-                      <ActivityIndicator color="#fff" size="small" />
-                    ) : (
-                      <Text style={styles.adminButtonText}>רענון חישובי מסלולים</Text>
-                    )}
+                    <Text style={styles.adminButtonText}>{t.admin.adminPanel}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
 
-            {/* Social Manager Section - Announcements Management */}
-            {canManageAnnouncements && onAnnouncementsManagement && !isAdmin && (
+            {/* Shifts Section - for non-admin workers */}
+            {isWorker && !isAdmin && onShiftsManagement && (
               <View style={styles.adminSection}>
-                <Text style={styles.adminTitle}>ניהול סושיאל</Text>
+                <Text style={styles.adminTitle}>{'משמרות'}</Text>
                 <View style={styles.adminButtons}>
                   <TouchableOpacity
-                    style={[styles.adminButton, { backgroundColor: '#F59E0B' }]}
-                    onPress={onAnnouncementsManagement}
+                    style={[styles.adminButton, { backgroundColor: '#FF5722' }]}
+                    onPress={onShiftsManagement}
                   >
-                    <Text style={styles.adminButtonText}>ניהול הודעות</Text>
+                    <Text style={styles.adminButtonText}>{'משמרות שלי'}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
 
             {/* Announcements inside Admin section (for admins) */}
-            {canManageAnnouncements && onAnnouncementsManagement && isAdmin && (
-              <View style={styles.adminButtons}>
-                <TouchableOpacity
-                  style={[styles.adminButton, { backgroundColor: '#F59E0B' }]}
-                  onPress={onAnnouncementsManagement}
-                >
-                  <Text style={styles.adminButtonText}>ניהול הודעות</Text>
-                </TouchableOpacity>
-              </View>
-            )}
 
             {/* Delete Account Button */}
             {onDeleteAccount && (

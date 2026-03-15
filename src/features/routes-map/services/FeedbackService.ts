@@ -85,6 +85,13 @@ export class FeedbackService {
                 updatedAt: serverTimestamp(),
             };
 
+            // Remove undefined fields — Firestore rejects undefined values
+            Object.keys(feedbackWithMeta).forEach(key => {
+                if ((feedbackWithMeta as any)[key] === undefined) {
+                    delete (feedbackWithMeta as any)[key];
+                }
+            });
+
             await addDoc(feedbacksRef, feedbackWithMeta);
             console.log("✅ Feedback added successfully");
 
@@ -166,32 +173,189 @@ export class FeedbackService {
                 throw new Error("Feedback not found");
             }
 
-            await updateDoc(feedbackRef, {
+            const oldFeedback = feedbackDoc.data();
+            const wasCompleted = oldFeedback?.isCompleted === true;
+            const isNowCompleted = feedbackData.isCompleted;
+
+            // Remove undefined fields — Firestore rejects undefined values
+            const cleanedData: Record<string, any> = {
                 ...feedbackData,
                 updatedAt: serverTimestamp(),
+            };
+            Object.keys(cleanedData).forEach(key => {
+                if (cleanedData[key] === undefined) {
+                    delete cleanedData[key];
+                }
             });
 
-            // Update route statistics
-            const feedback = feedbackDoc.data();
-            if (feedback?.routeId) {
-                await RouteStatsService.updateRouteStatistics(feedback.routeId);
+            await updateDoc(feedbackRef, cleanedData);
 
-                // Update user statistics
-                await UserStatsService.updateUserStats(
-                    feedback.userId,
-                    {
-                        starRating: feedback.starRating,
-                        suggestedGrade: feedback.suggestedGrade,
-                        isCompleted: feedback.isCompleted,
-                    },
-                    "update"
-                );
+            // Handle completion status change
+            if (oldFeedback?.routeId && oldFeedback?.userId) {
+                // If completion was removed, clean up userRoutes
+                if (wasCompleted && isNowCompleted === false) {
+                    try {
+                        const userRoutesRef = doc(db, 'userRoutes', oldFeedback.userId);
+                        const userRoutesDoc = await getDoc(userRoutesRef);
+                        if (userRoutesDoc.exists()) {
+                            const existingRoutes = userRoutesDoc.data().routes || {};
+                            const { [oldFeedback.routeId]: _removed, ...remainingRoutes } = existingRoutes;
+                            await setDoc(userRoutesRef, { routes: remainingRoutes }, { merge: true });
+                        }
+                    } catch (e) {
+                        console.warn('⚠️ Could not clean up userRoutes:', e);
+                    }
+                }
+                // If completion was added, add to userRoutes
+                if (!wasCompleted && isNowCompleted === true) {
+                    try {
+                        const userRoutesRef = doc(db, 'userRoutes', oldFeedback.userId);
+                        const userRoutesDoc = await getDoc(userRoutesRef);
+                        const existingRoutes = userRoutesDoc.exists() ? (userRoutesDoc.data().routes || {}) : {};
+                        const updatedRoutes = {
+                            ...existingRoutes,
+                            [oldFeedback.routeId]: {
+                                ...(existingRoutes[oldFeedback.routeId] || {}),
+                                status: 'sent',
+                                attempts: (existingRoutes[oldFeedback.routeId]?.attempts || 0) + 1,
+                                lastAttempt: new Date(),
+                            }
+                        };
+                        await setDoc(userRoutesRef, { routes: updatedRoutes }, { merge: true });
+                    } catch (e) {
+                        console.warn('⚠️ Could not update userRoutes:', e);
+                    }
+                }
+            }
+
+            // Update route statistics (non-critical — don't fail feedback save)
+            if (oldFeedback?.routeId) {
+                try {
+                    await RouteStatsService.updateRouteStatistics(oldFeedback.routeId);
+                } catch (statsError) {
+                    console.warn("⚠️ Could not update route stats:", statsError);
+                }
+
+                // Update user statistics properly based on completion change
+                try {
+                    if (wasCompleted && isNowCompleted === false) {
+                        // Completion removed — decrement
+                        await UserStatsService.updateUserStats(
+                            oldFeedback.userId,
+                            {
+                                starRating: oldFeedback.starRating,
+                                suggestedGrade: oldFeedback.suggestedGrade,
+                                isCompleted: true,
+                            },
+                            "remove"
+                        );
+                    } else if (!wasCompleted && isNowCompleted === true) {
+                        // Completion added — increment
+                        await UserStatsService.updateUserStats(
+                            oldFeedback.userId,
+                            {
+                                starRating: feedbackData.starRating || oldFeedback.starRating,
+                                suggestedGrade: feedbackData.suggestedGrade || oldFeedback.suggestedGrade,
+                                isCompleted: true,
+                            },
+                            "add"
+                        );
+                    } else {
+                        // No completion change — just update timestamp
+                        await UserStatsService.updateUserStats(
+                            oldFeedback.userId,
+                            {
+                                starRating: oldFeedback.starRating,
+                                suggestedGrade: oldFeedback.suggestedGrade,
+                                isCompleted: oldFeedback.isCompleted,
+                            },
+                            "update"
+                        );
+                    }
+                } catch (userStatsError) {
+                    console.warn("⚠️ Could not update user stats:", userStatsError);
+                }
 
                 // Trigger stats refresh for any listening components
                 triggerStatsRefresh();
             }
         } catch (error) {
             console.error("Error updating feedback:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Undo a route completion — sets isCompleted to false, updates stats + userRoutes + leaderboard
+     */
+    static async undoCompletion(feedbackId: string): Promise<void> {
+        try {
+            const feedbackRef = doc(feedbacksRef, feedbackId);
+            const feedbackDoc = await getDoc(feedbackRef);
+
+            if (!feedbackDoc.exists()) {
+                throw new Error("Feedback not found");
+            }
+
+            const feedback = feedbackDoc.data();
+            if (!feedback.isCompleted) {
+                console.log('Feedback already not completed, nothing to undo');
+                return;
+            }
+
+            // Set isCompleted to false
+            await updateDoc(feedbackRef, {
+                isCompleted: false,
+                updatedAt: serverTimestamp(),
+            });
+
+            // Remove from userRoutes completion tracking
+            if (feedback.userId && feedback.routeId) {
+                try {
+                    const userRoutesRef = doc(db, 'userRoutes', feedback.userId);
+                    const userRoutesDoc = await getDoc(userRoutesRef);
+                    if (userRoutesDoc.exists()) {
+                        const existingRoutes = userRoutesDoc.data().routes || {};
+                        const { [feedback.routeId]: _removed, ...remainingRoutes } = existingRoutes;
+                        await setDoc(userRoutesRef, { routes: remainingRoutes }, { merge: true });
+                        console.log('✅ Removed route from userRoutes');
+                    }
+                } catch (e) {
+                    console.warn('⚠️ Could not clean up userRoutes:', e);
+                }
+            }
+
+            // Update route statistics (completionCount will decrease)
+            if (feedback.routeId) {
+                try {
+                    await RouteStatsService.updateRouteStatistics(feedback.routeId);
+                } catch (statsError) {
+                    console.warn('⚠️ Could not update route stats:', statsError);
+                }
+            }
+
+            // Update user statistics (decrement completedRoutes)
+            if (feedback.userId) {
+                try {
+                    await UserStatsService.updateUserStats(
+                        feedback.userId,
+                        {
+                            starRating: feedback.starRating,
+                            suggestedGrade: feedback.suggestedGrade,
+                            isCompleted: true, // was completed, so pass true for remove calculation
+                        },
+                        "remove"
+                    );
+                } catch (userStatsError) {
+                    console.warn('⚠️ Could not update user stats:', userStatsError);
+                }
+            }
+
+            // Clear feed cache and trigger refresh
+            clearFeedCache();
+            triggerStatsRefresh();
+        } catch (error) {
+            console.error('Error undoing completion:', error);
             throw error;
         }
     }
@@ -211,20 +375,28 @@ export class FeedbackService {
             const feedback = feedbackDoc.data();
             await deleteDoc(feedbackRef);
 
-            // Update route statistics
+            // Update route statistics (non-critical — don't fail feedback delete)
             if (feedback?.routeId) {
-                await RouteStatsService.updateRouteStatistics(feedback.routeId);
+                try {
+                    await RouteStatsService.updateRouteStatistics(feedback.routeId);
+                } catch (statsError) {
+                    console.warn("⚠️ Could not update route stats:", statsError);
+                }
 
-                // Update user statistics
-                await UserStatsService.updateUserStats(
-                    feedback.userId,
-                    {
-                        starRating: feedback.starRating,
-                        suggestedGrade: feedback.suggestedGrade,
-                        isCompleted: feedback.isCompleted,
-                    },
-                    "remove"
-                );
+                // Update user statistics (non-critical)
+                try {
+                    await UserStatsService.updateUserStats(
+                        feedback.userId,
+                        {
+                            starRating: feedback.starRating,
+                            suggestedGrade: feedback.suggestedGrade,
+                            isCompleted: feedback.isCompleted,
+                        },
+                        "remove"
+                    );
+                } catch (userStatsError) {
+                    console.warn("⚠️ Could not update user stats:", userStatsError);
+                }
 
                 // Trigger stats refresh for any listening components
                 triggerStatsRefresh();

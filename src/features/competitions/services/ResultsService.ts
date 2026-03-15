@@ -35,6 +35,8 @@ import {
   calculateZoneTopRoutePoints,
   buildZoneTopScoringConfig,
   isZoneTopFormat,
+  isPointsCompetitionFormat,
+  calculatePointsCompetitionRoutePoints,
   NATIONAL_LEAGUE_SCORING,
 } from '../constants';
 import { getUserRoles } from '@/features/roles/rolesService';
@@ -131,6 +133,9 @@ export class ResultsService {
       if (isTotemRoute) {
         // TOTEM routes: points calculated dynamically in leaderboard
         points = 0;
+      } else if (format && isPointsCompetitionFormat(format) && result.completed) {
+        // Points Competition: grade number = points (V0=0, V1=1 ... V8=8)
+        points = calculatePointsCompetitionRoutePoints(result.grade);
       } else if (format && isZoneTopFormat(format) && competition?.settings) {
         // Zone/Top scoring
         const config = buildZoneTopScoringConfig(competition.settings);
@@ -302,7 +307,7 @@ export class ResultsService {
   }
 
   /**
-   * Remove a route result by routeId (alias for deleteRouteResult)
+   * Remove a route result by routeId (for self-reporting undo or judge action)
    */
   static async removeRouteResult(
     competitionId: string,
@@ -310,6 +315,16 @@ export class ResultsService {
     routeId: string
   ): Promise<void> {
     try {
+      // Check authorization: allow self-removal (participant removing own result) or judge/admin
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        throw new Error('User not authenticated');
+      }
+      const isSelfRemoval = currentUser.uid === participantId;
+      if (!isSelfRemoval) {
+        await checkEditResultsPermission(currentUser.uid);
+      }
+
       const resultRef = doc(
         db,
         'competitions',
@@ -1149,6 +1164,98 @@ export class ResultsService {
       },
       (error) => {
         console.error('Error subscribing to Zone/Top leaderboard:', error);
+        callback([]);
+      }
+    );
+  }
+
+  // =============== Points Competition ===============
+
+  /**
+   * Subscribe to Points Competition leaderboard
+   * Points are pre-calculated at entry time (grade number = points: V0=0, V8=8)
+   * Uses totalPoints (sum of all completed routes), no TOP-N.
+   */
+  static subscribeToPointsCompetitionLeaderboard(
+    competitionId: string,
+    callback: (entries: LeaderboardEntry[]) => void
+  ): () => void {
+    const resultsRef = collection(
+      db,
+      'competitions',
+      competitionId,
+      'results'
+    );
+
+    return onSnapshot(
+      resultsRef,
+      (snapshot) => {
+        const allResults: ParticipantResult[] = snapshot.docs.map((d) =>
+          this.mapDocToResult(d)
+        );
+
+        if (allResults.length === 0) {
+          callback([]);
+          return;
+        }
+
+        const entries: LeaderboardEntry[] = allResults.map((result) => {
+          let totalPoints = 0;
+          let totalAttempts = 0;
+          let routesCompleted = 0;
+          const routes = result.routes;
+
+          if (routes) {
+            const routeValues = Array.isArray(routes) ? routes : Object.values(routes);
+            routeValues.forEach((route: RouteResult) => {
+              if (route.attempts) {
+                totalAttempts += route.attempts;
+              }
+              if (route.completed) {
+                totalPoints += route.points || 0;
+                routesCompleted++;
+              }
+            });
+          }
+
+          return {
+            rank: 0,
+            participantId: result.participantId,
+            participantName: result.participantName || result.userName || 'Unknown',
+            userName: result.userName || result.participantName || 'Unknown',
+            userId: result.participantId,
+            photoURL: (result as any).photoURL || null,
+            points: totalPoints,
+            totalPoints,
+            routesCompleted,
+            totalAttempts,
+            category: result.category,
+            categoryName: result.categoryName,
+          };
+        });
+
+        // Sort by totalPoints desc, then by routesCompleted desc for tie-breaking
+        entries.sort((a, b) => {
+          const pointsDiff = (b.totalPoints || 0) - (a.totalPoints || 0);
+          if (pointsDiff !== 0) return pointsDiff;
+          return (b.routesCompleted || 0) - (a.routesCompleted || 0);
+        });
+
+        // Rank with tie handling
+        for (let i = 0; i < entries.length; i++) {
+          if (i === 0) {
+            entries[i].rank = 1;
+          } else if ((entries[i].totalPoints || 0) === (entries[i - 1].totalPoints || 0)) {
+            entries[i].rank = entries[i - 1].rank;
+          } else {
+            entries[i].rank = i + 1;
+          }
+        }
+
+        callback(entries);
+      },
+      (error) => {
+        console.error('Error subscribing to Points Competition leaderboard:', error);
         callback([]);
       }
     );

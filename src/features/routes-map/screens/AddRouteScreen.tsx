@@ -17,10 +17,11 @@ import RouteMarker from '../components/RouteMarker';
 
 import { toImg, toNorm } from '@/utils/coordinateUtils';
 import { GRADES } from '../utils/grades';
-import { ROUTE_COLORS, getRandomRouteColor } from '../utils/colors';
+import { ROUTE_COLORS, getVisibleColors, getRandomRouteColor, getContrastTextColor } from '../utils/colors';
 import { RoutesService } from '../services/RoutesService';
 import { MapTransforms } from '../types/route';
 import { useTheme, lightTheme } from '@/features/theme/ThemeContext';
+import { containsProfanity } from '@/features/moderation/contentFilter';
 
 type Theme = typeof lightTheme;
 
@@ -134,6 +135,8 @@ export default function AddRouteMapScreen() {
 
     if (!name.trim()) {
       newErrors.name = 'Route name is required';
+    } else if (containsProfanity(name)) {
+      newErrors.name = 'Route name contains inappropriate language';
     }
 
     if (!grade) {
@@ -319,21 +322,31 @@ export default function AddRouteMapScreen() {
         <View style={styles.fieldGroup}>
           <Text style={styles.fieldLabel}>Color *</Text>
           <View style={styles.colorGrid}>
-            {ROUTE_COLORS.map((colorOption) => (
-              <TouchableOpacity
-                key={colorOption}
-                style={[
-                  styles.colorChip,
-                  { backgroundColor: colorOption },
-                  color === colorOption && styles.selectedColorChip,
-                ]}
-                onPress={() => setColor(colorOption)}
-              >
-                {color === colorOption && (
-                  <Text style={styles.colorCheckmark}>✓</Text>
-                )}
-              </TouchableOpacity>
-            ))}
+            {getVisibleColors().map((colorOption) => {
+              const hex = colorOption.replace('#', '');
+              const r = parseInt(hex.substr(0, 2), 16) || 0;
+              const g = parseInt(hex.substr(2, 2), 16) || 0;
+              const b = parseInt(hex.substr(4, 2), 16) || 0;
+              const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+              const contrastRing = luminance > 0.7 ? '#333333' : '#FFFFFF';
+
+              return (
+                <View key={colorOption} style={[styles.colorChipOuter, { borderColor: contrastRing }]}>
+                  <TouchableOpacity
+                    style={[
+                      styles.colorChip,
+                      { backgroundColor: colorOption },
+                      color === colorOption && styles.selectedColorChip,
+                    ]}
+                    onPress={() => setColor(colorOption)}
+                  >
+                    {color === colorOption && (
+                      <Text style={styles.colorCheckmark}>✓</Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
           </View>
           {errors.color && <Text style={styles.errorText}>{errors.color}</Text>}
         </View>
@@ -494,10 +507,18 @@ const createStyles = (theme: Theme) => StyleSheet.create({
     flexWrap: 'wrap',
     gap: 12,
   },
+  colorChipOuter: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   colorChip: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 3,

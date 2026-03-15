@@ -49,6 +49,7 @@ import { UnifiedStatsDashboard as StatsDashboard, UnifiedGradeStatsModal as Grad
 import { fetchUserStats as fetchUserStatsService, fetchOtherUserStats } from "./services/statsService";
 import { ProfileSettingsTab } from "./components/ProfileSettingsTab";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { getRouteDisplayName as getRouteDisplayNameUtil } from "@/features/routes-map/utils/colors";
 
 // Tab types for profile view
 type ProfileTab = "statistics" | "settings";
@@ -549,13 +550,17 @@ export default function UserProfileScreen({ route, navigation }) {
 
   // Get route name based on language
   const getRouteDisplayName = (item: any): string => {
-    if (language === 'he' && item.routeNameHe) {
-      return item.routeNameHe;
-    }
-    if (language === 'en' && item.routeNameEn) {
-      return item.routeNameEn;
-    }
-    return item.routeName;
+    return getRouteDisplayNameUtil(
+      {
+        name: item.routeName || '',
+        nameHe: item.routeNameHe,
+        nameEn: item.routeNameEn,
+        color: item.routeColor,
+        grade: item.routeGrade,
+      },
+      language,
+      t
+    );
   };
 
   // Render history item

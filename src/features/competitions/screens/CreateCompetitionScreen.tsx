@@ -75,12 +75,14 @@ export default function CreateCompetitionScreen() {
   const isZoneTopFormat = format === 'zone_top';
   const isTotemtition = format === 'totemtition';
   const isNationalLeague = format === 'national_league';
+  const isPointsCompetition = format === 'points_competition';
 
   // Which settings are relevant per format
   const showTopRoutes = isNationalLeague;          // only NL uses TOP-N
   const showAttemptPenalty = isNationalLeague;      // ZT uses zone/top penalties, Totem has none
-  const showMaxAttempts = !isTotemtition;           // Totem is unlimited
-  const showCategories = !isTotemtition;            // Totem has no categories
+  const showMaxAttempts = !isTotemtition && !isPointsCompetition; // Totem and Points are unlimited
+  const showCategories = !isTotemtition && !isPointsCompetition;  // Totem and Points have no categories
+  const showAdvancedSettings = !isPointsCompetition; // Points Competition uses wall routes, no custom settings
 
   const handleFormatChange = (newFormat: CompetitionFormat) => {
     setFormat(newFormat);
@@ -245,7 +247,7 @@ export default function CreateCompetitionScreen() {
           <View style={styles.section}>
             <Text style={styles.label}>{t.competitionExt.competitionFormat}</Text>
             <View style={styles.formatOptions}>
-              {(['national_league', 'totemtition', 'zone_top'] as CompetitionFormat[]).map((f) => {
+              {(['national_league', 'totemtition', 'zone_top', 'points_competition'] as CompetitionFormat[]).map((f) => {
                 const info = COMPETITION_FORMAT_INFO[f];
                 const isSelected = format === f;
                 const label = language === 'he' ? info.label : info.labelEn;
@@ -430,6 +432,7 @@ export default function CreateCompetitionScreen() {
           </View>
 
           {/* Advanced Settings */}
+          {showAdvancedSettings && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t.competitionExt.advancedSettings}</Text>
             
@@ -500,8 +503,10 @@ export default function CreateCompetitionScreen() {
               </TouchableOpacity>
             )}
           </View>
+          )}
 
           {/* Entry & Registration Mode */}
+          {showAdvancedSettings && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t.competitionExt.entryAndRegistration}</Text>
 
@@ -547,6 +552,7 @@ export default function CreateCompetitionScreen() {
               </TouchableOpacity>
             </View>
           </View>
+          )}
 
           {/* Zone/Top Scoring Settings */}
           {isZoneTopFormat && (

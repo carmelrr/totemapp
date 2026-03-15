@@ -75,16 +75,18 @@ function clampViewport(
   let clampedTranslateY = translateY;
   
   // If scaled image is larger than screen, keep edges within bounds
+  // Allow overscroll so edges can come into view (30% of viewport as breathing room)
   if (scaledWidth > screenW) {
+    const overscrollX = screenW * 0.3;
     // Don't let left edge go past screen left (leftEdge <= 0)
     // leftEdge = imgCenterX * (1 - scale) + translateX <= 0
     // translateX <= imgCenterX * (scale - 1)
-    const maxTranslateX = imgCenterX * (clampedScale - 1);
+    const maxTranslateX = imgCenterX * (clampedScale - 1) + overscrollX;
     
     // Don't let right edge go before screen right (rightEdge >= screenW)
     // rightEdge = imgCenterX * (1 + scale) + translateX >= screenW
     // translateX >= screenW - imgCenterX * (1 + scale)
-    const minTranslateX = screenW - imgCenterX * (1 + clampedScale);
+    const minTranslateX = screenW - imgCenterX * (1 + clampedScale) - overscrollX;
     
     clampedTranslateX = Math.max(minTranslateX, Math.min(maxTranslateX, translateX));
   } else if (allowPanAtMinZoom) {
@@ -100,8 +102,9 @@ function clampViewport(
   }
   
   if (scaledHeight > screenH) {
-    const maxTranslateY = imgCenterY * (clampedScale - 1);
-    const minTranslateY = screenH - imgCenterY * (1 + clampedScale);
+    const overscrollY = screenH * 0.3;
+    const maxTranslateY = imgCenterY * (clampedScale - 1) + overscrollY;
+    const minTranslateY = screenH - imgCenterY * (1 + clampedScale) - overscrollY;
     clampedTranslateY = Math.max(minTranslateY, Math.min(maxTranslateY, translateY));
   } else if (allowPanAtMinZoom) {
     // Allow vertical panning too, keep at least 50% visible
@@ -640,10 +643,11 @@ export function useMapTransforms({
    * The rect is { x, y, width, height } in the room coordinate system.
    * Image dimensions map 1:1 to room dimensions via the SVG viewBox.
    */
-  const zoomToRect = useCallback((rect: { x: number; y: number; width: number; height: number }, padding: number = 0.1, options?: { verticalAlign?: 'top' | 'center' }) => {
+  const zoomToRect = useCallback((rect: { x: number; y: number; width: number; height: number }, padding: number = 0.1, options?: { verticalAlign?: 'top' | 'center', maxScale?: number }) => {
     if (safeImageWidth === 0 || safeImageHeight === 0) return;
     
     const verticalAlign = options?.verticalAlign ?? 'center';
+    const effectiveMaxScale = options?.maxScale ?? safeMaxScale;
     
     // rect is already in image pixel coordinates (caller converts from room coords)
     const rectCenterX = rect.x + rect.width / 2;
@@ -654,7 +658,7 @@ export function useMapTransforms({
     const paddingFactor = 1 + padding;
     const scaleX = safeScreenWidth / (rect.width * paddingFactor);
     const scaleY = safeScreenHeight / (rect.height * paddingFactor);
-    const targetScale = Math.min(scaleX, scaleY, safeMaxScale);
+    const targetScale = Math.min(scaleX, scaleY, effectiveMaxScale);
     const clampedScale = Math.max(safeMinScale, targetScale);
     
     // Image center

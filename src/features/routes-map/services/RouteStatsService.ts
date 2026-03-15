@@ -14,6 +14,7 @@ import {
     serverTimestamp,
     setDoc,
     collectionGroup,
+    writeBatch,
 } from 'firebase/firestore';
 
 import { db } from '@/features/data/firebase';
@@ -446,6 +447,77 @@ export class RouteStatsService {
             return { success, failed };
         } catch (error) {
             console.error('❌ [syncRouteFeedbacksToUserRoutes] Error:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Reset all-time points by deleting routeFeedbacks for non-active (archived) routes.
+     * After this operation, "all time" points will equal "on wall" points for all users.
+     * Points from routes currently on the wall are preserved.
+     */
+    static async resetAllTimePoints(): Promise<{ deleted: number; kept: number; failed: number }> {
+        try {
+            console.log('🔄 [resetAllTimePoints] Starting reset...');
+
+            // Step 1: Get all routes and identify active ones
+            const routesSnapshot = await getDocs(this.routesRef);
+            const activeRouteIds = new Set<string>();
+            routesSnapshot.forEach((routeDoc) => {
+                const data = routeDoc.data();
+                const isActive = !data.status || data.status === 'active';
+                if (isActive) {
+                    activeRouteIds.add(routeDoc.id);
+                }
+            });
+            console.log(`📊 [resetAllTimePoints] Found ${activeRouteIds.size} active routes out of ${routesSnapshot.size} total`);
+
+            // Step 2: Get all routeFeedbacks
+            const feedbacksSnapshot = await getDocs(this.feedbacksRef);
+            console.log(`📊 [resetAllTimePoints] Found ${feedbacksSnapshot.size} total feedbacks`);
+
+            // Step 3: Identify feedbacks to delete (for non-active routes)
+            const feedbacksToDelete: string[] = [];
+            let kept = 0;
+
+            feedbacksSnapshot.forEach((feedbackDoc) => {
+                const data = feedbackDoc.data();
+                if (!activeRouteIds.has(data.routeId)) {
+                    feedbacksToDelete.push(feedbackDoc.id);
+                } else {
+                    kept++;
+                }
+            });
+
+            console.log(`🗑️ [resetAllTimePoints] Will delete ${feedbacksToDelete.length} feedbacks, keeping ${kept}`);
+
+            // Step 4: Delete in batches of 500 (Firestore limit)
+            let deleted = 0;
+            let failed = 0;
+            const BATCH_SIZE = 500;
+
+            for (let i = 0; i < feedbacksToDelete.length; i += BATCH_SIZE) {
+                const batchIds = feedbacksToDelete.slice(i, i + BATCH_SIZE);
+                const batch = writeBatch(db);
+
+                for (const feedbackId of batchIds) {
+                    batch.delete(doc(this.feedbacksRef, feedbackId));
+                }
+
+                try {
+                    await batch.commit();
+                    deleted += batchIds.length;
+                    console.log(`✅ [resetAllTimePoints] Deleted batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batchIds.length} feedbacks`);
+                } catch (error) {
+                    failed += batchIds.length;
+                    console.error(`❌ [resetAllTimePoints] Batch ${Math.floor(i / BATCH_SIZE) + 1} failed:`, error);
+                }
+            }
+
+            console.log(`🔄 [resetAllTimePoints] Complete: ${deleted} deleted, ${kept} kept, ${failed} failed`);
+            return { deleted, kept, failed };
+        } catch (error) {
+            console.error('❌ [resetAllTimePoints] Error:', error);
             throw error;
         }
     }

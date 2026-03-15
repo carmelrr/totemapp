@@ -14,6 +14,7 @@ import {
   orderBy,
   where,
   getDocs,
+  writeBatch,
   Timestamp,
   FirestoreDataConverter,
   QueryDocumentSnapshot,
@@ -72,6 +73,8 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
   toFirestore(route: any): DocumentData {
     return {
       name: route.name,
+      nameHe: route.nameHe || null,
+      nameEn: route.nameEn || null,
       grade: route.grade,
       color: route.color,
       xNorm: route.xNorm,
@@ -89,6 +92,7 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       calculatedGrade: route.calculatedGrade || null,
       feedbackCount: route.feedbackCount || 0,
       completionCount: route.completionCount || 0,
+      wallTape: route.wallTape || null,
     };
   },
   fromFirestore(snapshot: QueryDocumentSnapshot, options): RouteDoc {
@@ -134,6 +138,8 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
     const result = {
       id: snapshot.id,
       name: data.name || data.title || `מסלול ${snapshot.id.slice(-6)}`, // Better fallback
+      nameHe: data.nameHe || undefined,
+      nameEn: data.nameEn || undefined,
       grade: data.grade || 'V0',
       color,
       xNorm: Number.isFinite(xNorm) ? Math.min(Math.max(xNorm, 0), 1) : 0,
@@ -151,6 +157,7 @@ const routeConverter: FirestoreDataConverter<RouteDoc> = {
       calculatedGrade: data.calculatedGrade || null,
       feedbackCount: data.feedbackCount || 0,
       completionCount: data.completionCount || 0,
+      wallTape: data.wallTape || undefined,
     };
 
     return result;
@@ -250,12 +257,13 @@ export class RoutesService {
     status?: 'active' | 'archived' | 'draft';
     setter?: string;
     tags?: string[];
+    wallTape?: string;
   }): Promise<string> {
     try {
       const routesRef = collection(db, this.COLLECTION_NAME);
 
       // Build route data - use empty string instead of undefined for optional fields
-      const newRoute = {
+      const newRoute: Record<string, any> = {
         name: routeData.name,
         grade: routeData.grade,
         color: routeData.color,
@@ -270,6 +278,11 @@ export class RoutesService {
         tags: routeData.tags || [],
         setter: routeData.setter?.trim() || '', // Empty string instead of undefined
       };
+
+      // Only add wallTape if provided
+      if (routeData.wallTape) {
+        newRoute.wallTape = routeData.wallTape;
+      }
 
       console.log('📝 Adding route to Firestore:', JSON.stringify(newRoute, null, 2));
 
@@ -328,6 +341,29 @@ export class RoutesService {
     });
     // Trigger stats refresh so profile statistics update immediately
     triggerStatsRefresh();
+  }
+
+  /**
+   * Batch archive multiple routes (soft delete) - moves to trash for 2 weeks
+   * Uses Firestore writeBatch for atomic operation
+   */
+  static async batchArchiveRoutes(ids: string[]): Promise<number> {
+    if (ids.length === 0) return 0;
+    
+    const batch = writeBatch(db);
+    const now = Timestamp.now();
+    
+    for (const id of ids) {
+      const routeRef = doc(db, this.COLLECTION_NAME, id);
+      batch.update(routeRef, {
+        status: 'archived',
+        archivedAt: now,
+      });
+    }
+    
+    await batch.commit();
+    triggerStatsRefresh();
+    return ids.length;
   }
 
   /**
@@ -459,6 +495,161 @@ export class RoutesService {
   }
 
   /**
+   * Update names (nameHe, nameEn, name) for all routes with a given color
+   * that don't yet have bilingual names.
+   * Returns the number of routes updated.
+   */
+  static async updateRouteNamesByColor(
+    color: string,
+    nameHe: string,
+    nameEn: string,
+    excludeRouteId?: string
+  ): Promise<number> {
+    try {
+      const routesRef = collection(db, this.COLLECTION_NAME);
+      const q = query(routesRef, where('color', '==', color));
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        // Try uppercase
+        const qUpper = query(routesRef, where('color', '==', color.toUpperCase()));
+        const snapshotUpper = await getDocs(qUpper);
+        if (snapshotUpper.empty) return 0;
+
+        const batch = writeBatch(db);
+        let count = 0;
+        snapshotUpper.docs.forEach((docSnap) => {
+          if (excludeRouteId && docSnap.id === excludeRouteId) return;
+          const data = docSnap.data();
+          // Only update routes that don't have bilingual names yet
+          if (!data.nameHe || !data.nameEn) {
+            const grade = data.grade || '';
+            batch.update(docSnap.ref, {
+              name: `${nameHe} ${grade}`.trim(),
+              nameHe: `${nameHe} ${grade}`.trim(),
+              nameEn: `${nameEn} ${grade}`.trim(),
+            });
+            count++;
+          }
+        });
+        if (count > 0) {
+          await batch.commit();
+          clearRoutesCache();
+        }
+        return count;
+      }
+
+      const batch = writeBatch(db);
+      let count = 0;
+      snapshot.docs.forEach((docSnap) => {
+        if (excludeRouteId && docSnap.id === excludeRouteId) return;
+        const data = docSnap.data();
+        // Only update routes that don't have bilingual names yet
+        if (!data.nameHe || !data.nameEn) {
+          const grade = data.grade || '';
+          batch.update(docSnap.ref, {
+            name: `${nameHe} ${grade}`.trim(),
+            nameHe: `${nameHe} ${grade}`.trim(),
+            nameEn: `${nameEn} ${grade}`.trim(),
+          });
+          count++;
+        }
+      });
+      if (count > 0) {
+        await batch.commit();
+        clearRoutesCache();
+      }
+      return count;
+    } catch (error) {
+      console.error('Error updating route names by color:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Normalize all routes that have oldColor to newColor (fixes legacy hex mismatches).
+   * Also updates names if provided. Returns count of updated routes.
+   */
+  static async normalizeRouteColor(
+    oldColor: string,
+    newColor: string,
+    colorNameHe?: string,
+    colorNameEn?: string,
+    excludeRouteId?: string
+  ): Promise<number> {
+    if (oldColor.toUpperCase() === newColor.toUpperCase()) return 0;
+    try {
+      const routesRef = collection(db, this.COLLECTION_NAME);
+      const q = query(routesRef, where('color', '==', oldColor));
+      const snapshot = await getDocs(q);
+      if (snapshot.empty) return 0;
+
+      const batch = writeBatch(db);
+      let count = 0;
+      snapshot.docs.forEach((docSnap) => {
+        if (excludeRouteId && docSnap.id === excludeRouteId) return;
+        const data = docSnap.data();
+        const updates: any = { color: newColor };
+        // Also update names if provided
+        if (colorNameHe && colorNameEn && data.grade) {
+          updates.name = `${colorNameHe} ${data.grade}`;
+          updates.nameHe = `${colorNameHe} ${data.grade}`;
+          updates.nameEn = `${colorNameEn} ${data.grade}`;
+        }
+        batch.update(docSnap.ref, updates);
+        count++;
+      });
+      if (count > 0) {
+        await batch.commit();
+        clearRoutesCache();
+      }
+      return count;
+    } catch (error) {
+      console.error('Error normalizing route color:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update all routes that have a specific color to a new color
+   * Used when admin edits a color in the color management screen
+   */
+  static async updateRoutesByColor(oldColor: string, newColor: string): Promise<number> {
+    try {
+      const routesRef = collection(db, this.COLLECTION_NAME);
+      // Query routes with the old color (try both cases)
+      const q = query(routesRef, where('color', '==', oldColor));
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        // Try uppercase version
+        const qUpper = query(routesRef, where('color', '==', oldColor.toUpperCase()));
+        const snapshotUpper = await getDocs(qUpper);
+        if (snapshotUpper.empty) return 0;
+
+        const batch = writeBatch(db);
+        snapshotUpper.docs.forEach((docSnap) => {
+          batch.update(docSnap.ref, { color: newColor });
+        });
+        await batch.commit();
+        clearRoutesCache();
+        return snapshotUpper.size;
+      }
+
+      const batch = writeBatch(db);
+      snapshot.docs.forEach((docSnap) => {
+        batch.update(docSnap.ref, { color: newColor });
+      });
+      await batch.commit();
+      clearRoutesCache();
+      return snapshot.size;
+    } catch (error) {
+      console.error('Error updating routes by color:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Get display grade for a route (utility function)
    */
   static getDisplayGrade(route: any): string {
@@ -479,5 +670,179 @@ export class RoutesService {
    */
   static getCompletionCount(route: any): number {
     return route.completionCount || 0;
+  }
+
+  /**
+   * Normalize ALL active routes: for each route, find the closest visible color
+   * and update the color + bilingual names (Hebrew & English).
+   * Used by admin to fix color mismatches after editing the color palette.
+   * Returns { updated, skipped, total }.
+   */
+  static async normalizeAllRouteColors(): Promise<{ updated: number; skipped: number; total: number }> {
+    const { findClosestVisibleColorWithKey, getColorTranslationKey } = require('../utils/colors');
+    const { getColorSettingSync, initializeColorSettings } = require('./ColorSettingsService');
+    const { he: heTranslations } = require('@/features/language/translations/he');
+    const { en: enTranslations } = require('@/features/language/translations/en');
+
+    // Ensure color settings cache is loaded
+    await initializeColorSettings();
+
+    try {
+      const routesRef = collection(db, this.COLLECTION_NAME);
+      const q = query(routesRef, where('status', '==', 'active'));
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) return { updated: 0, skipped: 0, total: 0 };
+
+      const total = snapshot.size;
+      let updated = 0;
+      let skipped = 0;
+
+      // Firestore batches are limited to 500 operations
+      const batches: ReturnType<typeof writeBatch>[] = [writeBatch(db)];
+      let batchIndex = 0;
+      let opsInBatch = 0;
+
+      for (const docSnap of snapshot.docs) {
+        const data = docSnap.data();
+        const currentColor = data.color || '';
+        const grade = data.grade || '';
+
+        if (!currentColor || !grade) {
+          skipped++;
+          continue;
+        }
+
+        // Find closest visible color
+        const { key: closestKey, displayHex: closestHex } = findClosestVisibleColorWithKey(currentColor);
+
+        // Get color names for both languages
+        const colorKey = getColorTranslationKey(closestKey);
+        const customSetting = getColorSettingSync(closestKey);
+        const colorNameHe = customSetting?.nameHe ||
+          heTranslations?.colors?.[colorKey] || colorKey;
+        const colorNameEn = customSetting?.nameEn ||
+          enTranslations?.colors?.[colorKey] || colorKey;
+
+        const newNameHe = `${colorNameHe} ${grade}`;
+        const newNameEn = `${colorNameEn} ${grade}`;
+
+        // Check if anything actually changed
+        if (
+          currentColor.toUpperCase() === closestHex.toUpperCase() &&
+          data.nameHe === newNameHe &&
+          data.nameEn === newNameEn
+        ) {
+          skipped++;
+          continue;
+        }
+
+        // Need a new batch?
+        if (opsInBatch >= 499) {
+          batches.push(writeBatch(db));
+          batchIndex++;
+          opsInBatch = 0;
+        }
+
+        batches[batchIndex].update(docSnap.ref, {
+          color: closestHex,
+          name: newNameHe,
+          nameHe: newNameHe,
+          nameEn: newNameEn,
+        });
+        opsInBatch++;
+        updated++;
+      }
+
+      // Commit all batches
+      for (const batch of batches) {
+        await batch.commit();
+      }
+
+      if (updated > 0) {
+        clearRoutesCache();
+      }
+
+      return { updated, skipped, total };
+    } catch (error) {
+      console.error('Error normalizing all route colors:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Balance route positions for routes created on a specific date.
+   * Finds the leftmost and rightmost routes (by xNorm) and redistributes
+   * all routes in between with equal spacing along the line connecting them.
+   */
+  static async balanceRoutePositions(dateStr: string): Promise<{ updated: number; total: number }> {
+    try {
+      // Parse date range using local time
+      const [year, month, day] = dateStr.split('-').map(Number);
+      const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+      const endOfDay = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+
+      console.log('[RoutesService] balanceRoutePositions:', { dateStr, startOfDay: startOfDay.toISOString(), endOfDay: endOfDay.toISOString() });
+
+      // Fetch all active routes
+      const routesRef = collection(db, this.COLLECTION_NAME).withConverter(routeConverter);
+      const q = query(routesRef, where('status', '==', 'active'));
+      const snapshot = await getDocs(q);
+
+      console.log('[RoutesService] Total active routes:', snapshot.size);
+
+      // Filter by date
+      const dateRoutes = snapshot.docs
+        .map((d) => ({ docRef: d.ref, route: d.data() }))
+        .filter(({ route }) => {
+          if (!route.createdAt) return false;
+          const routeDate = route.createdAt.toDate ? route.createdAt.toDate() : new Date(route.createdAt);
+          return routeDate >= startOfDay && routeDate < endOfDay;
+        });
+
+      console.log('[RoutesService] Routes matching date:', dateRoutes.length);
+
+      if (dateRoutes.length < 2) {
+        return { updated: 0, total: dateRoutes.length };
+      }
+
+      // Sort by xNorm to find extremes
+      dateRoutes.sort((a, b) => a.route.xNorm - b.route.xNorm);
+
+      const leftmost = dateRoutes[0];
+      const rightmost = dateRoutes[dateRoutes.length - 1];
+
+      const startX = leftmost.route.xNorm;
+      const startY = leftmost.route.yNorm;
+      const endX = rightmost.route.xNorm;
+      const endY = rightmost.route.yNorm;
+
+      const count = dateRoutes.length;
+      const batch = writeBatch(db);
+      let updated = 0;
+
+      dateRoutes.forEach((item, index) => {
+        const t = count > 1 ? index / (count - 1) : 0;
+        const newX = startX + t * (endX - startX);
+        const newY = startY + t * (endY - startY);
+
+        // Only update if position actually changed
+        if (Math.abs(item.route.xNorm - newX) > 0.0001 || Math.abs(item.route.yNorm - newY) > 0.0001) {
+          const routeRef = doc(db, this.COLLECTION_NAME, item.route.id);
+          batch.update(routeRef, { xNorm: newX, yNorm: newY });
+          updated++;
+        }
+      });
+
+      if (updated > 0) {
+        await batch.commit();
+        clearRoutesCache();
+      }
+
+      return { updated, total: dateRoutes.length };
+    } catch (error) {
+      console.error('Error balancing route positions:', error);
+      throw error;
+    }
   }
 }

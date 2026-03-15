@@ -12,6 +12,7 @@ import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 // Theme
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
+import { useGuest } from "@/context/GuestContext";
 
 // Screens
 import HomeScreen from "@/screens/HomeScreen";
@@ -23,6 +24,7 @@ import RoutesArchiveScreen from "@/features/routes-map/screens/RoutesArchiveScre
 import AddRouteMapScreen from "@/features/routes-map/screens/AddRouteMapScreen";
 import RouteDetailsScreen from "@/screens/routes/RouteDetailsScreen";
 import ColorPickerScreen from "@/screens/routes/ColorPickerScreen";
+import WallTapeManagementScreen from "@/features/routes-map/screens/WallTapeManagementScreen";
 
 // Nested Navigators
 import SprayNavigator from "./SprayNavigator";
@@ -44,6 +46,7 @@ export type RoutesMapStackParamList = {
   AddRoute: undefined;
   RouteDetails: { route: any };
   ColorPickerScreen: undefined;
+  WallTapeManagement: undefined;
 };
 
 export type ProfileStackParamList = {
@@ -65,6 +68,7 @@ const LeaderboardStack = createNativeStackNavigator<LeaderboardStackParamList>()
 // Routes Map Stack Navigator
 function RoutesMapStackNavigator() {
   const { theme } = useTheme();
+  const { t } = useLanguage();
 
   return (
     <RoutesMapStack.Navigator
@@ -91,7 +95,7 @@ function RoutesMapStackNavigator() {
         name="AddRoute"
         component={AddRouteMapScreen}
         options={{
-          title: "הוסף מסלול",
+          title: t.nav.addRoute,
           presentation: "modal",
           gestureEnabled: true,
         }}
@@ -107,11 +111,19 @@ function RoutesMapStackNavigator() {
       <RoutesMapStack.Screen
         name="ColorPickerScreen"
         component={ColorPickerScreen}
-        options={{ title: "בחירת צבע" }}
+        options={{ title: t.nav.colorPicker }}
       />
       <RoutesMapStack.Screen
         name="RoutesArchive"
         component={RoutesArchiveScreen}
+        options={{
+          headerShown: false,
+          presentation: "card",
+        }}
+      />
+      <RoutesMapStack.Screen
+        name="WallTapeManagement"
+        component={WallTapeManagementScreen}
         options={{
           headerShown: false,
           presentation: "card",
@@ -209,6 +221,7 @@ export function MainTabNavigator() {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
+  const { isGuest, requireAuth } = useGuest();
 
   return (
     <Tab.Navigator
@@ -353,6 +366,12 @@ export function MainTabNavigator() {
         }}
         listeners={({ navigation, route }) => ({
           tabPress: (e) => {
+            // Block profile tab for guests
+            if (isGuest) {
+              e.preventDefault();
+              requireAuth(t);
+              return;
+            }
             // Always reset to Profile (user's own profile) when tab is pressed
             const routeName = getFocusedRouteNameFromRoute(route);
             if (routeName && routeName !== 'Profile') {

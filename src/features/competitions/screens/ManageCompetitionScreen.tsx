@@ -34,6 +34,7 @@ import { ResultsService } from '@/features/competitions/services/ResultsService'
 import { CompetitionStatus, CompetitionRoute } from '@/features/competitions/types';
 import { CompetitionLeaderboard, CompetitionWallMap } from '@/features/competitions/components';
 import { useCurrentUser } from '@/store';
+import { useUser } from '@/features/auth';
 import {
   COMPETITION_STATUS_INFO,
   COMPETITION_FORMAT_INFO,
@@ -41,6 +42,8 @@ import {
 import { useCompetitionMapRoutes } from '@/features/competitions/hooks/useCompetitionMapRoutes';
 import { usePublishedRooms } from '@/features/wall-editor/hooks/usePublishedRooms';
 import { useEditorMap } from '@/features/wall-editor/hooks/useEditorMap';
+import { useRoutesStore } from '@/store/routesStore';
+import { calculatePointsCompetitionRoutePoints } from '@/features/competitions/constants';
 
 // Wall dimensions (should match your actual wall)
 const WALL_WIDTH = 1000;
@@ -58,6 +61,7 @@ export default function ManageCompetitionScreen() {
   const rolesContext = useRolesContext();
   const currentUser = useCurrentUser();
   const { user } = useAuth();
+  const { circleSize: userCircleSize } = useUser();
 
   const [activeTab, setActiveTab] = useState<TabType>(initialTab || 'overview');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -92,6 +96,35 @@ export default function ManageCompetitionScreen() {
     return publishedRooms.length > 0 ? publishedRooms[0] : null;
   }, [competition?.roomId, specificRoom, publishedRooms]);
 
+  // Wall routes for points_competition format (uses wall routes instead of competition routes)
+  const wallRoutes = useRoutesStore((s) => s.routes);
+  const initializeRoutes = useRoutesStore((s) => s.initializeRoutes);
+  useEffect(() => {
+    if (competition?.format === 'points_competition') {
+      initializeRoutes();
+    }
+  }, [competition?.format, initializeRoutes]);
+
+  // Convert wall routes to CompetitionRoute for map display (points_competition only)
+  const wallMapRoutes = useMemo((): CompetitionRoute[] => {
+    if (competition?.format !== 'points_competition') return [];
+    return wallRoutes
+      .filter(r => r.status === 'active' && r.xNorm > 0 && r.yNorm > 0)
+      .map((r, idx) => ({
+        id: r.id,
+        competitionId: competitionId || '',
+        routeNumber: idx + 1,
+        grade: r.grade || 'V0',
+        basePoints: calculatePointsCompetitionRoutePoints(r.grade || 'V0'),
+        xNorm: r.xNorm,
+        yNorm: r.yNorm,
+        color: r.color,
+        isActive: true,
+        setBy: r.setter,
+        createdAt: r.createdAt?.toDate?.() || new Date(),
+      }));
+  }, [wallRoutes, competition?.format, competitionId]);
+
   const styles = createStyles(theme);
   const hasFixedNamesRef = useRef(false);
   const hasSyncedCategoriesRef = useRef(false);
@@ -111,8 +144,12 @@ export default function ManageCompetitionScreen() {
   }, [competition, competitionId, navigation]);
 
   // Get positioned routes for the map
+  // For points_competition, use wall routes; otherwise use competition routes
   // Must be defined before any early returns
-  const positionedRoutes = mapRoutes.filter(r => r.xNorm && r.yNorm && r.xNorm > 0 && r.yNorm > 0);
+  const isPointsFormat = competition?.format === 'points_competition';
+  const positionedRoutes = isPointsFormat
+    ? wallMapRoutes
+    : mapRoutes.filter(r => r.xNorm && r.yNorm && r.xNorm > 0 && r.yNorm > 0);
 
   // Fix missing participant names when leaderboard loads
   useEffect(() => {
@@ -218,6 +255,7 @@ export default function ManageCompetitionScreen() {
   
   // Check if this is a Totemtition format competition
   const isTotemtition = competition.format === 'totemtition';
+  const isPointsCompetition = competition.format === 'points_competition';
 
   const handleStatusChange = async (newStatus: CompetitionStatus) => {
     const statusLabels: Record<CompetitionStatus, string> = {
@@ -339,12 +377,43 @@ export default function ManageCompetitionScreen() {
 
         {isAdmin && (
           <View style={styles.statusActions}>
-            {competition.status === 'draft' && (
+            {competition.status === 'draft' && !isPointsCompetition && (
               <TouchableOpacity
                 style={[styles.actionBtn, { backgroundColor: '#27ae60' }]}
                 onPress={() => handleStatusChange('upcoming')}
               >
                 <Text style={styles.actionBtnText}>פתח להרשמה</Text>
+              </TouchableOpacity>
+            )}
+            {competition.status === 'draft' && isPointsCompetition && (
+              <TouchableOpacity
+                style={[styles.actionBtn, { backgroundColor: '#27ae60' }]}
+                onPress={async () => {
+                  Alert.alert(
+                    'הפעלת תחרות',
+                    'להפעיל את התחרות? משתמשים יוכלו לראות אותה ולבקש להצטרף.',
+                    [
+                      { text: 'ביטול', style: 'cancel' },
+                      {
+                        text: 'הפעל',
+                        onPress: async () => {
+                          setIsUpdating(true);
+                          try {
+                            await CompetitionService.updateCompetitionStatus(competitionId, 'active');
+                            await CompetitionService.openRegistration(competitionId);
+                            Alert.alert(t.common.success, t.alerts.statusUpdated);
+                          } catch (error) {
+                            Alert.alert(t.common.error, t.alerts.statusUpdateFailed);
+                          } finally {
+                            setIsUpdating(false);
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+              >
+                <Text style={styles.actionBtnText}>הפעל תחרות</Text>
               </TouchableOpacity>
             )}
             {competition.status === 'upcoming' && (
@@ -481,8 +550,8 @@ export default function ManageCompetitionScreen() {
           </TouchableOpacity>
         )}
 
-        {/* Manage Routes - Only for Judge roles */}
-        {rolesContext.canManageCompetitionRoutes && (
+        {/* Manage Routes - Only for Judge roles, hidden for points_competition (uses wall routes) */}
+        {rolesContext.canManageCompetitionRoutes && !isPointsCompetition && (
           <TouchableOpacity
             style={styles.quickAction}
             onPress={() => navigation.navigate('ManageCompetitionRoutes', { competitionId })}
@@ -530,6 +599,19 @@ export default function ManageCompetitionScreen() {
             />
             <Text style={styles.quickActionText}>
               {competition.registrationStatus === 'open' ? 'סגור הרשמה' : 'פתח הרשמה'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Enter Points Competition - Link for admins to view as participant */}
+        {competition.format === 'points_competition' && (
+          <TouchableOpacity
+            style={[styles.quickAction, styles.quickActionActive]}
+            onPress={() => navigation.navigate('PointsCompetition', { competitionId })}
+          >
+            <Ionicons name="star" size={28} color="#EAB308" />
+            <Text style={styles.quickActionText}>
+              {language === 'he' ? 'כנס לתחרות' : 'Enter Competition'}
             </Text>
           </TouchableOpacity>
         )}
@@ -679,8 +761,9 @@ export default function ManageCompetitionScreen() {
     }
 
     // Determine if map is interactive based on format and status
-    const isInteractive = competition.format === 'totemtition' && competition.status === 'active';
+    const isInteractive = (competition.format === 'totemtition' || competition.format === 'points_competition') && competition.status === 'active';
     const screenHeight = Dimensions.get('window').height;
+    const isPointsFormat = competition.format === 'points_competition';
 
     return (
       <View style={[styles.mapTabContent, { height: screenHeight - 250 }]}>
@@ -694,18 +777,23 @@ export default function ManageCompetitionScreen() {
           userCompletedRoutes={userCompletedRoutes}
           routeCompletionCounts={routeCompletionCounts}
           room={mapRoom}
+          circleSize={isPointsFormat ? userCircleSize : undefined}
         />
         
         {/* Map legend */}
         <View style={styles.mapLegend}>
           <Text style={styles.mapLegendTitle}>
-            {competition.format === 'national_league' 
-              ? `🏅 ${COMPETITION_FORMAT_INFO.national_league.label}` 
-              : `🎯 ${COMPETITION_FORMAT_INFO.totemtition.label}`}
+            {isPointsFormat
+              ? `🎯 ${COMPETITION_FORMAT_INFO.points_competition?.label || 'תחרות נקודות'}`
+              : competition.format === 'national_league' 
+                ? `🏅 ${COMPETITION_FORMAT_INFO.national_league.label}` 
+                : `🎯 ${COMPETITION_FORMAT_INFO.totemtition.label}`}
           </Text>
           <Text style={styles.mapLegendText}>
-            {competition.format === 'totemtition' && competition.status === 'active'
-              ? t.competitionExt.tapToPlaceBadge
+            {(competition.format === 'totemtition' || isPointsFormat) && competition.status === 'active'
+              ? (isPointsFormat 
+                  ? `${positionedRoutes.length} ${t.competitionExt?.routesCount || 'מסלולים'}`
+                  : t.competitionExt.tapToPlaceBadge)
               : `${positionedRoutes.length} ${t.competitionExt.routesCount}`}
           </Text>
         </View>

@@ -2,6 +2,7 @@ import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { RouteDoc } from '@/features/routes-map/types/route';
 import { useTheme } from '@/features/theme/ThemeContext';
+import { useLanguage } from '@/features/language';
 
 type RouteStatus = 'unsent' | 'project' | 'sent' | 'flashed';
 
@@ -21,6 +22,7 @@ export default function QuickStatusBar({
   currentStatus = 'unsent',
 }: QuickStatusBarProps) {
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const styles = createStyles(theme);
 
   const statusOptions: Array<{
@@ -31,25 +33,25 @@ export default function QuickStatusBar({
   }> = [
     {
       key: 'unsent',
-      label: 'לא שלח',
+      label: t.routeStatus.unsent,
       emoji: '❌',
       color: '#ef4444',
     },
     {
       key: 'project',
-      label: 'פרויקט',
+      label: t.routeStatus.project,
       emoji: '🎯',
       color: '#f59e0b',
     },
     {
       key: 'sent',
-      label: 'שלח',
+      label: t.routeStatus.sent,
       emoji: '✅',
       color: '#10b981',
     },
     {
       key: 'flashed',
-      label: 'פלאש',
+      label: t.routeStatus.flashed,
       emoji: '⚡',
       color: '#8b5cf6',
     },
@@ -61,7 +63,7 @@ export default function QuickStatusBar({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>סטטוס מסלול:</Text>
+      <Text style={styles.title}>{t.routeStatus.label}</Text>
       <View style={styles.buttonsContainer}>
         {statusOptions.map((option) => (
           <TouchableOpacity

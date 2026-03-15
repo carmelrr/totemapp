@@ -5,7 +5,7 @@
 
 // =============== Enums & Constants ===============
 
-export type CompetitionFormat = 'national_league' | 'totemtition' | 'custom' | 'zone_top';
+export type CompetitionFormat = 'national_league' | 'totemtition' | 'custom' | 'zone_top' | 'points_competition';
 export type ResultsEntryMode = 'selfEntry' | 'judgesOnly';
 export type RegistrationMode = 'openRegistration' | 'adminsOrJudgesOnly';
 export type CompetitionStatus = 'draft' | 'upcoming' | 'active' | 'closed' | 'completed' | 'cancelled';

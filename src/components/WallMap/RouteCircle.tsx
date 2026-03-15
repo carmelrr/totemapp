@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
-import { Vibration, TouchableOpacity, StyleSheet, Text } from 'react-native';
+import { Vibration, TouchableOpacity, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, SharedValue, runOnJS, interpolate, Extrapolation } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Ionicons } from '@expo/vector-icons';
 import { RouteDoc } from '@/features/routes-map/types/route';
 import { getColorHex, getContrastTextColor } from '@/constants/colors';
 import { useUser } from '@/features/auth/UserContext';
@@ -18,6 +19,8 @@ interface RouteCircleProps {
   onPress?: (route: RouteDoc) => void;
   onLongPress?: (route: RouteDoc) => void;
   selected?: boolean;
+  multiSelected?: boolean;
+  multiSelectMode?: boolean;
   gesturesDisabled?: boolean; // Disable gestures when in move mode
 }
 
@@ -37,6 +40,8 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   onPress,
   onLongPress,
   selected = false,
+  multiSelected = false,
+  multiSelectMode = false,
   gesturesDisabled = false,
 }) => {
   // קבל גודל עיגול מהעדפות המשתמש
@@ -99,10 +104,28 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   // חישוב גודל וoffset קבועים (ללא תלות ב-scale)
   const baseSize = precomputedValues.baseSize;
   const baseOffset = baseSize / 2;
-  const baseBorderWidth = selected ? 3 : 1;
+  const baseBorderWidth = selected || multiSelected ? 3 : 1;
 
-  // עיצוב העיגול - ממוקם בקואורדינטות מסך (לא בתוך קונטיינר מוגדל)
-  // זה מונע טשטוש ב-iOS כי העיגול לא עובר rasterization ברזולוציה נמוכה
+  // ── Static (JS-dependent) style ──
+  // IMPORTANT: backgroundColor and other JS-dependent props MUST live outside
+  // useAnimatedStyle. Reanimated worklets only re-run when a SharedValue
+  // (.value) changes. Putting JS variables like colorHex inside the worklet
+  // means the style won't visually update until the next zoom/pan gesture.
+  const staticStyle = useMemo(() => ({
+    backgroundColor: precomputedValues.colorHex,
+    borderWidth: baseBorderWidth,
+    borderColor: multiSelected ? '#E53935' : selected ? '#0066cc' : '#ffffff',
+    elevation: (selected || multiSelected) ? 8 : 4,
+    opacity: multiSelectMode && !multiSelected ? 0.5 : 1,
+    width: baseSize,
+    height: baseSize,
+    borderRadius: baseSize / 2,
+    justifyContent: 'center' as const,
+    alignItems: 'center' as const,
+  }), [precomputedValues.colorHex, baseBorderWidth, multiSelected, selected, multiSelectMode, baseSize]);
+
+  // ── Animated (SharedValue-dependent) style ──
+  // Only position & transform depend on SharedValues (scale, translateX, translateY)
   const circleStyle = useAnimatedStyle(() => {
     const currentScale = scale?.value ?? 1;
     const safeScale = Number.isFinite(currentScale) && currentScale > 0 
@@ -133,15 +156,6 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       position: 'absolute',
       left: screenX - baseOffset,
       top: screenY - baseOffset,
-      width: baseSize,
-      height: baseSize,
-      borderRadius: baseSize / 2,
-      backgroundColor: precomputedValues.colorHex,
-      borderWidth: baseBorderWidth,
-      borderColor: selected ? '#0066cc' : '#ffffff',
-      elevation: selected ? 8 : 4,
-      justifyContent: 'center',
-      alignItems: 'center',
       transform: [{ scale: sizeFactor }],
     };
   });
@@ -173,7 +187,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   // Use TouchableOpacity for reliable touch detection at any zoom level
   // The touch area is the full circle which maintains correct position
   return (
-    <Animated.View style={[circleStyle, shadowStyle]} pointerEvents="box-none">
+    <Animated.View style={[circleStyle, staticStyle, shadowStyle]} pointerEvents="box-none">
       <TouchableOpacity
         style={StyleSheet.absoluteFill}
         onPress={gesturesDisabled ? undefined : handlePress}
@@ -188,19 +202,31 @@ const RouteCircle = React.memo<RouteCircleProps>(({
           </Text>
         </Animated.View>
       </TouchableOpacity>
+      {/* Multi-select checkmark badge */}
+      {multiSelected && (
+        <View style={styles.checkBadge}>
+          <Ionicons name="checkmark-circle" size={16} color="#E53935" />
+        </View>
+      )}
     </Animated.View>
   );
 }, (prevProps, nextProps) => {
   // React.memo comparison function for optimization
-  // אל תקרא את scale.value כאן כי זה גורם לרנדור warning
+  // IMPORTANT: must compare all route fields that affect rendering (color, grade, position)
   return (
     prevProps.route.id === nextProps.route.id &&
+    prevProps.route.color === nextProps.route.color &&
+    prevProps.route.grade === nextProps.route.grade &&
+    prevProps.route.xNorm === nextProps.route.xNorm &&
+    prevProps.route.yNorm === nextProps.route.yNorm &&
     prevProps.selected === nextProps.selected &&
+    prevProps.multiSelected === nextProps.multiSelected &&
+    prevProps.multiSelectMode === nextProps.multiSelectMode &&
     prevProps.imageWidth === nextProps.imageWidth &&
     prevProps.imageHeight === nextProps.imageHeight &&
     prevProps.wallWidth === nextProps.wallWidth &&
     prevProps.wallHeight === nextProps.wallHeight &&
-    prevProps.scale === nextProps.scale && // השוואת reference במקום קריאת value
+    prevProps.scale === nextProps.scale &&
     prevProps.translateX === nextProps.translateX &&
     prevProps.translateY === nextProps.translateY &&
     prevProps.gesturesDisabled === nextProps.gesturesDisabled &&
@@ -216,6 +242,22 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  checkBadge: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
   },
 });
 

@@ -19,9 +19,10 @@ import { HoldTypePicker } from "@/components/spray/HoldTypePicker";
 import { useWalls } from "@/features/walls/hooks";
 import { useLanguage } from "@/features/language";
 import { useTheme, lightTheme } from "@/features/theme/ThemeContext";
-import { Wall, Hold, HoldType, HOLD_TYPES } from "@/features/spraywall/types";
+import { Wall, Hold, HoldType, HOLD_TYPES, HoldNumberEntry, MaskPath } from "@/features/spraywall/types";
 import { updateRoute } from "@/features/spraywall/routesService";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
+import { Ionicons } from "@expo/vector-icons";
 
 type Theme = typeof lightTheme;
 
@@ -46,6 +47,8 @@ export const AddRouteScreen: React.FC = () => {
   const isEditMode = route.params?.editMode === true;
   const editRouteId = route.params?.routeId;
   const existingHolds = route.params?.existingHolds;
+  const existingHoldNumbering = route.params?.existingHoldNumbering;
+  const existingMaskPaths = route.params?.existingMaskPaths;
   const editRouteName = route.params?.routeName;
   const editRouteGrade = route.params?.routeGrade;
 
@@ -68,7 +71,13 @@ export const AddRouteScreen: React.FC = () => {
     if (isEditMode && existingHolds && existingHolds.length > 0) {
       setLockedHolds(existingHolds);
     }
-  }, [isEditMode, existingHolds]);
+    if (isEditMode && existingHoldNumbering) {
+      setHoldNumbering(existingHoldNumbering);
+    }
+    if (isEditMode && existingMaskPaths) {
+      setMaskPaths(existingMaskPaths);
+    }
+  }, [isEditMode, existingHolds, existingHoldNumbering, existingMaskPaths]);
 
   // Update header title for edit mode
   useEffect(() => {
@@ -84,6 +93,18 @@ export const AddRouteScreen: React.FC = () => {
   const [lockedHolds, setLockedHolds] = useState<Hold[]>([]);
   const [activeHold, setActiveHold] = useState<Hold | null>(null);
   
+  // Numbering mode state
+  const [numberingMode, setNumberingMode] = useState(false);
+  const [holdNumbering, setHoldNumbering] = useState<HoldNumberEntry[]>([]);
+  const [numberingUndoStack, setNumberingUndoStack] = useState<HoldNumberEntry[][]>([]);
+  const [numberingRedoStack, setNumberingRedoStack] = useState<HoldNumberEntry[][]>([]);
+
+  // Drawing mode state
+  const [drawingMode, setDrawingMode] = useState(false);
+  const [maskPaths, setMaskPaths] = useState<MaskPath[]>([]);
+  const [maskUndoStack, setMaskUndoStack] = useState<MaskPath[][]>([]);
+  const [maskRedoStack, setMaskRedoStack] = useState<MaskPath[][]>([]);
+
   // Ref to always have the latest activeHold value
   const activeHoldRef = useRef<Hold | null>(null);
   activeHoldRef.current = activeHold;
@@ -139,6 +160,77 @@ export const AddRouteScreen: React.FC = () => {
     setActiveHold(null);
   }, []);
 
+  // === NUMBERING MODE HANDLERS ===
+  const handleToggleNumbering = useCallback(() => {
+    setNumberingMode((prev) => !prev);
+    // Exit drawing mode when entering numbering
+    if (!numberingMode) setDrawingMode(false);
+  }, [numberingMode]);
+
+  const handleNumberHold = useCallback((hold: Hold) => {
+    setNumberingUndoStack((prev) => [...prev, holdNumbering]);
+    setNumberingRedoStack([]);
+    const nextNumber = holdNumbering.length + 1;
+    setHoldNumbering((prev) => [...prev, { holdId: hold.id, number: nextNumber }]);
+  }, [holdNumbering]);
+
+  const handleNumberingUndo = useCallback(() => {
+    if (numberingUndoStack.length === 0) return;
+    const previous = numberingUndoStack[numberingUndoStack.length - 1];
+    setNumberingRedoStack((prev) => [...prev, holdNumbering]);
+    setHoldNumbering(previous);
+    setNumberingUndoStack((prev) => prev.slice(0, -1));
+  }, [numberingUndoStack, holdNumbering]);
+
+  const handleNumberingRedo = useCallback(() => {
+    if (numberingRedoStack.length === 0) return;
+    const next = numberingRedoStack[numberingRedoStack.length - 1];
+    setNumberingUndoStack((prev) => [...prev, holdNumbering]);
+    setHoldNumbering(next);
+    setNumberingRedoStack((prev) => prev.slice(0, -1));
+  }, [numberingRedoStack, holdNumbering]);
+
+  const handleClearNumbering = useCallback(() => {
+    setNumberingUndoStack((prev) => [...prev, holdNumbering]);
+    setNumberingRedoStack([]);
+    setHoldNumbering([]);
+  }, [holdNumbering]);
+
+  // === DRAWING MODE HANDLERS ===
+  const handleToggleDrawing = useCallback(() => {
+    setDrawingMode((prev) => !prev);
+    // Exit numbering mode when entering drawing
+    if (!drawingMode) setNumberingMode(false);
+  }, [drawingMode]);
+
+  const handleAddMaskPath = useCallback((path: MaskPath) => {
+    setMaskUndoStack((prev) => [...prev, maskPaths]);
+    setMaskRedoStack([]);
+    setMaskPaths((prev) => [...prev, path]);
+  }, [maskPaths]);
+
+  const handleMaskUndo = useCallback(() => {
+    if (maskUndoStack.length === 0) return;
+    const previous = maskUndoStack[maskUndoStack.length - 1];
+    setMaskRedoStack((prev) => [...prev, maskPaths]);
+    setMaskPaths(previous);
+    setMaskUndoStack((prev) => prev.slice(0, -1));
+  }, [maskUndoStack, maskPaths]);
+
+  const handleMaskRedo = useCallback(() => {
+    if (maskRedoStack.length === 0) return;
+    const next = maskRedoStack[maskRedoStack.length - 1];
+    setMaskUndoStack((prev) => [...prev, maskPaths]);
+    setMaskPaths(next);
+    setMaskRedoStack((prev) => prev.slice(0, -1));
+  }, [maskRedoStack, maskPaths]);
+
+  const handleClearDrawing = useCallback(() => {
+    setMaskUndoStack((prev) => [...prev, maskPaths]);
+    setMaskRedoStack([]);
+    setMaskPaths([]);
+  }, [maskPaths]);
+
   // Navigate to next screen (Route Details) or save in edit mode
   const handleContinue = async () => {
     if (!selectedWall) {
@@ -156,6 +248,8 @@ export const AddRouteScreen: React.FC = () => {
       try {
         await updateRoute(editRouteId, {
           holds: lockedHolds,
+          holdNumbering: holdNumbering.length > 0 ? holdNumbering : undefined,
+          maskPaths: maskPaths.length > 0 ? maskPaths : undefined,
         });
         // Go back to return to SprayRouteDetail
         navigation.pop(1);
@@ -170,6 +264,8 @@ export const AddRouteScreen: React.FC = () => {
       navigation.navigate("RouteDetails", {
         wallId: selectedWall.id,
         holds: lockedHolds,
+        holdNumbering: holdNumbering.length > 0 ? holdNumbering : undefined,
+        maskPaths: maskPaths.length > 0 ? maskPaths : undefined,
       });
     }
   };
@@ -202,7 +298,7 @@ export const AddRouteScreen: React.FC = () => {
       {selectedWall && (
         <View style={styles.fullScreenImageSection}>
           {/* Top bar with wall name and action buttons - only in portrait */}
-          {!isPhoneLandscape && (
+          {!isLandscape && (
             <View style={styles.topBar}>
               <View style={styles.topBarLeft}>
                 <Text style={styles.wallName}>{selectedWall.name}</Text>
@@ -226,7 +322,7 @@ export const AddRouteScreen: React.FC = () => {
           {/* Main content - image and controls */}
           <View style={styles.mainContentRow}>
             {/* Active hold actions bar - only in portrait */}
-            {!isPhoneLandscape && (
+            {!isLandscape && (
               <View style={styles.activeHoldActions}>
                 {activeHold ? (
                   <TouchableOpacity
@@ -265,11 +361,17 @@ export const AddRouteScreen: React.FC = () => {
                 onUpdateActiveHold={handleUpdateActiveHold}
                 onSelectHold={handleSelectExistingHold}
                 editable={true}
+                numberingMode={numberingMode}
+                onNumberHold={handleNumberHold}
+                holdNumbering={holdNumbering}
+                drawingMode={drawingMode}
+                onAddMaskPath={handleAddMaskPath}
+                maskPaths={maskPaths}
               />
             </View>
 
-            {/* Side controls - in landscape mode */}
-            {isPhoneLandscape && (
+            {/* Side controls - in landscape mode (phone & tablet) */}
+            {isLandscape && (
               <View style={styles.sideControls}>
                 {/* Wall info */}
                 <View style={styles.sideControlsHeader}>
@@ -277,11 +379,18 @@ export const AddRouteScreen: React.FC = () => {
                   <Text style={styles.sideHoldCount}>{lockedHolds.length}</Text>
                 </View>
                 
-                {/* Hold Type Picker - vertical */}
+                {/* Active hold hint - tablet only */}
+                {isTablet && (
+                  <Text style={styles.sideActiveHoldHint}>
+                    {activeHold ? t.spray.dragToMove : t.spray.tapToAddHold || 'לחץ על הקיר להוספת טבעת'}
+                  </Text>
+                )}
+
+                {/* Hold Type Picker */}
                 <HoldTypePicker
                   selectedType={selectedHoldType}
                   onSelectType={setSelectedHoldType}
-                  compact={true}
+                  compact={!isTablet}
                 />
                 
                 {/* Action buttons */}
@@ -312,6 +421,20 @@ export const AddRouteScreen: React.FC = () => {
                   )}
                 </View>
 
+                {/* Numbering/Drawing mode buttons - tablet landscape */}
+                {isTablet && !numberingMode && !drawingMode && lockedHolds.length > 0 && !activeHold && (
+                  <View style={styles.sideModeButtons}>
+                    <TouchableOpacity style={styles.sideModeButton} onPress={handleToggleNumbering}>
+                      <Ionicons name="list-outline" size={16} color="#fff" />
+                      <Text style={styles.sideModeButtonText}>{t.spray.numberHolds}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.sideModeButton} onPress={handleToggleDrawing}>
+                      <Ionicons name="brush-outline" size={16} color="#fff" />
+                      <Text style={styles.sideModeButtonText}>{t.spray.drawMask}</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 {/* Continue Button */}
                 <TouchableOpacity
                   style={[
@@ -334,13 +457,92 @@ export const AddRouteScreen: React.FC = () => {
           </View>
 
           {/* Bottom controls - only in portrait mode */}
-          {!isPhoneLandscape && (
+          {!isLandscape && (
             <View style={styles.bottomControls}>
-              {/* Hold Type Picker */}
-              <HoldTypePicker
-                selectedType={selectedHoldType}
-                onSelectType={setSelectedHoldType}
-              />
+              {/* Numbering / Drawing mode controls */}
+              {numberingMode && (
+                <View style={styles.modeControlsRow}>
+                  <Text style={styles.modeLabel}>🔢 {t.spray.numberingMode}</Text>
+                  <Text style={styles.modeHint}>{t.spray.tapHoldToNumber}</Text>
+                  <View style={styles.undoRedoRow}>
+                    <TouchableOpacity
+                      style={[styles.undoRedoButton, numberingUndoStack.length === 0 && styles.undoRedoDisabled]}
+                      onPress={handleNumberingUndo}
+                      disabled={numberingUndoStack.length === 0}
+                    >
+                      <Ionicons name="arrow-undo" size={18} color="#fff" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.undoRedoButton, numberingRedoStack.length === 0 && styles.undoRedoDisabled]}
+                      onPress={handleNumberingRedo}
+                      disabled={numberingRedoStack.length === 0}
+                    >
+                      <Ionicons name="arrow-redo" size={18} color="#fff" />
+                    </TouchableOpacity>
+                    {holdNumbering.length > 0 && (
+                      <TouchableOpacity style={styles.clearModeButton} onPress={handleClearNumbering}>
+                        <Text style={styles.clearModeButtonText}>{t.spray.clearNumbering}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <TouchableOpacity style={styles.exitModeButton} onPress={handleToggleNumbering}>
+                    <Text style={styles.exitModeButtonText}>{t.spray.exitNumbering}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {drawingMode && (
+                <View style={styles.modeControlsRow}>
+                  <Text style={styles.modeLabel}>🖌️ {t.spray.drawingMode}</Text>
+                  <Text style={styles.modeHint}>{t.spray.drawToHide}</Text>
+                  <View style={styles.undoRedoRow}>
+                    <TouchableOpacity
+                      style={[styles.undoRedoButton, maskUndoStack.length === 0 && styles.undoRedoDisabled]}
+                      onPress={handleMaskUndo}
+                      disabled={maskUndoStack.length === 0}
+                    >
+                      <Ionicons name="arrow-undo" size={18} color="#fff" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.undoRedoButton, maskRedoStack.length === 0 && styles.undoRedoDisabled]}
+                      onPress={handleMaskRedo}
+                      disabled={maskRedoStack.length === 0}
+                    >
+                      <Ionicons name="arrow-redo" size={18} color="#fff" />
+                    </TouchableOpacity>
+                    {maskPaths.length > 0 && (
+                      <TouchableOpacity style={styles.clearModeButton} onPress={handleClearDrawing}>
+                        <Text style={styles.clearModeButtonText}>{t.spray.clearDrawing}</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                  <TouchableOpacity style={styles.exitModeButton} onPress={handleToggleDrawing}>
+                    <Text style={styles.exitModeButtonText}>{t.spray.exitDrawing}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Mode toggle buttons - show when not in any special mode */}
+              {!numberingMode && !drawingMode && lockedHolds.length > 0 && !activeHold && (
+                <View style={styles.modeButtonsRow}>
+                  <TouchableOpacity style={styles.modeToggleButton} onPress={handleToggleNumbering}>
+                    <Ionicons name="list-outline" size={18} color="#fff" />
+                    <Text style={styles.modeToggleButtonText}>{t.spray.numberHolds}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.modeToggleButton} onPress={handleToggleDrawing}>
+                    <Ionicons name="brush-outline" size={18} color="#fff" />
+                    <Text style={styles.modeToggleButtonText}>{t.spray.drawMask}</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {/* Hold Type Picker - hide in special modes */}
+              {!numberingMode && !drawingMode && (
+                <HoldTypePicker
+                  selectedType={selectedHoldType}
+                  onSelectType={setSelectedHoldType}
+                />
+              )}
 
               {/* Continue Button */}
               <TouchableOpacity
@@ -386,7 +588,7 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   fullScreenImageSection: {
     flex: 1,
     display: 'flex',
-    flexDirection: isLandscape ? 'row' : 'column',
+    flexDirection: 'column',
   },
   // Top bar with wall name and actions
   topBar: {
@@ -394,7 +596,7 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: horizontalPadding,
-    paddingVertical: isPhoneLandscape ? 6 : 10,
+    paddingVertical: isLandscape ? 6 : 10,
     backgroundColor: theme.surface,
   },
   topBarLeft: {
@@ -465,23 +667,23 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   // Main content row - horizontal in landscape
   mainContentRow: {
     flex: 1,
-    flexDirection: isPhoneLandscape ? 'row' : 'column',
+    flexDirection: isLandscape ? 'row' : 'column',
   },
   // Large image container - takes most of screen space
   largeImageContainer: {
     flex: 1,
-    marginHorizontal: isPhoneLandscape ? 4 : 8,
-    marginVertical: isPhoneLandscape ? 4 : 8,
+    marginHorizontal: isLandscape ? 4 : 8,
+    marginVertical: isLandscape ? 4 : 8,
     borderRadius: 12,
     overflow: "hidden",
-    minHeight: isPhoneLandscape ? undefined : 400,
+    minHeight: isLandscape ? undefined : 400,
   },
-  // Side controls for landscape mode
+  // Side controls for landscape mode (phone & tablet)
   sideControls: {
-    width: 90,
+    width: isTablet ? 200 : 90,
     backgroundColor: theme.surface,
-    padding: 8,
-    paddingEnd: Math.max(insets?.right ?? 0, 8),
+    padding: isTablet ? 12 : 8,
+    paddingEnd: Math.max(insets?.right ?? 0, isTablet ? 16 : 8),
     justifyContent: 'space-between',
     alignItems: 'center',
     borderStartWidth: 1,
@@ -493,7 +695,7 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   },
   sideWallName: {
     color: theme.text,
-    fontSize: 11,
+    fontSize: isTablet ? 14 : 11,
     fontWeight: 'bold',
     textAlign: 'center',
   },
@@ -509,17 +711,17 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   },
   sideCancelButton: {
     backgroundColor: theme.error,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: isTablet ? 44 : 36,
+    height: isTablet ? 44 : 36,
+    borderRadius: isTablet ? 22 : 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
   sideConfirmButton: {
     backgroundColor: theme.success,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: isTablet ? 44 : 36,
+    height: isTablet ? 44 : 36,
+    borderRadius: isTablet ? 22 : 18,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -530,32 +732,59 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   },
   sideClearButton: {
     backgroundColor: theme.error,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: isTablet ? 14 : 8,
+    paddingVertical: isTablet ? 8 : 4,
     borderRadius: 10,
   },
   sideClearButtonText: {
     color: '#fff',
-    fontSize: 10,
+    fontSize: isTablet ? 13 : 10,
     fontWeight: '600',
   },
   sideContinueButton: {
     backgroundColor: theme.secondary,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: isTablet ? 'auto' : 44,
+    height: isTablet ? 'auto' : 44,
+    paddingHorizontal: isTablet ? 20 : 0,
+    paddingVertical: isTablet ? 12 : 0,
+    borderRadius: isTablet ? 12 : 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
   sideContinueButtonText: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: isTablet ? 16 : 20,
     fontWeight: 'bold',
+  },
+  sideActiveHoldHint: {
+    color: theme.textSecondary,
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  sideModeButtons: {
+    alignItems: 'center',
+    gap: 8,
+    marginVertical: 8,
+  },
+  sideModeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: theme.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  sideModeButtonText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
   },
   // Bottom controls area - fixed at bottom
   bottomControls: {
     backgroundColor: theme.background,
-    paddingBottom: isPhoneLandscape ? 8 : 16,
+    paddingBottom: 16,
     paddingHorizontal: horizontalPadding,
   },
   clearButton: {
@@ -572,8 +801,8 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   continueButton: {
     backgroundColor: theme.secondary,
     marginHorizontal: horizontalPadding,
-    marginTop: isPhoneLandscape ? 8 : 12,
-    padding: isPhoneLandscape ? 10 : 14,
+    marginTop: 12,
+    padding: 14,
     borderRadius: 12,
     alignItems: "center",
   },
@@ -582,14 +811,14 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   },
   continueButtonText: {
     color: "#fff",
-    fontSize: isPhoneLandscape ? 16 : 18,
+    fontSize: 18,
     fontWeight: "bold",
   },
   emptyState: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: isPhoneLandscape ? 60 : 100,
+    paddingVertical: isLandscape ? 60 : 100,
   },
   emptyStateIcon: {
     fontSize: 48,
@@ -598,6 +827,89 @@ const createStyles = (theme: Theme, layout?: ReturnType<typeof useResponsiveLayo
   emptyStateText: {
     color: theme.textSecondary,
     fontSize: 16,
+  },
+  // Numbering & Drawing mode styles
+  modeButtonsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  modeToggleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: theme.primary,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  modeToggleButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  modeControlsRow: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: theme.card,
+    borderRadius: 12,
+    marginHorizontal: 8,
+    marginBottom: 8,
+  },
+  modeLabel: {
+    color: theme.text,
+    fontSize: 15,
+    fontWeight: 'bold',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  modeHint: {
+    color: theme.textSecondary,
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  undoRedoRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  undoRedoButton: {
+    backgroundColor: theme.primary,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  undoRedoDisabled: {
+    opacity: 0.3,
+  },
+  clearModeButton: {
+    backgroundColor: theme.error,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  clearModeButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  exitModeButton: {
+    backgroundColor: theme.textSecondary,
+    paddingVertical: 8,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  exitModeButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 };

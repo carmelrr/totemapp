@@ -11,6 +11,7 @@ import {
   SprayRouteDetailScreen,
 } from "@/screens/SprayWall";
 import { Hold } from "@/features/spraywall/types";
+import { useLanguage } from "@/features/language";
 
 export type SprayStackParamList = {
   SprayHome: undefined;
@@ -23,6 +24,8 @@ export type SprayStackParamList = {
 const Stack = createNativeStackNavigator<SprayStackParamList>();
 
 export const SprayNavigator: React.FC = () => {
+  const { t } = useLanguage();
+
   return (
     <Stack.Navigator
       id={undefined}
@@ -49,22 +52,22 @@ export const SprayNavigator: React.FC = () => {
       <Stack.Screen
         name="AddWall"
         component={AddWallScreen}
-        options={{ title: "הוסף קיר חדש" }}
+        options={{ title: t.nav.addNewWall }}
       />
       <Stack.Screen
         name="AddRoute"
         component={AddRouteScreen}
-        options={{ title: "סמן אחיזות" }}
+        options={{ title: t.nav.markHolds }}
       />
       <Stack.Screen
         name="RouteDetails"
         component={RouteDetailsScreen}
-        options={{ title: "פרטי המסלול" }}
+        options={{ title: t.nav.routeDetails }}
       />
       <Stack.Screen
         name="SprayRouteDetail"
         component={SprayRouteDetailScreen}
-        options={{ title: "פרטי מסלול" }}
+        options={{ title: t.nav.routeDetails }}
       />
     </Stack.Navigator>
   );

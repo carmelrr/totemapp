@@ -130,6 +130,54 @@
         { "fieldPath": "priority", "order": "DESCENDING" },
         { "fieldPath": "startDate", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "shiftRegistrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shiftId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "shiftRegistrations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "shiftHistory",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "shiftId", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "shiftSwapRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetUserId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "shiftSwapRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "requesterId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "shiftSwapRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "registrationId", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

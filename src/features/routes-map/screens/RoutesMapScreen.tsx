@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { useSharedValue, useAnimatedStyle, interpolate, Extrapolation } from 'react-native-reanimated';
+import { useSharedValue } from 'react-native-reanimated';
 
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -56,6 +56,7 @@ import type { Sector } from '@/features/wall-editor/types';
 import { RouteDoc, MapTransforms } from '../types/route';
 import { RoutesService } from '../services/RoutesService';
 import { snapNormToNearestWall } from '@/utils/snapToWall';
+import { getRouteDisplayName } from '../utils/colors';
 
 type RootStackParamList = {
   RoutesMap: undefined;
@@ -81,7 +82,7 @@ export default function RoutesMapScreen() {
   const { theme } = useTheme();
   
   // Language
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   
   // Safe area insets for handling Android navigation bar
   const insets = useSafeAreaInsets();
@@ -132,6 +133,12 @@ export default function RoutesMapScreen() {
   const [showSortModal, setShowSortModal] = useState(false);
   const [currentZoom, setCurrentZoom] = useState(1); // For zoom slider
   const currentZoomRef = useRef(1); // Ref to avoid re-renders during gesture
+
+  // Multi-select state
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
+  const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
+  const [isDeletingBatch, setIsDeletingBatch] = useState(false);
+
   // Store last received transform values so we can re-compute viewport bounds
   // when mapFrameSize changes, using actual zoom/pan instead of hardcoded defaults.
   const lastTransformRef = useRef({ scale: 1, translateX: 0, translateY: 0 });
@@ -140,24 +147,9 @@ export default function RoutesMapScreen() {
   // Shared value for panel height — used by the DraggableRoutesPanel
   const panelHeightSV = useSharedValue(height * 0.45);
 
-  // Shared value for current zoom level — drives the map constraint animation
-  const zoomScaleSV = useSharedValue(1);
-
-  // Zoom threshold: free the map from the panel constraint almost immediately
-  // when zooming. This ensures the user can navigate freely.
-  const ZOOM_FREE_THRESHOLD = 1.05;
-
-  // Animated style: constrain map between header and panel when not zoomed,
-  // let it extend behind the panel when zoomed in past threshold
-  const mapAnimatedStyle = useAnimatedStyle(() => {
-    const bottomValue = interpolate(
-      zoomScaleSV.value,
-      [ZOOM_FREE_THRESHOLD * 0.9, ZOOM_FREE_THRESHOLD],
-      [panelHeightSV.value, 0],
-      Extrapolation.CLAMP
-    );
-    return { bottom: bottomValue };
-  });
+  // Initial panel height (static) — used as centering offset so the map
+  // initially centers in the visible area above the panel.
+  const initialPanelHeight = useMemo(() => height * 0.45, [height]);
 
   // Active sector filtering - when a sector label is pressed
   const [activeSectorId, setActiveSectorId] = useState<string | null>(null);
@@ -343,7 +335,9 @@ export default function RoutesMapScreen() {
         grade: r.grade,
         color: r.color,
         difficulty: r.grade,
-        description: `מסלול ${r.name} ברמת קושי ${r.grade}`,
+        description: language === 'he' 
+          ? `מסלול ${getRouteDisplayName(r, 'he', t)} ברמת קושי ${r.grade}`
+          : `Route ${getRouteDisplayName(r, 'en', t)} difficulty ${r.grade}`,
         coordinates: { x: r.xNorm, y: r.yNorm },
         createdAt: r.createdAt?.toDate ? r.createdAt.toDate().toISOString() :
                    r.createdAt instanceof Date ? r.createdAt.toISOString() :
@@ -363,6 +357,12 @@ export default function RoutesMapScreen() {
 
   // Handlers
   const handleRoutePress = useCallback((route: RouteDoc) => {
+    // In multi-select mode, toggle selection
+    if (multiSelectMode) {
+      handleToggleRouteSelection(route.id);
+      return;
+    }
+    
     // In edit mode, open edit modal instead of navigating
     if (editModeEnabled) {
       setEditingRoute(route);
@@ -384,7 +384,9 @@ export default function RoutesMapScreen() {
         grade: route.grade,
         color: route.color,
         difficulty: route.grade,
-        description: `מסלול ${route.name} ברמת קושי ${route.grade}`,
+        description: language === 'he'
+          ? `מסלול ${getRouteDisplayName(route, 'he', t)} ברמת קושי ${route.grade}`
+          : `Route ${getRouteDisplayName(route, 'en', t)} difficulty ${route.grade}`,
         coordinates: {
           x: route.xNorm,
           y: route.yNorm,
@@ -400,7 +402,7 @@ export default function RoutesMapScreen() {
         completionCount: route.completionCount || 0,
       }
     });
-  }, [navigation, editModeEnabled, buildRouteDataMap, setNavigationList]);
+  }, [navigation, editModeEnabled, multiSelectMode, handleToggleRouteSelection, buildRouteDataMap, setNavigationList]);
 
   const handleRouteLongPress = useCallback((route: RouteDoc) => {
     // Long press opens edit modal only if edit mode is enabled
@@ -520,6 +522,76 @@ export default function RoutesMapScreen() {
     setMovingRoute(null);
   }, []);
 
+  // --- Multi-select handlers ---
+  const handleToggleMultiSelect = useCallback(() => {
+    setMultiSelectMode(prev => {
+      if (prev) {
+        // Exiting multi-select mode — clear selection
+        setMultiSelectedIds(new Set());
+      }
+      return !prev;
+    });
+  }, []);
+
+  const handleToggleRouteSelection = useCallback((routeId: string) => {
+    setMultiSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(routeId)) {
+        next.delete(routeId);
+      } else {
+        next.add(routeId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleSelectAll = useCallback(() => {
+    setMultiSelectedIds(new Set(filteredRoutes.map(r => r.id)));
+  }, [filteredRoutes]);
+
+  const handleDeselectAll = useCallback(() => {
+    setMultiSelectedIds(new Set());
+  }, []);
+
+  const handleDeleteSelected = useCallback(() => {
+    const count = multiSelectedIds.size;
+    if (count === 0) return;
+
+    Alert.alert(
+      t.archive.moveToTrash,
+      t.map.batchArchiveConfirm(count),
+      [
+        { text: t.common.cancel, style: 'cancel' },
+        {
+          text: t.archive.moveToTrash,
+          style: 'destructive',
+          onPress: async () => {
+            setIsDeletingBatch(true);
+            try {
+              await RoutesService.batchArchiveRoutes(Array.from(multiSelectedIds));
+              Alert.alert(t.common.success, t.map.batchArchiveSuccess(count));
+              setMultiSelectedIds(new Set());
+              setMultiSelectMode(false);
+            } catch (error) {
+              console.error('Batch archive error:', error);
+              Alert.alert(t.common.error, t.map.batchArchiveError);
+            } finally {
+              setIsDeletingBatch(false);
+            }
+          },
+        },
+      ]
+    );
+  }, [multiSelectedIds, t]);
+
+  // Reset multi-select when edit mode is turned off
+  useEffect(() => {
+    if (!editModeEnabled) {
+      setMultiSelectMode(false);
+      setMultiSelectedIds(new Set());
+    }
+  }, [editModeEnabled]);
+
   // Cancel adding route
   const handleCancelAdd = useCallback(() => {
     setAddingRoute(false);
@@ -558,11 +630,38 @@ export default function RoutesMapScreen() {
   }, []);
 
   const handleShare = useCallback((route: RouteDoc) => {
-    Alert.alert(t.alerts.shareTitle, t.alerts.shareRoute(route.name));
+    Alert.alert(t.alerts.shareTitle, t.alerts.shareRoute(getRouteDisplayName(route, language, t)));
   }, []);
 
   const handleReport = useCallback((route: RouteDoc) => {
-    Alert.alert(t.alerts.reportTitle, t.alerts.reportRoute(route.name));
+    if (!auth.currentUser) {
+      Alert.alert(t.alerts.reportTitle, t.alerts.reportRoute(getRouteDisplayName(route, language, t)));
+      return;
+    }
+    Alert.alert(
+      t.alerts.reportTitle,
+      t.alerts.reportRoute(getRouteDisplayName(route, language, t)),
+      [
+        { text: t.common.cancel, style: 'cancel' },
+        {
+          text: t.alerts.reportTitle,
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const { ReportService } = require('@/features/moderation');
+              await ReportService.reportContent({
+                contentId: route.id,
+                contentType: 'route',
+                reason: 'inappropriate',
+              });
+              Alert.alert(t.alerts.reportSubmitted, t.alerts.reportSubmittedMessage);
+            } catch (error) {
+              console.error('Error reporting route:', error);
+            }
+          },
+        },
+      ]
+    );
   }, []);
 
   const handleAddRoute = useCallback(() => {
@@ -575,12 +674,13 @@ export default function RoutesMapScreen() {
     navigation.navigate('RoutesArchive' as any);
   }, [navigation]);
 
+  const handleOpenTapeManagement = useCallback(() => {
+    navigation.navigate('WallTapeManagement' as any);
+  }, [navigation]);
+
   const handleTransformChange = useCallback((transform: { scale: number; translateX: number; translateY: number }) => {
     // Store latest transform so we can re-use it when mapFrameSize changes
     lastTransformRef.current = transform;
-
-    // Update zoom shared value for the map constraint animation
-    zoomScaleSV.value = transform.scale;
 
     const containerWidth = mapFrameSize.width || 0;
     const containerHeight = mapFrameSize.height || 0;
@@ -746,10 +846,10 @@ export default function RoutesMapScreen() {
       return (
         <View style={styles.emptyMessageContainer}>
           <Text style={styles.emptyMessageText}>
-            אין מסלולים בתחום הנראה
+            {t.common.noRoutesInView}
           </Text>
           <Text style={styles.emptyMessageSubtext}>
-            נסו להזיז או להקטין את המפה
+            {t.map.zoomIn}
           </Text>
         </View>
       );
@@ -760,9 +860,9 @@ export default function RoutesMapScreen() {
   if (error) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>שגיאה בטעינת מסלולים: {error.message}</Text>
+        <Text style={styles.errorText}>{t.common.errorLoadingRoutes}: {error.message}</Text>
         <TouchableOpacity style={styles.retryButton} onPress={() => console.log('Retry requested')}>
-          <Text style={styles.retryButtonText}>נסה שוב</Text>
+          <Text style={styles.retryButtonText}>{t.common.retry}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -787,6 +887,8 @@ export default function RoutesMapScreen() {
           onRouteLongPress={wallMapRouteLongPress}
           onMapTap={wallMapTap}
           selectedRouteId={wallMapSelectedRouteId}
+          multiSelectedRouteIds={multiSelectMode ? multiSelectedIds : undefined}
+          multiSelectMode={multiSelectMode}
           wallWidth={selectedRoom.width}
           wallHeight={selectedRoom.height}
           onTransformChange={handleTransformChange}
@@ -802,17 +904,17 @@ export default function RoutesMapScreen() {
 
   // Handler for sector label press - toggle sector filtering and zoom
   const handleSectorPress = useCallback((sector: Sector) => {
-    setActiveSectorId(prev => {
-      if (prev === sector.id) {
-        // Deselect - pressing the same sector again removes the filter
-        return null;
-      } else {
-        // Select this sector and zoom to it
-        wallMapRef.current?.zoomToSector(sector.bounds);
-        return sector.id;
-      }
-    });
-  }, []);
+    if (activeSectorId === sector.id) {
+      // Deselect - pressing the same sector again removes the filter
+      setActiveSectorId(null);
+      // Zoom back to overview so the user sees all sectors again
+      wallMapRef.current?.resetView();
+    } else {
+      // Select this sector and zoom to it
+      setActiveSectorId(sector.id);
+      wallMapRef.current?.zoomToSector(sector.bounds);
+    }
+  }, [activeSectorId]);
 
   const renderFullMapView = () => {
     return (
@@ -848,6 +950,9 @@ export default function RoutesMapScreen() {
         visibleRouteIds={visibleRouteIds}
         onRoutePress={movingRoute ? undefined : handleRoutePress}
         onRouteLongPress={movingRoute ? undefined : (editModeEnabled ? handleRouteLongPress : undefined)}
+        multiSelectMode={multiSelectMode}
+        multiSelectedIds={multiSelectedIds}
+        onToggleSelect={handleToggleRouteSelection}
       />
     );
   };  
@@ -883,6 +988,14 @@ export default function RoutesMapScreen() {
               />
             </View>
             <View style={styles.filterBarRight}>
+              {isAdmin && (
+                <TouchableOpacity
+                  style={styles.filterBarActionButton}
+                  onPress={handleOpenTapeManagement}
+                >
+                  <Text style={styles.filterBarActionIcon}>🏷️</Text>
+                </TouchableOpacity>
+              )}
               {canAccessEditMode && (
                 <TouchableOpacity
                   style={styles.filterBarActionButton}
@@ -972,6 +1085,14 @@ export default function RoutesMapScreen() {
           
           {/* Right side: Edit mode toggle and add button */}
           <View style={styles.phoneLandscapeActionRight}>
+            {isAdmin && (
+              <TouchableOpacity
+                style={styles.phoneLandscapeActionButton}
+                onPress={handleOpenTapeManagement}
+              >
+                <Text style={styles.phoneLandscapeActionIcon}>🏷️</Text>
+              </TouchableOpacity>
+            )}
             {canAccessEditMode && (
               <TouchableOpacity
                 style={styles.phoneLandscapeActionButton}
@@ -1010,6 +1131,9 @@ export default function RoutesMapScreen() {
           onRoutePress={movingRoute ? undefined : handleRoutePress}
           onRouteLongPress={movingRoute ? undefined : (editModeEnabled ? handleRouteLongPress : undefined)}
           compact={true}
+          multiSelectMode={multiSelectMode}
+          multiSelectedIds={multiSelectedIds}
+          onToggleSelect={handleToggleRouteSelection}
         />
       </View>
 
@@ -1092,6 +1216,14 @@ export default function RoutesMapScreen() {
               />
             </View>
             <View style={styles.filterBarRight}>
+              {isAdmin && (
+                <TouchableOpacity
+                  style={styles.filterBarActionButton}
+                  onPress={handleOpenTapeManagement}
+                >
+                  <Text style={styles.filterBarActionIcon}>🏷️</Text>
+                </TouchableOpacity>
+              )}
               {canAccessEditMode && (
                 <TouchableOpacity
                   style={styles.filterBarActionButton}
@@ -1156,10 +1288,11 @@ export default function RoutesMapScreen() {
 
   return (
     <View style={styles.fullScreenContainer}>
-      {/* Map Container — constrained between header and panel when not zoomed,
-           extends full height behind the panel when zoomed past threshold */}
-      <Animated.View 
-        style={[styles.fullScreenMap, { top: headerHeight }, mapAnimatedStyle]}
+      {/* Map Container — always full-screen behind the panel.
+           The panel floats over the bottom portion. This avoids layout feedback
+           loops that caused choppy zoom when the container resized during gestures. */}
+      <View 
+        style={[styles.fullScreenMap, { top: headerHeight }]}
         onLayout={e => {
           const { width, height } = e.nativeEvent.layout;
           setMapFrameSize({ width, height });
@@ -1173,6 +1306,8 @@ export default function RoutesMapScreen() {
             onRouteLongPress={wallMapRouteLongPress}
             onMapTap={wallMapTap}
             selectedRouteId={wallMapSelectedRouteId}
+            multiSelectedRouteIds={multiSelectMode ? multiSelectedIds : undefined}
+            multiSelectMode={multiSelectMode}
             wallWidth={selectedRoom.width}
             wallHeight={selectedRoom.height}
             onTransformChange={handleTransformChange}
@@ -1181,13 +1316,14 @@ export default function RoutesMapScreen() {
             showSectorLabels={wallMapShowSectorLabels}
             onSectorPress={handleSectorPress}
             activeSectorId={activeSectorId}
+            centeringBottomInset={initialPanelHeight}
           />
         ) : (
           <View style={styles.fullScreenLoadingContainer}>
             <Text style={{color: '#ffffff', fontSize: 16}}>טוען מפה...</Text>
           </View>
         )}
-      </Animated.View>
+      </View>
 
       {/* Floating Header */}
       <SafeAreaView 
@@ -1244,6 +1380,14 @@ export default function RoutesMapScreen() {
           isLoading={isLoading}
           movingRoute={!!movingRoute}
           onCancelMove={handleCancelMove}
+          multiSelectMode={multiSelectMode}
+          multiSelectedIds={multiSelectedIds}
+          onToggleMultiSelect={handleToggleMultiSelect}
+          onToggleRouteSelection={handleToggleRouteSelection}
+          onSelectAll={handleSelectAll}
+          onDeselectAll={handleDeselectAll}
+          onDeleteSelected={handleDeleteSelected}
+          isDeletingBatch={isDeletingBatch}
           panelHeightSV={panelHeightSV}
         />
       )}

@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import Animated, { useAnimatedStyle, SharedValue } from 'react-native-reanimated';
 import { RouteDoc } from '../types/route';
-import { getContrastTextColor } from '../utils/colors';
+import { getContrastTextColor, getRouteDisplayName } from '../utils/colors';
+import { useLanguage } from '@/features/language';
 
 interface RouteMarkerProps {
   route: RouteDoc;
@@ -17,6 +18,7 @@ export default function RouteMarker({
   onPress,
   selected = false,
 }: RouteMarkerProps) {
+  const { t, language } = useLanguage();
   // Compensate for scale to keep constant size.  Clamp the raw scale to avoid
   // division by zero or exploding values during pinch gestures.  If scale is
   // not provided, fall back to 1.
@@ -65,7 +67,7 @@ export default function RouteMarker({
       {selected && (
         <View style={[styles.nameLabel, { backgroundColor: route.color }]}>
           <Text style={[styles.nameText, { color: textColor }]} numberOfLines={1}>
-            {route.name}
+            {getRouteDisplayName(route, language, t)}
           </Text>
         </View>
       )}

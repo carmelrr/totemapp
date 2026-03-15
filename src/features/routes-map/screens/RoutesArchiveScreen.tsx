@@ -39,11 +39,12 @@ import { usePublishedRooms } from '@/features/wall-editor/hooks/usePublishedRoom
 
 // Colors
 import { getColorHex } from '@/constants/colors';
+import { getRouteDisplayName } from '../utils/colors';
 
 export default function RoutesArchiveScreen() {
   const navigation = useNavigation();
   const { theme } = useTheme();
-  const { t } = useLanguage() as { t: any };
+  const { t, language } = useLanguage() as { t: any; language: 'he' | 'en' };
   const insets = useSafeAreaInsets();
   const styles = useMemo(() => createStyles(theme), [theme]);
 
@@ -82,7 +83,7 @@ export default function RoutesArchiveScreen() {
   const handleRestoreRoute = useCallback(async (route: RouteDoc) => {
     Alert.alert(
       t.archive?.restoreTitle || 'שחזור מסלול',
-      t.archive?.restoreMessage || `האם לשחזר את המסלול "${route.name}"?`,
+      t.archive?.restoreMessage || `האם לשחזר את המסלול "${getRouteDisplayName(route, language, t)}"?`,
       [
         { text: t.common.cancel, style: 'cancel' },
         {
@@ -108,7 +109,7 @@ export default function RoutesArchiveScreen() {
   const handlePermanentDelete = useCallback(async (route: RouteDoc) => {
     Alert.alert(
       t.archive?.permanentDeleteTitle || 'מחיקה לצמיתות',
-      t.archive?.permanentDeleteMessage || `האם למחוק לצמיתות את המסלול "${route.name}"? פעולה זו בלתי הפיכה!`,
+      t.archive?.permanentDeleteMessage || `האם למחוק לצמיתות את המסלול "${getRouteDisplayName(route, language, t)}"? פעולה זו בלתי הפיכה!`,
       [
         { text: t.common.cancel, style: 'cancel' },
         {
@@ -159,7 +160,7 @@ export default function RoutesArchiveScreen() {
       >
         <View style={styles.routeHeader}>
           <View style={styles.routeInfo}>
-            <Text style={styles.routeName}>{route.name}</Text>
+            <Text style={styles.routeName}>{getRouteDisplayName(route, language, t)}</Text>
             <View style={styles.routeMeta}>
               <View style={[styles.gradeBadge, { backgroundColor: colorHex }]}>
                 <Text style={styles.gradeText}>{getDisplayGrade(route)}</Text>
@@ -305,7 +306,7 @@ export default function RoutesArchiveScreen() {
           {selectedRoute && (
             <View style={styles.mapOverlay}>
               <View style={styles.overlayContent}>
-                <Text style={styles.overlayTitle}>{selectedRoute.name}</Text>
+                <Text style={styles.overlayTitle}>{getRouteDisplayName(selectedRoute, language, t)}</Text>
                 <Text style={styles.overlayGrade}>{getDisplayGrade(selectedRoute)}</Text>
                 <Text style={styles.overlayDays}>
                   {RoutesService.getDaysUntilDeletion(selectedRoute)} {t.archive?.daysLeft || 'ימים למחיקה'}

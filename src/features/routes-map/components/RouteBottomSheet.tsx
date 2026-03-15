@@ -10,14 +10,18 @@ import {
   TextInput,
   Alert,
   ActivityIndicator,
+  Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { RouteDoc } from '../types/route';
-import { getContrastTextColor } from '../utils/colors';
+import { getContrastTextColor, getRouteDisplayName } from '../utils/colors';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { FeedbackService } from '../services/FeedbackService';
 import { useAuth } from '@/context/AuthContext';
 import { useLanguage } from '@/features/language';
 import { VideoLinkInput, VideoLinkButton } from '@/components/feedback';
+import { RouteFeedbackForm } from '@/components/routes/RouteFeedbackForm';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -70,6 +74,7 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
   const { t, language } = useLanguage();
   const styles = createStyles(theme);
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   
   // Feedback form state
   const [showFeedbackForm, setShowFeedbackForm] = useState(false);
@@ -97,12 +102,21 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
     setIsLoadingFeedback(true);
     try {
       const feedback = await FeedbackService.getUserFeedbackForRoute(user.uid, route.id);
-      if (feedback) {
+      if (feedback && feedback.isCompleted) {
         setUserFeedback(feedback);
         setStarRating(feedback.starRating || 0);
         setSuggestedGrade(feedback.suggestedGrade || '');
         setComment(feedback.comment || '');
         setVideoUrl(feedback.videoUrl || '');
+      } else if (feedback && !feedback.isCompleted) {
+        // Feedback exists but completion was undone — pre-fill form but don't show as sent
+        setUserFeedback(null);
+        setStarRating(feedback.starRating || 0);
+        setSuggestedGrade(feedback.suggestedGrade || '');
+        setComment(feedback.comment || '');
+        setVideoUrl(feedback.videoUrl || '');
+      } else {
+        setUserFeedback(null);
       }
     } catch (error) {
       console.error('Error loading user feedback:', error);
@@ -162,8 +176,14 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
         // Update existing feedback
         await FeedbackService.updateFeedback(userFeedback.id, feedbackData);
       } else {
-        // Add new feedback
-        await FeedbackService.addFeedbackToRoute(route.id, feedbackData);
+        // Check if there's an existing non-completed feedback (e.g. after undo)
+        const existingFeedback = await FeedbackService.getUserFeedbackForRoute(user.uid, route.id);
+        if (existingFeedback) {
+          await FeedbackService.updateFeedback(existingFeedback.id, feedbackData);
+        } else {
+          // Add new feedback
+          await FeedbackService.addFeedbackToRoute(route.id, feedbackData);
+        }
       }
       
       setShowFeedbackForm(false);
@@ -243,7 +263,7 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
               </View>
               
               <Text style={styles.routeName} numberOfLines={2}>
-                {route.name}
+                {getRouteDisplayName(route, language, t)}
               </Text>
               
               {/* User completed badge */}
@@ -397,131 +417,156 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
                 {userFeedback.videoUrl && (
                   <VideoLinkButton url={userFeedback.videoUrl} />
                 )}
-                <TouchableOpacity 
-                  style={styles.editFeedbackButton} 
-                  onPress={() => setShowFeedbackForm(true)}
-                >
-                  <Text style={styles.editFeedbackText}>{t.feedback.editFeedback}</Text>
-                </TouchableOpacity>
+                <View style={styles.feedbackActionsRow}>
+                  <TouchableOpacity 
+                    style={styles.editFeedbackButton} 
+                    onPress={() => setShowFeedbackForm(true)}
+                  >
+                    <Text style={styles.editFeedbackText}>{t.feedback.editFeedback}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.undoFeedbackButton} 
+                    onPress={() => {
+                      Alert.alert(
+                        t.routes?.undoSend || 'Undo Send',
+                        t.routes?.undoSendConfirm || 'Are you sure you want to undo the send?',
+                        [
+                          { text: t.common?.cancel || 'Cancel', style: 'cancel' },
+                          {
+                            text: t.routes?.undoSend || 'Undo Send',
+                            style: 'destructive',
+                            onPress: async () => {
+                              try {
+                                await FeedbackService.undoCompletion(userFeedback.id);
+                                setUserFeedback(null);
+                                resetForm();
+                                Alert.alert(t.common?.success || 'Success', t.routes?.undoSendSuccess || 'Send undone successfully');
+                              } catch (error) {
+                                console.error('Error undoing send:', error);
+                                Alert.alert(t.common?.error || 'Error', t.routes?.undoSendError || 'Error undoing send');
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <Text style={styles.undoFeedbackText}>{t.routes?.undoSend || '↩️ ביטול סגירה'}</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             )}
             
-            {showFeedbackForm && (
-              <View style={styles.feedbackFormCard}>
-                {/* Star Rating */}
-                <View style={styles.formSection}>
-                  <Text style={styles.formLabel}>{t.feedback.howMuchEnjoy}</Text>
-                  <View style={styles.starsRow}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <TouchableOpacity
-                        key={star}
-                        onPress={() => setStarRating(star)}
-                        style={styles.starButton}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[
-                          styles.starText,
-                          star <= starRating && styles.filledStar
-                        ]}>
-                          ★
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+            {/* Feedback form Modal popup */}
+            <Modal
+              visible={showFeedbackForm}
+              animationType="slide"
+              transparent={true}
+              onRequestClose={() => {
+                setShowFeedbackForm(false);
+                if (userFeedback) {
+                  setStarRating(userFeedback.starRating || 0);
+                  setSuggestedGrade(userFeedback.suggestedGrade || '');
+                  setComment(userFeedback.comment || '');
+                  setVideoUrl(userFeedback.videoUrl || '');
+                } else {
+                  setStarRating(0);
+                  setSuggestedGrade('');
+                  setComment('');
+                  setVideoUrl('');
+                }
+              }}
+            >
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={styles.feedbackModalOverlay}
+              >
+                <TouchableOpacity
+                  style={styles.feedbackModalBackdrop}
+                  activeOpacity={1}
+                  onPress={() => {
+                    setShowFeedbackForm(false);
+                    if (userFeedback) {
+                      setStarRating(userFeedback.starRating || 0);
+                      setSuggestedGrade(userFeedback.suggestedGrade || '');
+                      setComment(userFeedback.comment || '');
+                      setVideoUrl(userFeedback.videoUrl || '');
+                    } else {
+                      setStarRating(0);
+                      setSuggestedGrade('');
+                      setComment('');
+                      setVideoUrl('');
+                    }
+                  }}
+                />
+                <View style={[styles.feedbackModalContent, { paddingBottom: Math.max(34, insets.bottom + 24) }]}>
+                  {/* Modal Header */}
+                  <View style={styles.feedbackModalHeader}>
+                    <Text style={styles.feedbackModalTitle}>
+                      {userFeedback ? t.feedback.editFeedback : t.feedback.completedRouteQuestion}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setShowFeedbackForm(false);
+                        if (userFeedback) {
+                          setStarRating(userFeedback.starRating || 0);
+                          setSuggestedGrade(userFeedback.suggestedGrade || '');
+                          setComment(userFeedback.comment || '');
+                          setVideoUrl(userFeedback.videoUrl || '');
+                        } else {
+                          setStarRating(0);
+                          setSuggestedGrade('');
+                          setComment('');
+                          setVideoUrl('');
+                        }
+                      }}
+                      style={styles.feedbackModalClose}
+                    >
+                      <Text style={styles.feedbackModalCloseText}>✕</Text>
+                    </TouchableOpacity>
                   </View>
-                </View>
-                
-                {/* Grade Selector - Limited to ±2 from original grade */}
-                <View style={styles.formSection}>
-                  <Text style={styles.formLabel}>{t.feedback.whatGradeThink}</Text>
-                  <Text style={styles.gradeHint}>
-                    ({t.feedback.allowedRange} {getAllowedGrades(route.grade)[0]} - {getAllowedGrades(route.grade).slice(-1)[0]})
-                  </Text>
-                  <ScrollView 
-                    horizontal 
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.gradeScroller}
-                  >
-                    {getAllowedGrades(route.grade).map((grade) => (
-                      <TouchableOpacity
-                        key={grade}
-                        onPress={() => setSuggestedGrade(grade)}
-                        style={[
-                          styles.gradeOption,
-                          suggestedGrade === grade && styles.gradeOptionSelected
-                        ]}
-                      >
-                        <Text style={[
-                          styles.gradeOptionText,
-                          suggestedGrade === grade && styles.gradeOptionTextSelected
-                        ]}>
-                          {grade}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
+
+                  <ScrollView showsVerticalScrollIndicator={false} bounces={false} style={styles.feedbackModalScroll}>
+                    <RouteFeedbackForm
+                      starRating={starRating}
+                      onStarRatingChange={setStarRating}
+                      suggestedGrade={suggestedGrade}
+                      onGradeChange={setSuggestedGrade}
+                      grades={getAllowedGrades(route.grade)}
+                      gradeRangeHint={`(${t.feedback.allowedRange} ${getAllowedGrades(route.grade)[0]} - ${getAllowedGrades(route.grade).slice(-1)[0]})`}
+                      comment={comment}
+                      onCommentChange={setComment}
+                      commentPlaceholder={t.feedback.betaTipsExperience}
+                      videoUrl={videoUrl}
+                      onVideoUrlChange={setVideoUrl}
+                      isVideoLinkValid={isVideoLinkValid}
+                      onVideoLinkValidChange={setIsVideoLinkValid}
+                      onSubmit={handleSubmitFeedback}
+                      onCancel={() => {
+                        setShowFeedbackForm(false);
+                        if (userFeedback) {
+                          setStarRating(userFeedback.starRating || 0);
+                          setSuggestedGrade(userFeedback.suggestedGrade || '');
+                          setComment(userFeedback.comment || '');
+                          setVideoUrl(userFeedback.videoUrl || '');
+                        } else {
+                          setStarRating(0);
+                          setSuggestedGrade('');
+                          setComment('');
+                          setVideoUrl('');
+                        }
+                      }}
+                      isSubmitting={isSubmitting}
+                      isUpdate={!!userFeedback}
+                      submitLabel={userFeedback ? t.routeSheet.update : t.routeSheet.send}
+                      starLabel={t.feedback.howMuchEnjoy}
+                      gradeLabel={t.feedback.whatGradeThink}
+                      commentLabel={t.feedback.wantToAddComment}
+                    />
                   </ScrollView>
                 </View>
-                
-                {/* Comment */}
-                <View style={styles.formSection}>
-                  <Text style={styles.formLabel}>{t.feedback.wantToAddComment}</Text>
-                  <TextInput
-                    style={styles.commentInput}
-                    placeholder={t.feedback.betaTipsExperience}
-                    placeholderTextColor={theme.textSecondary}
-                    value={comment}
-                    onChangeText={setComment}
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                  />
-                </View>
-
-                {/* Video Link */}
-                <VideoLinkInput
-                  value={videoUrl}
-                  onChange={setVideoUrl}
-                  onValidationChange={setIsVideoLinkValid}
-                  disabled={isSubmitting}
-                />
-                
-                {/* Submit Buttons */}
-                <View style={styles.formButtons}>
-                  <TouchableOpacity 
-                    style={styles.cancelButton} 
-                    onPress={() => {
-                      setShowFeedbackForm(false);
-                      if (userFeedback) {
-                        setStarRating(userFeedback.starRating || 0);
-                        setSuggestedGrade(userFeedback.suggestedGrade || '');
-                        setComment(userFeedback.comment || '');
-                        setVideoUrl(userFeedback.videoUrl || '');
-                      } else {
-                        setStarRating(0);
-                        setSuggestedGrade('');
-                        setComment('');
-                        setVideoUrl('');
-                      }
-                    }}
-                  >
-                    <Text style={styles.cancelButtonText}>{t.common.cancel}</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
-                    style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]} 
-                    onPress={handleSubmitFeedback}
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? (
-                      <ActivityIndicator color="#fff" size="small" />
-                    ) : (
-                      <Text style={styles.submitButtonText}>
-                        {userFeedback ? t.routeSheet.update : t.routeSheet.send}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
+              </KeyboardAvoidingView>
+            </Modal>
             
             {!user && (
               <Text style={styles.loginHint}>{t.feedback.mustLogin}</Text>
@@ -953,8 +998,13 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginTop: 4,
     lineHeight: 20,
   },
-  editFeedbackButton: {
+  feedbackActionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginTop: 12,
+  },
+  editFeedbackButton: {
     alignSelf: 'flex-end',
   },
   editFeedbackText: {
@@ -962,7 +1012,76 @@ const createStyles = (theme: any) => StyleSheet.create({
     color: theme.primary,
     fontWeight: '600',
   },
-  // Feedback form styles
+  undoFeedbackButton: {
+    alignSelf: 'flex-end',
+  },
+  undoFeedbackText: {
+    fontSize: 14,
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+  // Feedback form Modal styles
+  feedbackModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  feedbackModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  feedbackModalContent: {
+    backgroundColor: theme.surface,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingTop: 8,
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    maxHeight: Dimensions.get('window').height * 0.75,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  feedbackModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+    marginBottom: 16,
+  },
+  feedbackModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: theme.text,
+    flex: 1,
+  },
+  feedbackModalClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: theme.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  feedbackModalCloseText: {
+    fontSize: 14,
+    color: theme.textSecondary,
+    fontWeight: '600',
+  },
+  feedbackModalScroll: {
+    flexGrow: 0,
+  },
+  feedbackModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: theme.border,
+  },
   feedbackFormCard: {
     backgroundColor: theme.surface,
     borderRadius: 18,

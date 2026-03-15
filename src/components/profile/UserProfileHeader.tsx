@@ -1,10 +1,12 @@
-import React, { useMemo } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import React, { useMemo, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { CachedAvatar } from "@/components/ui/CachedAvatar";
+import { BlockService } from "@/features/moderation";
+import { ReportDialog } from "@/features/moderation";
 
 interface UserProfileHeaderProps {
     userProfile: {
@@ -35,6 +37,30 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
     const insets = useSafeAreaInsets();
     
     const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
+
+    const [reportVisible, setReportVisible] = useState(false);
+
+    const handleBlock = () => {
+        Alert.alert(
+            t.userProfile.blockUser,
+            t.userProfile.blockConfirm,
+            [
+                { text: t.common.cancel, style: 'cancel' },
+                {
+                    text: t.userProfile.blockUser,
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await BlockService.blockUser(userId);
+                            Alert.alert(t.userProfile.blockSuccess);
+                        } catch (error) {
+                            Alert.alert(t.common.error, t.userProfile.blockFailed);
+                        }
+                    },
+                },
+            ]
+        );
+    };
 
     return (
         <View style={styles.profileHeader}>
@@ -77,8 +103,26 @@ export const UserProfileHeader: React.FC<UserProfileHeaderProps> = ({
                             </Text>
                         </TouchableOpacity>
                     )}
+
+                    {currentUserId !== userId && (
+                        <View style={styles.userActionsRow}>
+                            <TouchableOpacity style={styles.blockButton} onPress={handleBlock}>
+                                <Text style={styles.blockButtonText}>{t.userProfile.blockUser}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.reportButton} onPress={() => setReportVisible(true)}>
+                                <Text style={styles.reportButtonText}>{t.userProfile.reportUser}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    )}
                 </View>
             </View>
+
+            <ReportDialog
+                visible={reportVisible}
+                onClose={() => setReportVisible(false)}
+                contentId={userId}
+                contentType="user"
+            />
         </View>
     );
 };
@@ -167,6 +211,35 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
         },
         unfollowButtonText: {
             color: theme.secondary,
+        },
+        userActionsRow: {
+            flexDirection: 'row',
+            marginTop: 8,
+            gap: 8,
+        },
+        blockButton: {
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: '#e74c3c',
+        },
+        blockButtonText: {
+            color: '#e74c3c',
+            fontSize: 13,
+            fontWeight: '500',
+        },
+        reportButton: {
+            paddingHorizontal: 12,
+            paddingVertical: 6,
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: theme.textSecondary,
+        },
+        reportButtonText: {
+            color: theme.textSecondary,
+            fontSize: 13,
+            fontWeight: '500',
         },
     });
 };
