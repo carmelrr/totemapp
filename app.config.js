@@ -8,9 +8,9 @@ export default ({ config }) => {
     extra: {
       ...config.extra,
       eas: config.extra?.eas,
-      webClientId: process.env.EXPO_PUBLIC_WEB_CLIENT_ID || config.extra?.webClientId,
-      androidClientId: process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID || config.extra?.androidClientId,
-      iosClientId: process.env.EXPO_PUBLIC_IOS_CLIENT_ID || config.extra?.iosClientId,
+      webClientId: process.env.EXPO_PUBLIC_WEB_CLIENT_ID,
+      androidClientId: process.env.EXPO_PUBLIC_ANDROID_CLIENT_ID,
+      iosClientId: process.env.EXPO_PUBLIC_IOS_CLIENT_ID,
     },
   };
 };
