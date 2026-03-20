@@ -20,8 +20,12 @@ if (Platform.OS !== "web") {
   isErrorWithCode = nativeModule.isErrorWithCode;
 
   // Configure Google Sign-In (native only)
+  const webClientId = Constants.expoConfig?.extra?.webClientId;
+  if (!webClientId) {
+    console.error("Google Sign-In: webClientId is not configured. Set EXPO_PUBLIC_WEB_CLIENT_ID in your environment.");
+  }
   GoogleSignin.configure({
-    webClientId: Constants.expoConfig?.extra?.webClientId || "720872675049-60m0tk2krk77qi5tdf699o9kmlpsfdsd.apps.googleusercontent.com",
+    webClientId,
     iosClientId: Constants.expoConfig?.extra?.iosClientId,
     offlineAccess: false,
     scopes: ["profile", "email"],

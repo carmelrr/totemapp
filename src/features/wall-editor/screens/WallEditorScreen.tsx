@@ -48,8 +48,11 @@ import {
   subscribeToRooms,
 } from '../services/editorService';
 
-// Cloud Function URL
-const OBJ_TO_TOP_VIEW_URL = 'https://us-central1-totemapp-464009.cloudfunctions.net/objToTopView';
+// Cloud Function URL - loaded from environment variables
+const OBJ_TO_TOP_VIEW_URL = process.env.EXPO_PUBLIC_OBJ_TO_TOP_VIEW_URL;
+if (!OBJ_TO_TOP_VIEW_URL) {
+  console.warn('EXPO_PUBLIC_OBJ_TO_TOP_VIEW_URL is not set. 3D top view feature will not work.');
+}
 
 // Route creation modal props
 interface MatFormData {

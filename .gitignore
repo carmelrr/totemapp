@@ -24,9 +24,10 @@ yarn-debug.log*
 yarn-error.log*
 expo-debug.log
 
-# Firebase credentials (אם יש קבצים נוספים עם מידע רגיש)
+# Firebase credentials
 firebase-debug.log
-# firebase-config.js - uncommented to include in build
+google-services.json
+GoogleService-Info.plist
 
 # Google Cloud service account keys
 *.json.key
@@ -43,6 +44,7 @@ eas-build/
 android/app/build/
 android/.gradle/
 android/build/
+android/app/debug.keystore
 ios/Pods/
 ios/build/
 
