@@ -48,8 +48,8 @@ import {
   subscribeToRooms,
 } from '../services/editorService';
 
-// Cloud Function URL
-const OBJ_TO_TOP_VIEW_URL = 'https://us-central1-totemapp-464009.cloudfunctions.net/objToTopView';
+// Cloud Function URL - loaded from environment variables
+const OBJ_TO_TOP_VIEW_URL = process.env.EXPO_PUBLIC_OBJ_TO_TOP_VIEW_URL || '';
 
 // Route creation modal props
 interface MatFormData {

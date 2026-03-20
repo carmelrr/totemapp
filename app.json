@@ -90,10 +90,7 @@
     "extra": {
       "eas": {
         "projectId": "314d40f3-b56b-4919-9dfe-817d3f8a0540"
-      },
-      "webClientId": "720872675049-60m0tk2krk77qi5tdf699o9kmlpsfdsd.apps.googleusercontent.com",
-      "androidClientId": "720872675049-ucfm287ulfo3dl0vj9brqflujk6qsgsi.apps.googleusercontent.com",
-      "iosClientId": "720872675049-b08oil4c0qv2nktt7ua4k4cf6vkcoslr.apps.googleusercontent.com"
+      }
     },
     "runtimeVersion": "1.0.0",
     "updates": {

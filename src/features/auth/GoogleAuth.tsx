@@ -21,7 +21,7 @@ if (Platform.OS !== "web") {
 
   // Configure Google Sign-In (native only)
   GoogleSignin.configure({
-    webClientId: Constants.expoConfig?.extra?.webClientId || "720872675049-60m0tk2krk77qi5tdf699o9kmlpsfdsd.apps.googleusercontent.com",
+    webClientId: Constants.expoConfig?.extra?.webClientId,
     iosClientId: Constants.expoConfig?.extra?.iosClientId,
     offlineAccess: false,
     scopes: ["profile", "email"],
