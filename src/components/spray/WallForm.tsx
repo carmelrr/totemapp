@@ -46,13 +46,6 @@ export const WallForm: React.FC<WallFormProps> = ({
   const [imageUri, setImageUri] = useState<string | null>(null);
 
   const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-    if (!permissionResult.granted) {
-      Alert.alert(t.common.error, t.spray.cameraPermissionRequired);
-      return;
-    }
-
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       allowsEditing: true,

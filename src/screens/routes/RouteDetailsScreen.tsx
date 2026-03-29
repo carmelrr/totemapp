@@ -56,6 +56,7 @@ interface RouteFeedback {
 type RootStackParamList = {
   RouteDetails: {
     route: Route;
+    origin?: string;
   };
 };
 
@@ -87,10 +88,35 @@ export default function RouteDetailsScreen() {
   // Create dynamic styles based on theme
   const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
   
+  // Origin tab — used to navigate back to the correct tab
+  const origin = route.params?.origin;
+  
   // Active route data — starts from nav params, updates on swipe
   const initialRouteData = route.params?.route;
   const [activeRouteData, setActiveRouteData] = useState(initialRouteData);
   const routeData = activeRouteData;
+  
+  // Sync activeRouteData when navigation params change (e.g., navigating from feed to a different route)
+  useEffect(() => {
+    if (initialRouteData && initialRouteData.id !== activeRouteData?.id) {
+      setActiveRouteData(initialRouteData);
+      // Reset all dependent state
+      setLiveRouteStats({
+        averageStarRating: (initialRouteData as any).averageStarRating || 0,
+        calculatedGrade: (initialRouteData as any).calculatedGrade || null,
+        feedbackCount: (initialRouteData as any).feedbackCount || 0,
+        completionCount: (initialRouteData as any).completionCount || 0,
+      });
+      setAllFeedbacks([]);
+      setLoadingFeedbacks(true);
+      setUserSentFeedback(null);
+      setShowSentForm(false);
+      setSentStarRating(0);
+      setSentSuggestedGrade('');
+      setSentComment('');
+      setSentVideoUrl('');
+    }
+  }, [initialRouteData?.id]);
   
   // Guard clause - אם אין routeId
   if (!routeData) {
@@ -320,7 +346,14 @@ export default function RouteDetailsScreen() {
       <View style={[styles.coloredHeader, { backgroundColor: routeColor, paddingTop: insets.top + 8 }]}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => navigation.goBack()}
+          onPress={() => {
+            if (origin) {
+              // Navigate back to the origin tab (e.g., HomeTab)
+              navigation.getParent()?.navigate(origin);
+            } else {
+              navigation.goBack();
+            }
+          }}
         >
           <Ionicons name="chevron-back" size={28} color={textColor} />
         </TouchableOpacity>
@@ -370,7 +403,7 @@ export default function RouteDetailsScreen() {
               wallWidth={wallWidth}
               wallHeight={wallHeight}
               selectedRouteId={routeData.id}
-              gesturesEnabled={true}
+              gesturesEnabled={false}
               room={selectedRoom || undefined}
             />
           </View>

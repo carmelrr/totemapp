@@ -44,7 +44,7 @@ export type RootTabParamList = {
 export type RoutesMapStackParamList = {
   RoutesMap: undefined;
   AddRoute: undefined;
-  RouteDetails: { route: any };
+  RouteDetails: { route: any; origin?: string };
   ColorPickerScreen: undefined;
   WallTapeManagement: undefined;
 };

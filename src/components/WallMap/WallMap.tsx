@@ -210,6 +210,12 @@ interface WallMapProps {
   activeSectorId?: string | null;
   /** Bottom inset for centering (e.g., panel height) */
   centeringBottomInset?: number;
+  /** Set of route IDs from the balance date group */
+  balanceDateRouteIds?: Set<string>;
+  /** Set of route IDs selected as extreme endpoints */
+  balanceExtremeRouteIds?: Set<string>;
+  /** Whether balance mode is globally active */
+  balanceModeActive?: boolean;
 }
 
 // Ref type for external control
@@ -248,6 +254,9 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
   onSectorPress,
   activeSectorId = null,
   centeringBottomInset = 0,
+  balanceDateRouteIds,
+  balanceExtremeRouteIds,
+  balanceModeActive = false,
 }, ref) {
   const { theme } = useTheme();
   const styles = createStyles(theme);
@@ -470,35 +479,29 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
     [effectiveGesturesEnabled, onLongPress, onGestureStateChange]
   );
 
-  // Compose gestures - if onMapTap exists, use tap gesture with higher priority
-  // Note: We only use pan/pinch/zoom gestures here
-  // RouteCircle gestures are handled by their own GestureDetector with hitSlop
+  // Compose gestures with a STABLE tree structure.
+  // Always use the same Exclusive > Race > Simultaneous hierarchy regardless of mode.
+  // mapTapGesture is toggled via .enabled(!!onMapTap) — when disabled, Exclusive
+  // immediately falls through to the inner Race group.
+  // Changing the tree shape (e.g. Exclusive ↔ Race) between renders can leave
+  // RNGH v2 native handlers in a stale state, breaking pan/pinch after route edits.
   const composedGesture = useMemo(() => {
-    // If in move mode (onMapTap exists), disable pan/pinch and only allow tap
-    if (onMapTap) {
-      return Gesture.Exclusive(
-        mapTapGesture,
-        Gesture.Simultaneous(transforms.panGesture, transforms.pinchGesture)
-      );
-    }
-    
-    // Don't include longPressGesture in Race if it's disabled (no onLongPress callback)
-    // This allows RouteCircle's long press to work
-    if (!onLongPress) {
-      return Gesture.Race(
-        transforms.doubleTapGesture,
-        Gesture.Simultaneous(transforms.panGesture, transforms.pinchGesture)
-      );
-    }
-    
-    return Gesture.Race(
-      longPressGesture,
-      Gesture.Race(
-        transforms.doubleTapGesture,
-        Gesture.Simultaneous(transforms.panGesture, transforms.pinchGesture)
-      )
+    const panPinch = Gesture.Simultaneous(
+      transforms.panGesture.enabled(effectiveGesturesEnabled),
+      transforms.pinchGesture.enabled(effectiveGesturesEnabled)
     );
-  }, [onMapTap, onLongPress, mapTapGesture, longPressGesture, transforms.doubleTapGesture, transforms.panGesture, transforms.pinchGesture]);
+
+    const doubleTap = transforms.doubleTapGesture.enabled(effectiveGesturesEnabled);
+
+    // Inner group: doubleTap races with pan+pinch (and optionally long press)
+    const innerGroup = onLongPress
+      ? Gesture.Race(longPressGesture, Gesture.Race(doubleTap, panPinch))
+      : Gesture.Race(doubleTap, panPinch);
+
+    // Outer: mapTapGesture has exclusive priority when enabled (placing/moving mode).
+    // When disabled (.enabled(false)), RNGH skips it and activates innerGroup directly.
+    return Gesture.Exclusive(mapTapGesture, innerGroup);
+  }, [effectiveGesturesEnabled, onMapTap, onLongPress, mapTapGesture, longPressGesture, transforms.doubleTapGesture, transforms.panGesture, transforms.pinchGesture]);
 
   const isReady = containerDimensions.width > 0 && imageDimensions.imgW > 0;
 
@@ -564,6 +567,9 @@ const WallMap = React.memo(forwardRef<WallMapRef, WallMapProps>(function WallMap
                 multiSelected={multiSelectedRouteIds?.has(route.id) ?? false}
                 multiSelectMode={multiSelectMode}
                 gesturesDisabled={!!onMapTap} // Disable route gestures when in move mode
+                balanceModeActive={balanceModeActive}
+                balanceTarget={balanceDateRouteIds?.has(route.id) ?? false}
+                balanceExtreme={balanceExtremeRouteIds?.has(route.id) ?? false}
               />
             ))}
           </View>

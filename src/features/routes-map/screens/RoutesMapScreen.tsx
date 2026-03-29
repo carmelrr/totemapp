@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   Text,
   Alert,
+  ActivityIndicator,
   useWindowDimensions,
   ScrollView,
   Modal
@@ -37,7 +38,7 @@ import InlineAddRoutePanel from '../components/InlineAddRoutePanel';
 // Store and Hooks
 import { useFiltersStore, filterRoutes } from '../../../store/useFiltersStore';
 import { useRouteNavigationStore } from '../../../store/useRouteNavigationStore';
-import { useFirebaseRoutes } from '../hooks/useFirebaseRoutes';
+import { useFirebaseRoutes, useActiveRoutes } from '../hooks/useFirebaseRoutes';
 
 // Language
 import { useLanguage } from '@/features/language';
@@ -57,6 +58,7 @@ import { RouteDoc, MapTransforms } from '../types/route';
 import { RoutesService } from '../services/RoutesService';
 import { snapNormToNearestWall } from '@/utils/snapToWall';
 import { getRouteDisplayName } from '../utils/colors';
+import { useBalanceModeStore } from '@/store/useBalanceModeStore';
 
 type RootStackParamList = {
   RoutesMap: undefined;
@@ -139,17 +141,22 @@ export default function RoutesMapScreen() {
   const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
   const [isDeletingBatch, setIsDeletingBatch] = useState(false);
 
+  // Balance mode state (from admin panel)
+  const balanceModeActive = useBalanceModeStore((s) => s.isActive);
+  const balanceDate = useBalanceModeStore((s) => s.balanceDate);
+  const balanceDateRouteIds = useBalanceModeStore((s) => s.dateRouteIds);
+  const balanceExtremeRouteIds = useBalanceModeStore((s) => s.extremeRouteIds);
+  const toggleBalanceExtreme = useBalanceModeStore((s) => s.toggleExtremeRoute);
+  const resetBalanceMode = useBalanceModeStore((s) => s.reset);
+  const balancePreviousPositions = useBalanceModeStore((s) => s.previousPositions);
+  const setBalancePreviousPositions = useBalanceModeStore((s) => s.setPreviousPositions);
+  const clearBalancePreviousPositions = useBalanceModeStore((s) => s.clearPreviousPositions);
+  const [isBalancing, setIsBalancing] = useState(false);
+
   // Store last received transform values so we can re-compute viewport bounds
   // when mapFrameSize changes, using actual zoom/pan instead of hardcoded defaults.
   const lastTransformRef = useRef({ scale: 1, translateX: 0, translateY: 0 });
   const [headerHeight, setHeaderHeight] = useState(insets.top + 46); // Dynamic header height
-
-  // Shared value for panel height — used by the DraggableRoutesPanel
-  const panelHeightSV = useSharedValue(height * 0.45);
-
-  // Initial panel height (static) — used as centering offset so the map
-  // initially centers in the visible area above the panel.
-  const initialPanelHeight = useMemo(() => height * 0.45, [height]);
 
   // Active sector filtering - when a sector label is pressed
   const [activeSectorId, setActiveSectorId] = useState<string | null>(null);
@@ -165,8 +172,8 @@ export default function RoutesMapScreen() {
     { value: 'most-repeats' as SortOption, label: t.common.mostRepeats, icon: 'repeat-outline' },
   ], [t]);
   
-  // Data
-  const { routes, isLoading, error } = useFirebaseRoutes();
+  // Data — load only active routes (server-side filter) for faster initial load
+  const { routes, isLoading, error } = useActiveRoutes();
   
   // Published rooms (dynamic wall maps)
   const { rooms: publishedRooms, loading: roomsLoading, refresh: refreshRooms } = usePublishedRooms({
@@ -190,7 +197,34 @@ export default function RoutesMapScreen() {
   const selectedRoom = useMemo(() => {
     return publishedRooms.find(r => r.id === selectedRoomId) || null;
   }, [publishedRooms, selectedRoomId]);
-  
+
+  // Compute initial panel height based on the active map's rendered height.
+  // The map fits the room into the available screen width while preserving
+  // aspect ratio, so renderedMapHeight = screenWidth * (room.height / room.width).
+  // The panel fills the remaining space below the map.
+  const initialPanelHeight = useMemo(() => {
+    if (selectedRoom && selectedRoom.width > 0) {
+      const availableWidth = width;
+      const renderedMapHeight = availableWidth * (selectedRoom.height / selectedRoom.width);
+      // Leave some extra space above the panel so the map breathes
+      const padding = 40;
+      const remaining = height - headerHeight - renderedMapHeight - padding;
+      // Clamp between 12% and 85% of screen height so it stays usable
+      const minH = height * 0.12;
+      const maxH = height * 0.85;
+      return Math.max(minH, Math.min(maxH, remaining));
+    }
+    return height * 0.45;
+  }, [selectedRoom, width, height, headerHeight]);
+
+  // Shared value for panel height — used by the DraggableRoutesPanel
+  const panelHeightSV = useSharedValue(initialPanelHeight);
+
+  // Sync panel height when the active room changes (different aspect ratio)
+  useEffect(() => {
+    panelHeightSV.value = initialPanelHeight;
+  }, [initialPanelHeight]);
+
   // Create styles with theme, layout, insets, and room background color
   const styles = useMemo(() => createStyles(theme, layout, insets, selectedRoom?.backgroundColor), [theme, layout, insets, selectedRoom?.backgroundColor]);
   
@@ -357,6 +391,12 @@ export default function RoutesMapScreen() {
 
   // Handlers
   const handleRoutePress = useCallback((route: RouteDoc) => {
+    // In balance mode, toggle extreme selection
+    if (balanceModeActive) {
+      toggleBalanceExtreme(route.id);
+      return;
+    }
+
     // In multi-select mode, toggle selection
     if (multiSelectMode) {
       handleToggleRouteSelection(route.id);
@@ -402,7 +442,7 @@ export default function RoutesMapScreen() {
         completionCount: route.completionCount || 0,
       }
     });
-  }, [navigation, editModeEnabled, multiSelectMode, handleToggleRouteSelection, buildRouteDataMap, setNavigationList]);
+  }, [navigation, editModeEnabled, multiSelectMode, handleToggleRouteSelection, buildRouteDataMap, setNavigationList, balanceModeActive, toggleBalanceExtreme]);
 
   const handleRouteLongPress = useCallback((route: RouteDoc) => {
     // Long press opens edit modal only if edit mode is enabled
@@ -591,6 +631,58 @@ export default function RoutesMapScreen() {
       setMultiSelectedIds(new Set());
     }
   }, [editModeEnabled]);
+
+  // --- Balance mode handlers ---
+  const handleBalanceConfirm = useCallback(async () => {
+    if (balanceExtremeRouteIds.length !== 2 || !balanceDate) return;
+    setIsBalancing(true);
+    try {
+      const result = await RoutesService.balanceRoutePositions(
+        balanceDate,
+        balanceExtremeRouteIds[0],
+        balanceExtremeRouteIds[1],
+        selectedRoom,
+      );
+      if (result.total < 2) {
+        resetBalanceMode();
+        Alert.alert(t.common.error, t.admin.balanceNotEnough);
+      } else {
+        // Save previous positions for undo, then exit balance selection mode
+        if (Object.keys(result.previousPositions).length > 0) {
+          setBalancePreviousPositions(result.previousPositions);
+        }
+        resetBalanceMode();
+        Alert.alert(
+          t.common.success,
+          t.admin.balanceResult(result.updated, result.total),
+        );
+      }
+    } catch (error) {
+      console.error('Error balancing positions:', error);
+      Alert.alert(t.common.error, t.admin.balanceError);
+    } finally {
+      setIsBalancing(false);
+    }
+  }, [balanceExtremeRouteIds, balanceDate, resetBalanceMode, setBalancePreviousPositions, selectedRoom, t]);
+
+  const handleBalanceUndo = useCallback(async () => {
+    if (!balancePreviousPositions) return;
+    setIsBalancing(true);
+    try {
+      await RoutesService.restoreRoutePositions(balancePreviousPositions);
+      clearBalancePreviousPositions();
+      Alert.alert(t.common.success, t.admin.balanceUndoSuccess);
+    } catch (error) {
+      console.error('Error restoring positions:', error);
+      Alert.alert(t.common.error, t.admin.balanceUndoError);
+    } finally {
+      setIsBalancing(false);
+    }
+  }, [balancePreviousPositions, clearBalancePreviousPositions, t]);
+
+  const handleBalanceCancel = useCallback(() => {
+    resetBalanceMode();
+  }, [resetBalanceMode]);
 
   // Cancel adding route
   const handleCancelAdd = useCallback(() => {
@@ -793,6 +885,12 @@ export default function RoutesMapScreen() {
     [currentZoom, addingRoute]
   );
 
+  // Balance mode: memoize extreme IDs as a Set for WallMap
+  const balanceExtremeIdsSet = useMemo(
+    () => new Set(balanceExtremeRouteIds),
+    [balanceExtremeRouteIds]
+  );
+
   const handleDebug = useCallback(() => {
     Alert.alert(
       'מידע דיבוג',
@@ -811,25 +909,19 @@ export default function RoutesMapScreen() {
   }, [routes, isLoading, error, filteredRoutes, visibleRoutes, viewportBounds]);
 
   const availableColors = useMemo(() => {
-    // Only consider active routes for available colors (exclude archived)
-    const activeRoutes = routes.filter(route => route.status !== 'archived');
-    const colors = new Set(activeRoutes.map(route => route.color).filter(Boolean));
+    const colors = new Set(routes.map(route => route.color).filter(Boolean));
     return Array.from(colors);
   }, [routes]);
 
   const availableGrades = useMemo(() => {
-    // Only consider active routes for available grades (exclude archived)
-    const activeRoutes = routes.filter(route => route.status !== 'archived');
-    const grades = new Set(activeRoutes.map(route => route.grade).filter(Boolean));
+    const grades = new Set(routes.map(route => route.grade).filter(Boolean));
     return Array.from(grades).sort();
   }, [routes]);
 
   // חילוץ תאריכים ייחודיים מהמסלולים בפורמט YYYY-MM-DD
   const availableDates = useMemo(() => {
     const dates = new Set<string>();
-    // Only consider active routes for available dates (exclude archived)
-    const activeRoutes = routes.filter(route => route.status !== 'archived');
-    activeRoutes.forEach(route => {
+    routes.forEach(route => {
       if (route.createdAt) {
         const date = route.createdAt.toDate ? route.createdAt.toDate() : new Date(route.createdAt);
         const dateStr = date.toISOString().split('T')[0]; // פורמט YYYY-MM-DD
@@ -857,6 +949,20 @@ export default function RoutesMapScreen() {
     return null;
   };
 
+  // Handler for sector label press - toggle sector filtering and zoom
+  const handleSectorPress = useCallback((sector: Sector) => {
+    if (activeSectorId === sector.id) {
+      // Deselect - pressing the same sector again removes the filter
+      setActiveSectorId(null);
+      // Zoom back to overview so the user sees all sectors again
+      wallMapRef.current?.resetView();
+    } else {
+      // Select this sector and zoom to it
+      setActiveSectorId(sector.id);
+      wallMapRef.current?.zoomToSector(sector.bounds);
+    }
+  }, [activeSectorId]);
+
   if (error) {
     return (
       <View style={styles.errorContainer}>
@@ -873,7 +979,8 @@ export default function RoutesMapScreen() {
     if (!selectedRoom) {
       return (
         <View style={styles.loadingMapContainer}>
-          <Text style={{color: '#ffffff', fontSize: 16}}>טוען מפה...</Text>
+          <ActivityIndicator size="large" color="#ffffff" />
+          <Text style={{color: '#ffffff', fontSize: 16, marginTop: 12}}>טוען מפה...</Text>
         </View>
       );
     }
@@ -897,24 +1004,13 @@ export default function RoutesMapScreen() {
           showSectorLabels={wallMapShowSectorLabels}
           onSectorPress={handleSectorPress}
           activeSectorId={activeSectorId}
+          balanceModeActive={balanceModeActive}
+          balanceDateRouteIds={balanceModeActive ? balanceDateRouteIds : undefined}
+          balanceExtremeRouteIds={balanceModeActive ? balanceExtremeIdsSet : undefined}
         />
       </View>
     );
   };
-
-  // Handler for sector label press - toggle sector filtering and zoom
-  const handleSectorPress = useCallback((sector: Sector) => {
-    if (activeSectorId === sector.id) {
-      // Deselect - pressing the same sector again removes the filter
-      setActiveSectorId(null);
-      // Zoom back to overview so the user sees all sectors again
-      wallMapRef.current?.resetView();
-    } else {
-      // Select this sector and zoom to it
-      setActiveSectorId(sector.id);
-      wallMapRef.current?.zoomToSector(sector.bounds);
-    }
-  }, [activeSectorId]);
 
   const renderFullMapView = () => {
     return (
@@ -1317,10 +1413,14 @@ export default function RoutesMapScreen() {
             onSectorPress={handleSectorPress}
             activeSectorId={activeSectorId}
             centeringBottomInset={initialPanelHeight}
+            balanceModeActive={balanceModeActive}
+            balanceDateRouteIds={balanceModeActive ? balanceDateRouteIds : undefined}
+            balanceExtremeRouteIds={balanceModeActive ? balanceExtremeIdsSet : undefined}
           />
         ) : (
           <View style={styles.fullScreenLoadingContainer}>
-            <Text style={{color: '#ffffff', fontSize: 16}}>טוען מפה...</Text>
+            <ActivityIndicator size="large" color="#ffffff" />
+            <Text style={{color: '#ffffff', fontSize: 16, marginTop: 12}}>טוען מפה...</Text>
           </View>
         )}
       </View>
@@ -1353,6 +1453,77 @@ export default function RoutesMapScreen() {
           )}
         </View>
       </SafeAreaView>
+
+      {/* Balance Mode Toolbar */}
+      {balanceModeActive && (
+        <View style={styles.balanceToolbar}>
+          <View style={styles.balanceToolbarContent}>
+            <Text style={styles.balanceToolbarTitle}>
+              {t.admin.balanceModeTitle}
+            </Text>
+            <Text style={styles.balanceToolbarDate}>
+              {balanceDate ? (() => {
+                const [y, m, d] = balanceDate.split('-');
+                return `${d}/${m}/${y}`;
+              })() : ''}
+            </Text>
+            <Text style={styles.balanceToolbarCount}>
+              {t.admin.balanceExtremeSelected(balanceExtremeRouteIds.length)}
+            </Text>
+          </View>
+          <View style={styles.balanceToolbarActions}>
+            <TouchableOpacity
+              style={styles.balanceCancelButton}
+              onPress={handleBalanceCancel}
+            >
+              <Text style={styles.balanceCancelButtonText}>
+                {t.admin.balanceCancel}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.balanceConfirmButton,
+                balanceExtremeRouteIds.length !== 2 && styles.balanceConfirmButtonDisabled,
+              ]}
+              onPress={handleBalanceConfirm}
+              disabled={balanceExtremeRouteIds.length !== 2 || isBalancing}
+            >
+              {isBalancing ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.balanceConfirmButtonText}>
+                  {t.admin.balanceConfirm}
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Balance Undo Floating Button */}
+      {!balanceModeActive && balancePreviousPositions && (
+        <View style={styles.balanceUndoToolbar}>
+          <TouchableOpacity
+            style={styles.balanceUndoButton}
+            onPress={handleBalanceUndo}
+            disabled={isBalancing}
+          >
+            {isBalancing ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <Text style={styles.balanceUndoButtonText}>
+                ↩ {t.admin.balanceUndo}
+              </Text>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.balanceUndoDismiss}
+            onPress={clearBalancePreviousPositions}
+          >
+            <Text style={styles.balanceUndoDismissText}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Draggable Routes Panel or Inline Add Route Panel */}
       {addingRoute ? (
@@ -1388,6 +1559,7 @@ export default function RoutesMapScreen() {
           onDeselectAll={handleDeselectAll}
           onDeleteSelected={handleDeleteSelected}
           isDeletingBatch={isDeletingBatch}
+          initialHeight={initialPanelHeight}
           panelHeightSV={panelHeightSV}
         />
       )}
@@ -1472,6 +1644,112 @@ const createStyles = (
       backgroundColor: 'transparent',
       paddingVertical: 10,
       paddingHorizontal: 12,
+    },
+    // Balance mode toolbar
+    balanceToolbar: {
+      position: 'absolute',
+      top: insets.top + 56,
+      left: 12,
+      right: 12,
+      zIndex: 20,
+      backgroundColor: 'rgba(30, 30, 50, 0.95)',
+      borderRadius: 12,
+      padding: 12,
+      borderWidth: 2,
+      borderColor: '#FFD700',
+      shadowColor: '#FFD700',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 6,
+      elevation: 10,
+    },
+    balanceToolbarContent: {
+      alignItems: 'center',
+      marginBottom: 8,
+    },
+    balanceToolbarTitle: {
+      color: '#FFD700',
+      fontSize: 16,
+      fontWeight: 'bold',
+    },
+    balanceToolbarDate: {
+      color: '#fff',
+      fontSize: 14,
+      marginTop: 2,
+    },
+    balanceToolbarCount: {
+      color: '#ccc',
+      fontSize: 13,
+      marginTop: 4,
+    },
+    balanceToolbarActions: {
+      flexDirection: 'row',
+      justifyContent: 'center',
+      gap: 12,
+    },
+    balanceCancelButton: {
+      paddingHorizontal: 20,
+      paddingVertical: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: '#888',
+    },
+    balanceCancelButtonText: {
+      color: '#ccc',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    balanceConfirmButton: {
+      paddingHorizontal: 20,
+      paddingVertical: 8,
+      borderRadius: 8,
+      backgroundColor: '#4CAF50',
+    },
+    balanceConfirmButtonDisabled: {
+      backgroundColor: '#555',
+    },
+    balanceConfirmButtonText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '600',
+    },
+    balanceUndoToolbar: {
+      position: 'absolute',
+      top: insets.top + 56,
+      right: 12,
+      zIndex: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    balanceUndoButton: {
+      backgroundColor: '#FF9800',
+      borderRadius: 8,
+      paddingHorizontal: 16,
+      paddingVertical: 10,
+      elevation: 6,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+    },
+    balanceUndoButtonText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: 'bold',
+    },
+    balanceUndoDismiss: {
+      backgroundColor: 'rgba(80, 80, 80, 0.9)',
+      borderRadius: 12,
+      width: 24,
+      height: 24,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    balanceUndoDismissText: {
+      color: '#ccc',
+      fontSize: 12,
+      fontWeight: 'bold',
     },
     // Original styles kept for backwards compatibility
     container: {

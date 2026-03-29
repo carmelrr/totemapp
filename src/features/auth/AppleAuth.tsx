@@ -4,6 +4,7 @@ import { OAuthProvider, signInWithCredential } from "firebase/auth";
 import { doc, setDoc, getDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/features/data/firebase";
 import { useLanguage } from "@/features/language";
+import * as Crypto from "expo-crypto";
 
 let AppleAuthentication: any;
 if (Platform.OS === "ios") {
@@ -21,11 +22,19 @@ export default function AppleLoginButton() {
     setIsSigningIn(true);
 
     try {
+      // Generate a nonce — required by Firebase for Apple Sign-In
+      const rawNonce = Crypto.randomUUID();
+      const hashedNonce = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        rawNonce
+      );
+
       const credential = await AppleAuthentication.signInAsync({
         requestedScopes: [
           AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
           AppleAuthentication.AppleAuthenticationScope.EMAIL,
         ],
+        nonce: hashedNonce,
       });
 
       if (!credential.identityToken) {
@@ -35,6 +44,7 @@ export default function AppleLoginButton() {
       const oAuthProvider = new OAuthProvider("apple.com");
       const oAuthCredential = oAuthProvider.credential({
         idToken: credential.identityToken,
+        rawNonce: rawNonce,
       });
 
       const result = await signInWithCredential(auth, oAuthCredential);
@@ -81,7 +91,6 @@ export default function AppleLoginButton() {
             showProfile: true,
             showTotalRoutes: true,
             showHighestGrade: true,
-            showFeedbackCount: true,
             showAverageRating: true,
             showGradeStats: true,
             showJoinDate: true,

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { RouteStatsService } from '@/features/routes-map/services/RouteStatsService';
 import { RoutesService } from '@/features/routes-map/services/RoutesService';
 import { useRoutesStore } from '@/store/routesStore';
+import { useBalanceModeStore } from '@/store/useBalanceModeStore';
 
 interface AdminItem {
   key: string;
@@ -39,8 +40,14 @@ export default function AdminPanelScreen() {
   const [isNormalizingColors, setIsNormalizingColors] = useState(false);
   const [isResettingPoints, setIsResettingPoints] = useState(false);
   const [isBalancing, setIsBalancing] = useState(false);
+  const [isBackfillingProgress, setIsBackfillingProgress] = useState(false);
 
   const routes = useRoutesStore((s) => s.routes);
+  const initializeRoutes = useRoutesStore((s) => s.initializeRoutes);
+
+  useEffect(() => {
+    initializeRoutes();
+  }, [initializeRoutes]);
 
   // Extract unique dates from active routes (newest first)
   const availableDates = useMemo(() => {
@@ -184,24 +191,31 @@ export default function AdminPanelScreen() {
 
     const dateButtons = availableDates.slice(0, 8).map((dateStr) => ({
       text: formatDate(dateStr),
-      onPress: async () => {
-        setIsBalancing(true);
-        try {
-          const result = await RoutesService.balanceRoutePositions(dateStr);
-          if (result.total < 2) {
-            Alert.alert(t.common.error, t.admin.balanceNotEnough);
-          } else {
-            Alert.alert(
-              t.common.success,
-              t.admin.balanceResult(result.updated, result.total),
-            );
-          }
-        } catch (error) {
-          console.error('Error balancing positions:', error);
-          Alert.alert(t.common.error, t.admin.balanceError);
-        } finally {
-          setIsBalancing(false);
+      onPress: () => {
+        // Compute route IDs from this date
+        const [year, month, day] = dateStr.split('-').map(Number);
+        const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+        const endOfDay = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
+
+        const dateRouteIds = routes
+          .filter((r) => r.status !== 'archived' && r.createdAt)
+          .filter((r) => {
+            const d = r.createdAt.toDate ? r.createdAt.toDate() : new Date(r.createdAt);
+            return d >= startOfDay && d < endOfDay;
+          })
+          .map((r) => r.id);
+
+        if (dateRouteIds.length < 2) {
+          Alert.alert(t.common.error, t.admin.balanceNotEnough);
+          return;
         }
+
+        // Start balance mode and navigate to the routes map
+        useBalanceModeStore.getState().startBalanceMode(dateStr, dateRouteIds);
+        (navigation as any).navigate('MainTabs', {
+          screen: 'RoutesMapTab',
+          params: { screen: 'RoutesMap' },
+        });
       },
     }));
 
@@ -211,6 +225,36 @@ export default function AdminPanelScreen() {
       [
         { text: t.common.cancel, style: 'cancel' },
         ...dateButtons,
+      ],
+    );
+  };
+
+  const handleBackfillProgress = () => {
+    Alert.alert(
+      t.admin.backfillProgress || 'מילוי היסטוריית התקדמות',
+      t.admin.backfillProgressConfirm || 'פעולה זו תסנכרן את כל נתוני הסגירות ותשלים תאריכים חסרים בהיסטוריה. להמשיך?',
+      [
+        { text: t.common.cancel, style: 'cancel' },
+        {
+          text: t.admin.backfillStart || 'התחל',
+          onPress: async () => {
+            setIsBackfillingProgress(true);
+            try {
+              const result = await RouteStatsService.backfillProgressHistory();
+              Alert.alert(
+                t.admin.backfillComplete || 'הושלם!',
+                t.admin.backfillResult
+                  ? t.admin.backfillResult(result.synced, result.backfilled, result.users)
+                  : `${result.synced} סגירות סונכרנו\n${result.backfilled} תאריכים הושלמו\n${result.users} משתמשים עודכנו`,
+              );
+            } catch (error) {
+              console.error('Error backfilling progress:', error);
+              Alert.alert(t.common.error, t.admin.backfillError || 'שגיאה במילוי היסטוריית ההתקדמות');
+            } finally {
+              setIsBackfillingProgress(false);
+            }
+          },
+        },
       ],
     );
   };
@@ -261,6 +305,13 @@ export default function AdminPanelScreen() {
       color: '#3F51B5',
       onPress: () => (navigation as any).navigate('AdminStatistics'),
     },
+    {
+      key: 'fonts',
+      icon: '🔤',
+      label: 'תצוגת פונטים',
+      color: '#607D8B',
+      onPress: () => (navigation as any).navigate('FontPreview'),
+    },
   ];
 
   // --- Action items ---
@@ -293,6 +344,13 @@ export default function AdminPanelScreen() {
       color: '#4CAF50',
       onPress: handleBalancePositions,
     },
+    {
+      key: 'backfillProgress',
+      icon: '📊',
+      label: t.admin.backfillProgress || 'מילוי היסטוריית התקדמות',
+      color: '#7C4DFF',
+      onPress: handleBackfillProgress,
+    },
   ];
 
   const isLoading = (key: string) => {
@@ -300,6 +358,7 @@ export default function AdminPanelScreen() {
     if (key === 'normalize') return isNormalizingColors;
     if (key === 'resetPoints') return isResettingPoints;
     if (key === 'balancePositions') return isBalancing;
+    if (key === 'backfillProgress') return isBackfillingProgress;
     return false;
   };
 

@@ -452,6 +452,77 @@ export class RouteStatsService {
     }
 
     /**
+     * Backfill progress history data for all users.
+     * 1. Syncs routeFeedbacks → userRoutes (ensures all completions have status)
+     * 2. Backfills missing lastAttempt dates on userRoutes entries that are sent/flashed
+     *    using the route's createdAt as fallback
+     */
+    static async backfillProgressHistory(): Promise<{ synced: number; backfilled: number; users: number; failed: number }> {
+        try {
+            console.log('📊 [backfillProgressHistory] Starting backfill...');
+
+            // Step 1: Run existing sync (feedbacks → userRoutes)
+            const syncResult = await this.syncRouteFeedbacksToUserRoutes();
+            console.log(`📊 [backfillProgressHistory] Sync step done: ${syncResult.success} synced`);
+
+            // Step 2: Build a routes map for createdAt fallback
+            const routesSnapshot = await getDocs(this.routesRef);
+            const routeCreatedAt = new Map<string, any>();
+            routesSnapshot.forEach((routeDoc) => {
+                const data = routeDoc.data();
+                if (data.createdAt) {
+                    routeCreatedAt.set(routeDoc.id, data.createdAt);
+                }
+            });
+
+            // Step 3: Go through all userRoutes docs and backfill missing lastAttempt
+            const userRoutesSnapshot = await getDocs(collection(db, 'userRoutes'));
+            let backfilled = 0;
+            let failed = 0;
+            let usersUpdated = 0;
+
+            for (const userDoc of userRoutesSnapshot.docs) {
+                try {
+                    const routes = userDoc.data().routes || {};
+                    let updated = false;
+                    const updatedRoutes = { ...routes };
+
+                    for (const [routeId, routeInfo] of Object.entries(routes)) {
+                        const info = routeInfo as any;
+                        const isSent = info.status === 'sent' || info.status === 'flashed';
+                        if (!isSent) continue;
+
+                        // Check if lastAttempt is missing
+                        if (!info.lastAttempt) {
+                            const fallbackDate = routeCreatedAt.get(routeId) || new Date();
+                            updatedRoutes[routeId] = {
+                                ...info,
+                                lastAttempt: fallbackDate,
+                            };
+                            updated = true;
+                            backfilled++;
+                        }
+                    }
+
+                    if (updated) {
+                        await setDoc(doc(db, 'userRoutes', userDoc.id), { routes: updatedRoutes }, { merge: true });
+                        usersUpdated++;
+                    }
+                } catch (error) {
+                    failed++;
+                    console.error(`❌ [backfillProgressHistory] Failed for user ${userDoc.id}:`, error);
+                }
+            }
+
+            console.log(`📊 [backfillProgressHistory] Complete: ${syncResult.success} synced, ${backfilled} dates backfilled across ${usersUpdated} users, ${failed} failed`);
+            return { synced: syncResult.success, backfilled, users: usersUpdated, failed };
+        } catch (error) {
+            console.error('❌ [backfillProgressHistory] Error:', error);
+            throw error;
+        }
+    }
+
+    /**
      * Reset all-time points by deleting routeFeedbacks for non-active (archived) routes.
      * After this operation, "all time" points will equal "on wall" points for all users.
      * Points from routes currently on the wall are preserved.

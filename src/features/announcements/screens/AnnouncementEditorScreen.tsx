@@ -235,15 +235,6 @@ export function AnnouncementEditorScreen() {
 
   // Image picker function
   const pickBackgroundImage = async () => {
-    const permission = await ImagePicker.getMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(t.common.error, t.spray.cameraPermissionRequired);
-        return;
-      }
-    }
-
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],

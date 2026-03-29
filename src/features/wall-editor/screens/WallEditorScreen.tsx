@@ -64,6 +64,57 @@ const MAT_COLORS = [
   '#8B5CF6', '#EC4899', '#10B981', '#F97316',
 ];
 
+// Helper: minimum distance from a point to a line segment
+function distToSegment(p: Point, a: Point, b: Point): number {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+// Helper: check if point is inside a closed polygon (ray casting)
+function pointInPolygon(p: Point, polygon: Point[]): boolean {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].x, yi = polygon[i].y;
+    const xj = polygon[j].x, yj = polygon[j].y;
+    if ((yi > p.y) !== (yj > p.y) && p.x < (xj - xi) * (p.y - yi) / (yj - yi) + xi) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// Find the wall at the given room-coordinate point (returns wallId or null)
+function findWallAtPoint(point: Point, walls: Wall[], threshold: number = 5): string | null {
+  // First check closed polygons (filled areas)
+  for (const wall of walls) {
+    if (wall.isClosed && wall.points.length > 2 && pointInPolygon(point, wall.points)) {
+      return wall.id;
+    }
+  }
+  // Then check proximity to wall segments
+  let bestId: string | null = null;
+  let bestDist = threshold;
+  for (const wall of walls) {
+    const pts = wall.points;
+    const count = wall.isClosed ? pts.length : pts.length - 1;
+    for (let i = 0; i < count; i++) {
+      const a = pts[i];
+      const b = pts[(i + 1) % pts.length];
+      const d = distToSegment(point, a, b);
+      if (d < bestDist) {
+        bestDist = d;
+        bestId = wall.id;
+      }
+    }
+  }
+  return bestId;
+}
+
 export default function WallEditorScreen() {
   const navigation = useNavigation();
   const { theme } = useTheme();
@@ -114,6 +165,7 @@ export default function WallEditorScreen() {
     updateOverlay,
     clearOverlay,
     loadRooms,
+    updateWall,
   } = useEditorStore();
   
   // Canvas ref for zoom control
@@ -169,6 +221,12 @@ export default function WallEditorScreen() {
     }
     
     return null;
+  }, [currentRoom, selection]);
+
+  // Get selected wall
+  const selectedWall = useMemo(() => {
+    if (!currentRoom || selection.type !== 'wall' || !selection.wallId) return null;
+    return currentRoom.walls.find(w => w.id === selection.wallId) || null;
   }, [currentRoom, selection]);
   
   // Loading state for OBJ conversion
@@ -662,10 +720,19 @@ export default function WallEditorScreen() {
         handleUpdateTextLabels(updatedLabels);
       }
     } else if (mode === 'select') {
-      // Clear selection when tapping empty space
-      clearSelection();
+      // Try to find a wall at the tap point before clearing
+      if (currentRoom) {
+        const hitWallId = findWallAtPoint(point, currentRoom.walls);
+        if (hitWallId) {
+          setSelection({ type: 'wall', wallId: hitWallId });
+        } else {
+          clearSelection();
+        }
+      } else {
+        clearSelection();
+      }
     }
-  }, [mode, buildingWall, buildingMat, startWall, addPointToWall, startMat, addPointToMat, matColor, matOpacity, clearSelection, isDrawingArrow, arrowStartPoint, currentRoom, handleUpdateEntranceArrow, handleUpdateTextLabels]);
+  }, [mode, buildingWall, buildingMat, startWall, addPointToWall, startMat, addPointToMat, matColor, matOpacity, clearSelection, isDrawingArrow, arrowStartPoint, currentRoom, handleUpdateEntranceArrow, handleUpdateTextLabels, setSelection]);
   
   const handleWallPointSelect = useCallback((wallId: string, pointIndex: number) => {
     if (mode === 'select') {
@@ -985,6 +1052,32 @@ export default function WallEditorScreen() {
               </ScrollView>
             </View>
             
+            {/* Hex color code input */}
+            <View style={styles.hexColorRow}>
+              <Text style={styles.fillSettingsLabel}>קוד צבע:</Text>
+              <View style={styles.hexInputWrapper}>
+                <View style={[
+                  styles.hexColorPreview,
+                  { backgroundColor: mode === 'mat' ? matColor : wallFillColor },
+                ]} />
+                <TextInput
+                  style={styles.hexColorInput}
+                  value={mode === 'mat' ? matColor : wallFillColor}
+                  onChangeText={(text) => {
+                    const cleaned = text.startsWith('#') ? text : '#' + text;
+                    if (/^#[0-9A-Fa-f]{0,6}$/.test(cleaned)) {
+                      if (mode === 'mat') setMatColor(cleaned);
+                      else setWallFillColor(cleaned);
+                    }
+                  }}
+                  placeholder="#4A90D9"
+                  placeholderTextColor={theme.textSecondary}
+                  maxLength={7}
+                  autoCapitalize="characters"
+                />
+              </View>
+            </View>
+            
             {/* Opacity slider */}
             <View style={styles.fillOpacityRow}>
               <Text style={styles.fillSettingsLabel}>שקיפות:</Text>
@@ -1008,6 +1101,133 @@ export default function WallEditorScreen() {
           </View>
         )}
         
+        {/* Wall edit panel (when wall is selected) */}
+        {selectedWall && currentRoom && (
+          <View style={styles.wallEditPanel}>
+            <Text style={styles.fillSettingsTitle}>עריכת קיר</Text>
+            
+            {/* Wall stroke color */}
+            <View style={styles.fillColorRow}>
+              <Text style={styles.fillSettingsLabel}>צבע קו:</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorPickerScroll}>
+                {MAT_COLORS.map(color => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[
+                      styles.colorOption,
+                      { backgroundColor: color },
+                      selectedWall.color === color && styles.colorOptionSelected,
+                    ]}
+                    onPress={() => updateWall(currentRoom.id, selectedWall.id, { color })}
+                  />
+                ))}
+              </ScrollView>
+            </View>
+            <View style={styles.hexColorRow}>
+              <Text style={styles.fillSettingsLabel}>קוד צבע קו:</Text>
+              <View style={styles.hexInputWrapper}>
+                <View style={[styles.hexColorPreview, { backgroundColor: selectedWall.color }]} />
+                <TextInput
+                  style={styles.hexColorInput}
+                  value={selectedWall.color}
+                  onChangeText={(text) => {
+                    const cleaned = text.startsWith('#') ? text : '#' + text;
+                    if (/^#[0-9A-Fa-f]{0,6}$/.test(cleaned)) {
+                      updateWall(currentRoom.id, selectedWall.id, { color: cleaned });
+                    }
+                  }}
+                  placeholder="#FFFFFF"
+                  placeholderTextColor={theme.textSecondary}
+                  maxLength={7}
+                  autoCapitalize="characters"
+                />
+              </View>
+            </View>
+
+            {/* Wall fill color (for closed walls) */}
+            {selectedWall.isClosed && (
+              <>
+                <View style={styles.fillColorRow}>
+                  <Text style={styles.fillSettingsLabel}>צבע מילוי:</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorPickerScroll}>
+                    {MAT_COLORS.map(color => (
+                      <TouchableOpacity
+                        key={color}
+                        style={[
+                          styles.colorOption,
+                          { backgroundColor: color },
+                          selectedWall.fillColor === color && styles.colorOptionSelected,
+                        ]}
+                        onPress={() => updateWall(currentRoom.id, selectedWall.id, { fillColor: color })}
+                      />
+                    ))}
+                  </ScrollView>
+                </View>
+                <View style={styles.hexColorRow}>
+                  <Text style={styles.fillSettingsLabel}>קוד מילוי:</Text>
+                  <View style={styles.hexInputWrapper}>
+                    <View style={[styles.hexColorPreview, { backgroundColor: selectedWall.fillColor || 'transparent' }]} />
+                    <TextInput
+                      style={styles.hexColorInput}
+                      value={selectedWall.fillColor || ''}
+                      onChangeText={(text) => {
+                        const cleaned = text.startsWith('#') ? text : '#' + text;
+                        if (/^#[0-9A-Fa-f]{0,6}$/.test(cleaned)) {
+                          updateWall(currentRoom.id, selectedWall.id, { fillColor: cleaned });
+                        }
+                      }}
+                      placeholder="#4A90D9"
+                      placeholderTextColor={theme.textSecondary}
+                      maxLength={7}
+                      autoCapitalize="characters"
+                    />
+                  </View>
+                </View>
+                <View style={styles.fillOpacityRow}>
+                  <Text style={styles.fillSettingsLabel}>שקיפות מילוי:</Text>
+                  <View style={styles.opacitySliderContainer}>
+                    <Slider
+                      style={styles.opacitySlider}
+                      minimumValue={0}
+                      maximumValue={1}
+                      step={0.1}
+                      value={selectedWall.fillOpacity ?? 0.3}
+                      onValueChange={(value) => updateWall(currentRoom.id, selectedWall.id, { fillOpacity: value })}
+                      minimumTrackTintColor={theme.primary}
+                      maximumTrackTintColor={theme.border}
+                      thumbTintColor={theme.primary}
+                    />
+                    <Text style={styles.opacityValue}>
+                      {Math.round((selectedWall.fillOpacity ?? 0.3) * 100)}%
+                    </Text>
+                  </View>
+                </View>
+              </>
+            )}
+
+            {/* Stroke width */}
+            <View style={styles.fillOpacityRow}>
+              <Text style={styles.fillSettingsLabel}>עובי קו:</Text>
+              <View style={styles.opacitySliderContainer}>
+                <Slider
+                  style={styles.opacitySlider}
+                  minimumValue={1}
+                  maximumValue={10}
+                  step={0.5}
+                  value={selectedWall.strokeWidth}
+                  onValueChange={(value) => updateWall(currentRoom.id, selectedWall.id, { strokeWidth: value })}
+                  minimumTrackTintColor={theme.primary}
+                  maximumTrackTintColor={theme.border}
+                  thumbTintColor={theme.primary}
+                />
+                <Text style={styles.opacityValue}>
+                  {selectedWall.strokeWidth}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Point edit panel (when point is selected) */}
         <PointEditPanel
           selection={selection}
@@ -1612,6 +1832,13 @@ const createStyles = (theme: any, layout: any, insets: any) =>
       fontSize: 16,
       color: theme.textSecondary,
     },
+    // Wall edit panel styles
+    wallEditPanel: {
+      backgroundColor: theme.surface,
+      padding: 16,
+      borderTopWidth: 1,
+      borderTopColor: theme.border,
+    },
     // Fill settings panel styles
     fillSettingsPanel: {
       backgroundColor: theme.surface,
@@ -1650,6 +1877,37 @@ const createStyles = (theme: any, layout: any, insets: any) =>
     colorOptionSelected: {
       borderColor: theme.primary,
       borderWidth: 3,
+    },
+    hexColorRow: {
+      flexDirection: 'row' as const,
+      alignItems: 'center',
+      marginBottom: 12,
+    },
+    hexInputWrapper: {
+      flex: 1,
+      flexDirection: 'row' as const,
+      alignItems: 'center',
+      marginHorizontal: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 8,
+      paddingHorizontal: 8,
+      backgroundColor: theme.inputBackground || theme.background,
+    },
+    hexColorPreview: {
+      width: 24,
+      height: 24,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: theme.border,
+      marginEnd: 8,
+    },
+    hexColorInput: {
+      flex: 1,
+      fontSize: 14,
+      color: theme.text,
+      paddingVertical: 8,
+      fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     },
     fillOpacityRow: {
       flexDirection: 'row' as const,

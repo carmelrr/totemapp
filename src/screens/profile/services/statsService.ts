@@ -12,7 +12,8 @@ import {
   limit,
 } from "firebase/firestore";
 import { getCachedRoutes } from "@/features/routes-map/services/RoutesService";
-import type { UserStats, GradeStatsMap } from "../types";
+import type { UserStats, GradeStatsMap, ProgressHistory, MonthlyProgress, Milestone } from "../types";
+import { GRADE_GROUPS, gradeIndex, GRADE_ORDER } from "@/features/statistics/constants";
 
 export async function fetchUserStats(userId: string): Promise<UserStats> {
   const user = auth.currentUser;
@@ -491,4 +492,164 @@ export function subscribeToGradeStats(
       onError?.(error);
     }
   );
+}
+
+// === Progress History (Personal Timeline) ===
+
+function getGradeGroup(grade: string): 'easy' | 'medium' | 'hard' | 'elite' {
+  if (GRADE_GROUPS.easy.includes(grade)) return 'easy';
+  if (GRADE_GROUPS.medium.includes(grade)) return 'medium';
+  if (GRADE_GROUPS.hard.includes(grade)) return 'hard';
+  return 'elite';
+}
+
+export async function fetchProgressHistory(userId: string): Promise<ProgressHistory> {
+  try {
+    const routes = await getCachedRoutes();
+    const routesMap = new Map<string, any>();
+    routes.forEach(route => routesMap.set(route.id, route));
+
+    // === Source 1: routeFeedbacks (rich records with createdAt) ===
+    const feedbacksRef = collection(db, "routeFeedbacks");
+    const userFeedbackQuery = query(
+      feedbacksRef,
+      where("userId", "==", userId),
+      orderBy("createdAt", "desc"),
+      limit(500)
+    );
+    const snapshot = await getDocs(userFeedbackQuery);
+
+    const completions: { date: Date; grade: string }[] = [];
+    const feedbackRouteIds = new Set<string>();
+
+    snapshot.forEach((feedbackDoc) => {
+      const data = feedbackDoc.data();
+      const isCompleted = data.isCompleted === true || data.closedRoute === true;
+      if (!isCompleted) return;
+
+      const routeData = routesMap.get(data.routeId);
+      const grade = routeData?.grade || 'VB';
+      const date = data.createdAt?.toDate?.() ?? (data.createdAt ? new Date(data.createdAt) : null);
+      if (!date) return;
+
+      feedbackRouteIds.add(data.routeId);
+      completions.push({ date, grade });
+    });
+
+    // === Source 2: userRoutes (lightweight status — catches completions without feedback) ===
+    try {
+      const userRoutesDoc = await getDoc(doc(db, "userRoutes", userId));
+      if (userRoutesDoc.exists()) {
+        const userRoutesData = userRoutesDoc.data()?.routes || {};
+        for (const [routeId, routeInfo] of Object.entries(userRoutesData)) {
+          const info = routeInfo as any;
+          const isSent = info.status === 'sent' || info.status === 'flashed';
+          if (!isSent) continue;
+          // Skip if already counted from routeFeedbacks
+          if (feedbackRouteIds.has(routeId)) continue;
+
+          const routeData = routesMap.get(routeId);
+          const grade = routeData?.grade || 'VB';
+          // Use lastAttempt as the completion date, fall back to route createdAt
+          const date = info.lastAttempt?.toDate?.()
+            ?? (info.lastAttempt ? new Date(info.lastAttempt) : null)
+            ?? (routeData?.createdAt?.toDate?.() ?? null);
+          if (!date) continue;
+
+          completions.push({ date, grade });
+        }
+      }
+    } catch (err) {
+      console.warn("[ProgressHistory] Could not read userRoutes, using feedbacks only:", err);
+    }
+
+    if (completions.length === 0) {
+      return { monthlyData: [], milestones: [] };
+    }
+
+    // Sort all completions chronologically after merging both sources
+    completions.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+    // Group by month
+    const monthMap = new Map<string, { easy: number; medium: number; hard: number; elite: number; grades: string[] }>();
+
+    for (const c of completions) {
+      const key = `${c.date.getFullYear()}-${String(c.date.getMonth() + 1).padStart(2, '0')}`;
+      if (!monthMap.has(key)) {
+        monthMap.set(key, { easy: 0, medium: 0, hard: 0, elite: 0, grades: [] });
+      }
+      const bucket = monthMap.get(key)!;
+      const group = getGradeGroup(c.grade);
+      bucket[group]++;
+      bucket.grades.push(c.grade);
+    }
+
+    // Build monthly data sorted chronologically
+    const sortedMonths = [...monthMap.keys()].sort();
+    let cumulativeTotal = 0;
+    const monthlyData: MonthlyProgress[] = sortedMonths.map((month) => {
+      const bucket = monthMap.get(month)!;
+      const totalSends = bucket.easy + bucket.medium + bucket.hard + bucket.elite;
+      cumulativeTotal += totalSends;
+
+      // Find highest grade this month
+      let highestGrade = 'VB';
+      for (const g of bucket.grades) {
+        if (gradeIndex(g) > gradeIndex(highestGrade)) {
+          highestGrade = g;
+        }
+      }
+
+      return {
+        month,
+        easy: bucket.easy,
+        medium: bucket.medium,
+        hard: bucket.hard,
+        elite: bucket.elite,
+        highestGrade,
+        totalSends,
+        cumulativeTotal,
+      };
+    });
+
+    // Build milestones — first time each grade group was reached
+    const firstByGroup: Record<string, { grade: string; date: Date }> = {};
+    for (const c of completions) {
+      const group = getGradeGroup(c.grade);
+      if (!firstByGroup[group]) {
+        firstByGroup[group] = { grade: c.grade, date: c.date };
+      } else {
+        // Track highest grade first-seen per group
+        if (gradeIndex(c.grade) > gradeIndex(firstByGroup[group].grade)) {
+          // Don't overwrite the date — we want the first in the group
+        }
+      }
+    }
+
+    // Also track first time each individual grade was reached
+    const firstByGrade: Record<string, Date> = {};
+    for (const c of completions) {
+      if (!firstByGrade[c.grade]) {
+        firstByGrade[c.grade] = c.date;
+      }
+    }
+
+    // Build milestone list from significant grade firsts
+    const milestones: Milestone[] = [];
+    const significantGrades = GRADE_ORDER.filter(g => !GRADE_GROUPS.easy.includes(g)); // V3+
+    for (const grade of significantGrades) {
+      if (firstByGrade[grade]) {
+        milestones.push({
+          grade,
+          date: firstByGrade[grade],
+          label: grade,
+        });
+      }
+    }
+
+    return { monthlyData, milestones };
+  } catch (error) {
+    console.error("Error fetching progress history:", error);
+    return { monthlyData: [], milestones: [] };
+  }
 }

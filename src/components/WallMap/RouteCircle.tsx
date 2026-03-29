@@ -22,6 +22,9 @@ interface RouteCircleProps {
   multiSelected?: boolean;
   multiSelectMode?: boolean;
   gesturesDisabled?: boolean; // Disable gestures when in move mode
+  balanceTarget?: boolean;    // Route belongs to the balance date group
+  balanceExtreme?: boolean;   // Route is one of the 2 selected extremes
+  balanceModeActive?: boolean; // Balance mode is active globally
 }
 
 /**
@@ -43,6 +46,9 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   multiSelected = false,
   multiSelectMode = false,
   gesturesDisabled = false,
+  balanceTarget = false,
+  balanceExtreme = false,
+  balanceModeActive = false,
 }) => {
   // קבל גודל עיגול מהעדפות המשתמש
   const { circleSize } = useUser();
@@ -111,18 +117,36 @@ const RouteCircle = React.memo<RouteCircleProps>(({
   // useAnimatedStyle. Reanimated worklets only re-run when a SharedValue
   // (.value) changes. Putting JS variables like colorHex inside the worklet
   // means the style won't visually update until the next zoom/pan gesture.
-  const staticStyle = useMemo(() => ({
-    backgroundColor: precomputedValues.colorHex,
-    borderWidth: baseBorderWidth,
-    borderColor: multiSelected ? '#E53935' : selected ? '#0066cc' : '#ffffff',
-    elevation: (selected || multiSelected) ? 8 : 4,
-    opacity: multiSelectMode && !multiSelected ? 0.5 : 1,
-    width: baseSize,
-    height: baseSize,
-    borderRadius: baseSize / 2,
-    justifyContent: 'center' as const,
-    alignItems: 'center' as const,
-  }), [precomputedValues.colorHex, baseBorderWidth, multiSelected, selected, multiSelectMode, baseSize]);
+  const staticStyle = useMemo(() => {
+    // Determine opacity: in balance mode, non-target routes are heavily dimmed
+    let opacity = 1;
+    if (balanceModeActive) {
+      opacity = balanceTarget ? 1 : 0.15;
+    } else if (multiSelectMode && !multiSelected) {
+      opacity = 0.5;
+    }
+
+    // Border: balance extreme gets gold highlight
+    let borderColor = multiSelected ? '#E53935' : selected ? '#0066cc' : '#ffffff';
+    let borderWidth = baseBorderWidth;
+    if (balanceExtreme) {
+      borderColor = '#FFD700';
+      borderWidth = 3;
+    }
+
+    return {
+      backgroundColor: precomputedValues.colorHex,
+      borderWidth,
+      borderColor,
+      elevation: (selected || multiSelected || balanceExtreme) ? 8 : 4,
+      opacity,
+      width: baseSize,
+      height: baseSize,
+      borderRadius: baseSize / 2,
+      justifyContent: 'center' as const,
+      alignItems: 'center' as const,
+    };
+  }, [precomputedValues.colorHex, baseBorderWidth, multiSelected, selected, multiSelectMode, baseSize, balanceModeActive, balanceTarget, balanceExtreme]);
 
   // ── Animated (SharedValue-dependent) style ──
   // Only position & transform depend on SharedValues (scale, translateX, translateY)
@@ -208,6 +232,12 @@ const RouteCircle = React.memo<RouteCircleProps>(({
           <Ionicons name="checkmark-circle" size={16} color="#E53935" />
         </View>
       )}
+      {/* Balance extreme star badge */}
+      {balanceExtreme && (
+        <View style={styles.extremeBadge}>
+          <Ionicons name="star" size={16} color="#FFD700" />
+        </View>
+      )}
     </Animated.View>
   );
 }, (prevProps, nextProps) => {
@@ -231,7 +261,10 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     prevProps.translateY === nextProps.translateY &&
     prevProps.gesturesDisabled === nextProps.gesturesDisabled &&
     prevProps.onPress === nextProps.onPress &&
-    prevProps.onLongPress === nextProps.onLongPress
+    prevProps.onLongPress === nextProps.onLongPress &&
+    prevProps.balanceTarget === nextProps.balanceTarget &&
+    prevProps.balanceExtreme === nextProps.balanceExtreme &&
+    prevProps.balanceModeActive === nextProps.balanceModeActive
   );
 });
 
@@ -258,6 +291,22 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.3,
     shadowRadius: 2,
+  },
+  extremeBadge: {
+    position: 'absolute',
+    top: -6,
+    left: -6,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    width: 18,
+    height: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 6,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.5,
+    shadowRadius: 3,
   },
 });
 

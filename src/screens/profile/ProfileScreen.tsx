@@ -14,11 +14,13 @@ import {
   useProfilePrivacy,
   useSocial,
   useSidePanel,
+  useProgressHistory,
   ProfileHeader,
   SocialTabs,
   SocialList,
   SidePanel,
 } from "./";
+import { ProgressChart } from "./components/ProgressChart";
 import { UnifiedStatsDashboard as StatsDashboard, UnifiedGradeStatsModal as GradeStatsModal } from "../../components/profile";
 import { pickImage, removeProfileImage } from "./services/imageService";
 
@@ -41,6 +43,7 @@ const ProfileScreen: React.FC = () => {
   const privacyData = useProfilePrivacy();
   const socialData = useSocial();
   const sidePanelData = useSidePanel();
+  const { progressData, loading: progressLoading } = useProgressHistory(profileData.userId);
 
   // Construct user object from profile data
   const user = {
@@ -125,6 +128,9 @@ const ProfileScreen: React.FC = () => {
             onStatsPress={() => setStatsModalVisible(true)}
             loading={statsData.refreshing}
           />
+
+          {/* Personal Progress Timeline */}
+          <ProgressChart data={progressData} loading={progressLoading} />
         </ScrollView>
       </View>
 

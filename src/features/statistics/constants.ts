@@ -35,16 +35,16 @@ export const DAY_NAMES_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export const GRADE_GROUPS = {
   easy: ['VB', 'V0', 'V1', 'V2'],
-  medium: ['V3', 'V4', 'V5'],
-  hard: ['V6', 'V7', 'V8'],
-  elite: ['V9', 'V10', 'V11', 'V12'],
+  medium: ['V3', 'V4'],
+  hard: ['V5', 'V6'],
+  elite: ['V7', 'V8', 'V9', 'V10', 'V11', 'V12'],
 };
 
 export const GRADE_GROUP_COLORS = {
-  easy: '#4CAF50',
-  medium: '#2196F3',
-  hard: '#E91E63',
-  elite: '#FF5722',
+  easy: '#222222',
+  medium: '#F5C518',
+  hard: '#E53935',
+  elite: '#1E88E5',
 };
 
 /** Sort grades by climbing difficulty order, not alphabetically */

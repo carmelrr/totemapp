@@ -28,6 +28,7 @@ import { WallEditorScreen } from "@/features/wall-editor";
 import AdminPanelScreen from "@/screens/admin/AdminPanelScreen";
 import AdminStatisticsScreen from "@/screens/admin/AdminStatisticsScreen";
 import WallTapeManagementScreen from "@/features/routes-map/screens/WallTapeManagementScreen";
+import FontPreviewScreen from "@/screens/admin/FontPreviewScreen";
 import DeleteAccountScreen from "@/screens/profile/DeleteAccountScreen";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import { GuestProvider, useGuest } from "@/context/GuestContext";
@@ -160,6 +161,14 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
           <RootStack.Screen 
             name="WallTapeManagement" 
             component={WallTapeManagementScreen}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <RootStack.Screen 
+            name="FontPreview" 
+            component={FontPreviewScreen}
             options={{
               headerShown: false,
               animation: 'slide_from_right',

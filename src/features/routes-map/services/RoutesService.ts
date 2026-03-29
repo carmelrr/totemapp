@@ -23,6 +23,7 @@ import {
 import { db, auth } from '@/features/data/firebase';
 import { RouteDoc } from '../types/route';
 import { triggerStatsRefresh } from '@/utils/events/statsRefreshEvent';
+import { distributeAlongWallPolyline } from '@/utils/snapToWall';
 
 // ========== ROUTES CACHE ==========
 // In-memory cache for routes data to avoid repeated fetches during stats calculations
@@ -772,24 +773,53 @@ export class RoutesService {
 
   /**
    * Balance route positions for routes created on a specific date.
-   * Finds the leftmost and rightmost routes (by xNorm) and redistributes
-   * all routes in between with equal spacing along the line connecting them.
+   * When extremeId1 and extremeId2 are provided, they are used as the two
+   * endpoints of the balancing line. Otherwise, the leftmost and rightmost
+   * routes (by xNorm) are chosen automatically.
+   *
+   * Routes are sorted by their projection onto the line between the two
+   * extremes, which keeps them on the "inner side" of the map and
+   * properly handles non-horizontal arrangements.
    */
-  static async balanceRoutePositions(dateStr: string): Promise<{ updated: number; total: number }> {
+  static async restoreRoutePositions(
+    previousPositions: Record<string, { xNorm: number; yNorm: number }>,
+  ): Promise<{ restored: number }> {
+    try {
+      const entries = Object.entries(previousPositions);
+      if (entries.length === 0) return { restored: 0 };
+
+      const batch = writeBatch(db);
+      entries.forEach(([routeId, pos]) => {
+        const routeRef = doc(db, this.COLLECTION_NAME, routeId);
+        batch.update(routeRef, { xNorm: pos.xNorm, yNorm: pos.yNorm });
+      });
+      await batch.commit();
+      clearRoutesCache();
+      return { restored: entries.length };
+    } catch (error) {
+      console.error('Error restoring route positions:', error);
+      throw error;
+    }
+  }
+
+  static async balanceRoutePositions(
+    dateStr: string,
+    extremeId1?: string,
+    extremeId2?: string,
+    room?: any,
+  ): Promise<{ updated: number; total: number; previousPositions: Record<string, { xNorm: number; yNorm: number }> }> {
     try {
       // Parse date range using local time
       const [year, month, day] = dateStr.split('-').map(Number);
       const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
       const endOfDay = new Date(year, month - 1, day + 1, 0, 0, 0, 0);
 
-      console.log('[RoutesService] balanceRoutePositions:', { dateStr, startOfDay: startOfDay.toISOString(), endOfDay: endOfDay.toISOString() });
+      console.log('[RoutesService] balanceRoutePositions:', { dateStr, extremeId1, extremeId2 });
 
       // Fetch all active routes
       const routesRef = collection(db, this.COLLECTION_NAME).withConverter(routeConverter);
       const q = query(routesRef, where('status', '==', 'active'));
       const snapshot = await getDocs(q);
-
-      console.log('[RoutesService] Total active routes:', snapshot.size);
 
       // Filter by date
       const dateRoutes = snapshot.docs
@@ -806,28 +836,76 @@ export class RoutesService {
         return { updated: 0, total: dateRoutes.length };
       }
 
-      // Sort by xNorm to find extremes
-      dateRoutes.sort((a, b) => a.route.xNorm - b.route.xNorm);
+      // Determine extremes: use provided IDs or fallback to auto-detection
+      let extremeA: typeof dateRoutes[0];
+      let extremeB: typeof dateRoutes[0];
 
-      const leftmost = dateRoutes[0];
-      const rightmost = dateRoutes[dateRoutes.length - 1];
+      if (extremeId1 && extremeId2) {
+        const a = dateRoutes.find((r) => r.route.id === extremeId1);
+        const b = dateRoutes.find((r) => r.route.id === extremeId2);
+        if (!a || !b) {
+          throw new Error('One or both extreme route IDs not found in date range');
+        }
+        extremeA = a;
+        extremeB = b;
+      } else {
+        // Fallback: leftmost and rightmost by xNorm
+        dateRoutes.sort((a, b) => a.route.xNorm - b.route.xNorm);
+        extremeA = dateRoutes[0];
+        extremeB = dateRoutes[dateRoutes.length - 1];
+      }
 
-      const startX = leftmost.route.xNorm;
-      const startY = leftmost.route.yNorm;
-      const endX = rightmost.route.xNorm;
-      const endY = rightmost.route.yNorm;
+      const ax = extremeA.route.xNorm;
+      const ay = extremeA.route.yNorm;
+      const bx = extremeB.route.xNorm;
+      const by = extremeB.route.yNorm;
 
-      const count = dateRoutes.length;
+      // Direction vector A→B
+      const dx = bx - ax;
+      const dy = by - ay;
+      const lenSq = dx * dx + dy * dy;
+
+      // Sort routes by their projection onto the A→B line.
+      const withProjection = dateRoutes.map((item) => {
+        const px = item.route.xNorm - ax;
+        const py = item.route.yNorm - ay;
+        const t = lenSq > 0 ? (px * dx + py * dy) / lenSq : 0;
+        return { ...item, t };
+      });
+      withProjection.sort((a, b) => a.t - b.t);
+
+      // Compute target positions — along wall polyline if room is provided
+      const count = withProjection.length;
+      let targetPositions: { xNorm: number; yNorm: number }[];
+
+      if (room && room.walls && room.walls.length > 0) {
+        // Distribute along the wall polyline
+        targetPositions = distributeAlongWallPolyline(
+          { xNorm: ax, yNorm: ay },
+          { xNorm: bx, yNorm: by },
+          count,
+          room,
+        );
+      } else {
+        // Fallback: straight line
+        targetPositions = withProjection.map((_, index) => {
+          const frac = count > 1 ? index / (count - 1) : 0;
+          return { xNorm: ax + frac * dx, yNorm: ay + frac * dy };
+        });
+      }
+
       const batch = writeBatch(db);
       let updated = 0;
+      const previousPositions: Record<string, { xNorm: number; yNorm: number }> = {};
 
-      dateRoutes.forEach((item, index) => {
-        const t = count > 1 ? index / (count - 1) : 0;
-        const newX = startX + t * (endX - startX);
-        const newY = startY + t * (endY - startY);
+      withProjection.forEach((item, index) => {
+        const newX = targetPositions[index].xNorm;
+        const newY = targetPositions[index].yNorm;
 
         // Only update if position actually changed
         if (Math.abs(item.route.xNorm - newX) > 0.0001 || Math.abs(item.route.yNorm - newY) > 0.0001) {
+          // Save old position for undo
+          previousPositions[item.route.id] = { xNorm: item.route.xNorm, yNorm: item.route.yNorm };
           const routeRef = doc(db, this.COLLECTION_NAME, item.route.id);
           batch.update(routeRef, { xNorm: newX, yNorm: newY });
           updated++;
@@ -839,7 +917,7 @@ export class RoutesService {
         clearRoutesCache();
       }
 
-      return { updated, total: dateRoutes.length };
+      return { updated, total: dateRoutes.length, previousPositions };
     } catch (error) {
       console.error('Error balancing route positions:', error);
       throw error;

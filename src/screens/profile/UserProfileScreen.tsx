@@ -88,7 +88,6 @@ export default function UserProfileScreen({ route, navigation }) {
   const [privacySettings, setPrivacySettings] = useState({
     showTotalRoutes: true,
     showHighestGrade: true,
-    showFeedbackCount: true,
     showAverageRating: true,
     showGradeStats: true,
     showJoinDate: true,

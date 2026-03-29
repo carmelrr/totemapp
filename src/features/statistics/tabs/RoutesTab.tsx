@@ -297,10 +297,10 @@ export default function RoutesTab({ range, theme, t, language, isRTL }: Props) {
               {/* Legend */}
               <View style={s.gradeGroupLegend}>
                 {[
-                  { key: 'easy', label: language === 'he' ? 'קל (VB-V2)' : 'Easy (VB-V2)', color: GRADE_GROUP_COLORS.easy },
-                  { key: 'medium', label: language === 'he' ? 'בינוני (V3-V5)' : 'Medium (V3-V5)', color: GRADE_GROUP_COLORS.medium },
-                  { key: 'hard', label: language === 'he' ? 'קשה (V6-V8)' : 'Hard (V6-V8)', color: GRADE_GROUP_COLORS.hard },
-                  { key: 'elite', label: language === 'he' ? 'אליטה (V9+)' : 'Elite (V9+)', color: GRADE_GROUP_COLORS.elite },
+                  { key: 'easy', label: language === 'he' ? 'קל (V0-2)' : 'Easy (V0-2)', color: GRADE_GROUP_COLORS.easy },
+                  { key: 'medium', label: language === 'he' ? 'קל+ (V3-4)' : 'Easy+ (V3-4)', color: GRADE_GROUP_COLORS.medium },
+                  { key: 'hard', label: language === 'he' ? 'קל++ (V5-6)' : 'Easy++ (V5-6)', color: GRADE_GROUP_COLORS.hard },
+                  { key: 'elite', label: language === 'he' ? 'קל+++ (V7+)' : 'Easy+++ (V7+)', color: GRADE_GROUP_COLORS.elite },
                 ].map((g) => (
                   <View key={g.key} style={s.legendItem}>
                     <View style={[s.legendDot, { backgroundColor: g.color }]} />

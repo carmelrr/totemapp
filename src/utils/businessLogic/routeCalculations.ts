@@ -23,12 +23,12 @@ export interface FeedbackData {
  * are counted towards averageStarRating and calculatedGrade
  * @param feedbacks - Array of feedback data
  * @param originalGrade - The original grade set by the route builder
- *                        This grade is ALWAYS included in the average calculation (counts as 1 vote)
+ *                        Used as fallback when no community feedback exists
  * 
  * Grade calculation:
- * - The original grade is always included in the average
- * - Uses 0.8 rounding threshold: only rounds UP if fraction >= 0.8, otherwise rounds DOWN
- * - Example: V5 original + V7 + V5 = 5.67 → V5; V5 original + V7 + V6 = 6.0 → V6
+ * - Only community feedback grades are used for the average (original grade is NOT counted)
+ * - If no community grades exist, falls back to originalGrade
+ * - Uses standard rounding (0.5 threshold)
  */
 export const calculateRouteStats = (feedbacks: FeedbackData[], originalGrade?: string): RouteStats => {
     if (feedbacks.length === 0) {
@@ -64,19 +64,13 @@ export const calculateRouteStats = (feedbacks: FeedbackData[], originalGrade?: s
     // V-Scale grades for index calculation
     const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18'];
     
-    // חישוב ממוצע קהל - תמיד כולל את הדירוג המקורי!
-    // Calculate community average - ALWAYS includes original grade!
+    // חישוב ממוצע קהל - רק דירוגי קהילה (ללא הדירוג המקורי)
+    // Calculate community average - only community feedback grades (original grade NOT included)
     let calculatedGrade: string | null = null;
     
-    // Collect all grade indices - including original grade
+    // Collect only community feedback grade indices
     const allGradeIndices: number[] = [];
     
-    // Add original grade to the calculation (counts as 1 vote)
-    if (originalGrade && V_GRADES.includes(originalGrade)) {
-        allGradeIndices.push(V_GRADES.indexOf(originalGrade));
-    }
-    
-    // Add all community feedback grades
     completedFeedbacks.forEach(fb => {
         if (fb.suggestedGrade && V_GRADES.includes(fb.suggestedGrade)) {
             allGradeIndices.push(V_GRADES.indexOf(fb.suggestedGrade));
@@ -87,17 +81,14 @@ export const calculateRouteStats = (feedbacks: FeedbackData[], originalGrade?: s
         // Calculate average index
         const averageIndex = allGradeIndices.reduce((sum, idx) => sum + idx, 0) / allGradeIndices.length;
         
-        // Round with 0.8 threshold: 
-        // Only round UP if fraction >= 0.8, otherwise round DOWN
-        // Example: 5.8 -> 6, 5.67 -> 5, 6.0 -> 6
-        const fraction = averageIndex - Math.floor(averageIndex);
-        const roundedIndex = fraction >= 0.8 ? Math.ceil(averageIndex) : Math.floor(averageIndex);
+        // Standard rounding (0.5 threshold)
+        const roundedIndex = Math.round(averageIndex);
         
         // Clamp to valid range
         const clampedIndex = Math.max(0, Math.min(roundedIndex, V_GRADES.length - 1));
         calculatedGrade = V_GRADES[clampedIndex];
     } else {
-        // No valid grades at all - return original or null
+        // No community grades - fall back to original grade
         calculatedGrade = originalGrade || null;
     }
 

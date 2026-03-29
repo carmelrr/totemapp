@@ -173,11 +173,6 @@ export const GradeStatsModal: React.FC<GradeStatsModalProps> = ({
                 t.gradeStats.showHighestGradeDesc
               )}
               {renderPrivacyToggle(
-                "showFeedbackCount",
-                t.gradeStats.showFeedbackCount,
-                t.gradeStats.showFeedbackCountDesc
-              )}
-              {renderPrivacyToggle(
                 "showAverageRating",
                 t.gradeStats.showAvgRating,
                 t.gradeStats.showAvgRatingDesc

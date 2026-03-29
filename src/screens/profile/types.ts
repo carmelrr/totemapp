@@ -8,7 +8,6 @@ export type ProfileStackParamList = {
 export type PrivacySettings = {
   showTotalRoutes: boolean;
   showHighestGrade: boolean;
-  showFeedbackCount: boolean;
   showAverageRating: boolean;
   showGradeStats: boolean;
   showJoinDate: boolean;
@@ -43,3 +42,27 @@ export type SocialUser = {
 };
 
 export type ProfileNavigation = NativeStackNavigationProp<ProfileStackParamList>;
+
+// === Progress History Types ===
+
+export type MonthlyProgress = {
+  month: string; // 'YYYY-MM'
+  easy: number;
+  medium: number;
+  hard: number;
+  elite: number;
+  highestGrade: string;
+  totalSends: number;
+  cumulativeTotal: number;
+};
+
+export type Milestone = {
+  grade: string;
+  date: Date;
+  label: string;
+};
+
+export type ProgressHistory = {
+  monthlyData: MonthlyProgress[];
+  milestones: Milestone[];
+};

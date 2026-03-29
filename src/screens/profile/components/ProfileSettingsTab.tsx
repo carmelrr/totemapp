@@ -24,7 +24,6 @@ const getSampleValue = (key: keyof PrivacySettings): string => {
   const samples: Record<keyof PrivacySettings, string> = {
     showTotalRoutes: "42",
     showHighestGrade: "V6",
-    showFeedbackCount: "15",
     showAverageRating: "4.2",
     showGradeStats: "פירוט מלא",
     showJoinDate: "01/01/2024",
@@ -57,8 +56,6 @@ export const ProfileSettingsTab: React.FC<ProfileSettingsTabProps> = ({
         return userStats.totalRoutesSent?.toString() ?? getSampleValue(key);
       case "showHighestGrade":
         return userStats.highestGrade ?? getSampleValue(key);
-      case "showFeedbackCount":
-        return userStats.totalFeedbacks?.toString() ?? getSampleValue(key);
       case "showAverageRating":
         return userStats.averageStarRating ? userStats.averageStarRating.toFixed(1) : getSampleValue(key);
       case "showJoinDate":
@@ -77,7 +74,6 @@ export const ProfileSettingsTab: React.FC<ProfileSettingsTabProps> = ({
   }> = [
     { key: "showAverageRating", icon: "⭐", labelKey: "showAverageRating", descKey: "showAverageRatingDesc" },
     { key: "showTotalRoutes", icon: "🎯", labelKey: "showTotalRoutes", descKey: "showTotalRoutesDesc" },
-    { key: "showFeedbackCount", icon: "💬", labelKey: "showFeedbackCount", descKey: "showFeedbackCountDesc" },
     { key: "showHighestGrade", icon: "🏆", labelKey: "showHighestGrade", descKey: "showHighestGradeDesc" },
     { key: "showGradeStats", icon: "📊", labelKey: "showGradeStats", descKey: "showGradeStatsDesc" },
     { key: "showJoinDate", icon: "📅", labelKey: "showJoinDate", descKey: "showJoinDateDesc" },

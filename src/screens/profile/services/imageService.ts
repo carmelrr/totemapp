@@ -11,16 +11,6 @@ import {
 } from "firebase/storage";
 
 export async function pickImage(t?: any): Promise<string | undefined> {
-  // Request gallery permissions before opening image picker
-  let permission = await ImagePicker.getMediaLibraryPermissionsAsync();
-  if (!permission.granted) {
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(t?.alerts?.noPermission ?? "אין הרשאה", t?.alerts?.permissionToGallery ?? "יש לאשר גישה לגלריה כדי לבחור תמונה");
-      return;
-    }
-  }
-
   try {
     let result = await ImagePicker.launchImageLibraryAsync({
       allowsEditing: true,

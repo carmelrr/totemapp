@@ -50,29 +50,21 @@ export function usePublishedRooms(
   }, []);
   
   useEffect(() => {
-    console.log('[usePublishedRooms] Starting subscription, includeHidden:', includeHidden);
     setLoading(true);
     setError(null);
     
     try {
-      // Simple query - just get all published rooms, filter client-side
-      // This avoids composite index requirements
       const q = query(
         collection(db, ROOMS_COLLECTION),
         where('isPublished', '==', true)
       );
       
-      console.log('[usePublishedRooms] Query created for published rooms');
-      
       const unsubscribe = onSnapshot(
         q,
         (snapshot) => {
-          console.log('[usePublishedRooms] Got snapshot, docs:', snapshot.size);
-          
           let roomsData: Room[] = [];
           snapshot.forEach(doc => {
             const data = doc.data();
-            console.log('[usePublishedRooms] Room doc:', doc.id, 'name:', data.name, 'isPublished:', data.isPublished, 'isHidden:', data.isHidden);
             
             roomsData.push({
               id: doc.id,
@@ -98,9 +90,7 @@ export function usePublishedRooms(
           
           // Client-side filtering
           if (!includeHidden) {
-            const beforeFilter = roomsData.length;
             roomsData = roomsData.filter(r => !r.isHidden);
-            console.log('[usePublishedRooms] Filtered hidden rooms:', beforeFilter, '->', roomsData.length);
           }
           
           if (createdBy) {
@@ -110,7 +100,6 @@ export function usePublishedRooms(
           // Sort by createdAt descending
           roomsData.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
           
-          console.log('[usePublishedRooms] Final rooms count:', roomsData.length, roomsData.map(r => r.name));
           setRooms(roomsData);
           setLoading(false);
         },

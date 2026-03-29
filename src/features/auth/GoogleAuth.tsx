@@ -122,7 +122,6 @@ export default function GoogleLoginButton() {
             showProfile: true,
             showTotalRoutes: true,
             showHighestGrade: true,
-            showFeedbackCount: true,
             showAverageRating: true,
             showGradeStats: true,
             showJoinDate: true,

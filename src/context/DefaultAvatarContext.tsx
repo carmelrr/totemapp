@@ -64,17 +64,7 @@ export function DefaultAvatarProvider({ children }: DefaultAvatarProviderProps) 
   // Upload a new default avatar (admin only)
   const uploadDefaultAvatar = async () => {
     try {
-      // Request permissions
-      const permission = await ImagePicker.getMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert(t.alerts.noPermission, t.alerts.permissionToGallery);
-          return;
-        }
-      }
-
-      // Pick image
+      // Pick image (uses system Photo Picker, no permissions needed)
       const result = await ImagePicker.launchImageLibraryAsync({
         allowsEditing: true,
         aspect: [1, 1],

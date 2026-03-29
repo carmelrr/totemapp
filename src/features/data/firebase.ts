@@ -1,7 +1,7 @@
 // features/data/firebase.ts
 import { initializeApp } from "firebase/app";
 import { getAuth, initializeAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, memoryLocalCache } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 import { getAnalytics, isSupported as isAnalyticsSupported, logEvent } from "firebase/analytics";
 import { getRemoteConfig, fetchAndActivate, getValue } from "firebase/remote-config";
@@ -88,7 +88,9 @@ try {
   }
 }
 
-const db = getFirestore(app);
+const db = initializeFirestore(app, {
+  localCache: memoryLocalCache(),
+});
 const storage = getStorage(app);
 
 // ===== APP CHECK INITIALIZATION =====

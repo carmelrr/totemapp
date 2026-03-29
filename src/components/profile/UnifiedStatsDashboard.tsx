@@ -164,7 +164,7 @@ export const UnifiedStatsDashboard: React.FC<StatsDashboardProps> = ({
                         icon="💬" 
                         title={t.profile.feedbacks}
                         value={userStats.totalFeedbacks}
-                        isVisible={privacySettings.showFeedbackCount}
+                        isVisible={privacySettings.showTotalRoutes}
                     />
                     <StatListItem 
                         icon="📈" 

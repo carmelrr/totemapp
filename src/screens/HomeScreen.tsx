@@ -351,7 +351,7 @@ export default function HomeScreen() {
     
     navigation.navigate("RoutesMapTab", {
       screen: "RouteDetails",
-      params: { route: routeForDetails },
+      params: { route: routeForDetails, origin: "HomeTab" },
     });
   }, [navigation]);
 

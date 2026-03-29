@@ -8,7 +8,6 @@ import type { PrivacySettings } from "../types";
 const defaultPrivacySettings: PrivacySettings = {
   showTotalRoutes: true,
   showHighestGrade: true,
-  showFeedbackCount: true,
   showAverageRating: true,
   showGradeStats: true,
   showJoinDate: true,

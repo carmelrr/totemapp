@@ -7,5 +7,6 @@ export * from "./hooks/useProfileStats";
 export * from "./hooks/useProfilePrivacy";
 export * from "./hooks/useSocial";
 export * from "./hooks/useSidePanel";
+export * from "./hooks/useProgressHistory";
 export * from "./components";
 export { createStyles } from "./styles";
