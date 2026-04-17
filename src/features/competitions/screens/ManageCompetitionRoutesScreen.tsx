@@ -24,7 +24,8 @@ import { useTheme } from '@/features/theme/ThemeContext';
 import { useAuth } from '@/context/AuthContext';
 import { useRolesContext } from '@/features/roles/RolesContext';
 import { useLanguage } from '@/features/language/LanguageContext';
-import { ROUTE_COLORS, getColorTranslationKey, getContrastTextColor } from '@/features/routes-map/utils/colors';
+import { getColorTranslationKey, getContrastTextColor } from '@/features/routes-map/utils/colors';
+import { useVisibleColors } from '@/features/routes-map/hooks/useVisibleColors';
 import {
   useCompetition,
   useCompetitionRoutes,
@@ -52,7 +53,7 @@ const AVAILABLE_GRADES = [
 
 export default function ManageCompetitionRoutesScreen() {
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { competitionId } = route.params;
@@ -61,6 +62,9 @@ export default function ManageCompetitionRoutesScreen() {
 
   const { competition, loading: compLoading } = useCompetition(competitionId);
   const { routes, loading: routesLoading, refresh } = useCompetitionRoutes(competitionId);
+
+  // Visible colors (predefined − hidden + custom, admin-managed)
+  const { colors: visibleColors, getColorSettingSync, getColorDisplayHex } = useVisibleColors();
 
   // Load room data for the dynamic wall map
   const { rooms: publishedRooms } = usePublishedRooms();
@@ -507,7 +511,7 @@ export default function ManageCompetitionRoutesScreen() {
     // Display logic per format
     const isTotemRoute = item.grade === 'TOTEM';
     const isZoneTopRoute = item.grade === 'ZT' || (isZoneTop && item.grade !== 'TOTEM');
-    const routeColor = item.color || '#3b82f6'; // Default blue if no color set
+    const routeColor = (item.color ? getColorDisplayHex(item.color) : null) || '#3b82f6'; // Default blue if no color set
 
     let displayGrade: string;
     let pointsLabel: string;
@@ -963,25 +967,29 @@ export default function ManageCompetitionRoutesScreen() {
             </View>
 
             <View style={styles.colorGrid}>
-              {ROUTE_COLORS.map((colorHex) => {
+              {visibleColors.map((colorHex) => {
+                const displayHex = getColorDisplayHex(colorHex);
+                const colorSetting = getColorSettingSync(colorHex);
                 const colorKey = getColorTranslationKey(colorHex);
-                const colorName = t.colors[colorKey as keyof typeof t.colors] || colorKey;
+                const colorName = colorSetting
+                  ? (language === 'he' ? colorSetting.nameHe : colorSetting.nameEn)
+                  : (t.colors[colorKey as keyof typeof t.colors] || colorKey);
                 
                 return (
                   <TouchableOpacity
                     key={colorHex}
                     style={[
                       styles.colorOption,
-                      { backgroundColor: colorHex },
+                      { backgroundColor: displayHex },
                       selectedRouteForColor?.color === colorHex && styles.colorOptionSelected,
                     ]}
                     onPress={() => handleColorSelect(colorHex)}
                   >
-                    <Text style={[styles.colorOptionText, { color: getContrastTextColor(colorHex) }]}>
+                    <Text style={[styles.colorOptionText, { color: getContrastTextColor(displayHex) }]}>
                       {colorName}
                     </Text>
                     {selectedRouteForColor?.color === colorHex && (
-                      <Ionicons name="checkmark" size={18} color={getContrastTextColor(colorHex)} />
+                      <Ionicons name="checkmark" size={18} color={getContrastTextColor(displayHex)} />
                     )}
                   </TouchableOpacity>
                 );

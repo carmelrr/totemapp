@@ -362,11 +362,11 @@ export default function RouteDetailsScreen() {
           <Text style={[styles.routeName, { color: textColor }]}>
             {getRouteDisplayName(routeData, language, t)}
           </Text>
-          {/* שורה שנייה: ממוצע קהל (או דירוג מקורי) + ממוצע כוכבים */}
+          {/* שורה שנייה: דירוג (ממוצע כולל קול הבונה) + ממוצע כוכבים */}
           <View style={styles.headerSubtitle}>
-            {/* ממוצע קהל - אם אין calculatedGrade מציג את הדירוג המקורי */}
+            {/* דירוג - calculatedGrade כולל את קול הבונה, או דירוג מקורי אם אין פידבק */}
             <Text style={[styles.headerStatText, { color: textColor }]}>
-              {t.routes.communityGrade}: {communityGrade || originalGrade}
+              {t.routes.difficultyRating}: {communityGrade || originalGrade}
             </Text>
             <Text style={[styles.headerDivider, { color: textColor }]}> · </Text>
             {/* ממוצע כוכבים */}

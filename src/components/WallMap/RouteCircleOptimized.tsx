@@ -58,7 +58,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       baseSize,
       baseFontSize,
     };
-  }, [route.id, route.xNorm, route.yNorm, route.color, route.grade, wallWidth, wallHeight, imageWidth, imageHeight]);
+  }, [route.id, route.xNorm, route.yNorm, route.color, route.grade, route.calculatedGrade, wallWidth, wallHeight, imageWidth, imageHeight]);
 
   // אם הקואורדינטות לא תקינות
   if (!precomputedValues) {
@@ -142,7 +142,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     <TouchableOpacity onPress={handlePress} activeOpacity={0.8}>
       <Animated.View style={circleStyle}>
         <Animated.Text style={textStyle}>
-          {route.grade || '?'}
+          {route.calculatedGrade || route.grade || '?'}
         </Animated.Text>
       </Animated.View>
     </TouchableOpacity>

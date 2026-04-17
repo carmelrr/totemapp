@@ -10,5 +10,6 @@ export { default as ManageParticipantsScreen } from './ManageParticipantsScreen'
 export { default as ManageCategoriesScreen } from './ManageCategoriesScreen';
 export { default as ManageCompetitionRoutesScreen } from './ManageCompetitionRoutesScreen';
 export { default as JudgeEntryScreen } from './JudgeEntryScreen';
+export { default as JudgeBatchEntryScreen } from './JudgeBatchEntryScreen';
 export { default as CompetitionRegistrationScreen } from './CompetitionRegistrationScreen';
 export { default as PointsCompetitionScreen } from './PointsCompetitionScreen';

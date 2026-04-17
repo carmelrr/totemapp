@@ -3,6 +3,7 @@ import { View, FlatList, Text, StyleSheet, TouchableOpacity } from 'react-native
 import { Ionicons } from '@expo/vector-icons';
 import { RouteDoc } from '@/features/routes-map/types/route';
 import { useFiltersStore, filterRoutes } from '@/store/useFiltersStore';
+import { useWallTapes } from '@/features/routes-map/hooks/useWallTapes';
 import { getColorHex, getContrastTextColor } from '@/constants/colors';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language/LanguageContext';
@@ -50,15 +51,6 @@ const RouteItem = React.memo(({ route, onPress, onLongPress, theme, t, language,
     return getRouteDisplayName(route, language, t);
   };
   
-  // Get community grade display for the right side of the list
-  // Always show if calculatedGrade exists (even if same as original)
-  const getCommunityGradeDisplay = (route: RouteDoc) => {
-    if (route.calculatedGrade) {
-      return route.calculatedGrade;
-    }
-    return null;
-  };
-
   // Get star rating display
   const getStarDisplay = (rating?: number) => {
     if (!rating || rating === 0) return null;
@@ -138,14 +130,6 @@ const RouteItem = React.memo(({ route, onPress, onLongPress, theme, t, language,
                 <Text style={styles.inlineRatingNumber}>{starInfo.rating}</Text>
               </View>
             )}
-            
-            {/* Community grade badge (in route color, only if different from original) */}
-            {getCommunityGradeDisplay(route) && (
-              <View style={[styles.communityGradeBadge, { backgroundColor: `${routeColor}20` }]}>
-                <Text style={styles.communityBadgeIcon}>👥</Text>
-                <Text style={[styles.communityGradeText, { color: routeColor }]}>{getCommunityGradeDisplay(route)}</Text>
-              </View>
-            )}
           </View>
           
           {route.tags && route.tags.length > 0 && (
@@ -203,14 +187,15 @@ const RoutesList = React.memo(function RoutesList({
   const filters = useFiltersStore(state => state.filters);
   const sorting = useFiltersStore(state => state.sorting);
   const searchQuery = useFiltersStore(state => state.searchQuery);
+  const { tapes: wallTapesCatalog } = useWallTapes();
 
   // Memoize filtered routes to avoid recalculating on every render
   const filteredRoutes = useMemo(() => {
     if (visibleRouteIds && visibleRouteIds.length > 0) {
       return routes;
     }
-    return filterRoutes(routes, filters, sorting, searchQuery);
-  }, [routes, visibleRouteIds, filters, sorting, searchQuery]);
+    return filterRoutes(routes, filters, sorting, searchQuery, undefined, undefined, wallTapesCatalog);
+  }, [routes, visibleRouteIds, filters, sorting, searchQuery, wallTapesCatalog]);
 
   const renderItem = useCallback(({ item }: { item: RouteDoc }) => (
     <RouteItem 

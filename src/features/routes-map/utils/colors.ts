@@ -86,7 +86,7 @@ export function getContrastTextColor(backgroundColor: string): string {
  * Checks: nameHe/nameEn fields → custom color name from settings → translation-based color+grade → route.name fallback
  */
 export function getRouteDisplayName(
-  route: { name: string; nameHe?: string; nameEn?: string; color?: string; grade?: string },
+  route: { name: string; nameHe?: string; nameEn?: string; color?: string; grade?: string; calculatedGrade?: string | null },
   language: 'he' | 'en',
   translations?: any
 ): string {
@@ -94,21 +94,24 @@ export function getRouteDisplayName(
   if (language === 'en' && route.nameEn) return route.nameEn;
   if (language === 'he' && route.nameHe) return route.nameHe;
 
+  // Use community grade (includes builder's vote) or fall back to original grade
+  const displayGrade = route.calculatedGrade || route.grade;
+
   // 2. Try to get custom color name from ColorSettingsService
-  if (route.color && route.grade) {
+  if (route.color && displayGrade) {
     const setting = getColorSettingSync(route.color);
     if (setting) {
       const colorName = language === 'he' ? setting.nameHe : setting.nameEn;
-      if (colorName) return `${colorName} ${route.grade}`;
+      if (colorName) return `${colorName} ${displayGrade}`;
     }
   }
 
   // 3. Try to build name from static color translation + grade
-  if (route.color && route.grade && translations?.colors) {
+  if (route.color && displayGrade && translations?.colors) {
     const colorKey = getColorTranslationKey(route.color);
     if (colorKey !== 'custom') {
       const colorName = translations.colors[colorKey as keyof typeof translations.colors];
-      if (colorName) return `${colorName} ${route.grade}`;
+      if (colorName) return `${colorName} ${displayGrade}`;
     }
   }
 

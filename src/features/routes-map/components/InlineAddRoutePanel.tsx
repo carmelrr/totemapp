@@ -27,9 +27,9 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
 import { GRADES } from '../utils/grades';
-import { ROUTE_COLORS, getVisibleColors, getRandomRouteColor, getColorTranslationKey, getContrastTextColor } from '../utils/colors';
+import { ROUTE_COLORS, getRandomRouteColor, getColorTranslationKey, getContrastTextColor } from '../utils/colors';
 import { RoutesService } from '../services/RoutesService';
-import { getColorSettingSync } from '../services/ColorSettingsService';
+import { useVisibleColors } from '../hooks/useVisibleColors';
 import { useWallTapes } from '../hooks/useWallTapes';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -63,7 +63,9 @@ export default function InlineAddRoutePanel({
   const [color, setColor] = useState<string>(getRandomRouteColor());
   const [wallTape, setWallTape] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [colorSettingsVersion, setColorSettingsVersion] = useState(0);
+
+  // Reactive visible colors from admin settings
+  const { colors: visibleColors, getColorSettingSync, getColorDisplayHex } = useVisibleColors();
 
   // Wall tapes
   const { tapes } = useWallTapes();
@@ -94,10 +96,8 @@ export default function InlineAddRoutePanel({
   }, [color, grade]);
 
   const getDisplayColor = useCallback((originalHex: string): string => {
-    void colorSettingsVersion; // force re-eval when settings change
-    const setting = getColorSettingSync(originalHex);
-    return setting?.hex || originalHex;
-  }, [colorSettingsVersion]);
+    return getColorDisplayHex(originalHex);
+  }, [visibleColors]);
 
   const handleSave = useCallback(async () => {
     if (!coordinates) {
@@ -202,7 +202,7 @@ export default function InlineAddRoutePanel({
         <Text style={styles.sectionLabel}>{t.routes?.color || 'Color'}</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.colorScroll}>
           <View style={styles.colorRow}>
-            {getVisibleColors().map((colorOption) => {
+            {visibleColors.map((colorOption) => {
               const displayColor = getDisplayColor(colorOption);
               // Determine contrast ring color based on luminance
               const hex = displayColor.replace('#', '');
@@ -237,7 +237,6 @@ export default function InlineAddRoutePanel({
                   selectedColor: color,
                   onColorSelect: (hex: string) => {
                     setColor(hex);
-                    setColorSettingsVersion(v => v + 1);
                   },
                 });
               }}

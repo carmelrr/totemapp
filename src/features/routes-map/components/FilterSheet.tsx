@@ -10,7 +10,7 @@ import { GestureHandlerRootView, ScrollView } from 'react-native-gesture-handler
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { RouteFilters, RouteSortBy, CompletionFilter } from '../types/route';
 import { GRADES } from '../utils/grades';
-import { ROUTE_COLORS, getVisibleColors } from '../utils/colors';
+import { useVisibleColors } from '../hooks/useVisibleColors';
 import { useLanguage } from '@/features/language';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useUserRouteStatus } from '@/hooks/useUserRouteStatus';
@@ -51,6 +51,7 @@ export default function FilterSheet({
   const { t } = useLanguage();
   const { theme } = useTheme();
   const styles = createStyles(theme);
+  const { colors: visibleColors, getColorDisplayHex } = useVisibleColors();
   const [localFilters, setLocalFilters] = useState<RouteFilters>(filters);
   const [localSortBy, setLocalSortBy] = useState<RouteSortBy>(sortBy);
 
@@ -245,12 +246,14 @@ export default function FilterSheet({
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Colors</Text>
             <View style={styles.colorGrid}>
-              {getVisibleColors().map(color => (
+              {visibleColors.map(color => {
+                const displayColor = getColorDisplayHex(color);
+                return (
                 <TouchableOpacity
                   key={color}
                   style={[
                     styles.colorChip,
-                    { backgroundColor: color },
+                    { backgroundColor: displayColor },
                     localFilters.colors.includes(color) && styles.selectedColorChip,
                   ]}
                   onPress={() => toggleColor(color)}
@@ -260,7 +263,8 @@ export default function FilterSheet({
                     <Text style={styles.colorCheckmark}>✓</Text>
                   )}
                 </TouchableOpacity>
-              ))}
+                );
+              })}
             </View>
           </View>
 

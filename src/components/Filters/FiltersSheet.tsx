@@ -184,7 +184,7 @@ export default function FiltersSheet({
           <View style={dynamicStyles.header}>
             <Text style={dynamicStyles.title}>{t.filters.title}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-              {(filters.colors.length > 0 || filters.gradeRange.min || filters.gradeRange.max || filters.dateRange !== 'all' || filters.completionStatus !== 'all') && (
+              {activeFiltersCount > 0 && (
                 <TouchableOpacity onPress={resetFilters}>
                   <Text style={dynamicStyles.clearText}>{t.routes.clearFilters}</Text>
                 </TouchableOpacity>
@@ -256,6 +256,9 @@ export default function FiltersSheet({
                         isSelected && { backgroundColor: tape.hex, borderColor: tape.hex },
                       ]}
                       onPress={() => handleWallTapeToggle(tape.id)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      accessibilityLabel={language === 'he' ? tape.nameHe : tape.nameEn}
                     >
                       <View style={[dynamicStyles.tapeDot, { backgroundColor: tape.hex }]} />
                       <Text style={[

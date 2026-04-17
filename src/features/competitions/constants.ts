@@ -61,7 +61,7 @@ export const TOTEMTITION_SETTINGS: CompetitionSettings = {
   attemptPenalty: 0,            // No penalty
   allowSelfEntry: true,         // Self-reporting allowed
   judgesOnly: false,
-  enableCategories: false,
+  enableCategories: true,
   enableRounds: false,
   basePointsPerRoute: 1000,     // Points pool per route
 };

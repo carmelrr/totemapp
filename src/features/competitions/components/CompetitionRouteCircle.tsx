@@ -16,6 +16,7 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { CompetitionRoute } from '@/features/competitions/types';
 import { getColorHex, getContrastTextColor } from '@/constants/colors';
+import { getColorDisplayHex } from '@/features/routes-map/services/ColorSettingsService';
 
 interface CompetitionRouteCircleProps {
   route: CompetitionRoute;
@@ -132,7 +133,7 @@ const CompetitionRouteCircle = React.memo<CompetitionRouteCircleProps>(({
     }
 
     // Get color - prefer route's custom color, fallback to grade-based color
-    const colorHex = route.color || GRADE_COLORS[route.grade] || '#3b82f6';
+    const colorHex = (route.color ? getColorDisplayHex(route.color) : null) || GRADE_COLORS[route.grade] || '#3b82f6';
     const textColor = getContrastTextColor(colorHex);
 
     // Base sizes

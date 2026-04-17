@@ -404,6 +404,18 @@ service cloud.firestore {
            (isAuthenticated() && request.auth.uid == participantId))) ||
           isAdmin();
         allow delete: if isAdmin();
+
+        // Append-only edit history for audit / conflict review.
+        // Written inside the same transaction that mutates the result, so
+        // anyone allowed to write the parent can write history. History
+        // entries are immutable once created.
+        match /history/{historyId} {
+          allow read: if true;
+          allow create: if isCompetitionActive(competitionId) &&
+            (isAdmin() || canJudgeEnterResults(competitionId) || canJudgeEditResults(competitionId) ||
+             (isAuthenticated() && request.auth.uid == participantId));
+          allow update, delete: if false;
+        }
       }
       
       // Judges Sub-collection

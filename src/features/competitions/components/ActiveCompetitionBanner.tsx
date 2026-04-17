@@ -20,17 +20,21 @@ import { Competition } from '@/features/competitions/types';
 import { useCompetitionTimer } from '@/features/competitions/hooks/useCompetition';
 import { ParticipantService } from '@/features/competitions/services/ParticipantService';
 import { COMPETITION_FORMAT_INFO } from '@/features/competitions/constants';
+import { db } from '@/features/data/firebase';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 interface ActiveCompetitionBannerProps {
   competition: Competition;
   onPress?: () => void;
   onEnterResults?: () => void;
+  onRegisterPress?: () => void;
 }
 
 export function ActiveCompetitionBanner({
   competition,
   onPress,
   onEnterResults,
+  onRegisterPress,
 }: ActiveCompetitionBannerProps) {
   const { theme } = useTheme();
   const { t, language } = useLanguage();
@@ -55,27 +59,32 @@ export function ActiveCompetitionBanner({
   const isJudge = rolesContext.canEnterResults;
   
   useEffect(() => {
-    const checkRegistration = async () => {
-      if (!user || !supportsRegistration) {
-        setLoading(false);
-        return;
-      }
+    if (!user || !supportsRegistration) {
+      setLoading(false);
+      return;
+    }
 
-      try {
-        const participant = await ParticipantService.getParticipantByUserId(
-          competition.id,
-          user.uid
-        );
-        setIsRegistered(!!participant);
-        setIsApproved(participant?.status === 'approved');
-      } catch (error) {
-        console.error('Error checking registration:', error);
-      } finally {
-        setLoading(false);
+    // Use real-time listener for instant status updates
+    const participantsRef = collection(db, 'competitions', competition.id, 'participants');
+    const q = query(participantsRef, where('userId', '==', user.uid));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (snapshot.empty) {
+        setIsRegistered(false);
+        setIsApproved(false);
+      } else {
+        const activeDoc = snapshot.docs.find(d => d.data().isActive) || snapshot.docs[0];
+        const data = activeDoc.data();
+        setIsRegistered(true);
+        setIsApproved(data.status === 'approved');
       }
-    };
+      setLoading(false);
+    }, (error) => {
+      console.error('Error listening to registration:', error);
+      setLoading(false);
+    });
 
-    checkRegistration();
+    return () => unsubscribe();
   }, [competition.id, user, supportsRegistration]);
 
   // Hide banner for points_competition if user is not registered
@@ -130,6 +139,22 @@ export function ActiveCompetitionBanner({
       </View>
 
       <View style={styles.buttonContainer}>
+        {/* Loading indicator while checking registration */}
+        {loading && supportsRegistration && (
+          <ActivityIndicator size="small" color={theme.secondary || '#9b59b6'} />
+        )}
+        {/* Show Register button for unregistered users when registration is open */}
+        {onRegisterPress && supportsRegistration && !loading && !isRegistered && competition.registrationStatus === 'open' && (
+          <TouchableOpacity 
+            style={styles.registerButton} 
+            onPress={onRegisterPress}
+          >
+            <Ionicons name="person-add" size={18} color="#fff" />
+            <Text style={styles.registerButtonText}>
+              {language === 'he' ? 'הרשמה לתחרות' : 'Register'}
+            </Text>
+          </TouchableOpacity>
+        )}
         {/* Show Enter Results button:
             - Totemtition: approved participants can self-report
             - National League: judges (global role) can enter results
@@ -151,7 +176,9 @@ export function ActiveCompetitionBanner({
           <Text style={styles.viewButtonText}>
             {isPointsCompetition 
               ? (t.competitionExt?.enterCompetition || (language === 'he' ? 'כנס לתחרות' : 'Enter Competition'))
-              : t.competition.viewLeaderboard}
+              : (isRegistered && !loading)
+                ? (language === 'he' ? 'לידרבורד ומפה' : 'Leaderboard & Map')
+                : t.competition.viewLeaderboard}
           </Text>
         </TouchableOpacity>
       </View>
@@ -265,6 +292,20 @@ const createStyles = (theme: any) =>
       gap: 6,
     },
     enterResultsButtonText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: 'bold',
+    },
+    registerButton: {
+      backgroundColor: '#3498db',
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderRadius: 10,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+    },
+    registerButtonText: {
       color: '#fff',
       fontSize: 14,
       fontWeight: 'bold',

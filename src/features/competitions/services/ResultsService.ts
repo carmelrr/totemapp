@@ -19,6 +19,7 @@ import {
   serverTimestamp,
   Timestamp,
   writeBatch,
+  runTransaction,
 } from 'firebase/firestore';
 import { db, auth } from '@/features/data/firebase';
 import {
@@ -41,6 +42,106 @@ import {
 } from '../constants';
 import { getUserRoles } from '@/features/roles/rolesService';
 import { ParticipantService } from './ParticipantService';
+
+// =============== In-memory participant cache ===============
+// During a single session a judge/participant may call enterRouteResult many
+// times in quick succession (e.g. ticking 30 routes for a climber).  Each call
+// previously hit Firestore with a fresh getParticipantByUserId lookup.  We
+// cache the participant in memory with a short TTL so bursts of calls resolve
+// instantly.  TTL is short enough that stale data from another tab/device is
+// not a concern in practice – category reassignments are rare.
+
+const PARTICIPANT_CACHE_TTL_MS = 30_000;
+type ParticipantCacheEntry = {
+  value: Awaited<ReturnType<typeof ParticipantService.getParticipantByUserId>>;
+  expiresAt: number;
+};
+const participantCache = new Map<string, ParticipantCacheEntry>();
+
+function participantCacheKey(competitionId: string, userId: string): string {
+  return `${competitionId}:${userId}`;
+}
+
+async function getParticipantByUserIdCached(
+  competitionId: string,
+  userId: string,
+): ReturnType<typeof ParticipantService.getParticipantByUserId> {
+  const key = participantCacheKey(competitionId, userId);
+  const now = Date.now();
+  const cached = participantCache.get(key);
+  if (cached && cached.expiresAt > now) {
+    return cached.value;
+  }
+  const value = await ParticipantService.getParticipantByUserId(
+    competitionId,
+    userId,
+  );
+  participantCache.set(key, { value, expiresAt: now + PARTICIPANT_CACHE_TTL_MS });
+  return value;
+}
+
+function invalidateParticipantCache(competitionId: string, userId?: string): void {
+  if (userId) {
+    participantCache.delete(participantCacheKey(competitionId, userId));
+    return;
+  }
+  // Drop every entry for this competition.
+  const prefix = `${competitionId}:`;
+  for (const key of participantCache.keys()) {
+    if (key.startsWith(prefix)) participantCache.delete(key);
+  }
+}
+
+// =============== Snapshot coalescing ===============
+// Firestore onSnapshot fires once per write batch, but during live scoring a
+// judge may submit several writes per second.  Each event triggers a full
+// leaderboard recompute, which is wasted work when events arrive within the
+// same UI tick.  This helper defers the recompute to a microtask so multiple
+// bursts collapse into one callback invocation.
+
+function coalesce<T>(fn: (arg: T) => void): (arg: T) => void {
+  let pending: { arg: T } | null = null;
+  return (arg: T) => {
+    const hadPending = pending !== null;
+    pending = { arg };
+    if (hadPending) return;
+    Promise.resolve().then(() => {
+      const current = pending;
+      pending = null;
+      if (current) fn(current.arg);
+    });
+  };
+}
+
+// =============== Result write conflict ===============
+// Thrown by enterRouteResult when the caller provided an expectedVersion and
+// the stored document has already advanced past it. Judge/head-judge UI can
+// catch this to show a merge/overwrite dialog.
+
+export class ResultConflictError extends Error {
+  readonly serverVersion: number;
+  readonly expectedVersion: number;
+  readonly existingRoute: RouteResult | null;
+  readonly existingEditedBy: string | null;
+  readonly existingEditedAt: Date | null;
+  constructor(opts: {
+    serverVersion: number;
+    expectedVersion: number;
+    existingRoute: RouteResult | null;
+    existingEditedBy?: string | null;
+    existingEditedAt?: Date | null;
+  }) {
+    super(
+      `Result version conflict: expected v${opts.expectedVersion}, server is v${opts.serverVersion}`,
+    );
+    this.name = 'ResultConflictError';
+    this.serverVersion = opts.serverVersion;
+    this.expectedVersion = opts.expectedVersion;
+    this.existingRoute = opts.existingRoute;
+    this.existingEditedBy = opts.existingEditedBy ?? null;
+    this.existingEditedAt = opts.existingEditedAt ?? null;
+  }
+}
 
 /**
  * Check if user has permission to enter results
@@ -75,6 +176,45 @@ async function checkEditResultsPermission(userId: string): Promise<void> {
  * Service for managing competition results
  */
 export class ResultsService {
+  // =============== History ===============
+
+  /**
+   * Fetch the result edit history for a single participant, newest first.
+   * Returns an empty list if the subcollection is missing.
+   */
+  static async getResultHistory(
+    competitionId: string,
+    participantId: string,
+    options?: { limit?: number }
+  ): Promise<Array<{
+    id: string;
+    routeNumber?: number;
+    routeId?: string;
+    action: 'create' | 'update' | 'delete' | 'remove' | string;
+    previous?: any;
+    next?: any;
+    editedBy?: string;
+    editedAt?: any;
+    version?: number;
+    isSelfReport?: boolean;
+  }>> {
+    const historyRef = collection(
+      db,
+      'competitions',
+      competitionId,
+      'results',
+      participantId,
+      'history'
+    );
+    const q = query(historyRef, orderBy('editedAt', 'desc'));
+    const snap = await getDocs(q);
+    const items = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }));
+    if (options?.limit && items.length > options.limit) {
+      return items.slice(0, options.limit);
+    }
+    return items;
+  }
+
   // =============== Result Entry ===============
 
   /**
@@ -106,7 +246,15 @@ export class ResultsService {
     },
     enteredBy: string,
     isSelfReport: boolean = false,
-    competition?: Competition | null
+    competition?: Competition | null,
+    options?: {
+      /**
+       * If provided and the stored document's `version` is greater, the write
+       * is rejected with a {@link ResultConflictError}. Allows judge UIs to
+       * detect writes from another judge while the form was open.
+       */
+      expectedVersion?: number;
+    }
   ): Promise<void> {
     try {
       // Check authorization
@@ -170,7 +318,15 @@ export class ResultsService {
         ...(result.zoneAttempt !== undefined && { zoneAttempt: result.zoneAttempt }),
       };
 
-      // Get or create participant result document
+      // Fetch participant (cached) – used only for denormalised fields on the
+      // result doc (category/name/photo). Kept outside the transaction because
+      // it reads a different collection; the TTL cache makes bursts cheap.
+      const participant = await getParticipantByUserIdCached(
+        competitionId,
+        participantId,
+      );
+
+      // Get or create participant result document, atomically.
       const resultRef = doc(
         db,
         'competitions',
@@ -178,64 +334,111 @@ export class ResultsService {
         'results',
         participantId
       );
-      
-      const resultDoc = await getDoc(resultRef);
-      
-      if (resultDoc.exists()) {
-        // Update existing result
-        const existingData = resultDoc.data();
-        const routes = existingData.routes || {};
-        routes[routeNumber] = routeResult;
+      const historyRef = collection(
+        db,
+        'competitions',
+        competitionId,
+        'results',
+        participantId,
+        'history',
+      );
 
-        // Recalculate totals
-        const { totalPoints, top7Points, routesCompleted } = this.calculateTotals(routes);
+      const txResult = await runTransaction(db, async (transaction) => {
+        const resultDoc = await transaction.get(resultRef);
 
-        // Build update data
-        const updateData: any = {
-          routes,
-          totalPoints,
-          top7Points,
-          routesCompleted,
-          lastUpdated: serverTimestamp(),
-        };
+        if (resultDoc.exists()) {
+          const existingData: any = resultDoc.data();
+          const serverVersion: number = existingData.version || 0;
 
-        // Always fetch participant to sync category and name (category might have been assigned after result was created)
-        const participant = await ParticipantService.getParticipantByUserId(competitionId, participantId);
-        if (participant) {
-          // Sync category from participant (critical for per-category scoring)
-          if (participant.category) {
-            updateData.category = participant.category;
-            updateData.categoryName = participant.categoryName || null;
+          // Optimistic-locking check (judges only).
+          if (
+            options?.expectedVersion !== undefined &&
+            serverVersion > options.expectedVersion
+          ) {
+            const existingRoute =
+              (existingData.routes && existingData.routes[routeNumber]) || null;
+            throw new ResultConflictError({
+              serverVersion,
+              expectedVersion: options.expectedVersion,
+              existingRoute,
+              existingEditedBy: existingData.lastEditedBy ?? null,
+              existingEditedAt:
+                existingData.lastEditedAt?.toDate?.() ?? null,
+            });
           }
-          // Sync name if missing
-          if (!existingData.participantName || existingData.participantName === 'Unknown') {
-            const resolvedName = participant.name || participant.userName || 'Unknown';
-            updateData.participantName = resolvedName;
-            updateData.userName = resolvedName;
+
+          const previousRoute =
+            (existingData.routes && existingData.routes[routeNumber]) || null;
+          const routes = { ...(existingData.routes || {}) };
+          routes[routeNumber] = routeResult;
+
+          const { totalPoints, top7Points, routesCompleted } =
+            this.calculateTotals(routes);
+
+          const updateData: any = {
+            routes,
+            totalPoints,
+            top7Points,
+            routesCompleted,
+            lastUpdated: serverTimestamp(),
+            lastEditedBy: enteredBy,
+            lastEditedAt: serverTimestamp(),
+            version: serverVersion + 1,
+          };
+
+          if (participant) {
+            if (participant.category) {
+              updateData.category = participant.category;
+              updateData.categoryName = participant.categoryName || null;
+            }
+            if (
+              !existingData.participantName ||
+              existingData.participantName === 'Unknown'
+            ) {
+              const resolvedName =
+                participant.name || participant.userName || 'Unknown';
+              updateData.participantName = resolvedName;
+              updateData.userName = resolvedName;
+            }
+            if (participant.photoURL) {
+              updateData.photoURL = participant.photoURL;
+            }
           }
-          // Sync photo if available
-          if (participant.photoURL) {
-            updateData.photoURL = participant.photoURL;
-          }
+
+          transaction.update(resultRef, updateData);
+
+          // Append a history entry for audit. Doc id is auto-generated so we
+          // use doc() with a random id then set via transaction.
+          const entryRef = doc(historyRef);
+          transaction.set(entryRef, {
+            routeNumber,
+            routeId: routeResult.routeId,
+            editedBy: enteredBy,
+            editedAt: serverTimestamp(),
+            action: previousRoute ? 'update' : 'create',
+            previous: previousRoute ?? null,
+            next: routeResult,
+            version: serverVersion + 1,
+            isSelfReport,
+          });
+
+          return { action: 'update' as const };
         }
 
-        await updateDoc(resultRef, updateData);
-      } else {
-        // Create new result document
+        // No document yet – create one with version 1.
         const routes: Record<number, RouteResult> = {
           [routeNumber]: routeResult,
         };
+        const { totalPoints, top7Points, routesCompleted } =
+          this.calculateTotals(routes);
 
-        const { totalPoints, top7Points, routesCompleted } = this.calculateTotals(routes);
-
-        // Get participant name - use userId lookup since participantId is the userId
-        const participant = await ParticipantService.getParticipantByUserId(competitionId, participantId);
-        const resolvedName = participant?.name || participant?.userName || 'Unknown';
+        const resolvedName =
+          participant?.name || participant?.userName || 'Unknown';
         const photoURL = participant?.photoURL || null;
         const category = participant?.category || null;
         const categoryName = participant?.categoryName || null;
 
-        await setDoc(resultRef, {
+        transaction.set(resultRef, {
           competitionId,
           participantId,
           participantName: resolvedName,
@@ -248,10 +451,30 @@ export class ResultsService {
           top7Points,
           routesCompleted,
           lastUpdated: serverTimestamp(),
+          lastEditedBy: enteredBy,
+          lastEditedAt: serverTimestamp(),
+          version: 1,
         });
-      }
 
-      console.log(`Result entered: Route ${routeNumber} for participant ${participantId}`);
+        const entryRef = doc(historyRef);
+        transaction.set(entryRef, {
+          routeNumber,
+          routeId: routeResult.routeId,
+          editedBy: enteredBy,
+          editedAt: serverTimestamp(),
+          action: 'create',
+          previous: null,
+          next: routeResult,
+          version: 1,
+          isSelfReport,
+        });
+
+        return { action: 'create' as const };
+      });
+
+      console.log(
+        `Result ${txResult.action}: Route ${routeNumber} for participant ${participantId}`,
+      );
     } catch (error) {
       console.error('Error entering route result:', error);
       throw error;
@@ -281,22 +504,54 @@ export class ResultsService {
         'results',
         participantId
       );
+      const historyRef = collection(
+        db,
+        'competitions',
+        competitionId,
+        'results',
+        participantId,
+        'history',
+      );
 
-      const resultDoc = await getDoc(resultRef);
-      if (!resultDoc.exists()) return;
+      await runTransaction(db, async (transaction) => {
+        const resultDoc = await transaction.get(resultRef);
+        if (!resultDoc.exists()) return;
 
-      const existingData = resultDoc.data();
-      const routes = { ...existingData.routes };
-      delete routes[routeNumber];
+        const existingData: any = resultDoc.data();
+        const previousRoute =
+          (existingData.routes && existingData.routes[routeNumber]) || null;
+        if (!previousRoute) return;
 
-      const { totalPoints, top7Points, routesCompleted } = this.calculateTotals(routes);
+        const routes = { ...(existingData.routes || {}) };
+        delete routes[routeNumber];
 
-      await updateDoc(resultRef, {
-        routes,
-        totalPoints,
-        top7Points,
-        routesCompleted,
-        lastUpdated: serverTimestamp(),
+        const { totalPoints, top7Points, routesCompleted } =
+          this.calculateTotals(routes);
+        const serverVersion: number = existingData.version || 0;
+
+        transaction.update(resultRef, {
+          routes,
+          totalPoints,
+          top7Points,
+          routesCompleted,
+          lastUpdated: serverTimestamp(),
+          lastEditedBy: currentUser.uid,
+          lastEditedAt: serverTimestamp(),
+          version: serverVersion + 1,
+        });
+
+        const entryRef = doc(historyRef);
+        transaction.set(entryRef, {
+          routeNumber,
+          routeId: previousRoute.routeId || null,
+          editedBy: currentUser.uid,
+          editedAt: serverTimestamp(),
+          action: 'delete',
+          previous: previousRoute,
+          next: null,
+          version: serverVersion + 1,
+          isSelfReport: false,
+        });
       });
 
       console.log(`Result deleted: Route ${routeNumber} for participant ${participantId}`);
@@ -332,29 +587,62 @@ export class ResultsService {
         'results',
         participantId
       );
+      const historyRef = collection(
+        db,
+        'competitions',
+        competitionId,
+        'results',
+        participantId,
+        'history',
+      );
 
-      const resultDoc = await getDoc(resultRef);
-      if (!resultDoc.exists()) return;
+      await runTransaction(db, async (transaction) => {
+        const resultDoc = await transaction.get(resultRef);
+        if (!resultDoc.exists()) return;
 
-      const existingData = resultDoc.data();
-      const routes = { ...existingData.routes };
-      
-      // Find route by routeId and delete
-      for (const [key, value] of Object.entries(routes)) {
-        if ((value as any).routeId === routeId) {
-          delete routes[key];
-          break;
+        const existingData: any = resultDoc.data();
+        const routes = { ...(existingData.routes || {}) };
+
+        // Find route by routeId and delete
+        let removedKey: string | null = null;
+        let previousRoute: RouteResult | null = null;
+        for (const [key, value] of Object.entries(routes)) {
+          if ((value as any).routeId === routeId) {
+            removedKey = key;
+            previousRoute = value as RouteResult;
+            delete routes[key];
+            break;
+          }
         }
-      }
+        if (!removedKey || !previousRoute) return;
 
-      const { totalPoints, top7Points, routesCompleted } = this.calculateTotals(routes);
+        const { totalPoints, top7Points, routesCompleted } =
+          this.calculateTotals(routes);
+        const serverVersion: number = existingData.version || 0;
 
-      await updateDoc(resultRef, {
-        routes,
-        totalPoints,
-        top7Points,
-        routesCompleted,
-        lastUpdated: serverTimestamp(),
+        transaction.update(resultRef, {
+          routes,
+          totalPoints,
+          top7Points,
+          routesCompleted,
+          lastUpdated: serverTimestamp(),
+          lastEditedBy: currentUser.uid,
+          lastEditedAt: serverTimestamp(),
+          version: serverVersion + 1,
+        });
+
+        const entryRef = doc(historyRef);
+        transaction.set(entryRef, {
+          routeNumber: Number(removedKey),
+          routeId,
+          editedBy: currentUser.uid,
+          editedAt: serverTimestamp(),
+          action: 'remove',
+          previous: previousRoute,
+          next: null,
+          version: serverVersion + 1,
+          isSelfReport: isSelfRemoval,
+        });
       });
 
       console.log(`Result removed: Route ${routeId} for participant ${participantId}`);
@@ -519,6 +807,7 @@ export class ResultsService {
     callback: (entries: LeaderboardEntry[]) => void,
     category?: string
   ): () => void {
+    const emit = coalesce(callback);
     const resultsRef = collection(
       db,
       'competitions',
@@ -585,12 +874,12 @@ export class ResultsService {
             entries[i].rank = i + 1;
           }
         }
-        
-        callback(entries);
+
+        emit(entries);
       },
       (error) => {
         console.error('Error subscribing to leaderboard:', error);
-        callback([]);
+        emit([]);
       }
     );
   }
@@ -928,6 +1217,7 @@ export class ResultsService {
     callback: (entries: LeaderboardEntry[]) => void,
     category?: string
   ): () => void {
+    const emit = coalesce(callback);
     const resultsRef = collection(
       db,
       'competitions',
@@ -946,7 +1236,7 @@ export class ResultsService {
           );
 
           if (allResults.length === 0) {
-            callback([]);
+            emit([]);
             return;
           }
 
@@ -1042,15 +1332,15 @@ export class ResultsService {
             }
           }
 
-          callback(leaderboardEntries);
+          emit(leaderboardEntries);
         } catch (error) {
           console.error('Error calculating Totemtition leaderboard:', error);
-          callback([]);
+          emit([]);
         }
       },
       (error) => {
         console.error('Error subscribing to Totemtition leaderboard:', error);
-        callback([]);
+        emit([]);
       }
     );
   }
@@ -1065,6 +1355,7 @@ export class ResultsService {
     callback: (entries: LeaderboardEntry[]) => void,
     category?: string
   ): () => void {
+    const emit = coalesce(callback);
     const resultsRef = collection(
       db,
       'competitions',
@@ -1080,7 +1371,7 @@ export class ResultsService {
         );
 
         if (allResults.length === 0) {
-          callback([]);
+          emit([]);
           return;
         }
 
@@ -1160,11 +1451,11 @@ export class ResultsService {
           }
         }
 
-        callback(entries);
+        emit(entries);
       },
       (error) => {
         console.error('Error subscribing to Zone/Top leaderboard:', error);
-        callback([]);
+        emit([]);
       }
     );
   }
@@ -1180,6 +1471,7 @@ export class ResultsService {
     competitionId: string,
     callback: (entries: LeaderboardEntry[]) => void
   ): () => void {
+    const emit = coalesce(callback);
     const resultsRef = collection(
       db,
       'competitions',
@@ -1195,7 +1487,7 @@ export class ResultsService {
         );
 
         if (allResults.length === 0) {
-          callback([]);
+          emit([]);
           return;
         }
 
@@ -1252,11 +1544,11 @@ export class ResultsService {
           }
         }
 
-        callback(entries);
+        emit(entries);
       },
       (error) => {
         console.error('Error subscribing to Points Competition leaderboard:', error);
-        callback([]);
+        emit([]);
       }
     );
   }

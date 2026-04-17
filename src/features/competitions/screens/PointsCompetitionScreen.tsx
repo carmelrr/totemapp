@@ -31,6 +31,7 @@ import { ParticipantService } from '../services/ParticipantService';
 import { FeedbackService } from '@/features/routes-map/services/FeedbackService';
 import { useRoutesStore } from '@/store/routesStore';
 import { useFiltersStore, filterRoutes } from '@/store/useFiltersStore';
+import { useWallTapes } from '@/features/routes-map/hooks/useWallTapes';
 import FiltersBar from '@/components/Filters/FiltersBar';
 import FiltersSheet from '@/components/Filters/FiltersSheet';
 import { useUserRouteStatus } from '@/hooks/useUserRouteStatus';
@@ -228,6 +229,9 @@ export default function PointsCompetitionScreen() {
     return () => unsubscribe();
   }, [competitionId]);
 
+  // Wall-tape catalog for tolerant wallTape filter matching
+  const { tapes: wallTapesCatalog } = useWallTapes();
+
   // Get map of completed route IDs in competition
   const completedRouteIds = useMemo(() => {
     const ids = new Set<string>();
@@ -248,10 +252,10 @@ export default function PointsCompetitionScreen() {
   const filteredMapRoutes = useMemo((): CompetitionRoute[] => {
     const activeWallRoutes = wallRoutes.filter(r => r.status === 'active' && r.xNorm > 0 && r.yNorm > 0);
     const filtersForMap = { ...filters, showOnlyVisibleOnMap: false, status: ['active' as const] };
-    const filtered = filterRoutes(activeWallRoutes, filtersForMap, { sortBy: 'grade', sortOrder: 'asc' }, '', undefined, completedRouteIds);
+    const filtered = filterRoutes(activeWallRoutes, filtersForMap, { sortBy: 'grade', sortOrder: 'asc' }, '', undefined, completedRouteIds, wallTapesCatalog);
     const filteredIds = new Set(filtered.map(r => r.id));
     return mapRoutes.filter(mr => filteredIds.has(mr.id));
-  }, [wallRoutes, mapRoutes, filters, completedRouteIds]);
+  }, [wallRoutes, mapRoutes, filters, completedRouteIds, wallTapesCatalog]);
 
   // Calculate total points
   const totalPoints = useMemo(() => {

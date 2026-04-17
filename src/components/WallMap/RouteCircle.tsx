@@ -222,7 +222,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
       >
         <Animated.View style={styles.innerContainer}>
           <Text style={textStyle}>
-            {route.grade || '?'}
+            {route.calculatedGrade || route.grade || '?'}
           </Text>
         </Animated.View>
       </TouchableOpacity>
@@ -247,6 +247,7 @@ const RouteCircle = React.memo<RouteCircleProps>(({
     prevProps.route.id === nextProps.route.id &&
     prevProps.route.color === nextProps.route.color &&
     prevProps.route.grade === nextProps.route.grade &&
+    prevProps.route.calculatedGrade === nextProps.route.calculatedGrade &&
     prevProps.route.xNorm === nextProps.route.xNorm &&
     prevProps.route.yNorm === nextProps.route.yNorm &&
     prevProps.selected === nextProps.selected &&

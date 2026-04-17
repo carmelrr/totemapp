@@ -26,8 +26,8 @@ export interface FeedbackData {
  *                        Used as fallback when no community feedback exists
  * 
  * Grade calculation:
- * - Only community feedback grades are used for the average (original grade is NOT counted)
- * - If no community grades exist, falls back to originalGrade
+ * - The original grade counts as 1 vote in the average alongside community feedback grades
+ * - If no community grades exist, the original grade is the sole vote
  * - Uses standard rounding (0.5 threshold)
  */
 export const calculateRouteStats = (feedbacks: FeedbackData[], originalGrade?: string): RouteStats => {
@@ -64,12 +64,17 @@ export const calculateRouteStats = (feedbacks: FeedbackData[], originalGrade?: s
     // V-Scale grades for index calculation
     const V_GRADES = ['VB', 'V0', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6', 'V7', 'V8', 'V9', 'V10', 'V11', 'V12', 'V13', 'V14', 'V15', 'V16', 'V17', 'V18'];
     
-    // חישוב ממוצע קהל - רק דירוגי קהילה (ללא הדירוג המקורי)
-    // Calculate community average - only community feedback grades (original grade NOT included)
+    // חישוב דירוג ממוצע - דירוג הבונה נספר כקול אחד בממוצע יחד עם דירוגי הקהילה
+    // Calculate average grade - builder's grade counts as 1 vote alongside community feedback grades
     let calculatedGrade: string | null = null;
     
-    // Collect only community feedback grade indices
+    // Collect grade indices: builder's original grade + community feedback grades
     const allGradeIndices: number[] = [];
+    
+    // Include original grade as one vote in the average
+    if (originalGrade && V_GRADES.includes(originalGrade)) {
+        allGradeIndices.push(V_GRADES.indexOf(originalGrade));
+    }
     
     completedFeedbacks.forEach(fb => {
         if (fb.suggestedGrade && V_GRADES.includes(fb.suggestedGrade)) {

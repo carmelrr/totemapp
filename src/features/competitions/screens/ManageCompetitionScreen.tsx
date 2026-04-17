@@ -583,6 +583,17 @@ export default function ManageCompetitionScreen() {
           </TouchableOpacity>
         )}
 
+        {/* Batch Entry - simple formats only */}
+        {rolesContext.canEnterResults && competition.format !== 'zone_top' && competition.format !== 'ifsc_points' && (
+          <TouchableOpacity
+            style={styles.quickAction}
+            onPress={() => navigation.navigate('JudgeBatchEntry', { competitionId })}
+          >
+            <Ionicons name="list" size={28} color={theme.primary} />
+            <Text style={styles.quickActionText}>הזנה קבוצתית</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Registration Management - For Totemtition and National League formats */}
         {(isTotemtition || competition.format === 'national_league') && rolesContext.canManageParticipants && (
           <TouchableOpacity
@@ -791,9 +802,7 @@ export default function ManageCompetitionScreen() {
           </Text>
           <Text style={styles.mapLegendText}>
             {(competition.format === 'totemtition' || isPointsFormat) && competition.status === 'active'
-              ? (isPointsFormat 
-                  ? `${positionedRoutes.length} ${t.competitionExt?.routesCount || 'מסלולים'}`
-                  : t.competitionExt.tapToPlaceBadge)
+              ? `${positionedRoutes.length} ${t.competitionExt?.routesCount || 'מסלולים'}`
               : `${positionedRoutes.length} ${t.competitionExt.routesCount}`}
           </Text>
         </View>

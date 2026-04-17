@@ -16,6 +16,7 @@ import {
   ManageCategoriesScreen,
   ManageCompetitionRoutesScreen,
   JudgeEntryScreen,
+  JudgeBatchEntryScreen,
   CompetitionRegistrationScreen,
   PointsCompetitionScreen,
 } from '@/features/competitions';
@@ -28,6 +29,7 @@ export type CompetitionStackParamList = {
   ManageCategories: { competitionId: string };
   ManageCompetitionRoutes: { competitionId: string };
   JudgeEntry: { competitionId: string };
+  JudgeBatchEntry: { competitionId: string };
   CompetitionRegistration: { competitionId: string };
   PointsCompetition: { competitionId: string };
 };
@@ -76,6 +78,13 @@ export default function CompetitionNavigator() {
         component={JudgeEntryScreen}
         options={{
           gestureEnabled: false, // Prevent accidental back swipe when entering results
+        }}
+      />
+      <Stack.Screen
+        name="JudgeBatchEntry"
+        component={JudgeBatchEntryScreen}
+        options={{
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen 

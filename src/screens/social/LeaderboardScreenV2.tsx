@@ -395,7 +395,7 @@ export default function LeaderboardScreen() {
   // Filter out points_competition for non-registered users, add registered non-active ones
   const allDisplayCompetitions = useMemo(() => {
     const activeIds = new Set(activeCompetitions.map(c => c.id));
-    const openNotActive = openRegistrationCompetitions.filter(c => !activeIds.has(c.id) && c.status !== 'active');
+    const openNotActive = openRegistrationCompetitions.filter(c => !activeIds.has(c.id));
     let combined = [...activeCompetitions, ...openNotActive];
     
     // Filter out points_competition for users who are not registered
@@ -684,6 +684,7 @@ export default function LeaderboardScreen() {
                           competition={competition}
                           onPress={() => handleCompetitionPress(competition)}
                           onEnterResults={() => handleEnterResultsPress(competition)}
+                          onRegisterPress={() => handleRegistrationPress(competition)}
                         />
                       ) : (
                         <OpenRegistrationBanner
@@ -717,6 +718,7 @@ export default function LeaderboardScreen() {
                       competition={competition}
                       onPress={() => handleCompetitionPress(competition)}
                       onEnterResults={() => handleEnterResultsPress(competition)}
+                      onRegisterPress={() => handleRegistrationPress(competition)}
                     />
                   ) : (
                     <OpenRegistrationBanner

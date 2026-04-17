@@ -39,6 +39,7 @@ import InlineAddRoutePanel from '../components/InlineAddRoutePanel';
 import { useFiltersStore, filterRoutes } from '../../../store/useFiltersStore';
 import { useRouteNavigationStore } from '../../../store/useRouteNavigationStore';
 import { useFirebaseRoutes, useActiveRoutes } from '../hooks/useFirebaseRoutes';
+import { useWallTapes } from '../hooks/useWallTapes';
 
 // Language
 import { useLanguage } from '@/features/language';
@@ -247,10 +248,13 @@ export default function RoutesMapScreen() {
   const sorting = useFiltersStore(state => state.sorting);
   const searchQuery = useFiltersStore(state => state.searchQuery);
 
+  // Wall-tape catalog is required for tolerant matching of legacy wallTape values
+  const { tapes: wallTapesCatalog } = useWallTapes();
+
   // Filtered routes based on current filters (uses standalone filterRoutes for stable deps)
   const filteredRoutes = useMemo(() => {
-    return filterRoutes(routes, filters, sorting, searchQuery, undefined, completedRouteIds);
-  }, [routes, filters, sorting, searchQuery, completedRouteIds]);
+    return filterRoutes(routes, filters, sorting, searchQuery, undefined, completedRouteIds, wallTapesCatalog);
+  }, [routes, filters, sorting, searchQuery, completedRouteIds, wallTapesCatalog]);
 
   // Get the currently active sector object
   const activeSector = useMemo(() => {

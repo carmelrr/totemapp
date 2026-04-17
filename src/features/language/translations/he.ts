@@ -418,7 +418,7 @@ export const he: TranslationKeys = {
     undoSendError: "שגיאה בביטול הסגירה",
     updateRating: "עדכן דירוג",
     saveRating: "שמור דירוג",
-    communityGrade: "ממוצע קהל",
+    communityGrade: "דירוג",
     avgStars: "ממוצע כוכבים",
     communityFeedbacks: "תגובות הקהילה",
     noFeedbacksYet: "אין תגובות עדיין",
@@ -674,7 +674,7 @@ export const he: TranslationKeys = {
     // Feedback
     rateRoute: "דרג את המסלול",
     averageRating: "דירוג ממוצע",
-    communityGrade: "דירוג קהילה",
+    communityGrade: "דירוג",
     yourRating: "הדירוג שלך",
     editFeedback: "ערוך משוב",
     starRating: "דירוג כוכבים",
@@ -1328,6 +1328,7 @@ export const he: TranslationKeys = {
     // Registration screen
     registerSuccess: "נרשמת בהצלחה! 🎉",
     registerSuccessMessage: "הבקשה שלך נשלחה לאישור. תקבל הודעה כשהבקשה תאושר.",
+    registerApprovedMessage: "נרשמת בהצלחה! אתה יכול להזין תוצאות כשהתחרות תתחיל.",
     cannotRegister: "לא ניתן להירשם",
     cancelRegistration: "ביטול הרשמה",
     cancelRegistrationConfirm: "האם אתה בטוח שברצונך לבטל את ההרשמה?",

@@ -1,7 +1,7 @@
 // src/navigation/MainTabNavigator.tsx
 // Bottom Tab Navigator - Instagram-style navigation
 
-import React from "react";
+import React, { useEffect } from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,6 +13,9 @@ import { getFocusedRouteNameFromRoute } from "@react-navigation/native";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
 import { useGuest } from "@/context/GuestContext";
+
+// Color settings - centralized init
+import { initializeColorSettings, subscribeToColorSettings } from "@/features/routes-map/services/ColorSettingsService";
 
 // Screens
 import HomeScreen from "@/screens/HomeScreen";
@@ -222,6 +225,17 @@ export function MainTabNavigator() {
   const { t } = useLanguage();
   const insets = useSafeAreaInsets();
   const { isGuest, requireAuth } = useGuest();
+
+  // Initialize color settings once at app level + subscribe to real-time changes
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+    initializeColorSettings().then(() => {
+      unsubscribe = subscribeToColorSettings(() => {
+        // Cache is updated internally by the listener
+      });
+    });
+    return () => { unsubscribe?.(); };
+  }, []);
 
   return (
     <Tab.Navigator

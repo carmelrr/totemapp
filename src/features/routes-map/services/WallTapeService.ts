@@ -222,3 +222,237 @@ export async function autoAssignTapesToRoutes(): Promise<{
 
   return { updated, skipped, total };
 }
+
+// ---------------------------------------------------------------------------
+// Diagnostics & normalization
+// ---------------------------------------------------------------------------
+
+export interface TapeDiagnosticsReport {
+  totalActive: number;
+  withTape: number;
+  empty: number;
+  matchedById: number;
+  matchedByHex: number;
+  matchedByName: number;
+  unresolved: number;
+  samples: {
+    matchedById: Array<{ routeId: string; wallTape: string }>;
+    matchedByHex: Array<{ routeId: string; wallTape: string }>;
+    matchedByName: Array<{ routeId: string; wallTape: string }>;
+    unresolved: Array<{ routeId: string; wallTape: string }>;
+  };
+}
+
+function normalizeRef(v: string | undefined | null): string {
+  return (v || '').trim().toLowerCase();
+}
+
+/**
+ * Scan the routes collection and categorize how each route's `wallTape` value
+ * maps to the current wall-tapes catalog. Useful for diagnosing legacy data.
+ */
+export async function diagnoseRouteWallTapes(): Promise<TapeDiagnosticsReport> {
+  const tapes = await getWallTapes();
+  const byId = new Map<string, string>();   // normalized id -> canonical id
+  const byHex = new Map<string, string>();  // normalized hex -> canonical id
+  const byName = new Map<string, string>(); // normalized name -> canonical id
+  for (const tape of tapes) {
+    byId.set(normalizeRef(tape.id), tape.id);
+    if (tape.hex) byHex.set(normalizeRef(tape.hex), tape.id);
+    if (tape.nameHe) byName.set(normalizeRef(tape.nameHe), tape.id);
+    if (tape.nameEn) byName.set(normalizeRef(tape.nameEn), tape.id);
+  }
+
+  const snapshot = await getDocs(collection(db, 'routes'));
+  const activeDocs = snapshot.docs.filter((d) => {
+    const s = d.data().status;
+    return !s || s === 'active';
+  });
+
+  const report: TapeDiagnosticsReport = {
+    totalActive: activeDocs.length,
+    withTape: 0,
+    empty: 0,
+    matchedById: 0,
+    matchedByHex: 0,
+    matchedByName: 0,
+    unresolved: 0,
+    samples: {
+      matchedById: [],
+      matchedByHex: [],
+      matchedByName: [],
+      unresolved: [],
+    },
+  };
+
+  const MAX_SAMPLES = 5;
+  for (const docSnap of activeDocs) {
+    const raw = (docSnap.data() as any).wallTape as string | undefined;
+    if (!raw) {
+      report.empty++;
+      continue;
+    }
+    report.withTape++;
+    const n = normalizeRef(raw);
+    const entry = { routeId: docSnap.id, wallTape: raw };
+    if (byId.has(n)) {
+      report.matchedById++;
+      if (report.samples.matchedById.length < MAX_SAMPLES) report.samples.matchedById.push(entry);
+    } else if (byHex.has(n)) {
+      report.matchedByHex++;
+      if (report.samples.matchedByHex.length < MAX_SAMPLES) report.samples.matchedByHex.push(entry);
+    } else if (byName.has(n)) {
+      report.matchedByName++;
+      if (report.samples.matchedByName.length < MAX_SAMPLES) report.samples.matchedByName.push(entry);
+    } else {
+      report.unresolved++;
+      if (report.samples.unresolved.length < MAX_SAMPLES) report.samples.unresolved.push(entry);
+    }
+  }
+
+  return report;
+}
+
+export interface NormalizeReport {
+  total: number;
+  matchedById: number;        // already canonical, no write
+  rewrittenFromHex: number;
+  rewrittenFromName: number;
+  autoAssignedEmpty: number;  // empty wallTape filled via grade range
+  unresolved: number;         // left as-is
+}
+
+/**
+ * Normalize the `wallTape` field on all active routes so it always holds the
+ * canonical tape id. Legacy values (hex / name) are rewritten when a unique
+ * tape match exists. Empty values receive an auto-assigned id when the route's
+ * grade falls within a tape's grade range.
+ */
+export async function normalizeRouteWallTapes(): Promise<NormalizeReport> {
+  const tapes = await getWallTapes();
+  const byId = new Set<string>(tapes.map((t) => t.id));
+  const normIdMap = new Map<string, string>();
+  const byHex = new Map<string, string>();
+  const byName = new Map<string, string>();
+  for (const tape of tapes) {
+    normIdMap.set(normalizeRef(tape.id), tape.id);
+    if (tape.hex) byHex.set(normalizeRef(tape.hex), tape.id);
+    if (tape.nameHe) byName.set(normalizeRef(tape.nameHe), tape.id);
+    if (tape.nameEn) byName.set(normalizeRef(tape.nameEn), tape.id);
+  }
+  const tapesWithRange = tapes.filter(
+    (t) => t.gradeMin && t.gradeMax && gradeIndex(t.gradeMin) !== -1 && gradeIndex(t.gradeMax) !== -1,
+  );
+
+  const snapshot = await getDocs(collection(db, 'routes'));
+  const activeDocs = snapshot.docs.filter((d) => {
+    const s = d.data().status;
+    return !s || s === 'active';
+  });
+
+  const report: NormalizeReport = {
+    total: activeDocs.length,
+    matchedById: 0,
+    rewrittenFromHex: 0,
+    rewrittenFromName: 0,
+    autoAssignedEmpty: 0,
+    unresolved: 0,
+  };
+
+  const batches: ReturnType<typeof writeBatch>[] = [writeBatch(db)];
+  let batchIndex = 0;
+  let opsInBatch = 0;
+  const enqueue = (ref: any, value: string) => {
+    if (opsInBatch >= 499) {
+      batches.push(writeBatch(db));
+      batchIndex++;
+      opsInBatch = 0;
+    }
+    batches[batchIndex].update(ref, { wallTape: value });
+    opsInBatch++;
+  };
+
+  for (const docSnap of activeDocs) {
+    const data = docSnap.data() as any;
+    const raw = data.wallTape as string | undefined;
+    if (raw) {
+      // Fast path: already a canonical id
+      if (byId.has(raw)) {
+        report.matchedById++;
+        continue;
+      }
+      const n = normalizeRef(raw);
+      const fromId = normIdMap.get(n); // case-mismatched id
+      if (fromId) {
+        if (fromId !== raw) enqueue(docSnap.ref, fromId);
+        report.matchedById++;
+        continue;
+      }
+      const fromHex = byHex.get(n);
+      if (fromHex) {
+        enqueue(docSnap.ref, fromHex);
+        report.rewrittenFromHex++;
+        continue;
+      }
+      const fromName = byName.get(n);
+      if (fromName) {
+        enqueue(docSnap.ref, fromName);
+        report.rewrittenFromName++;
+        continue;
+      }
+      report.unresolved++;
+      continue;
+    }
+    // Empty wallTape: try auto-assign by grade range
+    const routeGradeIdx = gradeIndex(data.grade || '');
+    if (routeGradeIdx === -1) {
+      report.unresolved++;
+      continue;
+    }
+    const matchingTape = tapesWithRange.find((tape) => {
+      const minIdx = gradeIndex(tape.gradeMin!);
+      const maxIdx = gradeIndex(tape.gradeMax!);
+      return routeGradeIdx >= minIdx && routeGradeIdx <= maxIdx;
+    });
+    if (matchingTape) {
+      enqueue(docSnap.ref, matchingTape.id);
+      report.autoAssignedEmpty++;
+    } else {
+      report.unresolved++;
+    }
+  }
+
+  for (const batch of batches) {
+    await batch.commit();
+  }
+
+  return report;
+}
+
+/**
+ * Validate a list of tapes for overlapping grade ranges. Returns pairs of
+ * tapes whose `[gradeMin, gradeMax]` intervals overlap; an empty array means
+ * the configuration is unambiguous for auto-assignment.
+ */
+export function findOverlappingTapeRanges(
+  tapes: WallTape[],
+): Array<{ a: WallTape; b: WallTape }> {
+  const withRange = tapes.filter(
+    (t) => t.gradeMin && t.gradeMax && gradeIndex(t.gradeMin) !== -1 && gradeIndex(t.gradeMax) !== -1,
+  );
+  const overlaps: Array<{ a: WallTape; b: WallTape }> = [];
+  for (let i = 0; i < withRange.length; i++) {
+    for (let j = i + 1; j < withRange.length; j++) {
+      const a = withRange[i];
+      const b = withRange[j];
+      const aMin = gradeIndex(a.gradeMin!);
+      const aMax = gradeIndex(a.gradeMax!);
+      const bMin = gradeIndex(b.gradeMin!);
+      const bMax = gradeIndex(b.gradeMax!);
+      if (aMin <= bMax && bMin <= aMax) {
+        overlaps.push({ a, b });
+      }
+    }
+  }
+  return overlaps;
+}

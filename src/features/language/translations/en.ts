@@ -416,7 +416,7 @@ export const en = {
     undoSendError: "Error undoing send",
     updateRating: "Update Rating",
     saveRating: "Save Rating",
-    communityGrade: "Community Grade",
+    communityGrade: "Grade",
     avgStars: "Avg Stars",
     communityFeedbacks: "Community Feedbacks",
     noFeedbacksYet: "No feedbacks yet",
@@ -672,7 +672,7 @@ export const en = {
     // Feedback
     rateRoute: "Rate Route",
     averageRating: "Average Rating",
-    communityGrade: "Community Grade",
+    communityGrade: "Grade",
     yourRating: "Your Rating",
     editFeedback: "Edit Feedback",
     starRating: "Star Rating",
@@ -1325,6 +1325,7 @@ export const en = {
     // Registration screen
     registerSuccess: "Registered Successfully! 🎉",
     registerSuccessMessage: "Your request was sent for approval. You will receive a notification when approved.",
+    registerApprovedMessage: "You are registered! You can enter results when the competition starts.",
     cannotRegister: "Cannot register",
     cancelRegistration: "Cancel Registration",
     cancelRegistrationConfirm: "Are you sure you want to cancel your registration?",

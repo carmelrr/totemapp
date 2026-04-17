@@ -42,6 +42,7 @@ export {
   ManageCategoriesScreen,
   ManageCompetitionRoutesScreen,
   JudgeEntryScreen,
+  JudgeBatchEntryScreen,
   CompetitionRegistrationScreen,
   PointsCompetitionScreen,
 } from './screens';

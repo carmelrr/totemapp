@@ -12,6 +12,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Share,
+  Alert,
+  Platform,
 } from 'react-native';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
@@ -28,8 +31,11 @@ import {
 } from '@/features/competitions/types';
 import { ParticipantService } from '@/features/competitions/services/ParticipantService';
 import { ResultsService } from '@/features/competitions/services/ResultsService';
+import { exportLeaderboardCsv } from '@/features/competitions/services/LeaderboardExport';
+import { ResultHistoryModal } from '@/features/competitions/components/ResultHistoryModal';
 import { formatPoints, formatIFSCResult, isZoneTopFormat } from '@/features/competitions/constants';
 import { CachedAvatar } from '@/components/ui/CachedAvatar';
+import { useAdmin } from '@/context/AdminContext';
 
 interface CompetitionLeaderboardProps {
   competition: Competition;
@@ -46,88 +52,50 @@ interface CategoryLeaderboardData {
 }
 
 /**
- * Hook to subscribe to ALL leaderboard entries once (for all categories)
- * This prevents N+1 queries when rendering multiple category sections
+ * Lightweight shimmer row used as a loading placeholder for the leaderboard.
+ * We avoid Animated here so that the component is cheap to render during the
+ * brief window between mount and the first Firestore snapshot.
  */
-function useAllLeaderboardEntries(
-  competitionId: string | null,
-  format: CompetitionFormat
-) {
-  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!competitionId) {
-      setEntries([]);
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    
-    // Fetch ALL entries without category filter - filter later on client side
-    let unsubscribe: () => void;
-    if (format === 'totemtition') {
-      unsubscribe = ResultsService.subscribeToTotemtitionLeaderboard(
-        competitionId,
-        (leaderboard) => {
-          setEntries(leaderboard);
-          setLoading(false);
-        }
-      );
-    } else if (isZoneTopFormat(format)) {
-      unsubscribe = ResultsService.subscribeToZoneTopLeaderboard(
-        competitionId,
-        (leaderboard) => {
-          setEntries(leaderboard);
-          setLoading(false);
-        }
-      );
-    } else {
-      unsubscribe = ResultsService.subscribeToLeaderboard(
-        competitionId,
-        (leaderboard) => {
-          setEntries(leaderboard);
-          setLoading(false);
-        }
-      );
-    }
-
-    return () => unsubscribe();
-  }, [competitionId, format]);
-
-  return { entries, loading };
-}
-
-/**
- * Hook to subscribe to ALL participants once
- * This prevents N+1 queries when rendering multiple category sections
- */
-function useAllParticipants(competitionId: string | null) {
-  const [participants, setParticipants] = useState<Participant[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!competitionId) {
-      setParticipants([]);
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    
-    const unsubscribe = ParticipantService.subscribeToParticipants(
-      competitionId,
-      (allParticipants) => {
-        setParticipants(allParticipants);
-        setLoading(false);
-      }
-    );
-
-    return () => unsubscribe();
-  }, [competitionId]);
-
-  return { participants, loading };
+function LeaderboardSkeleton({ theme, count = 6 }: { theme: any; count?: number }) {
+  const bg = theme.isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const podiumRowStyle = {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-around' as const,
+    alignItems: 'flex-end' as const,
+    paddingVertical: 18,
+  };
+  return (
+    <View style={{ width: '100%' }}>
+      <View style={podiumRowStyle}>
+        {[70, 90, 55].map((h, i) => (
+          <View key={i} style={{ alignItems: 'center' }}>
+            <View style={{ width: 54, height: 54, borderRadius: 27, backgroundColor: bg, marginBottom: 8 }} />
+            <View style={{ width: 60, height: 10, backgroundColor: bg, borderRadius: 4, marginBottom: 6 }} />
+            <View style={{ width: 70, height: h, backgroundColor: bg, borderTopLeftRadius: 6, borderTopRightRadius: 6 }} />
+          </View>
+        ))}
+      </View>
+      {Array.from({ length: count }).map((_, i) => (
+        <View
+          key={i}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingVertical: 12,
+            paddingHorizontal: 14,
+            gap: 10,
+          }}
+        >
+          <View style={{ width: 24, height: 16, borderRadius: 4, backgroundColor: bg }} />
+          <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: bg }} />
+          <View style={{ flex: 1, gap: 6 }}>
+            <View style={{ width: '60%', height: 12, borderRadius: 4, backgroundColor: bg }} />
+            <View style={{ width: '40%', height: 10, borderRadius: 4, backgroundColor: bg }} />
+          </View>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 /**
@@ -140,6 +108,7 @@ function CategorySection({
   categoryParticipants,
   currentUserId,
   onParticipantPress,
+  onParticipantLongPress,
   theme,
   t,
   styles,
@@ -150,6 +119,7 @@ function CategorySection({
   categoryParticipants: Participant[];
   currentUserId?: string;
   onParticipantPress?: (participantId: string) => void;
+  onParticipantLongPress?: (participantId: string, name?: string) => void;
   theme: any;
   t: any;
   styles: any;
@@ -211,6 +181,20 @@ function CategorySection({
     const withScores = allEntries.filter(e => e.points > 0).slice(3);
     const withoutScores = allEntries.filter(e => e.points === 0);
     return [...withScores, ...withoutScores];
+  }, [allEntries]);
+
+  // Set of ranks that are shared by 2+ climbers – used to surface the
+  // secondary tie-breaker metric (total attempts) on those rows.
+  const tiedRanks = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const e of allEntries) {
+      if (e.rank > 0) counts.set(e.rank, (counts.get(e.rank) || 0) + 1);
+    }
+    const set = new Set<number>();
+    for (const [rank, count] of counts) {
+      if (count > 1) set.add(rank);
+    }
+    return set;
   }, [allEntries]);
 
   const renderPodium = () => {
@@ -284,6 +268,9 @@ function CategorySection({
     const ifscLine = isZoneTop && hasScore
       ? formatIFSCResult(item.totalTops || 0, item.totalZones || 0, item.totalTopAttempts || 0, item.totalZoneAttempts || 0)
       : null;
+    const isTied = hasScore && tiedRanks.has(item.rank);
+    const tieAttempts = typeof item.totalAttempts === 'number' ? item.totalAttempts : undefined;
+    const attemptsLabel = (t.competition as any)?.attempts || 'ניסיונות';
 
     return (
       <TouchableOpacity
@@ -294,11 +281,14 @@ function CategorySection({
           !hasScore && styles.noScoreItem,
         ]}
         onPress={() => onParticipantPress?.(item.participantId)}
+        onLongPress={() =>
+          onParticipantLongPress?.(item.participantId, displayName)
+        }
         activeOpacity={0.7}
       >
         <View style={styles.rankContainer}>
           <Text style={[styles.rankNumber, !hasScore && styles.noScoreRank]}>
-            {hasScore ? item.rank : '-'}
+            {hasScore ? (isTied ? `${item.rank}=` : item.rank) : '-'}
           </Text>
         </View>
 
@@ -326,6 +316,11 @@ function CategorySection({
               : t.competition.noScoreYet || 'אין ניקוד עדיין'
             }
           </Text>
+          {isTied && tieAttempts !== undefined && (
+            <Text style={styles.tieHintText}>
+              שובר שוויון: {tieAttempts} {attemptsLabel}
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
     );
@@ -374,57 +369,61 @@ export function CompetitionLeaderboard({
 }: CompetitionLeaderboardProps) {
   const { theme } = useTheme();
   const { t } = useLanguage();
+  const { isAdmin } = useAdmin();
   const [categories, setCategories] = useState<Category[]>([]);
-  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [historyTarget, setHistoryTarget] = useState<{
+    participantId: string;
+    name?: string;
+  } | null>(null);
 
-  // Fetch categories from subcollection
+  // Fetch categories from subcollection. Categories are auxiliary data –
+  // the leaderboard renders immediately with or without them, so we do NOT
+  // block the whole screen while they load.
   useEffect(() => {
-    setCategoriesLoading(true);
+    let cancelled = false;
     ParticipantService.getCategories(competition.id)
       .then((fetchedCategories) => {
+        if (cancelled) return;
         console.log('[CompetitionLeaderboard] Fetched categories:', fetchedCategories.length, fetchedCategories.map(c => c.name));
         setCategories(fetchedCategories);
       })
       .catch((err) => {
+        if (cancelled) return;
         console.log('[CompetitionLeaderboard] Error fetching categories:', err);
         setCategories([]);
-      })
-      .finally(() => setCategoriesLoading(false));
+      });
+    return () => { cancelled = true; };
   }, [competition.id]);
 
   // Determine if we should show categories
-  // Check both the setting AND if we actually have categories
-  const hasCategories = competition.settings?.enableCategories && categories.length > 0;
+  // Show categories whenever they exist, regardless of enableCategories setting
+  const hasCategories = categories.length > 0;
   const isZoneTop = isZoneTopFormat(competition.format);
   
   const styles = createStyles(theme);
 
-  // OPTIMIZATION: Fetch ALL data ONCE at parent level to avoid N+1 queries
-  // When hasCategories is true, we fetch all entries and participants here,
-  // then filter per category in useMemo (no separate subscriptions per category)
-  const { entries: allEntries, loading: allEntriesLoading } = useAllLeaderboardEntries(
-    hasCategories ? competition.id : null,
-    competition.format
-  );
-  
-  const { participants: allParticipantsForCategories, loading: allParticipantsLoading } = useAllParticipants(
-    hasCategories ? competition.id : null
-  );
-
-  // For competitions without categories, use the original single-category view
-  const { entries, loading: leaderboardLoading, error } = useCompetitionLeaderboard(
-    hasCategories ? null : competition.id, // Only fetch if no categories
+  // OPTIMIZATION: Single source of truth for entries + participants.
+  // We subscribe once regardless of whether categories exist, and derive
+  // both the categorised view and the flat view from the same data. This
+  // eliminates the previous double-subscription (useAllParticipants +
+  // useParticipants) which hit the same collection twice.
+  const { entries: allEntries, loading: leaderboardLoading, error } = useCompetitionLeaderboard(
+    competition.id,
     undefined,
     competition.format
   );
 
-  const { participants, loading: participantsLoading, count: totalParticipantCount } = useParticipants(
-    competition.id,
-    undefined // Get all participants for count
-  );
+  const {
+    participants,
+    loading: participantsLoading,
+    count: totalParticipantCount,
+  } = useParticipants(competition.id, undefined);
 
-  const loading = categoriesLoading || 
-    (hasCategories ? (allEntriesLoading || allParticipantsLoading) : (leaderboardLoading || participantsLoading));
+  // Categories are auxiliary – don't block first paint on them.
+  const dataLoading = leaderboardLoading || participantsLoading;
+  const loading = dataLoading;
 
   // Pre-filter entries and participants per category (memoized for performance)
   const categoryDataMap = useMemo(() => {
@@ -432,45 +431,97 @@ export function CompetitionLeaderboard({
     
     const map = new Map<string, { entries: LeaderboardEntry[]; participants: Participant[] }>();
     
+    const assignedCategoryIds = new Set<string>();
     categories.forEach(category => {
       const categoryEntries = allEntries.filter(e => e.category === category.id);
-      const categoryParticipants = allParticipantsForCategories.filter(p => p.category === category.id);
+      const categoryParticipants = participants.filter(p => p.category === category.id);
       map.set(category.id, { entries: categoryEntries, participants: categoryParticipants });
+      categoryEntries.forEach(e => assignedCategoryIds.add(e.userId || e.participantId));
+      categoryParticipants.forEach(p => assignedCategoryIds.add(p.userId || p.id));
     });
+
+    // Collect uncategorized entries/participants
+    const uncategorizedEntries = allEntries.filter(e => !e.category || !categories.some(c => c.id === e.category));
+    const uncategorizedParticipants = participants.filter(p => !p.category || !categories.some(c => c.id === p.category));
+    if (uncategorizedEntries.length > 0 || uncategorizedParticipants.length > 0) {
+      map.set('__uncategorized__', { entries: uncategorizedEntries, participants: uncategorizedParticipants });
+    }
     
     return map;
-  }, [hasCategories, categories, allEntries, allParticipantsForCategories]);
+  }, [hasCategories, categories, allEntries, participants]);
 
-  // Sync missing categories when leaderboard loads (for per-category scoring)
-  // This runs more aggressively to catch category changes and new registrations
-  useEffect(() => {
-    if (!loading && competition.settings?.enableCategories) {
-      // Always check for missing categories in entries when categories are enabled
-      const checkAndSync = async () => {
-        try {
-          const missingCategories = await ResultsService.getResultsWithMissingCategories(competition.id);
-          if (missingCategories.length > 0) {
-            console.log(`[CompetitionLeaderboard] Found ${missingCategories.length} results with missing categories, syncing...`);
-            await ResultsService.syncResultCategories(competition.id);
-          }
-        } catch (err) {
-          console.log('Failed to check/sync categories:', err);
-        }
-      };
-      checkAndSync();
+  // Uncategorized label: read once via ref so we don't invalidate the tabs
+  // memo every time the language context re-creates `t`.
+  const uncategorizedLabelRef = useRef<string>(t.competition?.general || 'כללי');
+  uncategorizedLabelRef.current = t.competition?.general || 'כללי';
+  const hasUncategorized = categoryDataMap.has('__uncategorized__');
+
+  // Build the list of category tabs (including uncategorized if needed).
+  // Uses only stable primitive deps so the array identity does not change on
+  // every re-render or language change.
+  const allCategoryTabs = useMemo(() => {
+    const tabs: { id: string; name: string }[] = categories.map(c => ({ id: c.id, name: c.name }));
+    if (hasUncategorized) {
+      tabs.push({ id: '__uncategorized__', name: uncategorizedLabelRef.current });
     }
-  }, [loading, competition.id, competition.settings?.enableCategories]);
+    return tabs;
+  }, [categories, hasUncategorized]);
+
+  // Auto-select the current user's category on first load
+  useEffect(() => {
+    if (!hasCategories || selectedCategoryId !== null || !currentUserId) return;
+    // Find which category the current user belongs to
+    const userParticipant = participants.find(p => p.userId === currentUserId);
+    if (userParticipant?.category && categories.some(c => c.id === userParticipant.category)) {
+      setSelectedCategoryId(userParticipant.category);
+    } else if (allCategoryTabs.length > 0) {
+      setSelectedCategoryId(allCategoryTabs[0].id);
+    }
+  }, [hasCategories, selectedCategoryId, currentUserId, participants, categories, allCategoryTabs]);
+
+  // If no user and no selection yet, default to first category
+  useEffect(() => {
+    if (hasCategories && selectedCategoryId === null && allCategoryTabs.length > 0 && !participantsLoading) {
+      setSelectedCategoryId(allCategoryTabs[0].id);
+    }
+  }, [hasCategories, selectedCategoryId, allCategoryTabs, participantsLoading]);
+
+  // Sync missing categories ONCE per competition (not on every render cycle).
+  // The previous implementation ran a full-collection scan every time `loading`
+  // toggled or `categories.length` changed, which happened on every subscription
+  // update during live scoring.
+  const categorySyncRanForCompetitionRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (dataLoading) return;
+    if (categories.length === 0) return;
+    if (categorySyncRanForCompetitionRef.current === competition.id) return;
+    categorySyncRanForCompetitionRef.current = competition.id;
+
+    (async () => {
+      try {
+        const missingCategories = await ResultsService.getResultsWithMissingCategories(competition.id);
+        if (missingCategories.length > 0) {
+          console.log(
+            `[CompetitionLeaderboard] Found ${missingCategories.length} results with missing categories, syncing once...`,
+          );
+          await ResultsService.syncResultCategories(competition.id);
+        }
+      } catch (err) {
+        console.log('Failed to check/sync categories:', err);
+      }
+    })();
+  }, [dataLoading, competition.id, categories.length]);
 
   // For no-category competitions: merge entries with participants
   const allEntriesNoCategory = useMemo(() => {
     if (hasCategories) return [];
 
     const leaderboardMap = new Map<string, LeaderboardEntry>();
-    entries.forEach(entry => {
+    allEntries.forEach(entry => {
       leaderboardMap.set(entry.userId || entry.participantId, entry);
     });
 
-    const merged: LeaderboardEntry[] = [...entries];
+    const merged: LeaderboardEntry[] = [...allEntries];
 
     participants.forEach(participant => {
       const participantKey = participant.userId || participant.id;
@@ -508,7 +559,7 @@ export function CompetitionLeaderboard({
     }
 
     return merged;
-  }, [entries, participants, hasCategories]);
+  }, [allEntries, participants, hasCategories]);
 
   // Top 3 for podium (only those with scores) - for no-category competitions
   const topThree = useMemo(() => allEntriesNoCategory.filter(e => e.points > 0).slice(0, 3), [allEntriesNoCategory]);
@@ -518,6 +569,19 @@ export function CompetitionLeaderboard({
     const withScores = allEntriesNoCategory.filter(e => e.points > 0).slice(3);
     const withoutScores = allEntriesNoCategory.filter(e => e.points === 0);
     return [...withScores, ...withoutScores];
+  }, [allEntriesNoCategory]);
+
+  // Tie-breaker ranks for the flat no-category leaderboard.
+  const tiedRanks = useMemo(() => {
+    const counts = new Map<number, number>();
+    for (const e of allEntriesNoCategory) {
+      if (e.rank > 0) counts.set(e.rank, (counts.get(e.rank) || 0) + 1);
+    }
+    const set = new Set<number>();
+    for (const [rank, count] of counts) {
+      if (count > 1) set.add(rank);
+    }
+    return set;
   }, [allEntriesNoCategory]);
 
   const renderPodium = () => {
@@ -591,6 +655,9 @@ export function CompetitionLeaderboard({
     const ifscLine = isZoneTop && hasScore
       ? formatIFSCResult(item.totalTops || 0, item.totalZones || 0, item.totalTopAttempts || 0, item.totalZoneAttempts || 0)
       : null;
+    const isTied = hasScore && tiedRanks.has(item.rank);
+    const tieAttempts = typeof item.totalAttempts === 'number' ? item.totalAttempts : undefined;
+    const attemptsLabel = (t.competition as any)?.attempts || 'ניסיונות';
 
     return (
       <TouchableOpacity
@@ -600,11 +667,19 @@ export function CompetitionLeaderboard({
           !hasScore && styles.noScoreItem,
         ]}
         onPress={() => onParticipantPress?.(item.participantId)}
+        onLongPress={() => {
+          if (isAdmin) {
+            setHistoryTarget({
+              participantId: item.participantId,
+              name: displayName,
+            });
+          }
+        }}
         activeOpacity={0.7}
       >
         <View style={styles.rankContainer}>
           <Text style={[styles.rankNumber, !hasScore && styles.noScoreRank]}>
-            {hasScore ? item.rank : '-'}
+            {hasScore ? (isTied ? `${item.rank}=` : item.rank) : '-'}
           </Text>
         </View>
 
@@ -632,18 +707,40 @@ export function CompetitionLeaderboard({
               : t.competition.noScoreYet || 'אין ניקוד עדיין'
             }
           </Text>
+          {isTied && tieAttempts !== undefined && (
+            <Text style={styles.tieHintText}>
+              שובר שוויון: {tieAttempts} {attemptsLabel}
+            </Text>
+          )}
         </View>
       </TouchableOpacity>
     );
   };
 
-  // Show loading
+  // Loading state now renders inline skeletons so the screen structure paints
+  // immediately. The full-screen ActivityIndicator was making the tab feel
+  // sluggish because it delayed the first visible frame.
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.primary} />
-        <Text style={styles.loadingText}>{t.competition.loadingCompetition}</Text>
-      </View>
+      <ScrollView style={styles.container}>
+        <View style={styles.statsHeader}>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>—</Text>
+            <Text style={styles.statLabel}>{t.competition.participants}</Text>
+          </View>
+          <View style={styles.statBox}>
+            <Text style={styles.statValue}>—</Text>
+            <Text style={styles.statLabel}>{t.competition.routesCompleted}</Text>
+          </View>
+          {!isZoneTop && (
+            <View style={styles.statBox}>
+              <Text style={styles.statValue}>—</Text>
+              <Text style={styles.statLabel}>{t.competition.scoring}</Text>
+            </View>
+          )}
+        </View>
+        <LeaderboardSkeleton theme={theme} />
+      </ScrollView>
     );
   }
 
@@ -656,6 +753,7 @@ export function CompetitionLeaderboard({
   }
 
   return (
+    <>
     <ScrollView style={styles.container}>
       {/* Competition Stats */}
       <View style={styles.statsHeader}>
@@ -675,27 +773,101 @@ export function CompetitionLeaderboard({
             <Text style={styles.statLabel}>{t.competition.scoring}</Text>
           </View>
         )}
+        {isAdmin && (
+          <TouchableOpacity
+            style={styles.exportButton}
+            onPress={async () => {
+              if (exporting) return;
+              try {
+                setExporting(true);
+                const rows = hasCategories ? allEntries : allEntriesNoCategory;
+                await exportLeaderboardCsv(competition, rows, {
+                  uncategorizedLabel: (t.competition as any)?.uncategorized || 'ללא קטגוריה',
+                });
+              } catch (e) {
+                console.warn('[CSV export] failed', e);
+                Alert.alert('שגיאה', 'ייצוא ה-CSV נכשל');
+              } finally {
+                setExporting(false);
+              }
+            }}
+            activeOpacity={0.7}
+            disabled={exporting}
+          >
+            {exporting ? (
+              <ActivityIndicator size="small" color={theme.primary} />
+            ) : (
+              <>
+                <Text style={styles.exportButtonText}>CSV</Text>
+                <Text style={styles.exportButtonIcon}>⬇</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
       </View>
 
-      {/* If has categories - show each category as a section */}
+      {/* If has categories - show category tabs + selected category leaderboard */}
       {hasCategories ? (
-        categories.map((category) => {
-          const categoryData = categoryDataMap.get(category.id) || { entries: [], participants: [] };
-          return (
+        <>
+          {/* Category Tabs */}
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.categoryTabs}
+            contentContainerStyle={styles.categoryTabsContent}
+          >
+            {allCategoryTabs.map((tab) => {
+              const isActive = selectedCategoryId === tab.id;
+              const data = categoryDataMap.get(tab.id);
+              const count = (data?.entries.length || 0) + (data?.participants.length || 0);
+              // Deduplicate count
+              const uniqueIds = new Set<string>();
+              data?.entries.forEach(e => uniqueIds.add(e.userId || e.participantId));
+              data?.participants.forEach(p => uniqueIds.add(p.userId || p.id));
+
+              return (
+                <TouchableOpacity
+                  key={tab.id}
+                  style={[styles.categoryTab, isActive && styles.categoryTabActive]}
+                  onPress={() => setSelectedCategoryId(tab.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.categoryTabText, isActive && styles.categoryTabTextActive]}>
+                    {tab.name}
+                  </Text>
+                  <Text style={[styles.categoryTabCount, isActive && styles.categoryTabCountActive]}>
+                    {uniqueIds.size}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          {/* Selected Category Leaderboard */}
+          {selectedCategoryId && categoryDataMap.has(selectedCategoryId) && (
             <CategorySection
-              key={category.id}
-              category={category}
-              categoryEntries={categoryData.entries}
-              categoryParticipants={categoryData.participants}
+              key={selectedCategoryId}
+              category={
+                categories.find(c => c.id === selectedCategoryId) ||
+                { id: '__uncategorized__', name: t.competition?.general || 'כללי', order: 999 }
+              }
+              categoryEntries={categoryDataMap.get(selectedCategoryId)!.entries}
+              categoryParticipants={categoryDataMap.get(selectedCategoryId)!.participants}
               currentUserId={currentUserId}
               onParticipantPress={onParticipantPress}
+              onParticipantLongPress={
+                isAdmin
+                  ? (pid, name) =>
+                      setHistoryTarget({ participantId: pid, name })
+                  : undefined
+              }
               theme={theme}
               t={t}
               styles={styles}
               isZoneTop={isZoneTop}
             />
-          );
-        })
+          )}
+        </>
       ) : (
         /* No categories - show single leaderboard */
         <>
@@ -715,7 +887,7 @@ export function CompetitionLeaderboard({
             </View>
           )}
 
-          {entries.length === 0 && (
+          {allEntriesNoCategory.length === 0 && (
             <View style={styles.emptyContainer}>
               <Text style={styles.emptyText}>
                 {t.competition.noResultsYet}
@@ -725,6 +897,16 @@ export function CompetitionLeaderboard({
         </>
       )}
     </ScrollView>
+      {historyTarget && (
+        <ResultHistoryModal
+          visible={true}
+          onClose={() => setHistoryTarget(null)}
+          competitionId={competition.id}
+          participantId={historyTarget.participantId}
+          participantName={historyTarget.name}
+        />
+      )}
+    </>
   );
 }
 
@@ -774,12 +956,37 @@ const createStyles = (theme: any) =>
       color: theme.textSecondary,
       marginTop: 2,
     },
+    exportButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.primary,
+      alignSelf: 'center',
+      minWidth: 60,
+    },
+    exportButtonText: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.primary,
+      marginEnd: 4,
+    },
+    exportButtonIcon: {
+      fontSize: 12,
+      color: theme.primary,
+    },
     categoryTabs: {
       flexDirection: 'row',
-      paddingHorizontal: 15,
       paddingVertical: 10,
       backgroundColor: theme.surface,
       marginBottom: 10,
+      maxHeight: 60,
+    },
+    categoryTabsContent: {
+      paddingHorizontal: 15,
     },
     categoryTab: {
       paddingHorizontal: 16,
@@ -787,6 +994,9 @@ const createStyles = (theme: any) =>
       borderRadius: 20,
       marginEnd: 8,
       backgroundColor: theme.isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
     },
     categoryTabActive: {
       backgroundColor: theme.primary,
@@ -799,6 +1009,20 @@ const createStyles = (theme: any) =>
     categoryTabTextActive: {
       color: '#fff',
       fontWeight: 'bold',
+    },
+    categoryTabCount: {
+      fontSize: 11,
+      color: theme.textSecondary,
+      fontWeight: '600',
+      backgroundColor: theme.isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)',
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      borderRadius: 10,
+      overflow: 'hidden',
+    },
+    categoryTabCountActive: {
+      color: '#fff',
+      backgroundColor: 'rgba(255,255,255,0.25)',
     },
     podiumContainer: {
       backgroundColor: theme.surface,
@@ -966,6 +1190,12 @@ const createStyles = (theme: any) =>
     },
     noScoreText: {
       fontStyle: 'italic',
+    },
+    tieHintText: {
+      fontSize: 11,
+      color: theme.primary,
+      marginTop: 2,
+      fontWeight: '600',
     },
     emptyContainer: {
       padding: 40,

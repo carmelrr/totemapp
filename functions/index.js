@@ -10,6 +10,7 @@
 const { setGlobalOptions } = require("firebase-functions");
 const { onRequest, onCall, HttpsError } = require("firebase-functions/https");
 const { onSchedule } = require("firebase-functions/scheduler");
+const { onDocumentWritten } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
@@ -376,7 +377,10 @@ exports.deleteAccount = onCall(
     const uid = request.auth.uid;
     logger.info(`[deleteAccount] Starting deletion for uid=${uid}`);
 
-    // Helper: recursively delete a document and all its subcollections
+    /**
+     * Recursively delete a document and all its subcollections.
+     * @param {Object} docRef - Firestore document reference
+     */
     async function deleteDocRecursive(docRef) {
       const subcollections = await docRef.listCollections();
       for (const subcol of subcollections) {
@@ -388,7 +392,11 @@ exports.deleteAccount = onCall(
       await docRef.delete();
     }
 
-    // Helper: delete docs in a collection where a field matches uid
+    /**
+     * Delete docs in a collection where a field matches uid.
+     * @param {string} collectionName - Firestore collection name
+     * @param {string} fieldName - Field to match against uid
+     */
     async function deleteByField(collectionName, fieldName) {
       const snapshot = await db
         .collection(collectionName)
@@ -537,3 +545,124 @@ exports.deleteAccount = onCall(
 //   logger.info("Hello logs!", {structuredData: true});
 //   response.send("Hello from Firebase!");
 // });
+
+// ==================== Competition Results Integrity ====================
+
+/**
+ * When a participant's `category` changes, cascade it to all of that
+ * participant's result entries so leaderboards regroup automatically.
+ * Also keeps `categoryName` denormalized on each result in sync.
+ */
+exports.onParticipantCategoryChange = onDocumentWritten(
+  {
+    document: "competitions/{competitionId}/participants/{participantId}",
+  },
+  async (event) => {
+    const before = event.data && event.data.before ? event.data.before.data() : undefined;
+    const after = event.data && event.data.after ? event.data.after.data() : undefined;
+    if (!after) return; // deletion — nothing to cascade
+    if (!before) return; // creation — no previous category to compare
+
+    const prevCat = before.category || null;
+    const nextCat = after.category || null;
+    const prevCatName = before.categoryName || null;
+    const nextCatName = after.categoryName || null;
+
+    if (prevCat === nextCat && prevCatName === nextCatName) return;
+
+    const { competitionId } = event.params;
+    const userId = after.userId || event.params.participantId;
+
+    try {
+      const resultRef = db
+        .collection("competitions")
+        .doc(competitionId)
+        .collection("results")
+        .doc(userId);
+
+      const snap = await resultRef.get();
+      if (!snap.exists) return;
+
+      await resultRef.update({
+        category: nextCat,
+        categoryName: nextCatName,
+        lastUpdated: Timestamp.now(),
+      });
+      logger.info(
+        `Cascaded category change for ${userId} in ${competitionId}: ${prevCat} -> ${nextCat}`
+      );
+    } catch (e) {
+      logger.error("Category cascade failed", e);
+    }
+  }
+);
+
+/**
+ * One-shot callable migration: backfill `version=1`, `lastEditedBy`,
+ * `lastEditedAt` on any result document that is missing them. Idempotent —
+ * safe to run multiple times. Requires caller to be an admin.
+ *
+ * Call from a privileged client:
+ *   httpsCallable(functions, 'migrateResultsVersioning')({ competitionId })
+ *   httpsCallable(functions, 'migrateResultsVersioning')({}) // all competitions
+ */
+exports.migrateResultsVersioning = onCall(
+  { memory: "512MiB", timeoutSeconds: 540 },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be signed in.");
+    }
+    const claims = request.auth.token || {};
+    const uid = request.auth.uid;
+    let isAdmin = claims.admin === true;
+    if (!isAdmin) {
+      try {
+        const userDoc = await db.collection("users").doc(uid).get();
+        const d = userDoc.data() || {};
+        isAdmin = d.isAdmin === true || d.role === "admin";
+      } catch (e) {
+        // fall through
+      }
+    }
+    if (!isAdmin) {
+      throw new HttpsError("permission-denied", "Admins only.");
+    }
+
+    const scopeCompetitionId = request.data ? request.data.competitionId : undefined;
+    const competitionsRef = db.collection("competitions");
+    let compSnap;
+    if (scopeCompetitionId) {
+      const single = await competitionsRef.doc(scopeCompetitionId).get();
+      compSnap = single.exists ? [single] : [];
+    } else {
+      compSnap = (await competitionsRef.get()).docs;
+    }
+
+    let scanned = 0;
+    let updated = 0;
+    for (const comp of compSnap) {
+      const resultsSnap = await competitionsRef
+        .doc(comp.id)
+        .collection("results")
+        .get();
+      for (const doc of resultsSnap.docs) {
+        scanned += 1;
+        const data = doc.data() || {};
+        const patch = {};
+        if (typeof data.version !== "number") patch.version = 1;
+        if (!data.lastEditedAt) patch.lastEditedAt = Timestamp.now();
+        if (!data.lastEditedBy && data.userId) {
+          patch.lastEditedBy = data.userId;
+        }
+        if (Object.keys(patch).length > 0) {
+          await doc.ref.update(patch);
+          updated += 1;
+        }
+      }
+    }
+    logger.info(
+      `[migrateResultsVersioning] scanned=${scanned} updated=${updated}`
+    );
+    return { scanned, updated };
+  }
+);

@@ -21,7 +21,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
 import { useWallTapes } from '../hooks/useWallTapes';
-import { addWallTape, deleteWallTape, updateWallTape, autoAssignTapesToRoutes } from '../services/WallTapeService';
+import { addWallTape, deleteWallTape, updateWallTape, autoAssignTapesToRoutes, diagnoseRouteWallTapes, normalizeRouteWallTapes, findOverlappingTapeRanges } from '../services/WallTapeService';
 
 // V-Scale grades for grade range pickers
 const GRADES = [
@@ -60,6 +60,8 @@ export default function WallTapeManagementScreen() {
   const [gradeMax, setGradeMax] = useState('');
   const [saving, setSaving] = useState(false);
   const [autoAssigning, setAutoAssigning] = useState(false);
+  const [diagnosing, setDiagnosing] = useState(false);
+  const [normalizing, setNormalizing] = useState(false);
 
   // Edit existing tape state
   const [editingTapeId, setEditingTapeId] = useState<string | null>(null);
@@ -154,9 +156,20 @@ export default function WallTapeManagementScreen() {
   };
 
   const handleAutoAssign = useCallback(async () => {
+    const overlaps = findOverlappingTapeRanges(tapes);
+    const overlapMsg = overlaps.length > 0
+      ? `\n\n⚠️ Overlapping grade ranges detected (${overlaps.length}):\n` +
+        overlaps.slice(0, 3).map(({ a, b }) => {
+          const an = language === 'he' ? a.nameHe : a.nameEn;
+          const bn = language === 'he' ? b.nameHe : b.nameEn;
+          return `• ${an} (${a.gradeMin}–${a.gradeMax}) ↔ ${bn} (${b.gradeMin}–${b.gradeMax})`;
+        }).join('\n') +
+        (overlaps.length > 3 ? `\n... +${overlaps.length - 3} more` : '') +
+        '\n\nOnly the first matching tape will be assigned to each route.'
+      : '';
     Alert.alert(
       t.wallTape?.autoAssign || 'Auto-Assign Tapes',
-      t.wallTape?.autoAssignConfirm || 'This will assign tapes to all routes that don\'t have a tape yet, based on the grade ranges you defined. Continue?',
+      (t.wallTape?.autoAssignConfirm || 'This will assign tapes to all routes that don\'t have a tape yet, based on the grade ranges you defined. Continue?') + overlapMsg,
       [
         { text: t.common?.cancel || 'Cancel', style: 'cancel' },
         {
@@ -174,6 +187,65 @@ export default function WallTapeManagementScreen() {
               Alert.alert(t.common?.error || 'Error', `Auto-assign failed:\n${e?.message || String(e)}`);
             } finally {
               setAutoAssigning(false);
+            }
+          },
+        },
+      ],
+    );
+  }, [t, tapes, language]);
+
+  const handleDiagnose = useCallback(async () => {
+    setDiagnosing(true);
+    try {
+      const r = await diagnoseRouteWallTapes();
+      const fmtSamples = (arr: Array<{ routeId: string; wallTape: string }>) =>
+        arr.length === 0 ? '—' : arr.map((s) => `  • ${s.routeId}: "${s.wallTape}"`).join('\n');
+      const msg =
+        `Active routes: ${r.totalActive}\n` +
+        `With wallTape: ${r.withTape}   Empty: ${r.empty}\n\n` +
+        `Matched by id:   ${r.matchedById}\n` +
+        `Matched by hex:  ${r.matchedByHex}\n` +
+        `Matched by name: ${r.matchedByName}\n` +
+        `Unresolved:      ${r.unresolved}\n\n` +
+        `Unresolved samples:\n${fmtSamples(r.samples.unresolved)}\n\n` +
+        `By-hex samples:\n${fmtSamples(r.samples.matchedByHex)}\n\n` +
+        `By-name samples:\n${fmtSamples(r.samples.matchedByName)}`;
+      console.log('[WallTapeDiagnostics]', JSON.stringify(r, null, 2));
+      Alert.alert('Wall-Tape Diagnostics', msg);
+    } catch (e: any) {
+      console.error('[WallTapeManagement] diagnose error:', e);
+      Alert.alert(t.common?.error || 'Error', `Diagnose failed:\n${e?.message || String(e)}`);
+    } finally {
+      setDiagnosing(false);
+    }
+  }, [t]);
+
+  const handleNormalize = useCallback(async () => {
+    Alert.alert(
+      'Normalize wallTape',
+      'This will rewrite legacy wallTape values (hex / name) on routes to the canonical tape id, and auto-assign tapes to routes with empty wallTape based on grade ranges. This action writes to Firestore. Continue?',
+      [
+        { text: t.common?.cancel || 'Cancel', style: 'cancel' },
+        {
+          text: t.common?.confirm || 'Confirm',
+          onPress: async () => {
+            setNormalizing(true);
+            try {
+              const r = await normalizeRouteWallTapes();
+              const msg =
+                `Total: ${r.total}\n` +
+                `Already canonical: ${r.matchedById}\n` +
+                `Rewritten from hex: ${r.rewrittenFromHex}\n` +
+                `Rewritten from name: ${r.rewrittenFromName}\n` +
+                `Auto-assigned (was empty): ${r.autoAssignedEmpty}\n` +
+                `Unresolved (left as-is): ${r.unresolved}`;
+              console.log('[WallTapeNormalize]', JSON.stringify(r, null, 2));
+              Alert.alert('Normalization Done', msg);
+            } catch (e: any) {
+              console.error('[WallTapeManagement] normalize error:', e);
+              Alert.alert(t.common?.error || 'Error', `Normalize failed:\n${e?.message || String(e)}`);
+            } finally {
+              setNormalizing(false);
             }
           },
         },
@@ -413,6 +485,32 @@ export default function WallTapeManagementScreen() {
             <ActivityIndicator color={theme.primary} size="small" />
           ) : (
             <Text style={styles.autoAssignText}>{t.wallTape?.autoAssign || 'Auto-Assign Tapes to Routes'}</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Diagnose button */}
+        <TouchableOpacity
+          style={[styles.autoAssignButton, diagnosing && styles.addButtonDisabled]}
+          onPress={handleDiagnose}
+          disabled={diagnosing}
+        >
+          {diagnosing ? (
+            <ActivityIndicator color={theme.primary} size="small" />
+          ) : (
+            <Text style={styles.autoAssignText}>Diagnose Route wallTape</Text>
+          )}
+        </TouchableOpacity>
+
+        {/* Normalize button */}
+        <TouchableOpacity
+          style={[styles.autoAssignButton, normalizing && styles.addButtonDisabled]}
+          onPress={handleNormalize}
+          disabled={normalizing}
+        >
+          {normalizing ? (
+            <ActivityIndicator color={theme.primary} size="small" />
+          ) : (
+            <Text style={styles.autoAssignText}>Normalize wallTape (rewrite legacy values)</Text>
           )}
         </TouchableOpacity>
       </View>

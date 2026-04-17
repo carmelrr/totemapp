@@ -98,7 +98,7 @@ export default function CompetitionRegistrationScreen() {
       const categoryObj = competition.categories?.find(c => c.id === selectedCategory);
       const birthYearNum = birthYear ? parseInt(birthYear, 10) : undefined;
       
-      await ParticipantService.selfRegister(
+      const participantId = await ParticipantService.selfRegister(
         competitionId,
         user.uid,
         {
@@ -114,10 +114,18 @@ export default function CompetitionRegistrationScreen() {
         }
       );
 
+      // Refresh registration status to show correct UI (approved vs pending)
+      const updated = await ParticipantService.getParticipantByUserId(competitionId, user.uid);
+      if (updated) {
+        setRegistration(updated);
+      }
+
+      const isAutoApproved = competition.settings?.registrationMode === 'openRegistration';
       Alert.alert(
         t.competitionExt.registerSuccess,
-        t.competitionExt.registerSuccessMessage,
-        [{ text: t.common.ok, onPress: () => navigation.goBack() }]
+        isAutoApproved
+          ? (t.competitionExt.registerApprovedMessage || t.competitionExt.registerSuccessMessage)
+          : t.competitionExt.registerSuccessMessage,
       );
     } catch (error: any) {
       Alert.alert(t.common.error, error.message || t.competitionExt.cannotRegister);

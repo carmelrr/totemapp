@@ -1231,6 +1231,12 @@ export class ParticipantService {
         'participants'
       );
 
+      // Determine status based on registration mode
+      // Open registration or active competition with open registration: auto-approve, no judge approval needed
+      const isOpenRegistration = competition.settings?.registrationMode === 'openRegistration'
+        || (competition.status === 'active' && competition.registrationStatus === 'open');
+      const participantStatus = isOpenRegistration ? 'approved' : 'pending_approval';
+
       const participantData = {
         competitionId,
         name: userData.displayName,
@@ -1245,10 +1251,11 @@ export class ParticipantService {
         skillLevel: userData.skillLevel || null,
         category: assignedCategory || null,
         categoryName: assignedCategoryName || null,
-        status: 'pending_approval', // Needs admin/head judge approval
+        status: participantStatus,
         registeredAt: serverTimestamp(),
         registeredBy: userId, // Self-registered
         isActive: true,
+        ...(isOpenRegistration ? { approvedAt: serverTimestamp() } : {}),
       };
 
       const docRef = await addDoc(participantsRef, participantData);

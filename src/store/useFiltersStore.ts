@@ -1,42 +1,35 @@
 import { create } from 'zustand';
 import { RouteDoc } from '@/features/routes-map/types/route';
+import type { WallTape } from '@/features/routes-map/services/WallTapeService';
 
 export type CompletionFilter = 'all' | 'completed' | 'not-completed';
 
 export interface RouteFilters {
-  // סינון לפי מעגלים/צבעים
-  circuits: string[];
+  // סינון לפי צבעים
   colors: string[];
-  
+
   // סינון לפי דרגות
   gradeRange: {
     min: string;
     max: string;
   };
-  
+
   // סינון לפי תאריך הוספה (תאריך ספציפי או 'all')
   // פורמט: 'all' או תאריך בפורמט YYYY-MM-DD
   dateRange: string;
-  
+
   // סינון לפי סטטוס
   status: ('active' | 'archived' | 'draft')[];
-  
-  // סינון לפי קיר/סקטור
-  walls: string[];
-  sectors: string[];
-  
-  // סינון לפי סטטוס אישי (טיקים)
-  personalStatus: ('unsent' | 'project' | 'sent' | 'flashed')[];
-  
+
   // סינון לפי סטטוס סגירה אישי
   completionStatus: CompletionFilter;
-  
+
   // סינון לפי תגיות
   tags: string[];
-  
-  // סינון לפי טייפ של הקיר
+
+  // סינון לפי טייפ של הקיר (ערכים הם מזהי Firestore של WallTape)
   wallTapes: string[];
-  
+
   // הצגת מסלולים נראים במפה בלבד
   showOnlyVisibleOnMap: boolean;
 }
@@ -63,19 +56,20 @@ export interface FiltersState {
   setFilterSheetOpen: (open: boolean) => void;
   
   // פונקציות עזר
-  getFilteredRoutes: (routes: RouteDoc[], visibleRouteIds?: string[], completedRouteIds?: Set<string>) => RouteDoc[];
+  getFilteredRoutes: (
+    routes: RouteDoc[],
+    visibleRouteIds?: string[],
+    completedRouteIds?: Set<string>,
+    wallTapesCatalog?: WallTape[],
+  ) => RouteDoc[];
   getActiveFiltersCount: () => number;
 }
 
 const defaultFilters: RouteFilters = {
-  circuits: [],
   colors: [],
   gradeRange: { min: '', max: '' },
   dateRange: 'all',
   status: ['active'],
-  walls: [],
-  sectors: [],
-  personalStatus: [],
   completionStatus: 'all',
   tags: [],
   wallTapes: [],
@@ -105,8 +99,38 @@ function compareGrades(gradeA: string, gradeB: string): number {
 }
 
 /**
+ * Normalize a wallTape reference value for tolerant matching.
+ * Trims, lowercases; returns empty string for falsy input.
+ */
+function normalizeTapeRef(v: string | undefined | null): string {
+  return (v || '').trim().toLowerCase();
+}
+
+/**
+ * Build a lookup from any legacy/canonical tape reference (id, hex, nameHe, nameEn)
+ * to the canonical tape.id. Allows filtering to work on routes whose `wallTape`
+ * field was written in an older format before tape.id became canonical.
+ */
+function buildTapeRefIndex(catalog: WallTape[]): Map<string, string> {
+  const index = new Map<string, string>();
+  for (const tape of catalog) {
+    const keys = [tape.id, tape.hex, tape.nameHe, tape.nameEn];
+    for (const key of keys) {
+      const n = normalizeTapeRef(key);
+      if (n) index.set(n, tape.id);
+    }
+  }
+  return index;
+}
+
+/**
  * Standalone pure filtering function — stable reference for useMemo consumers.
  * Avoids re-compute when unrelated Zustand state (isFilterSheetOpen, etc.) changes.
+ *
+ * @param wallTapesCatalog Optional catalog of wall tapes used to perform tolerant
+ *   matching of `route.wallTape` against `filters.wallTapes`. If omitted, strict
+ *   id-equality matching is used (backward compatible, but will miss routes whose
+ *   wallTape field holds a legacy hex/name value instead of a tape id).
  */
 export function filterRoutes(
   routes: RouteDoc[],
@@ -115,6 +139,7 @@ export function filterRoutes(
   searchQuery: string,
   visibleRouteIds?: string[],
   completedRouteIds?: Set<string>,
+  wallTapesCatalog?: WallTape[],
 ): RouteDoc[] {
   let filteredRoutes = routes;
 
@@ -178,9 +203,24 @@ export function filterRoutes(
   }
 
   if (filters.wallTapes.length > 0) {
-    filteredRoutes = filteredRoutes.filter(route =>
-      route.wallTape && filters.wallTapes.includes(route.wallTape)
-    );
+    const selected = new Set(filters.wallTapes);
+    if (wallTapesCatalog && wallTapesCatalog.length > 0) {
+      // Tolerant matching: resolve route.wallTape (may be id / hex / name) → canonical id
+      const refIndex = buildTapeRefIndex(wallTapesCatalog);
+      filteredRoutes = filteredRoutes.filter(route => {
+        if (!route.wallTape) return false;
+        // Fast path: already a canonical id we selected
+        if (selected.has(route.wallTape)) return true;
+        // Fallback: try to resolve legacy value (hex / name) to a tape id
+        const resolvedId = refIndex.get(normalizeTapeRef(route.wallTape));
+        return resolvedId ? selected.has(resolvedId) : false;
+      });
+    } else {
+      // Strict matching when catalog is unavailable
+      filteredRoutes = filteredRoutes.filter(route =>
+        !!route.wallTape && selected.has(route.wallTape)
+      );
+    }
   }
 
   filteredRoutes = [...filteredRoutes].sort((a, b) => {
@@ -250,29 +290,33 @@ export const useFiltersStore = create<FiltersState>((set, get) => ({
     set({ isFilterSheetOpen: open });
   },
 
-  getFilteredRoutes: (routes, visibleRouteIds, completedRouteIds) => {
+  getFilteredRoutes: (routes, visibleRouteIds, completedRouteIds, wallTapesCatalog) => {
     const { filters, sorting, searchQuery } = get();
-    return filterRoutes(routes, filters, sorting, searchQuery, visibleRouteIds, completedRouteIds);
+    return filterRoutes(
+      routes,
+      filters,
+      sorting,
+      searchQuery,
+      visibleRouteIds,
+      completedRouteIds,
+      wallTapesCatalog,
+    );
   },
 
   getActiveFiltersCount: () => {
     const { filters, searchQuery } = get();
     let count = 0;
-    
+
     if (searchQuery.trim()) count++;
-    if (filters.circuits.length > 0) count++;
     if (filters.colors.length > 0) count++;
     if (filters.gradeRange.min || filters.gradeRange.max) count++;
     if (filters.dateRange && filters.dateRange !== 'all') count++;
     if (filters.status.length !== 1 || filters.status[0] !== 'active') count++;
-    if (filters.walls.length > 0) count++;
-    if (filters.sectors.length > 0) count++;
-    if (filters.personalStatus.length > 0) count++;
     if (filters.completionStatus && filters.completionStatus !== 'all') count++;
     if (filters.tags.length > 0) count++;
     if (filters.wallTapes.length > 0) count++;
     if (!filters.showOnlyVisibleOnMap) count++;
-    
+
     return count;
   },
 }));
