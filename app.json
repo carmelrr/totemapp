@@ -3,7 +3,7 @@
     "name": "TOTEM",
     "slug": "climbing-gym-app",
     "scheme": "totem-app",
-    "version": "1.1.0",
+    "version": "1.1.1",
     "orientation": "default",
     "icon": "./src/assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -19,7 +19,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "totemapp.com",
-      "buildNumber": "5",
+      "buildNumber": "6",
       "googleServicesFile": "./GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "infoPlist": {
@@ -34,7 +34,7 @@
         "backgroundColor": "#0B0B0F"
       },
       "navigationBarColor": "#0B0B0F",
-      "versionCode": 6,
+      "versionCode": 7,
       "package": "com.totemapp.climbing",
       "googleServicesFile": "./google-services.json",
       "permissions": [
