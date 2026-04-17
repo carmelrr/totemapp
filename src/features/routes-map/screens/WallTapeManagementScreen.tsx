@@ -360,6 +360,58 @@ export default function WallTapeManagementScreen() {
         <View style={{ width: 24 }} />
       </View>
 
+      {/* Bulk actions bar (admin tools) */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.actionsBar}
+      >
+        <TouchableOpacity
+          style={[styles.actionPill, autoAssigning && styles.addButtonDisabled]}
+          onPress={handleAutoAssign}
+          disabled={autoAssigning}
+        >
+          {autoAssigning ? (
+            <ActivityIndicator color={theme.primary} size="small" />
+          ) : (
+            <>
+              <Ionicons name="flash" size={14} color={theme.primary} />
+              <Text style={styles.actionPillText}>{t.wallTape?.autoAssign || 'Auto-Assign'}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionPill, diagnosing && styles.addButtonDisabled]}
+          onPress={handleDiagnose}
+          disabled={diagnosing}
+        >
+          {diagnosing ? (
+            <ActivityIndicator color={theme.primary} size="small" />
+          ) : (
+            <>
+              <Ionicons name="search" size={14} color={theme.primary} />
+              <Text style={styles.actionPillText}>Diagnose</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.actionPill, normalizing && styles.addButtonDisabled]}
+          onPress={handleNormalize}
+          disabled={normalizing}
+        >
+          {normalizing ? (
+            <ActivityIndicator color={theme.primary} size="small" />
+          ) : (
+            <>
+              <Ionicons name="sync" size={14} color={theme.primary} />
+              <Text style={styles.actionPillText}>Normalize</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </ScrollView>
+
       {/* Existing tapes list */}
       {loading ? (
         <ActivityIndicator style={{ marginTop: 32 }} size="large" color={theme.primary} />
@@ -472,45 +524,6 @@ export default function WallTapeManagementScreen() {
             <ActivityIndicator color="#fff" size="small" />
           ) : (
             <Text style={styles.addButtonText}>{t.wallTape?.addTape || 'Add Tape'}</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Auto-assign button */}
-        <TouchableOpacity
-          style={[styles.autoAssignButton, autoAssigning && styles.addButtonDisabled]}
-          onPress={handleAutoAssign}
-          disabled={autoAssigning}
-        >
-          {autoAssigning ? (
-            <ActivityIndicator color={theme.primary} size="small" />
-          ) : (
-            <Text style={styles.autoAssignText}>{t.wallTape?.autoAssign || 'Auto-Assign Tapes to Routes'}</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Diagnose button */}
-        <TouchableOpacity
-          style={[styles.autoAssignButton, diagnosing && styles.addButtonDisabled]}
-          onPress={handleDiagnose}
-          disabled={diagnosing}
-        >
-          {diagnosing ? (
-            <ActivityIndicator color={theme.primary} size="small" />
-          ) : (
-            <Text style={styles.autoAssignText}>Diagnose Route wallTape</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* Normalize button */}
-        <TouchableOpacity
-          style={[styles.autoAssignButton, normalizing && styles.addButtonDisabled]}
-          onPress={handleNormalize}
-          disabled={normalizing}
-        >
-          {normalizing ? (
-            <ActivityIndicator color={theme.primary} size="small" />
-          ) : (
-            <Text style={styles.autoAssignText}>Normalize wallTape (rewrite legacy values)</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -669,6 +682,30 @@ const createStyles = (theme: any) =>
       color: theme.primary,
       fontWeight: '700',
       fontSize: 14,
+    },
+    actionsBar: {
+      flexDirection: 'row',
+      gap: 8,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      alignItems: 'center',
+    },
+    actionPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      borderRadius: 999,
+      borderWidth: 1.5,
+      borderColor: theme.primary,
+      backgroundColor: theme.surface || 'transparent',
+      minHeight: 34,
+    },
+    actionPillText: {
+      color: theme.primary,
+      fontWeight: '700',
+      fontSize: 13,
     },
     gradeRangeRow: {
       gap: 8,
