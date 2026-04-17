@@ -26,8 +26,6 @@ expo-debug.log
 
 # Firebase credentials
 firebase-debug.log
-google-services.json
-GoogleService-Info.plist
 
 # Google Cloud service account keys
 *.json.key
