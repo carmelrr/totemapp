@@ -29,6 +29,7 @@ import AdminPanelScreen from "@/screens/admin/AdminPanelScreen";
 import AdminStatisticsScreen from "@/screens/admin/AdminStatisticsScreen";
 import WallTapeManagementScreen from "@/features/routes-map/screens/WallTapeManagementScreen";
 import FontPreviewScreen from "@/screens/admin/FontPreviewScreen";
+import ClassPlannerScreen from "@/features/classes/ClassPlannerScreen";
 import DeleteAccountScreen from "@/screens/profile/DeleteAccountScreen";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import { GuestProvider, useGuest } from "@/context/GuestContext";
@@ -177,6 +178,14 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
           <RootStack.Screen 
             name="DeleteAccount" 
             component={DeleteAccountScreen}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+          <RootStack.Screen
+            name="ClassPlanner"
+            component={ClassPlannerScreen}
             options={{
               headerShown: false,
               animation: 'slide_from_right',

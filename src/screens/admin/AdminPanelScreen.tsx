@@ -34,7 +34,7 @@ export default function AdminPanelScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation();
   const { defaultAvatarUrl, uploadDefaultAvatar, removeDefaultAvatar } = useDefaultAvatar();
-  const { canManageRoles, canManageAnnouncements } = useRolesContext();
+  const { canManageRoles, canManageAnnouncements, canManageClasses } = useRolesContext();
 
   const [isRecalculating, setIsRecalculating] = useState(false);
   const [isNormalizingColors, setIsNormalizingColors] = useState(false);
@@ -282,6 +282,14 @@ export default function AdminPanelScreen() {
       label: 'ניהול משמרות',
       color: '#FF5722',
       onPress: () => (navigation as any).navigate('Shifts'),
+    },
+    {
+      key: 'classPlanner',
+      icon: '🎯',
+      label: t.admin.classPlanner,
+      color: '#14B8A6',
+      onPress: () => (navigation as any).navigate('ClassPlanner'),
+      visible: canManageClasses,
     },
     {
       key: 'tapes',

@@ -20,6 +20,7 @@ export type RootStackParamList = {
   RolesManagement: undefined;
   AdminStatistics: undefined;
   DeleteAccount: undefined;
+  ClassPlanner: undefined;
 };
 
 // ===== Shifts Stack =====

@@ -20,6 +20,7 @@ import {
   canManageCompetitionRoutes as checkCanManageCompetitionRoutes,
   isJudgeRole as checkIsJudgeRole,
   canManageAnnouncements as checkCanManageAnnouncements,
+  canManageClasses as checkCanManageClasses,
 } from './constants';
 
 interface RolesContextType {
@@ -45,6 +46,8 @@ interface RolesContextType {
   isJudgeRole: boolean;
   // Announcements permissions
   canManageAnnouncements: boolean;
+  // Classes permissions
+  canManageClasses: boolean;
   // Methods
   hasRole: (role: UserRole) => boolean;
   hasAnyRole: (roles: UserRole[]) => boolean;
@@ -149,6 +152,8 @@ export function RolesProvider({ children }: RolesProviderProps) {
     isJudgeRole: checkIsJudgeRole(roles),
     // Announcements permissions
     canManageAnnouncements: checkCanManageAnnouncements(roles),
+    // Classes permissions
+    canManageClasses: checkCanManageClasses(roles),
     // Methods
     hasRole: (role: UserRole) => roles.includes(role),
     hasAnyRole: (requiredRoles: UserRole[]) => requiredRoles.some(r => roles.includes(r)),

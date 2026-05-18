@@ -58,6 +58,10 @@ export type Permission =
   | 'announcements.edit'
   | 'announcements.delete'
   | 'announcements.schedule'
+  // Classes permissions
+  | 'classes.view'
+  | 'classes.manage'
+  | 'classes.settings'
   // Admin permissions
   | 'admin.manage_roles'
   | 'admin.manage_users'

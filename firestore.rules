@@ -653,6 +653,45 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
+    // ==================== Class Planning ====================
+    // הגדרות גלובליות לתכנון חוגים — מסמך יחיד "global"
+    match /classSettings/{settingsId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin() && isReasonableSize();
+    }
+
+    // מיקומים פיזיים (קירות, כר ילדים, אזורי אימון)
+    match /classLocations/{locationId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isReasonableSize();
+      allow update: if isAdmin() && isReasonableSize();
+      allow delete: if isAdmin();
+    }
+
+    // מסלולי תשלום (Programs)
+    match /classPrograms/{programId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isReasonableSize();
+      allow update: if isAdmin() && isReasonableSize();
+      allow delete: if isAdmin();
+    }
+
+    // קבוצות כלכליות (Groups) — יחידת ההכנסה
+    match /classGroups/{groupId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isReasonableSize();
+      allow update: if isAdmin() && isReasonableSize();
+      allow delete: if isAdmin();
+    }
+
+    // אימונים בלוח (Sessions) — שיבוץ של קבוצה
+    match /classSessions/{sessionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin() && isReasonableSize();
+      allow update: if isAdmin() && isReasonableSize();
+      allow delete: if isAdmin();
+    }
+
     // ==================== Default Deny ====================
     // כל מה שלא מוגדר במפורש - אסור!
     // זה חשוב לאבטחה - אין גישה לכלום שלא מוגדר

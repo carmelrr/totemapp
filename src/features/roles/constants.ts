@@ -129,6 +129,10 @@ export const ROLE_PERMISSIONS: RolePermissions[] = [
       'announcements.edit',
       'announcements.delete',
       'announcements.schedule',
+      // Classes permissions
+      'classes.view',
+      'classes.manage',
+      'classes.settings',
       // Admin permissions
       'admin.manage_roles',
       'admin.manage_users',
@@ -245,4 +249,12 @@ export function getAssignableRoles(userRoles: UserRole[]): UserRole[] {
  */
 export function canManageAnnouncements(roles: UserRole[]): boolean {
   return roles.includes('admin') || roles.includes('social_manager');
+}
+
+/**
+ * Check if user can manage the class-planning module.
+ * Only Admin has access at the moment; can be widened later.
+ */
+export function canManageClasses(roles: UserRole[]): boolean {
+  return roles.includes('admin');
 }
