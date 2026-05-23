@@ -66,7 +66,7 @@ export function Field({
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={theme.colors.textSecondary}
+        placeholderTextColor={theme.textSecondary}
         keyboardType={keyboardType}
         multiline={multiline}
         style={{

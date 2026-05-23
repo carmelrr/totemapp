@@ -3,6 +3,7 @@ node_modules/
 .expo/
 .expo-shared/
 dist/
+dist-*/
 build/
 
 # קבצים הקשורים לקונפיגורציה אישית או זמנית
