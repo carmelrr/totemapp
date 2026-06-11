@@ -60,6 +60,7 @@ export class ParticipantService {
       userId?: string;
       email?: string;
       phone?: string;
+      photoURL?: string | null;
       gender?: Gender;
       birthYear?: number;
       skillLevel?: SkillLevel;
@@ -76,6 +77,26 @@ export class ParticipantService {
         throw new Error('User not authenticated');
       }
       await checkManageParticipantsPermission(currentUser.uid);
+
+      // Validate input at the boundary.
+      const trimmedName = (data.name || data.userName || '').trim();
+      if (!trimmedName) {
+        throw new Error('שם המשתתף הוא שדה חובה');
+      }
+      if (data.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email.trim())) {
+        throw new Error('כתובת אימייל לא תקינה');
+      }
+      if (data.birthYear !== undefined && data.birthYear !== null) {
+        const currentYear = new Date().getFullYear();
+        if (
+          typeof data.birthYear !== 'number' ||
+          !Number.isInteger(data.birthYear) ||
+          data.birthYear < 1900 ||
+          data.birthYear > currentYear
+        ) {
+          throw new Error('שנת לידה לא תקינה');
+        }
+      }
 
       // Check for existing participant (including inactive ones)
       // Priority: userId > idNumber > email
@@ -113,7 +134,7 @@ export class ParticipantService {
         'participants'
       );
 
-      const participantName = data.name || data.userName || 'משתתף';
+      const participantName = trimmedName;
       const registerer = data.registeredBy || registeredBy || 'system';
 
       // Auto-assign category if not specified but gender/birthYear provided

@@ -84,6 +84,7 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
   const [videoUrl, setVideoUrl] = useState('');
   const [isVideoLinkValid, setIsVideoLinkValid] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isQuickSending, setIsQuickSending] = useState(false);
   const [userFeedback, setUserFeedback] = useState<any>(null);
   const [isLoadingFeedback, setIsLoadingFeedback] = useState(false);
   
@@ -144,16 +145,9 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
       return;
     }
     
-    if (starRating === 0) {
-      Alert.alert(t.common.error, t.feedback.mustSelectStars);
-      return;
-    }
-    
-    if (!suggestedGrade) {
-      Alert.alert(t.common.error, t.feedback.mustSelectGrade);
-      return;
-    }
-
+    // Star rating and grade are both optional now — a user may submit just a
+    // grade, just stars, both, or neither. Only the values actually provided
+    // contribute to the route's community average/grade.
     if (!isVideoLinkValid) {
       Alert.alert(t.common.error, t.videoLink.errors.notAllowed);
       return;
@@ -170,6 +164,7 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
         comment: comment.trim(),
         videoUrl: videoUrl.trim() || null,
         isCompleted: true, // Only completed routes can submit feedback
+        isQuickSend: false, // Full feedback — clears the quick-send flag when upgrading
       };
       
       if (userFeedback) {
@@ -196,6 +191,43 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
       setIsSubmitting(false);
     }
   }, [user, starRating, suggestedGrade, comment, videoUrl, isVideoLinkValid, userFeedback, route, onMarkTop]);
+
+  const handleQuickSend = useCallback(async () => {
+    if (!user) {
+      Alert.alert(t.common.error, t.feedback.mustLogin);
+      return;
+    }
+    if (!route) return;
+
+    setIsQuickSending(true);
+
+    try {
+      // Quick send closes the route WITHOUT a rating: it counts toward the
+      // user's personal stats but intentionally does NOT affect the route's
+      // star average or grade consensus.
+      const feedbackData = {
+        userId: user.uid,
+        userDisplayName: user.displayName || user.email || 'Anonymous',
+        isCompleted: true,
+        isQuickSend: true,
+      };
+
+      const existingFeedback = await FeedbackService.getUserFeedbackForRoute(user.uid, route.id);
+      if (existingFeedback) {
+        await FeedbackService.updateFeedback(existingFeedback.id, feedbackData);
+      } else {
+        await FeedbackService.addFeedbackToRoute(route.id, feedbackData);
+      }
+
+      await loadUserFeedback();
+      onMarkTop?.(route);
+    } catch (error) {
+      console.error('Error quick sending route:', error);
+      Alert.alert(t.common.error, t.feedback.failedToSave);
+    } finally {
+      setIsQuickSending(false);
+    }
+  }, [user, route, onMarkTop, t]);
 
   const handleShare = useCallback(() => {
     onShare?.(route);
@@ -375,39 +407,70 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
             </Text>
             
             {!showFeedbackForm && !userFeedback && (
-              <TouchableOpacity 
-                style={[styles.actionButton, styles.sentButton]} 
-                onPress={() => setShowFeedbackForm(true)}
-                activeOpacity={0.8}
-                disabled={!user}
-              >
-                <Text style={styles.actionEmoji}>🎯</Text>
-                <Text style={styles.sentButtonText}>{t.routes.sent}</Text>
-              </TouchableOpacity>
+              <View style={styles.sendButtonsRow}>
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.sentButton, styles.sendButtonFlex]} 
+                  onPress={() => setShowFeedbackForm(true)}
+                  activeOpacity={0.8}
+                  disabled={!user || isQuickSending}
+                >
+                  <Text style={styles.actionEmoji}>🎯</Text>
+                  <Text style={styles.sentButtonText}>{t.routes.sent}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[styles.actionButton, styles.quickSendButton]} 
+                  onPress={handleQuickSend}
+                  activeOpacity={0.8}
+                  disabled={!user || isQuickSending}
+                >
+                  {isQuickSending ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <>
+                      <Text style={styles.actionEmoji}>⚡</Text>
+                      <Text style={styles.quickSendButtonText}>{t.routes.quickSend}</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             )}
             
             {!showFeedbackForm && userFeedback && (
               <View style={styles.existingFeedbackCard}>
-                <View style={styles.feedbackRow}>
-                  <Text style={styles.feedbackLabel}>{t.feedback.rating}</Text>
-                  <View style={styles.feedbackStars}>
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <Text
-                        key={star}
-                        style={[
-                          styles.feedbackStarText,
-                          star <= userFeedback.starRating && styles.filledStar
-                        ]}
-                      >
-                        ★
-                      </Text>
-                    ))}
+                {userFeedback.isQuickSend ? (
+                  <View style={styles.quickSendBadgeRow}>
+                    <Text style={styles.quickSendBadgeIcon}>⚡</Text>
+                    <Text style={styles.quickSendBadgeText}>{t.routes.quickSendBadge}</Text>
                   </View>
-                </View>
-                <View style={styles.feedbackRow}>
-                  <Text style={styles.feedbackLabel}>{t.feedback.difficultyGrade}</Text>
-                  <Text style={styles.feedbackValue}>{userFeedback.suggestedGrade}</Text>
-                </View>
+                ) : (
+                  <>
+                    {userFeedback.starRating > 0 && (
+                      <View style={styles.feedbackRow}>
+                        <Text style={styles.feedbackLabel}>{t.feedback.rating}</Text>
+                        <View style={styles.feedbackStars}>
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Text
+                              key={star}
+                              style={[
+                                styles.feedbackStarText,
+                                star <= userFeedback.starRating && styles.filledStar
+                              ]}
+                            >
+                              ★
+                            </Text>
+                          ))}
+                        </View>
+                      </View>
+                    )}
+                    {!!userFeedback.suggestedGrade && (
+                      <View style={styles.feedbackRow}>
+                        <Text style={styles.feedbackLabel}>{t.feedback.difficultyGrade}</Text>
+                        <Text style={styles.feedbackValue}>{userFeedback.suggestedGrade}</Text>
+                      </View>
+                    )}
+                  </>
+                )}
                 {userFeedback.comment && (
                   <View style={styles.feedbackCommentRow}>
                     <Text style={styles.feedbackLabel}>{t.feedback.yourComment}</Text>
@@ -422,7 +485,7 @@ const RouteBottomSheet = React.memo(function RouteBottomSheet({
                     style={styles.editFeedbackButton} 
                     onPress={() => setShowFeedbackForm(true)}
                   >
-                    <Text style={styles.editFeedbackText}>{t.feedback.editFeedback}</Text>
+                    <Text style={styles.editFeedbackText}>{userFeedback.isQuickSend ? t.routes.addRating : t.feedback.editFeedback}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.undoFeedbackButton} 
@@ -951,6 +1014,39 @@ const createStyles = (theme: any) => StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: '#ffffff',
+  },
+  sendButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  sendButtonFlex: {
+    flex: 1,
+  },
+  quickSendButton: {
+    backgroundColor: '#f59e0b',
+    shadowColor: '#f59e0b',
+    paddingHorizontal: 18,
+  },
+  quickSendButtonText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  quickSendBadgeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.border,
+  },
+  quickSendBadgeIcon: {
+    fontSize: 18,
+  },
+  quickSendBadgeText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#f59e0b',
   },
   // Existing feedback card
   existingFeedbackCard: {

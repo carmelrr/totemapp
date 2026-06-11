@@ -15,12 +15,15 @@ export interface ExistingFeedbackCardProps {
   videoUrl?: string;
   onEdit: () => void;
   onUndoSend?: () => void;
+  /** When true, the route was closed via Quick Send (no rating/grade). */
+  isQuickSend?: boolean;
   /** Labels for the rows */
   ratingLabel?: string;
   gradeLabel?: string;
   commentLabel?: string;
   editLabel?: string;
   undoSendLabel?: string;
+  quickSendLabel?: string;
 }
 
 export const ExistingFeedbackCard: React.FC<ExistingFeedbackCardProps> = ({
@@ -30,11 +33,13 @@ export const ExistingFeedbackCard: React.FC<ExistingFeedbackCardProps> = ({
   videoUrl,
   onEdit,
   onUndoSend,
+  isQuickSend,
   ratingLabel,
   gradeLabel,
   commentLabel,
   editLabel,
   undoSendLabel,
+  quickSendLabel,
 }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
@@ -42,21 +47,37 @@ export const ExistingFeedbackCard: React.FC<ExistingFeedbackCardProps> = ({
 
   return (
     <View style={styles.card}>
-      {/* Star rating row */}
-      <View style={styles.row}>
-        <Text style={styles.label}>{ratingLabel ?? t.routes?.starRating ?? 'Rating'}:</Text>
-        <View style={styles.starsDisplay}>
-          {[1, 2, 3, 4, 5].map((star) => (
-            <Text key={star} style={[styles.star, star <= starRating && styles.starFilled]}>★</Text>
-          ))}
+      {isQuickSend ? (
+        /* Quick send badge — no rating/grade was provided */
+        <View style={styles.quickSendRow}>
+          <Text style={styles.quickSendIcon}>⚡</Text>
+          <Text style={styles.quickSendText}>
+            {quickSendLabel ?? t.routes?.quickSendBadge ?? 'Quick send'}
+          </Text>
         </View>
-      </View>
+      ) : (
+        <>
+          {/* Star rating row — only when a rating was given */}
+          {starRating > 0 && (
+            <View style={styles.row}>
+              <Text style={styles.label}>{ratingLabel ?? t.routes?.starRating ?? 'Rating'}:</Text>
+              <View style={styles.starsDisplay}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Text key={star} style={[styles.star, star <= starRating && styles.starFilled]}>★</Text>
+                ))}
+              </View>
+            </View>
+          )}
 
-      {/* Grade row */}
-      <View style={styles.row}>
-        <Text style={styles.label}>{gradeLabel ?? t.routes?.suggestedGrade ?? 'Grade'}:</Text>
-        <Text style={styles.gradeValue}>{suggestedGrade}</Text>
-      </View>
+          {/* Grade row — only when a grade was given */}
+          {!!suggestedGrade && (
+            <View style={styles.row}>
+              <Text style={styles.label}>{gradeLabel ?? t.routes?.suggestedGrade ?? 'Grade'}:</Text>
+              <Text style={styles.gradeValue}>{suggestedGrade}</Text>
+            </View>
+          )}
+        </>
+      )}
 
       {/* Comment */}
       {comment ? (
@@ -102,6 +123,22 @@ const createStyles = (theme: any) =>
     },
     commentRow: {
       paddingVertical: 12,
+    },
+    quickSendRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.isDark ? 'rgba(16, 185, 129, 0.3)' : '#BBF7D0',
+    },
+    quickSendIcon: {
+      fontSize: 20,
+    },
+    quickSendText: {
+      fontSize: 15,
+      fontWeight: '700',
+      color: theme.isDark ? '#fbbf24' : '#b45309',
     },
     label: {
       fontSize: 14,

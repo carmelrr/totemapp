@@ -3,8 +3,15 @@
 // See .env.example for required environment variables.
 
 export default ({ config }) => {
+  const isTvMode = process.env.EXPO_PUBLIC_TV_MODE === '1';
+  const basePlugins = config.plugins || [];
+  const plugins = isTvMode
+    ? [...basePlugins, './plugins/withAndroidTv']
+    : basePlugins;
+
   return {
     ...config,
+    plugins,
     extra: {
       ...config.extra,
       eas: config.extra?.eas,

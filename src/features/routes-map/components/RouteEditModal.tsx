@@ -18,6 +18,7 @@ import { getColorSettingSync, initializeColorSettings, getColorDisplayHex, resol
 import { useLanguage } from '@/features/language';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useWallTapes } from '../hooks/useWallTapes';
+import { findTapeForGrade } from '../services/WallTapeService';
 
 interface RouteEditModalProps {
   visible: boolean;
@@ -61,6 +62,22 @@ export default function RouteEditModal({
 
   // Wall tapes
   const { tapes } = useWallTapes();
+
+  // Tape recommended by the currently selected grade (for the "recommended" badge)
+  const recommendedTape = React.useMemo(
+    () => findTapeForGrade(grade, tapes),
+    [grade, tapes],
+  );
+
+  // When the user changes the grade, auto-suggest the matching tape
+  // (V2 -> black, V3 -> yellow, ...). The existing tape is preserved on open.
+  const handleGradeChange = (nextGrade: string) => {
+    setGrade(nextGrade);
+    const suggested = findTapeForGrade(nextGrade, tapes);
+    if (suggested) {
+      setWallTape(suggested.id);
+    }
+  };
 
   // Initialize color settings cache when modal opens
   useEffect(() => {
@@ -349,7 +366,7 @@ export default function RouteEditModal({
                       styles.gradeChip,
                       grade === gradeOption && styles.selectedGradeChip,
                     ]}
-                    onPress={() => setGrade(gradeOption)}
+                    onPress={() => handleGradeChange(gradeOption)}
                   >
                     <Text
                       style={[
@@ -432,6 +449,7 @@ export default function RouteEditModal({
                   </TouchableOpacity>
                   {tapes.map((tape) => {
                     const isSelected = wallTape === tape.id;
+                    const isRecommended = recommendedTape?.id === tape.id;
                     const contrastColor = (() => {
                       const c = tape.hex.replace('#', '');
                       const r = parseInt(c.substr(0, 2), 16) || 0;
@@ -456,6 +474,14 @@ export default function RouteEditModal({
                         ]}>
                           {language === 'he' ? tape.nameHe : tape.nameEn}
                         </Text>
+                        {isRecommended && (
+                          <Text style={[
+                            styles.tapeRecommendedBadge,
+                            isSelected && { color: contrastColor },
+                          ]}>
+                            {language === 'he' ? '✓ מומלץ' : '✓ Suggested'}
+                          </Text>
+                        )}
                       </TouchableOpacity>
                     );
                   })}
@@ -713,6 +739,12 @@ const createStyles = (theme: any) => StyleSheet.create({
     width: 10,
     height: 10,
     borderRadius: 5,
+  },
+  tapeRecommendedBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: theme.primary,
+    marginLeft: 2,
   },
   feedbacksSection: {
     marginTop: 32,

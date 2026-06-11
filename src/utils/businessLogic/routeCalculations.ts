@@ -15,6 +15,12 @@ export interface FeedbackData {
     starRating: number;
     suggestedGrade?: string;
     isCompleted: boolean;
+    /**
+     * Quick sends close the route for the user (counting toward their personal
+     * stats) but intentionally do NOT contribute to the route's community
+     * star-rating average or grade consensus.
+     */
+    isQuickSend?: boolean;
 }
 
 /**
@@ -41,21 +47,37 @@ export const calculateRouteStats = (feedbacks: FeedbackData[], originalGrade?: s
         };
     }
 
-    // Filter only completed feedbacks for rating calculations
+    // All completions (including quick sends) count toward the route's
+    // completion/"tops" total.
     const completedFeedbacks = feedbacks.filter((fb) => fb.isCompleted);
     const completionCount = completedFeedbacks.length;
-    const feedbackCount = feedbacks.length;
 
-    // Calculate average star rating ONLY from completed feedbacks
+    // Quick sends close the route for the user but intentionally do NOT
+    // contribute to the community rating or grade consensus. A regular send
+    // that omitted the rating and/or grade likewise only contributes the
+    // value(s) it actually provided.
+    const ratingFeedbacks = completedFeedbacks.filter(
+        (fb) => !fb.isQuickSend && (fb.starRating || 0) >= 1
+    );
+    const gradeFeedbacks = completedFeedbacks.filter(
+        (fb) => !fb.isQuickSend && !!fb.suggestedGrade
+    );
+
+    // feedbackCount reflects the number of community star ratings backing the
+    // average, so quick sends / rating-less sends never inflate the count
+    // shown next to it.
+    const feedbackCount = ratingFeedbacks.length;
+
+    // Calculate average star rating ONLY from rating-bearing feedbacks
     let averageStarRating = 0;
-    if (completedFeedbacks.length > 0) {
-        const totalRating = completedFeedbacks.reduce((sum, fb) => sum + (fb.starRating || 0), 0);
-        averageStarRating = totalRating / completedFeedbacks.length;
+    if (ratingFeedbacks.length > 0) {
+        const totalRating = ratingFeedbacks.reduce((sum, fb) => sum + (fb.starRating || 0), 0);
+        averageStarRating = totalRating / ratingFeedbacks.length;
     }
 
-    // Calculate grade distribution ONLY from completed feedbacks
+    // Calculate grade distribution ONLY from grade-bearing feedbacks
     const gradeDistribution: Record<string, number> = {};
-    completedFeedbacks.forEach((fb) => {
+    gradeFeedbacks.forEach((fb) => {
         if (fb.suggestedGrade) {
             gradeDistribution[fb.suggestedGrade] = (gradeDistribution[fb.suggestedGrade] || 0) + 1;
         }
@@ -76,7 +98,7 @@ export const calculateRouteStats = (feedbacks: FeedbackData[], originalGrade?: s
         allGradeIndices.push(V_GRADES.indexOf(originalGrade));
     }
     
-    completedFeedbacks.forEach(fb => {
+    gradeFeedbacks.forEach(fb => {
         if (fb.suggestedGrade && V_GRADES.includes(fb.suggestedGrade)) {
             allGradeIndices.push(V_GRADES.indexOf(fb.suggestedGrade));
         }

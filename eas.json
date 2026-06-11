@@ -23,6 +23,18 @@
         "EXPO_PUBLIC_APP_ENV": "staging"
       }
     },
+    "tv": {
+      "distribution": "internal",
+      "channel": "tv",
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "env": {
+        "EXPO_PUBLIC_APP_ENV": "production",
+        "EXPO_PUBLIC_TV_MODE": "1"
+      }
+    },
     "production": {
       "channel": "production",
       "android": {

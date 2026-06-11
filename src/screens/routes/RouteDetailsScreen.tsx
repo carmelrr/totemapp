@@ -160,6 +160,7 @@ export default function RouteDetailsScreen() {
   const [sentVideoUrl, setSentVideoUrl] = useState('');
   const [isVideoLinkValid, setIsVideoLinkValid] = useState(true);
   const [isSubmittingSent, setIsSubmittingSent] = useState(false);
+  const [isQuickSending, setIsQuickSending] = useState(false);
   const [userSentFeedback, setUserSentFeedback] = useState<RouteFeedback | null>(null);
   const [loadingUserFeedback, setLoadingUserFeedback] = useState(false);
 
@@ -246,16 +247,9 @@ export default function RouteDetailsScreen() {
       return;
     }
     
-    if (sentStarRating === 0) {
-      Alert.alert(t.common.error, t.routes.starRating);
-      return;
-    }
-    
-    if (!sentSuggestedGrade) {
-      Alert.alert(t.common.error, t.routes.suggestedGrade);
-      return;
-    }
-
+    // Star rating and grade are both optional — the user may submit just a
+    // grade, just stars, both, or neither. Only the values actually provided
+    // contribute to the route's community average/grade.
     if (!isVideoLinkValid) {
       Alert.alert(t.common.error, t.videoLink.errors.notAllowed);
       return;
@@ -273,6 +267,7 @@ export default function RouteDetailsScreen() {
         comment: sentComment.trim(),
         videoUrl: sentVideoUrl.trim() || null,
         isCompleted: true,
+        isQuickSend: false, // Full feedback — clears the quick-send flag when upgrading
       };
       
       if (userSentFeedback) {
@@ -294,6 +289,44 @@ export default function RouteDetailsScreen() {
       Alert.alert(t.common.error, t.errors.saveFailed);
     } finally {
       setIsSubmittingSent(false);
+    }
+  };
+
+  // Handle Quick Send — closes the route without a rating/grade
+  const handleQuickSend = async () => {
+    if (!user) {
+      Alert.alert(t.common.error, t.errors.unauthorized);
+      return;
+    }
+    if (!routeData) return;
+
+    setIsQuickSending(true);
+    try {
+      // Quick send closes the route WITHOUT a rating: it counts toward the
+      // user's personal stats but intentionally does NOT affect the route's
+      // star average or grade consensus.
+      const feedbackData = {
+        userId: user.uid,
+        userDisplayName: user.displayName || user.email || 'Anonymous',
+        userPhotoURL: user.photoURL || null,
+        isCompleted: true,
+        isQuickSend: true,
+      };
+
+      const existingFeedback = await FeedbackService.getUserFeedbackForRoute(user.uid, routeData.id);
+      if (existingFeedback) {
+        await FeedbackService.updateFeedback(existingFeedback.id, feedbackData);
+      } else {
+        await FeedbackService.addFeedbackToRoute(routeData.id, feedbackData);
+      }
+
+      setShowSentForm(false);
+      await loadUserSentFeedback();
+    } catch (error) {
+      console.error('Error quick sending route:', error);
+      Alert.alert(t.common.error, t.errors.saveFailed);
+    } finally {
+      setIsQuickSending(false);
     }
   };
 
@@ -420,15 +453,31 @@ export default function RouteDetailsScreen() {
           {loadingUserFeedback ? (
             <ActivityIndicator color={theme.primary} />
           ) : !userSentFeedback ? (
-            // Show Sent! button
-            <TouchableOpacity 
-              style={styles.sentButton} 
-              onPress={() => setShowSentForm(true)}
-              disabled={!user}
-            >
-              <Text style={styles.sentButtonEmoji}>🎯</Text>
-              <Text style={styles.sentButtonText}>Sent!</Text>
-            </TouchableOpacity>
+            // Show Sent! + Quick Send buttons
+            <View style={styles.sendButtonsRow}>
+              <TouchableOpacity 
+                style={[styles.sentButton, styles.sentButtonFlex]} 
+                onPress={() => setShowSentForm(true)}
+                disabled={!user || isQuickSending}
+              >
+                <Text style={styles.sentButtonEmoji}>🎯</Text>
+                <Text style={styles.sentButtonText}>Sent!</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.sentButton, styles.quickSendButton]} 
+                onPress={handleQuickSend}
+                disabled={!user || isQuickSending}
+              >
+                {isQuickSending ? (
+                  <ActivityIndicator size="small" color="#ffffff" />
+                ) : (
+                  <>
+                    <Text style={styles.sentButtonEmoji}>⚡</Text>
+                    <Text style={styles.quickSendButtonText}>{t.routes.quickSend}</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           ) : userSentFeedback ? (
             // Show existing feedback
             <ExistingFeedbackCard
@@ -436,6 +485,8 @@ export default function RouteDetailsScreen() {
               suggestedGrade={userSentFeedback.suggestedGrade}
               comment={userSentFeedback.comment}
               videoUrl={userSentFeedback.videoUrl}
+              isQuickSend={(userSentFeedback as any).isQuickSend}
+              editLabel={(userSentFeedback as any).isQuickSend ? t.routes.addRating : undefined}
               onEdit={() => setShowSentForm(true)}
               onUndoSend={() => {
                 Alert.alert(
@@ -739,6 +790,23 @@ const createStyles = (theme: any, layout?: ReturnType<typeof useResponsiveLayout
   },
   sentButtonText: {
     fontSize: 24,
+    fontWeight: '800',
+    color: '#ffffff',
+  },
+  sendButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  sentButtonFlex: {
+    flex: 1,
+  },
+  quickSendButton: {
+    backgroundColor: '#f59e0b',
+    shadowColor: '#f59e0b',
+    paddingHorizontal: 18,
+  },
+  quickSendButtonText: {
+    fontSize: 18,
     fontWeight: '800',
     color: '#ffffff',
   },

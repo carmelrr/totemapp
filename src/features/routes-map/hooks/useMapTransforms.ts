@@ -355,8 +355,6 @@ export function useMapTransforms({
       ],
     } as any;
   });
-    } as any;
-  });
 
   // Reset view function
   const resetView = () => {

@@ -26,7 +26,7 @@ import {
 import { JudgeService } from '@/features/competitions/services/JudgeService';
 import { Judge } from '@/features/competitions/types';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
-import { db } from '@/features/data/firebase';
+import { auth, db } from '@/features/data/firebase';
 import { useLanguage } from '@/features/language';
 import { CachedAvatar } from '@/components/ui/CachedAvatar';
 
@@ -132,7 +132,7 @@ export default function ManageJudgesScreen() {
         competitionId,
         user.id,
         user.displayName,
-        'admin', // addedBy - TODO: get current user
+        auth.currentUser?.uid || 'unknown', // addedBy: the admin/head judge performing the action
         user.email
       );
       

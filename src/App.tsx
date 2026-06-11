@@ -33,6 +33,7 @@ import ClassPlannerScreen from "@/features/classes/ClassPlannerScreen";
 import DeleteAccountScreen from "@/screens/profile/DeleteAccountScreen";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 import { GuestProvider, useGuest } from "@/context/GuestContext";
+import { IS_TV_MODE, TVDisplayScreen } from "@/features/tv-display";
 
 if (__DEV__) {
   console.log("🚀 App.tsx starting to load...");
@@ -199,6 +200,30 @@ function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
 
 export default function App() {
   if (__DEV__) console.log("🔧 App function starting...");
+
+  // Wall-mounted TV display: read-only, no auth, no navigation. Renders the
+  // live wall map inside a minimal NavigationContainer so map hooks that rely
+  // on navigation focus (e.g. useFocusEffect) keep working.
+  if (IS_TV_MODE) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1, direction: 'ltr', backgroundColor: '#0B0B0F' }}>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <LanguageProvider>
+              <ErrorBoundary>
+                <NavigationContainer>
+                  <Stack.Navigator id={undefined} screenOptions={{ headerShown: false }}>
+                    <Stack.Screen name="TVDisplay" component={TVDisplayScreen} />
+                  </Stack.Navigator>
+                </NavigationContainer>
+              </ErrorBoundary>
+            </LanguageProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    );
+  }
+
   return (
     <GestureHandlerRootView style={{ flex: 1, direction: 'ltr', backgroundColor: '#0B0B0F' }}>
       <SafeAreaProvider>

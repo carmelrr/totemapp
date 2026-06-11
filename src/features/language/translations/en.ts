@@ -514,6 +514,9 @@ export const en = {
     markAsSent: "Mark as Sent",
     alreadySent: "You've already sent this route! 🎉",
     sendRoute: "Send Route",
+    quickSend: "Quick Send",
+    quickSendBadge: "⚡ Quick send (no rating)",
+    addRating: "Add rating",
     undoSend: "Undo Send",
     undoSendConfirm: "Are you sure you want to undo the send? This will remove your completion and update your stats.",
     undoSendSuccess: "Send undone successfully",
@@ -1540,7 +1543,6 @@ export const en = {
     attemptNumberShort: "Attempt #",
     saveResult: "Save Result",
     editRoutePoints: "Edit Scoring",
-    routeLabel: "Route",
     perRoutePointsHint: "Leave empty to use default",
     invalidPoints: "Invalid score value",
     // Default category names

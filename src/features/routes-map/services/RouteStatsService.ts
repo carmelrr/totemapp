@@ -69,6 +69,7 @@ export class RouteStatsService {
                 starRating: fb.starRating || 0,
                 suggestedGrade: fb.suggestedGrade,
                 isCompleted: fb.isCompleted || false,
+                isQuickSend: fb.isQuickSend || false,
             }));
             const stats = calculateRouteStats(typedFeedbacks, originalGrade);
 

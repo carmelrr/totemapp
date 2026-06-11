@@ -68,11 +68,12 @@ export class FeedbackService {
             userId: string;
             userDisplayName?: string;
             userPhotoURL?: string;
-            starRating: number;
+            starRating?: number;
             suggestedGrade?: string;
             comment?: string;
             videoUrl?: string;
             isCompleted: boolean;
+            isQuickSend?: boolean;
         }
     ): Promise<void> {
         try {
@@ -134,9 +135,10 @@ export class FeedbackService {
                 await UserStatsService.updateUserStats(
                     feedbackData.userId,
                     {
-                        starRating: feedbackData.starRating,
+                        starRating: feedbackData.starRating || 0,
                         suggestedGrade: feedbackData.suggestedGrade,
                         isCompleted: feedbackData.isCompleted,
+                        isQuickSend: feedbackData.isQuickSend,
                     },
                     "add"
                 );
@@ -163,6 +165,7 @@ export class FeedbackService {
             comment: string;
             videoUrl: string;
             isCompleted: boolean;
+            isQuickSend: boolean;
         }>
     ): Promise<void> {
         try {
@@ -243,9 +246,10 @@ export class FeedbackService {
                         await UserStatsService.updateUserStats(
                             oldFeedback.userId,
                             {
-                                starRating: oldFeedback.starRating,
+                                starRating: oldFeedback.starRating || 0,
                                 suggestedGrade: oldFeedback.suggestedGrade,
                                 isCompleted: true,
+                                isQuickSend: oldFeedback.isQuickSend,
                             },
                             "remove"
                         );
@@ -254,22 +258,38 @@ export class FeedbackService {
                         await UserStatsService.updateUserStats(
                             oldFeedback.userId,
                             {
-                                starRating: feedbackData.starRating || oldFeedback.starRating,
-                                suggestedGrade: feedbackData.suggestedGrade || oldFeedback.suggestedGrade,
+                                starRating: (feedbackData.starRating ?? oldFeedback.starRating) || 0,
+                                suggestedGrade: feedbackData.suggestedGrade ?? oldFeedback.suggestedGrade,
                                 isCompleted: true,
+                                isQuickSend: feedbackData.isQuickSend ?? oldFeedback.isQuickSend,
                             },
                             "add"
                         );
-                    } else {
-                        // No completion change — just update timestamp
+                    } else if (wasCompleted) {
+                        // Completion unchanged but the rating/grade may have
+                        // changed (e.g. a quick send was upgraded to a full
+                        // rating). Reconcile the rating stats by removing the
+                        // old contribution and adding the new one, while
+                        // leaving completedRoutes untouched (isCompleted:false).
                         await UserStatsService.updateUserStats(
                             oldFeedback.userId,
                             {
-                                starRating: oldFeedback.starRating,
+                                starRating: oldFeedback.starRating || 0,
                                 suggestedGrade: oldFeedback.suggestedGrade,
-                                isCompleted: oldFeedback.isCompleted,
+                                isCompleted: false,
+                                isQuickSend: oldFeedback.isQuickSend,
                             },
-                            "update"
+                            "remove"
+                        );
+                        await UserStatsService.updateUserStats(
+                            oldFeedback.userId,
+                            {
+                                starRating: (feedbackData.starRating ?? oldFeedback.starRating) || 0,
+                                suggestedGrade: feedbackData.suggestedGrade ?? oldFeedback.suggestedGrade,
+                                isCompleted: false,
+                                isQuickSend: feedbackData.isQuickSend ?? oldFeedback.isQuickSend,
+                            },
+                            "add"
                         );
                     }
                 } catch (userStatsError) {

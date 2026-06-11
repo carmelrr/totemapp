@@ -31,6 +31,7 @@ import { ROUTE_COLORS, getRandomRouteColor, getColorTranslationKey, getContrastT
 import { RoutesService } from '../services/RoutesService';
 import { useVisibleColors } from '../hooks/useVisibleColors';
 import { useWallTapes } from '../hooks/useWallTapes';
+import { findTapeForGrade } from '../services/WallTapeService';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -69,6 +70,22 @@ export default function InlineAddRoutePanel({
 
   // Wall tapes
   const { tapes } = useWallTapes();
+
+  // Whether the user manually changed the tape (suppresses auto-suggestion)
+  const [tapeManuallySet, setTapeManuallySet] = useState(false);
+
+  // Tape recommended by the currently selected grade (for the "recommended" badge)
+  const recommendedTape = useMemo(
+    () => findTapeForGrade(grade, tapes),
+    [grade, tapes],
+  );
+
+  // Auto-suggest the matching tape whenever the grade (or tapes) change,
+  // unless the user has manually picked a tape. V2 -> black, V3 -> yellow, etc.
+  useEffect(() => {
+    if (tapeManuallySet) return;
+    setWallTape(recommendedTape?.id ?? '');
+  }, [recommendedTape, tapeManuallySet]);
 
   const styles = useMemo(() => createStyles(theme, insets), [theme, insets]);
 
@@ -259,7 +276,10 @@ export default function InlineAddRoutePanel({
                   styles.tapeChip,
                   !wallTape && styles.tapeChipSelected,
                 ]}
-                onPress={() => setWallTape('')}
+                onPress={() => {
+                  setTapeManuallySet(true);
+                  setWallTape('');
+                }}
               >
                 <Text style={[
                   styles.tapeChipText,
@@ -270,6 +290,7 @@ export default function InlineAddRoutePanel({
               </TouchableOpacity>
               {tapes.map((tape) => {
                 const isSelected = wallTape === tape.id;
+                const isRecommended = recommendedTape?.id === tape.id;
                 return (
                   <TouchableOpacity
                     key={tape.id}
@@ -278,7 +299,10 @@ export default function InlineAddRoutePanel({
                       { borderColor: tape.hex },
                       isSelected && { backgroundColor: tape.hex, borderColor: tape.hex },
                     ]}
-                    onPress={() => setWallTape(tape.id)}
+                    onPress={() => {
+                      setTapeManuallySet(true);
+                      setWallTape(tape.id);
+                    }}
                   >
                     <View style={[styles.tapeDot, { backgroundColor: tape.hex }]} />
                     <Text style={[
@@ -287,6 +311,14 @@ export default function InlineAddRoutePanel({
                     ]}>
                       {language === 'he' ? tape.nameHe : tape.nameEn}
                     </Text>
+                    {isRecommended && (
+                      <Text style={[
+                        styles.tapeRecommendedBadge,
+                        isSelected && { color: getContrastTextColor(tape.hex) },
+                      ]}>
+                        {language === 'he' ? '✓ מומלץ' : '✓ Suggested'}
+                      </Text>
+                    )}
                   </TouchableOpacity>
                 );
               })}
@@ -515,6 +547,12 @@ const createStyles = (theme: any, insets: { bottom: number }) =>
       width: 10,
       height: 10,
       borderRadius: 5,
+    },
+    tapeRecommendedBadge: {
+      fontSize: 11,
+      fontWeight: '700',
+      color: theme.primary,
+      marginLeft: 2,
     },
     actionsRow: {
       flexDirection: 'row',

@@ -65,6 +65,18 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/competitions/$(competitionId)).data.status == 'active';
     }
     
+    // ולידציה בסיסית לכתיבת תוצאות תחרות.
+    // Basic validation for competition result writes: aggregate scores must be
+    // non-negative numbers. Per-route attempt limits are enforced in the app
+    // (Firestore rules cannot iterate over the routes map).
+    function validCompetitionResult() {
+      let d = request.resource.data;
+      return d.totalPoints is number && d.totalPoints >= 0
+        && (!('top7Points' in d) || (d.top7Points is number && d.top7Points >= 0))
+        && (!('routesCompleted' in d) || (d.routesCompleted is number && d.routesCompleted >= 0))
+        && (!('totalAttempts' in d) || (d.totalAttempts is number && d.totalAttempts >= 0));
+    }
+    
     // בדיקת גודל מסמך - מניעת התקפות מילוי
     // Note: request.resource.size is not always reliable, so we keep it simple
     function isReasonableSize() {
@@ -394,15 +406,15 @@ service cloud.firestore {
       // Results Sub-collection
       match /results/{participantId} {
         allow read: if true;
-        allow create: if isCompetitionActive(competitionId) && 
+        allow create: if isCompetitionActive(competitionId) && validCompetitionResult() &&
           (isAdmin() || canJudgeEnterResults(competitionId) ||
            // Self-entry: participant can create their own results (points_competition / totemtition)
            (isAuthenticated() && request.auth.uid == participantId));
-        allow update: if (isCompetitionActive(competitionId) && 
+        allow update: if validCompetitionResult() && ((isCompetitionActive(competitionId) && 
           (isAdmin() || canJudgeEditResults(competitionId) ||
            // Self-entry: participant can update their own results (points_competition / totemtition)
            (isAuthenticated() && request.auth.uid == participantId))) ||
-          isAdmin();
+          isAdmin());
         allow delete: if isAdmin();
 
         // Append-only edit history for audit / conflict review.
@@ -563,10 +575,10 @@ service cloud.firestore {
     // חדרי עריכה - לעורך הקירות
     match /editor_rooms/{roomId} {
       // קריאה: 
-      // 1. חדרים מפורסמים - כל משתמש מחובר יכול לקרוא
+      // 1. חדרים מפורסמים - קריאה ציבורית (נדרש למסך הטלוויזיה ללא התחברות)
       // 2. חדרים של המשתמש עצמו - תמיד יכול לקרוא
       // 3. מנהל - יכול לקרוא הכל
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() || resource.data.isPublished == true;
       
       // משתמש מחובר יכול ליצור חדר (עם ה-userId שלו)
       allow create: if isAuthenticated() && 

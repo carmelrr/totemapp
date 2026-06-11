@@ -210,7 +210,7 @@ export default function JudgeEntryScreen() {
         setParticipantResults({
           participantId: selectedParticipant.userId,
           competitionId,
-          routes: data.routes || [],
+          routes: data.routes || {},
           totalPoints: data.totalPoints || 0,
           totalAttempts: data.totalAttempts || 0,
           lastUpdated: data.lastUpdated?.toDate() || new Date(),
@@ -220,7 +220,7 @@ export default function JudgeEntryScreen() {
         setParticipantResults({
           participantId: selectedParticipant.userId,
           competitionId,
-          routes: [],
+          routes: {},
           totalPoints: 0,
           totalAttempts: 0,
           lastUpdated: new Date(),

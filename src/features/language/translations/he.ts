@@ -517,6 +517,9 @@ export const he: TranslationKeys = {
     markAsSent: "סמן כנסגר",
     alreadySent: "כבר סגרת את המסלול הזה! 🎉",
     sendRoute: "סגור מסלול",
+    quickSend: "סגירה מהירה",
+    quickSendBadge: "⚡ סגירה מהירה (ללא דירוג)",
+    addRating: "הוסף דירוג",
     undoSend: "בטל סגירה",
     undoSendConfirm: "בטוח שברצונך לבטל את הסגירה? זה יסיר את ההשלמה ויעדכן את הסטטיסטיקות שלך.",
     undoSendSuccess: "הסגירה בוטלה בהצלחה",
@@ -1544,7 +1547,6 @@ export const he: TranslationKeys = {
     attemptNumberShort: "ניסיון #",
     saveResult: "שמור תוצאה",
     editRoutePoints: "עריכת ניקוד",
-    routeLabel: "מסלול",
     perRoutePointsHint: "השאר ריק לשימוש בברירת מחדל",
     invalidPoints: "ערך ניקוד לא תקין",
     // Default category names

@@ -32,6 +32,7 @@ export class UserStatsService {
             starRating: number;
             suggestedGrade?: string;
             isCompleted: boolean;
+            isQuickSend?: boolean;
         },
         operation: "add" | "remove" | "update"
     ): Promise<void> {
@@ -49,12 +50,17 @@ export class UserStatsService {
 
             let newStats = { ...currentStats };
 
+            // A star rating only counts toward the user's rating average when
+            // they actually provided one. Quick sends and rating-less sends
+            // still count as completed routes, but must not dilute the average.
+            const hasRating = !feedbackData.isQuickSend && (feedbackData.starRating || 0) >= 1;
+
             switch (operation) {
                 case "add":
                     newStats = {
                         ...newStats,
-                        totalFeedbacks: (currentStats.totalFeedbacks || 0) + 1,
-                        totalStarRating: (currentStats.totalStarRating || 0) + feedbackData.starRating,
+                        totalFeedbacks: (currentStats.totalFeedbacks || 0) + (hasRating ? 1 : 0),
+                        totalStarRating: (currentStats.totalStarRating || 0) + (hasRating ? feedbackData.starRating : 0),
                         completedRoutes: feedbackData.isCompleted
                             ? (currentStats.completedRoutes || 0) + 1
                             : (currentStats.completedRoutes || 0),
@@ -64,8 +70,8 @@ export class UserStatsService {
                 case "remove":
                     newStats = {
                         ...newStats,
-                        totalFeedbacks: Math.max(0, (currentStats.totalFeedbacks || 0) - 1),
-                        totalStarRating: Math.max(0, (currentStats.totalStarRating || 0) - feedbackData.starRating),
+                        totalFeedbacks: Math.max(0, (currentStats.totalFeedbacks || 0) - (hasRating ? 1 : 0)),
+                        totalStarRating: Math.max(0, (currentStats.totalStarRating || 0) - (hasRating ? feedbackData.starRating : 0)),
                         completedRoutes: feedbackData.isCompleted
                             ? Math.max(0, (currentStats.completedRoutes || 0) - 1)
                             : (currentStats.completedRoutes || 0),

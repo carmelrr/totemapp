@@ -130,6 +130,33 @@ function gradeIndex(grade: string): number {
 }
 
 /**
+ * Find the wall tape whose grade range contains the given grade.
+ * Returns the first matching tape (by catalog order), or undefined when no
+ * tape with a valid range covers the grade.
+ *
+ * Used to auto-suggest the correct tape ("טייפ") when a route setter picks a
+ * grade (e.g. V2 -> black, V3 -> yellow), based on the gradeMin/gradeMax
+ * ranges that admins configure in WallTapeManagementScreen.
+ */
+export function findTapeForGrade(
+  grade: string,
+  tapes: WallTape[],
+): WallTape | undefined {
+  const routeIdx = gradeIndex(grade);
+  if (routeIdx === -1) return undefined;
+
+  return tapes.find((tape) => {
+    if (!tape.gradeMin || !tape.gradeMax) return false;
+    const minIdx = gradeIndex(tape.gradeMin);
+    const maxIdx = gradeIndex(tape.gradeMax);
+    if (minIdx === -1 || maxIdx === -1) return false;
+    const lo = Math.min(minIdx, maxIdx);
+    const hi = Math.max(minIdx, maxIdx);
+    return routeIdx >= lo && routeIdx <= hi;
+  });
+}
+
+/**
  * Auto-assign wall tapes to existing routes based on grade ranges.
  * Each tape with gradeMin/gradeMax defines a grade range.
  * Routes whose grade falls within that range are assigned the tape.

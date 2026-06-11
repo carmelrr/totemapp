@@ -214,7 +214,7 @@ export interface ParticipantResult {
   photoURL?: string | null;             // profile picture URL
   category?: string;
   categoryName?: string;
-  routes: RouteResult[] | Record<number, RouteResult>;  // routeNumber -> result OR array
+  routes: Record<number, RouteResult>;  // routeNumber -> result (keyed map; legacy array data is handled defensively at read time)
   routesCompleted?: number;
   totalPoints: number;                  // sum of all points
   totalAttempts?: number;               // sum of all attempts

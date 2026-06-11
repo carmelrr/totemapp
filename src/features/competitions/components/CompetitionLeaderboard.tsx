@@ -36,6 +36,7 @@ import { ResultHistoryModal } from '@/features/competitions/components/ResultHis
 import { formatPoints, formatIFSCResult, isZoneTopFormat } from '@/features/competitions/constants';
 import { CachedAvatar } from '@/components/ui/CachedAvatar';
 import { useAdmin } from '@/context/AdminContext';
+import { useRolesContext } from '@/features/roles';
 
 interface CompetitionLeaderboardProps {
   competition: Competition;
@@ -370,6 +371,9 @@ export function CompetitionLeaderboard({
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { isAdmin } = useAdmin();
+  const { isHeadJudge } = useRolesContext();
+  // Admins and head judges may export the results.
+  const canExportResults = isAdmin || isHeadJudge;
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -773,7 +777,7 @@ export function CompetitionLeaderboard({
             <Text style={styles.statLabel}>{t.competition.scoring}</Text>
           </View>
         )}
-        {isAdmin && (
+        {canExportResults && (
           <TouchableOpacity
             style={styles.exportButton}
             onPress={async () => {
