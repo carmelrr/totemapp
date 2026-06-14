@@ -697,10 +697,11 @@ service cloud.firestore {
 
     // שאלות ותשובות (מאגר ידע לצוות)
     match /questions/{questionId} {
-      // מנהל/אדמין רואה הכל; עובד רואה שאלות גלויות שנענו + השאלות של עצמו
+      // מנהל/אדמין רואה הכל; עובד רואה שאלות גלויות שנענו + השאלות של עצמו.
+      // מטפס רגיל (לא עובד) — חסום לגמרי, כולל מהמאגר.
       allow read: if isShiftManager() || isAdmin() ||
-        (resource.data.visible == true && resource.data.status == 'answered') ||
-        (isAuthenticated() && resource.data.authorUid == request.auth.uid);
+        (isWorker() && resource.data.visible == true && resource.data.status == 'answered') ||
+        (isWorker() && resource.data.authorUid == request.auth.uid);
       // עובד יוצר שאלה על שמו בסטטוס open
       allow create: if isWorker() && isReasonableSize() &&
         request.resource.data.authorUid == request.auth.uid &&
