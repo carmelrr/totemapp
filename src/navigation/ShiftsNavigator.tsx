@@ -14,6 +14,7 @@ import {
   TaskListsManagementScreen,
   MyTasksScreen,
 } from '@/features/shifts';
+import { QAScreen, QAAdminScreen } from '@/features/qa';
 import type { Shift } from '@/features/shifts';
 
 export type ShiftsStackParamList = {
@@ -50,6 +51,8 @@ export default function ShiftsNavigator() {
       <Stack.Screen name="ShiftRolesManagement" component={ShiftRolesManagementScreen} />
       <Stack.Screen name="TaskListsManagement" component={TaskListsManagementScreen} />
       <Stack.Screen name="MyTasks" component={MyTasksScreen} />
+      <Stack.Screen name="QA" component={QAScreen} />
+      <Stack.Screen name="QAAdmin" component={QAAdminScreen} />
     </Stack.Navigator>
   );
 }
