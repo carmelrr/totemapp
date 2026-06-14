@@ -21,6 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { useLanguage } from '@/features/language';
 import { useShiftRoles, useAllUserShiftRoles } from '../hooks';
+import { useTaskLists } from '../tasksHooks';
 import {
   createShiftRole,
   updateShiftRole,
@@ -44,11 +45,13 @@ interface RoleEditorProps {
 
 function RoleEditorModal({ visible, role, onClose, onSave }: RoleEditorProps) {
   const { theme } = useTheme();
+  const { lists: taskLists } = useTaskLists();
   const [name, setName] = useState(role?.name || '');
   const [nameEn, setNameEn] = useState(role?.nameEn || '');
   const [description, setDescription] = useState(role?.description || '');
   const [color, setColor] = useState(role?.color || '#3B82F6');
   const [icon, setIcon] = useState(role?.icon || '👤');
+  const [taskListIds, setTaskListIds] = useState<string[]>(role?.taskListIds || []);
 
   React.useEffect(() => {
     if (role) {
@@ -57,24 +60,29 @@ function RoleEditorModal({ visible, role, onClose, onSave }: RoleEditorProps) {
       setDescription(role.description || '');
       setColor(role.color || '#3B82F6');
       setIcon(role.icon || '👤');
+      setTaskListIds(role.taskListIds || []);
     } else {
       setName('');
       setNameEn('');
       setDescription('');
       setColor('#3B82F6');
       setIcon('👤');
+      setTaskListIds([]);
     }
   }, [role, visible]);
 
   const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#84CC16'];
   const icons = ['👤', '🖥️', '🧗', '🏗️', '👷', '📋', '🎯', '⚡'];
 
+  const toggleTaskList = (id: string) =>
+    setTaskListIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
   const handleSave = () => {
     if (!name.trim()) {
       Alert.alert('שגיאה', 'יש להזין שם לתפקיד');
       return;
     }
-    onSave({ name, nameEn, description, color, icon, isActive: true });
+    onSave({ name, nameEn, description, color, icon, isActive: true, taskListIds });
     onClose();
   };
 
@@ -145,6 +153,33 @@ function RoleEditorModal({ visible, role, onClose, onSave }: RoleEditorProps) {
                 </TouchableOpacity>
               ))}
             </View>
+
+            <Text style={styles.label}>קבוצות משימות (צ׳קליסט לתפקיד)</Text>
+            {taskLists.length === 0 ? (
+              <Text style={{ color: theme.textSecondary, fontSize: 13, writingDirection: 'rtl', textAlign: 'right' }}>
+                אין קבוצות משימות. צור אותן במסך "קבוצות משימות".
+              </Text>
+            ) : (
+              taskLists.map((tl) => {
+                const selected = taskListIds.includes(tl.id);
+                return (
+                  <TouchableOpacity
+                    key={tl.id}
+                    style={[styles.roleToggle, selected && { borderColor: color, backgroundColor: color + '15' }]}
+                    onPress={() => toggleTaskList(tl.id)}
+                  >
+                    <Text style={[styles.roleToggleName, { color: theme.text }]}>
+                      {tl.name} ({tl.items.length})
+                    </Text>
+                    <Ionicons
+                      name={selected ? 'checkbox' : 'square-outline'}
+                      size={24}
+                      color={selected ? color : theme.textSecondary}
+                    />
+                  </TouchableOpacity>
+                );
+              })
+            )}
           </ScrollView>
 
           <TouchableOpacity style={[styles.saveBtn, { backgroundColor: color }]} onPress={handleSave}>

@@ -15,6 +15,9 @@ export interface ShiftRole {
   color: string;          // Badge color
   icon: string;           // Emoji icon
   isActive: boolean;      // Whether the role is currently in use
+  /** Task lists (checklists) attached to this role; materialized for every
+   *  worker assigned to a shift in this role. */
+  taskListIds?: string[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -201,6 +204,38 @@ export interface ShiftFilter {
   dateTo?: Date;
   userId?: string;
   showOnlyMyShifts?: boolean;
+}
+
+/**
+ * ===== Task checklists (staff) =====
+ * A reusable, ordered checklist that can be attached to shift roles.
+ */
+export interface TaskItem {
+  id: string;
+  title: string;
+  order: number;
+}
+
+export interface TaskList {
+  id: string;
+  name: string;          // Group title shown to the worker (e.g. "פתיחה", "סגירה")
+  items: TaskItem[];
+}
+
+export type ShiftTaskSource = 'template' | 'manager';
+
+/** A personal task instance for one worker on one shift. */
+export interface ShiftTask {
+  id: string;
+  shiftId: string;
+  uid: string;
+  shiftRoleId: string;   // The role the worker filled (empty for manager-added)
+  title: string;
+  listName: string;      // Group header (from the TaskList name or manager input)
+  source: ShiftTaskSource;
+  done: boolean;
+  doneAt: Date | null;
+  createdAt: Date;
 }
 
 /**

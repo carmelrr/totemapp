@@ -34,6 +34,7 @@ import type {
   ShiftSwapRequest,
   SwapRequestStatus,
 } from './types';
+import { materializeTasksForAssignment, reassignShiftTasks } from './tasksService';
 
 // ==================== Collection Names ====================
 const SHIFT_ROLES_COLLECTION = 'shiftRoles';
@@ -522,6 +523,14 @@ export async function handleRegistration(
 
       await updateShift(data.shiftId, updates);
     }
+
+    // Materialize the worker's task checklist from their role's task lists.
+    // Idempotent (deterministic ids); best-effort so it never blocks approval.
+    try {
+      await materializeTasksForAssignment(data.shiftId, data.userId, data.shiftRoleId);
+    } catch (err) {
+      console.warn('materializeTasksForAssignment failed:', err);
+    }
   }
 
   // If rejected and was approved, remove from assigned workers
@@ -761,6 +770,13 @@ export async function acceptSwapRequest(swapRequestId: string): Promise<void> {
   });
 
   await batch.commit();
+
+  // Move the requester's open shift tasks to the new worker (preserves done-state).
+  try {
+    await reassignShiftTasks(swap.shiftId, swap.requesterId, swap.targetUserId);
+  } catch (err) {
+    console.warn('reassignShiftTasks failed:', err);
+  }
 
   await addShiftHistory(
     swap.shiftId,

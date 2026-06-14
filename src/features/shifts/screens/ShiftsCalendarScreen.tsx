@@ -43,8 +43,9 @@ export function ShiftsCalendarScreen({ navigation }: ShiftsCalendarScreenProps) 
   const { theme } = useTheme();
   const { isAdmin } = useRoles();
   const { roles } = useShiftRoles();
-  const { userShiftRole, isWorker } = useMyShiftRoles();
+  const { userShiftRole, isWorker, isShiftManager } = useMyShiftRoles();
   const { requests: incomingSwaps } = useIncomingSwapRequests();
+  const canManage = isAdmin || isShiftManager;
 
   // Block hardware back button – require explicit navigation
   useFocusEffect(
@@ -220,6 +221,35 @@ export function ShiftsCalendarScreen({ navigation }: ShiftsCalendarScreenProps) 
           </View>
         )}
       </View>
+
+      {/* Staff quick actions */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.quickRow}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: 8, alignItems: 'center' }}
+      >
+        <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('MyTasks')}>
+          <Ionicons name="checkbox-outline" size={16} color={theme.buttonPrimary} />
+          <Text style={styles.quickBtnText}>המשמרת שלי</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('QA')}>
+          <Ionicons name="help-circle-outline" size={16} color={theme.buttonPrimary} />
+          <Text style={styles.quickBtnText}>שאלות</Text>
+        </TouchableOpacity>
+        {canManage && (
+          <>
+            <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('TaskListsManagement')}>
+              <Ionicons name="list-outline" size={16} color={theme.buttonPrimary} />
+              <Text style={styles.quickBtnText}>קבוצות משימות</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.quickBtn} onPress={() => navigation.navigate('QAAdmin')}>
+              <Ionicons name="chatbubbles-outline" size={16} color={theme.buttonPrimary} />
+              <Text style={styles.quickBtnText}>ניהול שו"ת</Text>
+            </TouchableOpacity>
+          </>
+        )}
+      </ScrollView>
 
       {/* Incoming Swap Requests Banner */}
       {incomingSwaps.length > 0 && (
@@ -491,6 +521,19 @@ const createStyles = (theme: any) =>
       paddingHorizontal: 16,
     },
     headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#fff' },
+    quickRow: { maxHeight: 48, backgroundColor: theme.surface, borderBottomWidth: 1, borderBottomColor: theme.border, paddingVertical: 8 },
+    quickBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 12,
+      paddingVertical: 7,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: theme.buttonPrimary + '40',
+      backgroundColor: theme.buttonPrimary + '12',
+    },
+    quickBtnText: { fontSize: 13, color: theme.buttonPrimary, fontWeight: '600' },
     viewModeRow: {
       flexDirection: 'row',
       backgroundColor: theme.surface,

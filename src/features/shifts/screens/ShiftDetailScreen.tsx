@@ -34,9 +34,11 @@ import {
   createSwapRequest,
 } from '../shiftsService';
 import { SHIFT_STATUS_CONFIG, REGISTRATION_STATUS_CONFIG } from '../constants';
-import type { Shift, ShiftRegistration, ShiftStatus, ShiftHistoryEntry, UserShiftRole } from '../types';
+import type { Shift, ShiftRegistration, ShiftStatus, ShiftHistoryEntry, UserShiftRole, ShiftTask } from '../types';
 import { auth } from '@/features/data/firebase';
 import { useMyShiftRoles } from '../hooks';
+import { useShiftTasks } from '../tasksHooks';
+import { addManagerTask, addManagerTaskForAll, deleteShiftTask } from '../tasksService';
 
 interface ShiftDetailScreenProps {
   navigation: any;
@@ -505,6 +507,14 @@ export function ShiftDetailScreen({ navigation, route }: ShiftDetailScreenProps)
               </>
             )}
 
+            {/* Task monitoring + live add */}
+            <ShiftTasksSection
+              shiftId={shift.id}
+              approvedRegs={approvedRegs}
+              roles={roles}
+              theme={theme}
+            />
+
             {/* History */}
             <TouchableOpacity style={styles.historyBtn} onPress={loadHistory}>
               <Ionicons name="time" size={18} color={theme.textSecondary} />
@@ -642,6 +652,221 @@ function RegistrationCard({
         </View>
       </View>
     </View>
+  );
+}
+
+// ==================== Task Monitoring Section (manager) ====================
+
+type AddTarget = { uid: string; roleId: string; name: string } | 'all' | null;
+
+function ShiftTasksSection({
+  shiftId,
+  approvedRegs,
+  roles,
+  theme,
+}: {
+  shiftId: string;
+  approvedRegs: ShiftRegistration[];
+  roles: any[];
+  theme: any;
+}) {
+  const { tasks } = useShiftTasks(shiftId);
+  const [addTarget, setAddTarget] = useState<AddTarget>(null);
+
+  const byUser = useMemo(() => {
+    const m = new Map<string, ShiftTask[]>();
+    for (const t of tasks) {
+      const arr = m.get(t.uid);
+      if (arr) arr.push(t);
+      else m.set(t.uid, [t]);
+    }
+    return m;
+  }, [tasks]);
+
+  const fmtTime = (d: Date | null) =>
+    d ? d.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit' }) : '';
+
+  const handleDeleteTask = (taskId: string) => {
+    Alert.alert('מחיקת משימה', 'למחוק את המשימה?', [
+      { text: 'ביטול', style: 'cancel' },
+      { text: 'מחק', style: 'destructive', onPress: () => deleteShiftTask(taskId).catch(() => {}) },
+    ]);
+  };
+
+  return (
+    <>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 12 }}>
+        <Text style={{ fontSize: 17, fontWeight: '700', color: theme.text, writingDirection: 'rtl' }}>
+          מעקב משימות
+        </Text>
+        {approvedRegs.length > 0 && (
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+            onPress={() => setAddTarget('all')}
+          >
+            <Ionicons name="add-circle" size={20} color={theme.buttonPrimary} />
+            <Text style={{ color: theme.buttonPrimary, fontWeight: '600', fontSize: 13 }}>הוסף לכולם</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {approvedRegs.length === 0 ? (
+        <Text style={{ color: theme.textSecondary, writingDirection: 'rtl', textAlign: 'right' }}>
+          אין עדיין עובדים מאושרים.
+        </Text>
+      ) : (
+        approvedRegs.map((reg) => {
+          const userTasks = byUser.get(reg.userId) ?? [];
+          const done = userTasks.filter((t) => t.done).length;
+          const total = userTasks.length;
+          const pct = total ? Math.round((done / total) * 100) : 0;
+          const groups = new Map<string, ShiftTask[]>();
+          for (const t of userTasks) {
+            const arr = groups.get(t.listName);
+            if (arr) arr.push(t);
+            else groups.set(t.listName, [t]);
+          }
+          return (
+            <View key={reg.userId} style={{ backgroundColor: theme.surface, borderRadius: 12, padding: 14, marginBottom: 8 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: theme.text, writingDirection: 'rtl' }}>
+                  {reg.userName}
+                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ fontSize: 12, color: total && done === total ? theme.success : theme.textSecondary, fontWeight: '600' }}>
+                    {total ? `${done}/${total} (${pct}%)` : 'אין משימות'}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setAddTarget({ uid: reg.userId, roleId: reg.shiftRoleId, name: reg.userName })}
+                  >
+                    <Ionicons name="add-circle-outline" size={22} color={theme.buttonPrimary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {[...groups.entries()].map(([listName, gt]) => (
+                <View key={listName} style={{ marginTop: 10 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: theme.textSecondary, writingDirection: 'rtl', textAlign: 'right' }}>
+                    {listName}
+                  </Text>
+                  {gt.map((t) => (
+                    <View key={t.id} style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 }}>
+                      <Ionicons
+                        name={t.done ? 'checkmark-circle' : 'ellipse-outline'}
+                        size={18}
+                        color={t.done ? theme.success : theme.textSecondary}
+                      />
+                      <Text style={{ flex: 1, fontSize: 14, color: t.done ? theme.textSecondary : theme.text, writingDirection: 'rtl', textAlign: 'right' }}>
+                        {t.title}
+                      </Text>
+                      {t.done && t.doneAt && (
+                        <Text style={{ fontSize: 11, color: theme.textSecondary }}>{fmtTime(t.doneAt)}</Text>
+                      )}
+                      {t.source === 'manager' && (
+                        <TouchableOpacity onPress={() => handleDeleteTask(t.id)}>
+                          <Ionicons name="trash-outline" size={16} color={theme.error} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  ))}
+                </View>
+              ))}
+            </View>
+          );
+        })
+      )}
+
+      <AddTaskModal
+        target={addTarget}
+        shiftId={shiftId}
+        allUids={approvedRegs.map((r) => r.userId)}
+        theme={theme}
+        onClose={() => setAddTarget(null)}
+      />
+    </>
+  );
+}
+
+function AddTaskModal({
+  target,
+  shiftId,
+  allUids,
+  theme,
+  onClose,
+}: {
+  target: AddTarget;
+  shiftId: string;
+  allUids: string[];
+  theme: any;
+  onClose: () => void;
+}) {
+  const [title, setTitle] = useState('');
+  const [listName, setListName] = useState('מהמנהל');
+  const [saving, setSaving] = useState(false);
+
+  React.useEffect(() => {
+    if (target) {
+      setTitle('');
+      setListName('מהמנהל');
+    }
+  }, [target]);
+
+  const handleAdd = async () => {
+    if (!title.trim()) return;
+    setSaving(true);
+    try {
+      if (target === 'all') {
+        await addManagerTaskForAll(shiftId, allUids, title, listName);
+      } else if (target) {
+        await addManagerTask(shiftId, target.uid, target.roleId, title, listName);
+      }
+      onClose();
+    } catch (e) {
+      Alert.alert('שגיאה', 'לא ניתן להוסיף משימה');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const heading =
+    target === 'all' ? 'הוסף משימה לכל העובדים' : target ? `הוסף משימה — ${target.name}` : '';
+
+  return (
+    <Modal visible={!!target} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+        <View style={{ backgroundColor: theme.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: theme.text, writingDirection: 'rtl' }}>{heading}</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={24} color={theme.text} />
+            </TouchableOpacity>
+          </View>
+          <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text, marginBottom: 6, textAlign: 'right' }}>המשימה</Text>
+          <TextInput
+            style={{ backgroundColor: theme.inputBackground, borderRadius: 12, padding: 12, color: theme.text, borderWidth: 1, borderColor: theme.border }}
+            value={title}
+            onChangeText={setTitle}
+            placeholder="תיאור המשימה"
+            placeholderTextColor={theme.textSecondary}
+            textAlign="right"
+          />
+          <Text style={{ fontSize: 14, fontWeight: '600', color: theme.text, marginBottom: 6, marginTop: 12, textAlign: 'right' }}>קבוצה</Text>
+          <TextInput
+            style={{ backgroundColor: theme.inputBackground, borderRadius: 12, padding: 12, color: theme.text, borderWidth: 1, borderColor: theme.border }}
+            value={listName}
+            onChangeText={setListName}
+            textAlign="right"
+          />
+          <TouchableOpacity
+            style={{ backgroundColor: theme.buttonPrimary, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 16 }}
+            onPress={handleAdd}
+            disabled={saving || !title.trim()}
+          >
+            {saving ? <ActivityIndicator color="#fff" /> : <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>הוסף</Text>}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
   );
 }
 

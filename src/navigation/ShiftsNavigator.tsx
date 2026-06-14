@@ -11,6 +11,8 @@ import {
   ShiftEditorScreen,
   ShiftDetailScreen,
   ShiftRolesManagementScreen,
+  TaskListsManagementScreen,
+  MyTasksScreen,
 } from '@/features/shifts';
 import type { Shift } from '@/features/shifts';
 
@@ -19,6 +21,10 @@ export type ShiftsStackParamList = {
   ShiftEditor: { shift?: Shift } | undefined;
   ShiftDetail: { shift: Shift };
   ShiftRolesManagement: undefined;
+  TaskListsManagement: undefined;
+  MyTasks: undefined;
+  QA: undefined;
+  QAAdmin: undefined;
 };
 
 const Stack = createNativeStackNavigator<ShiftsStackParamList>();
@@ -42,6 +48,8 @@ export default function ShiftsNavigator() {
       <Stack.Screen name="ShiftEditor" component={ShiftEditorScreen} />
       <Stack.Screen name="ShiftDetail" component={ShiftDetailScreen} />
       <Stack.Screen name="ShiftRolesManagement" component={ShiftRolesManagementScreen} />
+      <Stack.Screen name="TaskListsManagement" component={TaskListsManagementScreen} />
+      <Stack.Screen name="MyTasks" component={MyTasksScreen} />
     </Stack.Navigator>
   );
 }
