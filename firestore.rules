@@ -37,6 +37,14 @@ service cloud.firestore {
         exists(/databases/$(database)/documents/userShiftRoles/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/userShiftRoles/$(request.auth.uid)).data.isShiftManager == true;
     }
+
+    // בדיקה שהמשתמש הוא עובד (צוות) — יש לו רשומת userShiftRoles פעילה.
+    // משמש לגידור משימות / שאלות-ותשובות לצוות בלבד (לא לכל מטפס).
+    function isWorker() {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/userShiftRoles/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/userShiftRoles/$(request.auth.uid)).data.isActive == true;
+    }
     
     // בדיקה אם השופט קיים בתחרות
     function isJudge(competitionId) {
@@ -663,6 +671,42 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated() && isReasonableSize();
       allow update, delete: if isAdmin();
+    }
+
+    // ==================== Staff Tasks & Q&A (employees only) ====================
+    // גידור לצוות בלבד: רק עובד/מנהל-משמרת/אדמין רואה. לא חשוף למטפסים רגילים.
+
+    // קבוצות משימות (צ׳קליסט לתפקיד) — ניהול על ידי מנהלי משמרת/אדמין
+    match /taskLists/{listId} {
+      allow read: if isWorker() || isShiftManager() || isAdmin();
+      allow create, update: if (isShiftManager() || isAdmin()) && isReasonableSize();
+      allow delete: if isShiftManager() || isAdmin();
+    }
+
+    // משימות אישיות לעובד למשמרת
+    match /shiftTasks/{taskId} {
+      allow read: if isWorker() || isShiftManager() || isAdmin();
+      // יצירה/מחיקה — מנהל משמרת/אדמין (הלקוח יוצר אותן בעת אישור עובד)
+      allow create: if (isShiftManager() || isAdmin()) && isReasonableSize();
+      allow delete: if isShiftManager() || isAdmin();
+      // עדכון: מנהל/אדמין הכל; העובד מעדכן רק done/doneAt במשימה של עצמו
+      allow update: if (isShiftManager() || isAdmin()) ||
+        (isAuthenticated() && resource.data.uid == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['done', 'doneAt']));
+    }
+
+    // שאלות ותשובות (מאגר ידע לצוות)
+    match /questions/{questionId} {
+      // מנהל/אדמין רואה הכל; עובד רואה שאלות גלויות שנענו + השאלות של עצמו
+      allow read: if isShiftManager() || isAdmin() ||
+        (resource.data.visible == true && resource.data.status == 'answered') ||
+        (isAuthenticated() && resource.data.authorUid == request.auth.uid);
+      // עובד יוצר שאלה על שמו בסטטוס open
+      allow create: if isWorker() && isReasonableSize() &&
+        request.resource.data.authorUid == request.auth.uid &&
+        request.resource.data.status == 'open';
+      // מענה/עריכה/הסתרה/מחיקה — מנהל משמרת/אדמין בלבד
+      allow update, delete: if isShiftManager() || isAdmin();
     }
 
     // ==================== Class Planning ====================
