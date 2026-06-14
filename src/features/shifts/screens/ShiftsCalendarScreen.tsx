@@ -27,6 +27,7 @@ import { SHIFT_STATUS_CONFIG, DAYS_OF_WEEK_HE, REGISTRATION_STATUS_CONFIG } from
 import { acceptSwapRequest, rejectSwapRequest, getShift } from '../shiftsService';
 import type { Shift, ShiftWithDetails, CalendarViewMode, ShiftFilter, ShiftRole, ShiftSwapRequest } from '../types';
 import { auth } from '@/features/data/firebase';
+import { registerStaffPushToken } from '@/features/notifications';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -46,6 +47,13 @@ export function ShiftsCalendarScreen({ navigation }: ShiftsCalendarScreenProps) 
   const { userShiftRole, isWorker, isShiftManager } = useMyShiftRoles();
   const { requests: incomingSwaps } = useIncomingSwapRequests();
   const canManage = isAdmin || isShiftManager;
+
+  // Register the device for push only for staff (workers/managers) — not climbers.
+  React.useEffect(() => {
+    if (isWorker || isShiftManager) {
+      registerStaffPushToken();
+    }
+  }, [isWorker, isShiftManager]);
 
   // Block hardware back button – require explicit navigation
   useFocusEffect(

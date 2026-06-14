@@ -10,12 +10,13 @@
 const { setGlobalOptions } = require("firebase-functions");
 const { onRequest, onCall, HttpsError } = require("firebase-functions/https");
 const { onSchedule } = require("firebase-functions/scheduler");
-const { onDocumentWritten } = require("firebase-functions/v2/firestore");
+const { onDocumentWritten, onDocumentCreated } = require("firebase-functions/v2/firestore");
 const logger = require("firebase-functions/logger");
 const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
-const { getFirestore, Timestamp } = require("firebase-admin/firestore");
+const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { getStorage } = require("firebase-admin/storage");
+const { sendPush, getManagerUids, getUserName } = require("./notifications");
 
 // Initialize Firebase Admin
 initializeApp();
@@ -664,5 +665,168 @@ exports.migrateResultsVersioning = onCall(
       `[migrateResultsVersioning] scanned=${scanned} updated=${updated}`
     );
     return { scanned, updated };
+  }
+);
+
+// ==================== Staff Push Notifications (shift tasks & Q&A) ====================
+
+const REMINDER_HOURS_AFTER_START = 2;
+const CLOSING_REMINDER_MIN_BEFORE_END = 30;
+
+/** Save an FCM device token to the caller's users doc (called from the mobile app). */
+exports.saveFcmToken = onCall(async (request) => {
+  if (!request.auth) {
+    throw new HttpsError("unauthenticated", "נדרשת התחברות.");
+  }
+  const token = request.data && request.data.token;
+  if (typeof token !== "string" || !token.trim()) {
+    throw new HttpsError("invalid-argument", "טוקן חסר או לא תקין.");
+  }
+  await db
+    .collection("users")
+    .doc(request.auth.uid)
+    .set({ fcmTokens: FieldValue.arrayUnion(token) }, { merge: true });
+  return { ok: true };
+});
+
+/** A worker's registration was approved → notify them. */
+exports.onShiftRegistrationApproved = onDocumentWritten(
+  "shiftRegistrations/{id}",
+  async (event) => {
+    const before = event.data && event.data.before && event.data.before.data();
+    const after = event.data && event.data.after && event.data.after.data();
+    if (!after) return;
+    if (before && before.status === "approved") return;
+    if (after.status !== "approved") return;
+
+    let title = "משמרת";
+    let when = "";
+    try {
+      const shiftSnap = await db.collection("shifts").doc(after.shiftId).get();
+      const shift = shiftSnap.data();
+      if (shift) {
+        title = shift.title || "משמרת";
+        if (shift.startTime && shift.startTime.toDate) {
+          when = shift.startTime.toDate().toLocaleString("he-IL", {
+            dateStyle: "short",
+            timeStyle: "short",
+            timeZone: "Asia/Jerusalem",
+          });
+        }
+      }
+    } catch (e) {
+      logger.warn("onShiftRegistrationApproved: shift lookup failed", e.message);
+    }
+    await sendPush(
+      [after.userId],
+      "אושרת למשמרת",
+      `אושרת למשמרת ${title}${when ? " ב-" + when : ""}`,
+      { shiftId: after.shiftId }
+    );
+  }
+);
+
+/** A manager added a live task → notify the worker. */
+exports.onShiftTaskCreated = onDocumentCreated("shiftTasks/{id}", async (event) => {
+  const data = event.data && event.data.data();
+  if (!data || data.source !== "manager") return;
+  await sendPush([data.uid], "נוספה לך משימה חדשה", `נוספה לך משימה: ${data.title}`, {
+    shiftId: data.shiftId,
+  });
+});
+
+/** New question → notify managers; answered → notify the author. */
+exports.onQuestionWrite = onDocumentWritten("questions/{id}", async (event) => {
+  const before = event.data && event.data.before && event.data.before.data();
+  const after = event.data && event.data.after && event.data.after.data();
+  if (!after) return;
+  const questionId = event.params.id;
+
+  if (!before) {
+    const managers = await getManagerUids();
+    await sendPush(
+      managers,
+      "שאלה חדשה",
+      `שאלה חדשה מ${after.authorName || "עובד"}: ${after.title}`,
+      { questionId }
+    );
+    return;
+  }
+  if (before.status !== "answered" && after.status === "answered") {
+    await sendPush([after.authorUid], "קיבלת תשובה", "קיבלת תשובה לשאלה שלך", { questionId });
+  }
+});
+
+/** Every 15 min: remind workers with open tasks (mid-shift + closing). */
+exports.taskReminder = onSchedule(
+  { schedule: "every 15 minutes", timeZone: "Asia/Jerusalem" },
+  async () => {
+    const now = Date.now();
+    const since = Timestamp.fromMillis(now - 12 * 3600 * 1000);
+    const until = Timestamp.fromMillis(now);
+
+    const shiftsSnap = await db
+      .collection("shifts")
+      .where("startTime", ">=", since)
+      .where("startTime", "<=", until)
+      .get();
+
+    for (const shiftDoc of shiftsSnap.docs) {
+      const shift = shiftDoc.data();
+      const start = shift.startTime && shift.startTime.toDate && shift.startTime.toDate();
+      const end = shift.endTime && shift.endTime.toDate && shift.endTime.toDate();
+      if (!start || !end) continue;
+      if (now < start.getTime() || now >= end.getTime()) continue; // not ongoing
+
+      const assigned = shift.assignedWorkerIds || [];
+      if (assigned.length === 0) continue;
+      const sent = shift.remindersSent || {};
+      const updates = {};
+      const wantMid = now >= start.getTime() + REMINDER_HOURS_AFTER_START * 3600 * 1000;
+      const wantClosing = now >= end.getTime() - CLOSING_REMINDER_MIN_BEFORE_END * 60 * 1000;
+
+      for (const uid of assigned) {
+        const openSnap = await db
+          .collection("shiftTasks")
+          .where("shiftId", "==", shiftDoc.id)
+          .where("uid", "==", uid)
+          .where("done", "==", false)
+          .get();
+        if (openSnap.empty) continue;
+        const openTasks = openSnap.docs.map((d) => d.data());
+
+        const midKey = `${uid}_mid`;
+        if (wantMid && !sent[midKey]) {
+          const titles = openTasks.slice(0, 3).map((t) => t.title).join(", ");
+          await sendPush(
+            [uid],
+            "תזכורת משימות",
+            `נשארו לך ${openTasks.length} משימות פתוחות: ${titles}...`,
+            { shiftId: shiftDoc.id }
+          );
+          updates[midKey] = true;
+        }
+
+        const closingKey = `${uid}_closing`;
+        const closingTasks = openTasks.filter((t) => t.listName === "סגירה");
+        if (wantClosing && closingTasks.length > 0 && !sent[closingKey]) {
+          const titles = closingTasks.slice(0, 3).map((t) => t.title).join(", ");
+          await sendPush(
+            [uid],
+            "תזכורת סגירה",
+            `לפני סוף המשמרת — משימות סגירה פתוחות: ${titles}`,
+            { shiftId: shiftDoc.id }
+          );
+          updates[closingKey] = true;
+        }
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await shiftDoc.ref.set(
+          { remindersSent: Object.assign({}, sent, updates) },
+          { merge: true }
+        );
+      }
+    }
   }
 );
