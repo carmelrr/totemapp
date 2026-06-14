@@ -13,7 +13,14 @@ const INVALID_TOKEN_CODES = new Set([
   "messaging/invalid-argument",
 ]);
 
-/** Send a push to a set of users; prunes invalid tokens from their docs. */
+/**
+ * Send a push to a set of users; prunes invalid tokens from their docs.
+ * @param {string[]} uids Target user ids.
+ * @param {string} title Notification title.
+ * @param {string} body Notification body.
+ * @param {Object} [data] Optional data payload (values are stringified).
+ * @return {Promise<void>} Resolves when all batches are sent.
+ */
 async function sendPush(uids, title, body, data) {
   const unique = [...new Set(uids)].filter(Boolean);
   if (unique.length === 0) return;
@@ -72,14 +79,19 @@ async function sendPush(uids, title, body, data) {
   logger.info(`[sendPush] "${title}" — sent to ${tokens.length} token(s), pruned ${invalid.length}`);
 }
 
-/** uids of all shift managers (userShiftRoles.isShiftManager == true). */
+/**
+ * @return {Promise<string[]>} uids of all shift managers.
+ */
 async function getManagerUids() {
   const db = getFirestore();
   const snap = await db.collection("userShiftRoles").where("isShiftManager", "==", true).get();
   return snap.docs.map((d) => d.id);
 }
 
-/** Display name of a user (fallback "עובד"). */
+/**
+ * @param {string} uid User id.
+ * @return {Promise<string>} Display name (fallback "עובד").
+ */
 async function getUserName(uid) {
   const db = getFirestore();
   const snap = await db.collection("users").doc(uid).get();

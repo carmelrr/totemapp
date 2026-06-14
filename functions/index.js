@@ -16,7 +16,7 @@ const { initializeApp } = require("firebase-admin/app");
 const { getAuth } = require("firebase-admin/auth");
 const { getFirestore, Timestamp, FieldValue } = require("firebase-admin/firestore");
 const { getStorage } = require("firebase-admin/storage");
-const { sendPush, getManagerUids, getUserName } = require("./notifications");
+const { sendPush, getManagerUids } = require("./notifications");
 
 // Initialize Firebase Admin
 initializeApp();
