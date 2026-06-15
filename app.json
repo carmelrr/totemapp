@@ -33,7 +33,6 @@
         "foregroundImage": "./src/assets/adaptive-icon.png",
         "backgroundColor": "#0B0B0F"
       },
-      "navigationBarColor": "#0B0B0F",
       "versionCode": 10,
       "package": "com.totemapp.climbing",
       "googleServicesFile": "./google-services.json",
