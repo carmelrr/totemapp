@@ -81,8 +81,7 @@
       ],
       "expo-web-browser",
       "@react-native-google-signin/google-signin",
-      "expo-apple-authentication",
-      "expo-video"
+      "expo-apple-authentication"
     ],
     "extra": {
       "eas": {
