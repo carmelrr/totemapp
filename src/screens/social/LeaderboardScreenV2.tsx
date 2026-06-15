@@ -26,10 +26,9 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
-import { auth, db } from "@/features/data/firebase";
-import { collection, getDocs, onSnapshot } from "firebase/firestore";
+import { auth } from "@/features/data/firebase";
 import { useTheme } from "@/features/theme/ThemeContext";
 import { useLanguage } from "@/features/language";
 import { useAdmin } from "@/context/AdminContext";
@@ -40,7 +39,14 @@ import { ActiveCompetitionBanner } from "@/features/competitions/components/Acti
 import { OpenRegistrationBanner } from "@/features/competitions/components/OpenRegistrationBanner";
 import { CompletedCompetitionBanner } from "@/features/competitions/components/CompletedCompetitionBanner";
 import { BrandLogo } from "@/components/ui/BrandLogo";
-import { CachedAvatar, prefetchAvatarImages } from "@/components/ui/CachedAvatar";
+import { CachedAvatar } from "@/components/ui/CachedAvatar";
+import {
+  useLeaderboardUsers,
+  useLeaderboardLoading,
+  useLeaderboardComputedAt,
+  useLeaderboardActions,
+  type LeaderboardUser,
+} from "@/store/leaderboardStore";
 import { useResponsiveLayout } from "@/hooks/useResponsiveLayout";
 import { useBlockedUsers } from "@/features/moderation/useBlockedUsers";
 
@@ -51,69 +57,8 @@ const { width: screenWidth } = Dimensions.get("window");
 // 'onWall' - only routes currently on the wall
 type TimeFilter = 'onWall' | 'all';
 
-// Points per grade (standard leaderboard)
-// V0/V1 = 1, V2 = 2, V3 = 3, ... V11 = 11, etc.
-const GRADE_POINTS: Record<string, number> = {
-  VB: 1,
-  V0: 1,
-  V1: 1,
-  V2: 2,
-  V3: 3,
-  V4: 4,
-  V5: 5,
-  V6: 6,
-  V7: 7,
-  V8: 8,
-  V9: 9,
-  V10: 10,
-  V11: 11,
-  V12: 12,
-  V13: 13,
-  V14: 14,
-  V15: 15,
-  V16: 16,
-  V17: 17,
-};
-
-/**
- * Parse V-grade string to points value
- * Handles edge cases like "V0/1" -> 1, "V10" -> 10, etc.
- * @param grade - The V-grade string (e.g., "V5", "V0/1", "V11")
- * @returns Points value based on the grade number
- */
-const parseGradeToPoints = (grade: string | undefined | null): number => {
-  if (!grade) return 0;
-  
-  // Check static mapping first
-  if (GRADE_POINTS[grade] !== undefined) {
-    return GRADE_POINTS[grade];
-  }
-  
-  // Handle "V0/1" style grades -> 1 point
-  if (grade === 'V0/1' || grade === 'V0-1') {
-    return 1;
-  }
-  
-  // Try to extract number from V-grade (handles V10, V11, V12, etc.)
-  const match = grade.match(/^V(\d+)/);
-  if (match) {
-    const num = parseInt(match[1], 10);
-    // V0 and V1 both give 1 point, otherwise the number itself
-    return num <= 1 ? 1 : num;
-  }
-  
-  return 0;
-};
-
-interface LeaderboardUser {
-  id: string;
-  displayName: string;
-  photoURL: string | null;
-  points: number;
-  allTimePoints: number; // Used for tiebreaker when points are equal
-  routeCount?: number;
-  rank?: number;
-}
+// Points-per-grade math and the LeaderboardUser type now live in the leaderboard store
+// (src/store/leaderboardStore.ts), which owns aggregation + caching.
 
 export default function LeaderboardScreen() {
   const { theme } = useTheme();
@@ -127,13 +72,22 @@ export default function LeaderboardScreen() {
   const isPhoneLandscape = !isTablet && isLandscape;
   
   // State
-  const [allUsers, setAllUsers] = useState<LeaderboardUser[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('onWall');
   const [activeCompetitionIndex, setActiveCompetitionIndex] = useState(0);
-  
+
   const currentUserId = auth.currentUser?.uid;
+
+  // Leaderboard data comes from the cached store (stale-while-revalidate) instead of a
+  // full-collection re-scan on every mount / user-doc change.
+  const fallbackName = t.social.user;
+  const allUsers = useLeaderboardUsers(timeFilter);
+  const { hydrate, ensureFresh, refresh } = useLeaderboardActions();
+  const storeLoading = useLeaderboardLoading();
+  const computedAt = useLeaderboardComputedAt(timeFilter);
+  // Show the full-screen spinner only when there's nothing to render yet and either a
+  // compute is in flight or this filter has never been computed (first ever load).
+  const loading = allUsers.length === 0 && (storeLoading || computedAt === 0);
 
   // Responsive styles
   const styles = useMemo(() => createStyles(theme, layout, insets), [theme, layout, insets]);
@@ -190,136 +144,36 @@ export default function LeaderboardScreen() {
     return () => { cancelled = true; };
   }, [currentUserId, activeCompetitions, openRegistrationCompetitions]);
 
-  // Load users data with filtering - OPTIMIZED VERSION
-  // Instead of querying per-user, we fetch all data once and compute locally
-  const loadUsersData = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const onlyActiveRoutes = timeFilter === 'onWall';
-
-      // Step 1: Fetch all routes ONCE
-      const routesSnapshot = await getDocs(collection(db, "routes"));
-      const routesMap = new Map<string, any>();
-      const activeRouteIds = new Set<string>();
-      
-      routesSnapshot.forEach((doc) => {
-        const routeData = { id: doc.id, ...doc.data() };
-        routesMap.set(doc.id, routeData);
-        const isActive = !routeData.status || routeData.status === 'active';
-        if (isActive) {
-          activeRouteIds.add(doc.id);
-        }
-      });
-
-      // Step 2: Fetch ALL feedbacks from main collection ONCE
-      const mainFeedbacksSnapshot = await getDocs(collection(db, "routeFeedbacks"));
-      
-      // Step 3: Build a map of userId -> { points, allTimePoints, routeCount, seenFeedbackIds }
-      // We calculate BOTH on-wall points AND all-time points in one pass
-      const userStatsMap = new Map<string, { 
-        points: number; 
-        allTimePoints: number;
-        routeCount: number; 
-        seenFeedbackIds: Set<string> 
-      }>();
-      
-      mainFeedbacksSnapshot.forEach((feedbackDoc) => {
-        const feedback = feedbackDoc.data();
-        const userId = feedback.userId;
-        if (!userId) return;
-        
-        const isCompleted = feedback.closedRoute === true || feedback.isCompleted === true;
-        if (!isCompleted) return;
-        
-        // Get or create user stats
-        if (!userStatsMap.has(userId)) {
-          userStatsMap.set(userId, { points: 0, allTimePoints: 0, routeCount: 0, seenFeedbackIds: new Set() });
-        }
-        const userStats = userStatsMap.get(userId)!;
-        
-        const uniqueId = `main_${feedbackDoc.id}`;
-        if (userStats.seenFeedbackIds.has(uniqueId)) return;
-        userStats.seenFeedbackIds.add(uniqueId);
-        
-        // Use the ROUTE's grade for points calculation
-        const route = routesMap.get(feedback.routeId);
-        const routeGrade = route?.grade || 'V0';
-        const feedbackPoints = parseGradeToPoints(routeGrade);
-        
-        // Always add to all-time points
-        userStats.allTimePoints += feedbackPoints;
-        
-        // Only add to current points if route is active (when filtering by on-wall)
-        const isActiveRoute = activeRouteIds.has(feedback.routeId);
-        if (!onlyActiveRoutes || isActiveRoute) {
-          userStats.points += feedbackPoints;
-          userStats.routeCount++;
-        }
-      });
-
-      // Step 4: Fetch ALL users ONCE
-      const usersSnapshot = await getDocs(collection(db, "users"));
-      const users: LeaderboardUser[] = [];
-
-      usersSnapshot.forEach((userDoc) => {
-        const userData = userDoc.data();
-        const userStats = userStatsMap.get(userDoc.id) || { points: 0, allTimePoints: 0, routeCount: 0 };
-        
-        users.push({
-          id: userDoc.id,
-          displayName: userData.displayName || t.social.user,
-          photoURL: userData.photoURL || null,
-          points: userStats.points,
-          allTimePoints: userStats.allTimePoints,
-          routeCount: userStats.routeCount,
-        });
-      });
-
-      // Sort by points (highest first), then by allTimePoints as tiebreaker
-      users.sort((a, b) => {
-        if (b.points !== a.points) {
-          return b.points - a.points;
-        }
-        // Tiebreaker: sort by all-time points
-        return b.allTimePoints - a.allTimePoints;
-      });
-
-      setAllUsers(users);
-      
-      // Prefetch top 15 user avatars for instant display
-      const topUserPhotos = users.slice(0, 15).map(u => u.photoURL);
-      prefetchAvatarImages(topUserPhotos);
-    } catch (error) {
-      console.error("Error loading users data:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [timeFilter, t.social.user]);
-
-  // Real-time subscription to users collection for leaderboard updates
+  // Hydrate from the persisted cache once, then keep the active filter fresh (TTL-guarded).
+  // The store renders cached rankings instantly and revalidates in the background, replacing
+  // the old full-collection scan that re-ran on every mount AND on every user-doc change.
   useEffect(() => {
-    const usersRef = collection(db, "users");
-    
-    const unsubscribe = onSnapshot(usersRef, () => {
-      // When users collection changes, reload the leaderboard
-      loadUsersData();
-    }, (error) => {
-      console.error("Error in leaderboard subscription:", error);
-    });
+    let active = true;
+    (async () => {
+      await hydrate();
+      if (active) ensureFresh(timeFilter, fallbackName);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [timeFilter, fallbackName, hydrate, ensureFresh]);
 
-    return () => unsubscribe();
-  }, [loadUsersData]);
+  // Revalidate when the screen regains focus (the store no-ops if data is still fresh).
+  useFocusEffect(
+    useCallback(() => {
+      ensureFresh(timeFilter, fallbackName);
+    }, [timeFilter, fallbackName, ensureFresh])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadUsersData();
+    await refresh(timeFilter, fallbackName);
     setRefreshing(false);
   };
 
   // Get users with points > 0
   const usersWithPoints = useMemo(
-    () => allUsers.filter((user) => user.points > 0 && !isBlocked(user.userId)),
+    () => allUsers.filter((user) => user.points > 0 && !isBlocked(user.id)),
     [allUsers, isBlocked]
   );
 

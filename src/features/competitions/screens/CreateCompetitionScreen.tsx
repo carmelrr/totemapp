@@ -66,6 +66,9 @@ export default function CreateCompetitionScreen() {
   const [freeFirstAttempt, setFreeFirstAttempt] = useState(true);
   const [separateTopZonePenalty, setSeparateTopZonePenalty] = useState(true);
 
+  // Totemtition settings
+  const [totemDivisionScope, setTotemDivisionScope] = useState<'per_category' | 'global'>('per_category');
+
   // Entry/Registration modes
   const [resultsEntryMode, setResultsEntryMode] = useState<'selfEntry' | 'judgesOnly'>('judgesOnly');
   const [registrationMode, setRegistrationMode] = useState<'openRegistration' | 'adminsOrJudgesOnly'>('openRegistration');
@@ -81,7 +84,7 @@ export default function CreateCompetitionScreen() {
   const showTopRoutes = isNationalLeague;          // only NL uses TOP-N
   const showAttemptPenalty = isNationalLeague;      // ZT uses zone/top penalties, Totem has none
   const showMaxAttempts = !isTotemtition && !isPointsCompetition; // Totem and Points are unlimited
-  const showCategories = !isTotemtition && !isPointsCompetition;  // Totem and Points have no categories
+  const showCategories = !isPointsCompetition;  // Points has no categories; Totem now supports them
   const showAdvancedSettings = !isPointsCompetition; // Points Competition uses wall routes, no custom settings
 
   const handleFormatChange = (newFormat: CompetitionFormat) => {
@@ -107,6 +110,11 @@ export default function CreateCompetitionScreen() {
       setAttemptPenaltyTop(String(defaults.attemptPenaltyTop ?? 0.01));
       setFreeFirstAttempt(defaults.freeFirstAttempt ?? true);
       setSeparateTopZonePenalty(defaults.separateTopZonePenalty ?? false);
+    }
+
+    // Totemtition settings
+    if (newFormat === 'totemtition') {
+      setTotemDivisionScope(defaults.totemDivisionScope ?? 'per_category');
     }
   };
 
@@ -166,6 +174,10 @@ export default function CreateCompetitionScreen() {
             attemptPenaltyTop: parseFloat(attemptPenaltyTop),
             freeFirstAttempt,
             separateTopZonePenalty,
+          } : {}),
+          // Totemtition settings (division scope; pool defaults to 1000 via format defaults)
+          ...(isTotemtition ? {
+            totemDivisionScope,
           } : {}),
         },
         createdBy: user.uid,
@@ -655,6 +667,48 @@ export default function CreateCompetitionScreen() {
                     : t.competitionExt.standardPenaltyExplanation}
                 </Text>
               </View>
+            </View>
+          )}
+
+          {/* Totemtition Division Scope */}
+          {isTotemtition && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>{t.competitionExt.scoringSettings}</Text>
+              <Text style={styles.settingLabel}>{t.competitionExt.totemDivisionLabel}</Text>
+              <View style={styles.toggleGroup}>
+                <TouchableOpacity
+                  style={[styles.toggleGroupOption, totemDivisionScope === 'per_category' && styles.toggleGroupOptionSelected]}
+                  onPress={() => setTotemDivisionScope('per_category')}
+                >
+                  <Text style={[styles.toggleGroupText, totemDivisionScope === 'per_category' && styles.toggleGroupTextSelected]}>
+                    {t.competitionExt.totemDivisionPerCategory}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.toggleGroupOption, totemDivisionScope === 'global' && styles.toggleGroupOptionSelected]}
+                  onPress={() => setTotemDivisionScope('global')}
+                >
+                  <Text style={[styles.toggleGroupText, totemDivisionScope === 'global' && styles.toggleGroupTextSelected]}>
+                    {t.competitionExt.totemDivisionGlobal}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+              <View style={[styles.toggleRow, { backgroundColor: theme.card, padding: 12, borderRadius: 8, marginTop: 8 }]}>
+                <Ionicons name="information-circle-outline" size={20} color={theme.primary} />
+                <Text style={[styles.toggleLabel, { fontSize: 12, color: theme.textSecondary }]}>
+                  {totemDivisionScope === 'global'
+                    ? t.competitionExt.totemDivisionGlobalDesc
+                    : t.competitionExt.totemDivisionPerCategoryDesc}
+                </Text>
+              </View>
+              {showCategories && !enableCategories && (
+                <View style={[styles.toggleRow, { backgroundColor: theme.card, padding: 12, borderRadius: 8, marginTop: 8 }]}>
+                  <Ionicons name="alert-circle-outline" size={20} color={theme.textSecondary} />
+                  <Text style={[styles.toggleLabel, { fontSize: 12, color: theme.textSecondary }]}>
+                    {t.competitionExt.totemDivisionNoCategoriesNote}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 

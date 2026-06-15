@@ -710,6 +710,12 @@ service cloud.firestore {
       allow update, delete: if isShiftManager() || isAdmin();
     }
 
+    // תיקיות מאגר הידע (קיבוץ שאלות) — קריאה לצוות, כתיבה למנהל/אדמין
+    match /qaFolders/{folderId} {
+      allow read: if isWorker() || isShiftManager() || isAdmin();
+      allow create, update, delete: if (isShiftManager() || isAdmin()) && isReasonableSize();
+    }
+
     // ==================== Class Planning ====================
     // הגדרות גלובליות לתכנון חוגים — מסמך יחיד "global"
     match /classSettings/{settingsId} {

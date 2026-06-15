@@ -1544,6 +1544,13 @@ export const he: TranslationKeys = {
     separatePenaltyToggle: "קנס Zone/Top נפרד (מתגמל התקדמות מוקדמת)",
     separatePenaltyExplanation: "ניקוד = Top - קנס_Zone × (ניסיון_Zone - 1) - קנס_Top × (ניסיון_Top - ניסיון_Zone). מתגמל מטפסים שמגיעים ל-Zone מוקדם.",
     standardPenaltyExplanation: "ניקוד = Top - קנס × (ניסיון - 1). ניקוד IFSC סטנדרטי.",
+    // Totemtition division scope
+    totemDivisionLabel: "חלוקת ניקוד לכל מסלול",
+    totemDivisionPerCategory: "לפי קטגוריה",
+    totemDivisionGlobal: "גלובלי",
+    totemDivisionPerCategoryDesc: "מאגר 1000 הנקודות של כל מסלול מתחלק בין המטפסים באותה קטגוריה.",
+    totemDivisionGlobalDesc: "מאגר 1000 הנקודות של כל מסלול מתחלק בין כל מי שסיים אותו, בכל הקטגוריות. הדירוג עדיין מוצג לפי קטגוריה.",
+    totemDivisionNoCategoriesNote: "לא הוגדרו קטגוריות, ולכן החלוקה היא גלובלית בפועל.",
     attemptNumberShort: "ניסיון #",
     saveResult: "שמור תוצאה",
     editRoutePoints: "עריכת ניקוד",

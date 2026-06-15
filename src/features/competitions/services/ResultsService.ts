@@ -1124,8 +1124,11 @@ export class ResultsService {
    * @returns Leaderboard entries with Totemtition scoring
    */
   static async calculateTotemtitionLeaderboard(
-    competitionId: string
+    competitionId: string,
+    options?: { divisionScope?: 'per_category' | 'global'; basePointsPerRoute?: number }
   ): Promise<LeaderboardEntry[]> {
+    const divisionScope = options?.divisionScope ?? 'per_category';
+    const basePointsPerRoute = options?.basePointsPerRoute ?? 1000;
     try {
       // Get all results
       const allResults = await this.getAllResults(competitionId);
@@ -1134,14 +1137,15 @@ export class ResultsService {
         return [];
       }
 
-      // Step 1: Count completions per route PER CATEGORY
-      // Structure: { category: { routeKey: count } }
-      const categoryRouteCompletionCounts: Record<string, Record<string, number>> = {};
+      // Step 1: Count completions per route within the division scope
+      // (per category, or a single global bucket).
+      const scopeRouteCompletionCounts: Record<string, Record<string, number>> = {};
       
       allResults.forEach((result) => {
-        const participantCategory = result.category || '__no_category__';
-        if (!categoryRouteCompletionCounts[participantCategory]) {
-          categoryRouteCompletionCounts[participantCategory] = {};
+        const scopeKey =
+          divisionScope === 'global' ? '__global__' : result.category || '__no_category__';
+        if (!scopeRouteCompletionCounts[scopeKey]) {
+          scopeRouteCompletionCounts[scopeKey] = {};
         }
         
         const routes = result.routes;
@@ -1150,27 +1154,28 @@ export class ResultsService {
           routeValues.forEach((route: RouteResult) => {
             if (route.completed) {
               const routeKey = route.routeId || String(route.routeNumber);
-              categoryRouteCompletionCounts[participantCategory][routeKey] = 
-                (categoryRouteCompletionCounts[participantCategory][routeKey] || 0) + 1;
+              scopeRouteCompletionCounts[scopeKey][routeKey] = 
+                (scopeRouteCompletionCounts[scopeKey][routeKey] || 0) + 1;
             }
           });
         }
       });
 
-      // Step 2: Calculate points for each participant using CATEGORY-SPECIFIC counts
+      // Step 2: Calculate points for each participant using SCOPE-SPECIFIC counts
       const leaderboardEntries: LeaderboardEntry[] = allResults.map((result) => {
         let totalPoints = 0;
         const routes = result.routes;
-        const participantCategory = result.category || '__no_category__';
-        const categoryCompletionCounts = categoryRouteCompletionCounts[participantCategory] || {};
+        const scopeKey =
+          divisionScope === 'global' ? '__global__' : result.category || '__no_category__';
+        const scopeCompletionCounts = scopeRouteCompletionCounts[scopeKey] || {};
         
         if (routes) {
           const routeValues = Array.isArray(routes) ? routes : Object.values(routes);
           routeValues.forEach((route: RouteResult) => {
             if (route.completed) {
               const routeKey = route.routeId || String(route.routeNumber);
-              const completionCount = categoryCompletionCounts[routeKey] || 1;
-              const points = calculateTotemtitionPoints(1000, completionCount);
+              const completionCount = scopeCompletionCounts[routeKey] || 1;
+              const points = calculateTotemtitionPoints(basePointsPerRoute, completionCount);
               totalPoints += points;
             }
           });
@@ -1215,8 +1220,11 @@ export class ResultsService {
   static subscribeToTotemtitionLeaderboard(
     competitionId: string,
     callback: (entries: LeaderboardEntry[]) => void,
-    category?: string
+    category?: string,
+    options?: { divisionScope?: 'per_category' | 'global'; basePointsPerRoute?: number }
   ): () => void {
+    const divisionScope = options?.divisionScope ?? 'per_category';
+    const basePointsPerRoute = options?.basePointsPerRoute ?? 1000;
     const emit = coalesce(callback);
     const resultsRef = collection(
       db,
@@ -1245,17 +1253,20 @@ export class ResultsService {
             ? allResults.filter((r) => r.category === category)
             : allResults;
 
-          // Step 2: Count completions per route PER CATEGORY
-          // For Totemtition, points are divided only among participants in the same category
-          // Structure: { category: { routeKey: count } }
-          const categoryRouteCompletionCounts: Record<string, Record<string, number>> = {};
+          // Step 2: Count completions per route within the division scope.
+          // 'per_category' splits each route's pool inside the climber's category;
+          // 'global' uses a single bucket so the pool is split across all categories.
+          // Counting runs over ALL results (not the category-filtered view) so global
+          // counts stay correct even when the display is filtered to a single category.
+          const scopeRouteCompletionCounts: Record<string, Record<string, number>> = {};
 
           allResults.forEach((result) => {
-            const participantCategory = result.category || '__no_category__';
-            if (!categoryRouteCompletionCounts[participantCategory]) {
-              categoryRouteCompletionCounts[participantCategory] = {};
+            const scopeKey =
+              divisionScope === 'global' ? '__global__' : result.category || '__no_category__';
+            if (!scopeRouteCompletionCounts[scopeKey]) {
+              scopeRouteCompletionCounts[scopeKey] = {};
             }
-            
+
             const routes = result.routes;
             if (routes) {
               const routeValues = Array.isArray(routes)
@@ -1264,21 +1275,22 @@ export class ResultsService {
               routeValues.forEach((route: RouteResult) => {
                 if (route.completed) {
                   const routeKey = route.routeId || String(route.routeNumber);
-                  categoryRouteCompletionCounts[participantCategory][routeKey] =
-                    (categoryRouteCompletionCounts[participantCategory][routeKey] || 0) + 1;
+                  scopeRouteCompletionCounts[scopeKey][routeKey] =
+                    (scopeRouteCompletionCounts[scopeKey][routeKey] || 0) + 1;
                 }
               });
             }
           });
 
-          // Step 3: Calculate points for each participant using CATEGORY-SPECIFIC completion counts
+          // Step 3: Calculate points for each participant using SCOPE-SPECIFIC completion counts
           const leaderboardEntries: LeaderboardEntry[] = filteredResults.map(
             (result) => {
               let totalPoints = 0;
               let totalAttempts = 0;
               const routes = result.routes;
-              const participantCategory = result.category || '__no_category__';
-              const categoryCompletionCounts = categoryRouteCompletionCounts[participantCategory] || {};
+              const scopeKey =
+                divisionScope === 'global' ? '__global__' : result.category || '__no_category__';
+              const scopeCompletionCounts = scopeRouteCompletionCounts[scopeKey] || {};
 
               if (routes) {
                 const routeValues = Array.isArray(routes)
@@ -1290,9 +1302,9 @@ export class ResultsService {
                   }
                   if (route.completed) {
                     const routeKey = route.routeId || String(route.routeNumber);
-                    // Use category-specific completion count
-                    const completionCount = categoryCompletionCounts[routeKey] || 1;
-                    const points = calculateTotemtitionPoints(1000, completionCount);
+                    // Use scope-specific completion count (per category or global)
+                    const completionCount = scopeCompletionCounts[routeKey] || 1;
+                    const points = calculateTotemtitionPoints(basePointsPerRoute, completionCount);
                     totalPoints += points;
                   }
                 });

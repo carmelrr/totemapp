@@ -120,6 +120,17 @@ service firebase.storage {
       allow delete: if isAdmin();
     }
 
+    // ==================== Q&A Media (knowledge base) ====================
+    // מדיה לשאלות ותשובות — תמונות ווידאו. ההצמדה בפועל למאגר נשלטת ע"י כללי Firestore
+    // (questions/qaFolders — מנהל/אדמין בלבד), כך שמספיק כאן אימות משתמש.
+    match /qa/{allPaths=**} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() &&
+        (request.resource.contentType.matches('image/.*') || request.resource.contentType.matches('video/.*')) &&
+        request.resource.size < 100 * 1024 * 1024; // 100MB cap (video)
+      allow delete: if isAuthenticated();
+    }
+
     // ==================== Default Deny ====================
     // כל מה שלא מוגדר במפורש - אסור!
     match /{allPaths=**} {

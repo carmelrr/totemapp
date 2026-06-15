@@ -416,7 +416,8 @@ export function CompetitionLeaderboard({
   const { entries: allEntries, loading: leaderboardLoading, error } = useCompetitionLeaderboard(
     competition.id,
     undefined,
-    competition.format
+    competition.format,
+    competition.settings
   );
 
   const {

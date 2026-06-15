@@ -1540,6 +1540,13 @@ export const en = {
     separatePenaltyToggle: "Separate Zone/Top penalty (rewards early progress)",
     separatePenaltyExplanation: "Score = Top - Zone_Penalty × (Zone_Attempt - 1) - Top_Penalty × (Top_Attempt - Zone_Attempt). Rewards climbers who reach Zone early.",
     standardPenaltyExplanation: "Score = Top - Penalty × (Attempt - 1). Standard IFSC scoring.",
+    // Totemtition division scope
+    totemDivisionLabel: "Point division per route",
+    totemDivisionPerCategory: "Per category",
+    totemDivisionGlobal: "Global",
+    totemDivisionPerCategoryDesc: "Each route's 1000-point pool is split among climbers within the same category.",
+    totemDivisionGlobalDesc: "Each route's 1000-point pool is split among all climbers who sent it, across every category. Standings are still shown per category.",
+    totemDivisionNoCategoriesNote: "No categories are defined, so division is effectively global.",
     attemptNumberShort: "Attempt #",
     saveResult: "Save Result",
     editRoutePoints: "Edit Scoring",

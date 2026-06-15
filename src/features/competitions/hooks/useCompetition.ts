@@ -12,6 +12,7 @@ import { CompetitionRoutesService } from '../services/CompetitionRoutesService';
 import {
   Competition,
   CompetitionRoute,
+  CompetitionSettings,
   Participant,
   Judge,
   LeaderboardEntry,
@@ -180,11 +181,17 @@ export function useAllCompetitions() {
 export function useCompetitionLeaderboard(
   competitionId: string | null,
   category?: string,
-  format?: string
+  format?: string,
+  settings?: CompetitionSettings
 ) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+
+  // Totem division scope/pool affect scoring; depend on the primitive values so the
+  // subscription is re-created when they change (avoids depending on a new object each render).
+  const totemDivisionScope = settings?.totemDivisionScope;
+  const totemBasePoints = settings?.basePointsPerRoute;
 
   useEffect(() => {
     if (!competitionId) {
@@ -208,7 +215,8 @@ export function useCompetitionLeaderboard(
           setEntries(leaderboard);
           setLoading(false);
         },
-        category
+        category,
+        { divisionScope: totemDivisionScope, basePointsPerRoute: totemBasePoints }
       );
     } else if (format === 'zone_top') {
       unsubscribe = ResultsService.subscribeToZoneTopLeaderboard(
@@ -240,7 +248,7 @@ export function useCompetitionLeaderboard(
     }
 
     return () => unsubscribe();
-  }, [competitionId, category, format]);
+  }, [competitionId, category, format, totemDivisionScope, totemBasePoints]);
 
   return { entries, loading, error };
 }
@@ -509,7 +517,8 @@ export function useCompetitionData(competitionId: string | null) {
   const { entries: leaderboard, loading: leaderboardLoading } = useCompetitionLeaderboard(
     competitionId,
     undefined,
-    competition?.format
+    competition?.format,
+    competition?.settings
   );
   const timer = useCompetitionTimer(competition);
 

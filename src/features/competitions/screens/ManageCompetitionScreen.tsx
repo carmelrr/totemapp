@@ -72,7 +72,8 @@ export default function ManageCompetitionScreen() {
   const { entries: leaderboard, loading: leaderboardLoading } = useCompetitionLeaderboard(
     competitionId,
     undefined,
-    competition?.format
+    competition?.format,
+    competition?.settings
   );
   
   // Get competition routes for the map
@@ -584,7 +585,7 @@ export default function ManageCompetitionScreen() {
         )}
 
         {/* Batch Entry - simple formats only */}
-        {rolesContext.canEnterResults && competition.format !== 'zone_top' && competition.format !== 'ifsc_points' && (
+        {rolesContext.canEnterResults && competition.format !== 'zone_top' && (
           <TouchableOpacity
             style={styles.quickAction}
             onPress={() => navigation.navigate('JudgeBatchEntry', { competitionId })}

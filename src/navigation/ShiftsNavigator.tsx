@@ -14,7 +14,7 @@ import {
   TaskListsManagementScreen,
   MyTasksScreen,
 } from '@/features/shifts';
-import { QAScreen, QAAdminScreen } from '@/features/qa';
+import { QAScreen, QAAdminScreen, QADetailScreen, QAEditorScreen } from '@/features/qa';
 import type { Shift } from '@/features/shifts';
 
 export type ShiftsStackParamList = {
@@ -26,6 +26,8 @@ export type ShiftsStackParamList = {
   MyTasks: undefined;
   QA: undefined;
   QAAdmin: undefined;
+  QADetail: { questionId: string; focusStepId?: string };
+  QAEditor: { questionId?: string } | undefined;
 };
 
 const Stack = createNativeStackNavigator<ShiftsStackParamList>();
@@ -53,6 +55,8 @@ export default function ShiftsNavigator() {
       <Stack.Screen name="MyTasks" component={MyTasksScreen} />
       <Stack.Screen name="QA" component={QAScreen} />
       <Stack.Screen name="QAAdmin" component={QAAdminScreen} />
+      <Stack.Screen name="QADetail" component={QADetailScreen} />
+      <Stack.Screen name="QAEditor" component={QAEditorScreen} />
     </Stack.Navigator>
   );
 }

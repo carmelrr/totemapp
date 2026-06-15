@@ -64,6 +64,7 @@ export const TOTEMTITION_SETTINGS: CompetitionSettings = {
   enableCategories: true,
   enableRounds: false,
   basePointsPerRoute: 1000,     // Points pool per route
+  totemDivisionScope: 'per_category', // split each route's pool within each category
 };
 
 /**

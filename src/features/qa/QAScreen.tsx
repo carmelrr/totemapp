@@ -20,9 +20,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '@/features/theme/ThemeContext';
 import { auth } from '@/features/data/firebase';
 import { useMyShiftRoles } from '@/features/shifts';
-import { useKnowledgeBase, useMyQuestions } from './hooks';
+import { useKnowledgeBase, useMyQuestions, useFolders } from './hooks';
 import { askQuestion } from './qaService';
-import type { Question } from './types';
+import type { Question, QAFolder } from './types';
+
+const UNCATEGORIZED = '__uncategorized__';
 
 function matches(q: Question, term: string): boolean {
   if (!term) return true;
@@ -30,21 +32,51 @@ function matches(q: Question, term: string): boolean {
   return (
     q.title.toLowerCase().includes(t) ||
     q.body.toLowerCase().includes(t) ||
-    (q.answer || '').toLowerCase().includes(t)
+    (q.answer || '').toLowerCase().includes(t) ||
+    (q.steps || []).some((s) => s.text.toLowerCase().includes(t))
   );
+}
+
+/** True when the entry carries structured content worth signaling in the list. */
+function hasRichContent(q: Question): boolean {
+  return (q.steps?.length || 0) > 0 || (q.media?.length || 0) > 0;
 }
 
 export function QAScreen({ navigation }: { navigation: any }) {
   const { theme } = useTheme();
   const { userShiftRole } = useMyShiftRoles();
   const { items: kb } = useKnowledgeBase();
+  const { items: folders } = useFolders();
   const { items: myQuestions } = useMyQuestions();
   const [tab, setTab] = useState<'kb' | 'mine'>('kb');
   const [search, setSearch] = useState('');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   const [askOpen, setAskOpen] = useState(false);
 
+  const searching = search.trim().length > 0;
   const filteredKb = useMemo(() => kb.filter((q) => matches(q, search)), [kb, search]);
+
+  // Group KB entries by folder for the browse view. Ordered folders first, then uncategorized.
+  const sections = useMemo(() => {
+    const byFolder = new Map<string, Question[]>();
+    for (const q of kb) {
+      const key = q.folderId || UNCATEGORIZED;
+      const list = byFolder.get(key) || [];
+      list.push(q);
+      byFolder.set(key, list);
+    }
+    const result: { id: string; name: string; items: Question[] }[] = [];
+    for (const f of folders) {
+      const items = byFolder.get(f.id);
+      if (items && items.length) result.push({ id: f.id, name: f.name, items });
+    }
+    const uncategorized = byFolder.get(UNCATEGORIZED);
+    if (uncategorized && uncategorized.length) {
+      result.push({ id: UNCATEGORIZED, name: 'ללא קטגוריה', items: uncategorized });
+    }
+    return result;
+  }, [kb, folders]);
 
   const toggleExpand = (id: string) =>
     setExpanded((prev) => {
@@ -53,6 +85,16 @@ export function QAScreen({ navigation }: { navigation: any }) {
       else next.add(id);
       return next;
     });
+
+  const toggleFolder = (id: string) =>
+    setCollapsedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const openEntry = (q: Question) => navigation.navigate('QADetail', { questionId: q.id });
 
   const styles = createStyles(theme);
 
@@ -92,27 +134,39 @@ export function QAScreen({ navigation }: { navigation: any }) {
               textAlign="right"
             />
           </View>
-          {filteredKb.length === 0 ? (
-            <Text style={styles.empty}>{kb.length === 0 ? 'מאגר הידע עדיין ריק.' : 'לא נמצאו תוצאות.'}</Text>
+          {searching ? (
+            filteredKb.length === 0 ? (
+              <Text style={styles.empty}>לא נמצאו תוצאות.</Text>
+            ) : (
+              filteredKb.map((q) => <EntryRow key={q.id} q={q} onPress={openEntry} styles={styles} theme={theme} />)
+            )
+          ) : kb.length === 0 ? (
+            <Text style={styles.empty}>מאגר הידע עדיין ריק.</Text>
           ) : (
-            filteredKb.map((q) => (
-              <TouchableOpacity key={q.id} style={styles.card} onPress={() => toggleExpand(q.id)} activeOpacity={0.7}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardTitle}>{q.title}</Text>
-                  <Ionicons
-                    name={expanded.has(q.id) ? 'chevron-up' : 'chevron-down'}
-                    size={18}
-                    color={theme.textSecondary}
-                  />
+            sections.map((section) => {
+              const collapsed = collapsedFolders.has(section.id);
+              return (
+                <View key={section.id} style={styles.folderSection}>
+                  <TouchableOpacity
+                    style={styles.folderHeader}
+                    onPress={() => toggleFolder(section.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={collapsed ? 'chevron-forward' : 'chevron-down'}
+                      size={18}
+                      color={theme.text}
+                    />
+                    <Text style={styles.folderName}>{section.name}</Text>
+                    <Text style={styles.folderCount}>{section.items.length}</Text>
+                  </TouchableOpacity>
+                  {!collapsed &&
+                    section.items.map((q) => (
+                      <EntryRow key={q.id} q={q} onPress={openEntry} styles={styles} theme={theme} />
+                    ))}
                 </View>
-                {expanded.has(q.id) && (
-                  <View style={{ marginTop: 8 }}>
-                    {q.body ? <Text style={styles.cardBody}>{q.body}</Text> : null}
-                    <Text style={styles.cardAnswer}>{q.answer}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))
+              );
+            })
           )}
         </ScrollView>
       ) : (
@@ -121,7 +175,12 @@ export function QAScreen({ navigation }: { navigation: any }) {
             <Text style={styles.empty}>עדיין לא שאלת שאלות.</Text>
           ) : (
             myQuestions.map((q) => (
-              <TouchableOpacity key={q.id} style={styles.card} onPress={() => toggleExpand(q.id)} activeOpacity={0.7}>
+              <TouchableOpacity
+                key={q.id}
+                style={styles.card}
+                onPress={() => (q.status === 'answered' ? openEntry(q) : toggleExpand(q.id))}
+                activeOpacity={0.7}
+              >
                 <View style={styles.cardHeader}>
                   <Text style={styles.cardTitle}>{q.title}</Text>
                   <View
@@ -135,14 +194,10 @@ export function QAScreen({ navigation }: { navigation: any }) {
                     </Text>
                   </View>
                 </View>
-                {expanded.has(q.id) && (
+                {q.status !== 'answered' && expanded.has(q.id) && (
                   <View style={{ marginTop: 8 }}>
                     {q.body ? <Text style={styles.cardBody}>{q.body}</Text> : null}
-                    {q.status === 'answered' ? (
-                      <Text style={styles.cardAnswer}>{q.answer}</Text>
-                    ) : (
-                      <Text style={styles.cardBody}>השאלה ממתינה למענה מהמנהל.</Text>
-                    )}
+                    <Text style={styles.cardBody}>השאלה ממתינה למענה מהמנהל.</Text>
                   </View>
                 )}
               </TouchableOpacity>
@@ -163,6 +218,31 @@ export function QAScreen({ navigation }: { navigation: any }) {
         }}
       />
     </SafeAreaView>
+  );
+}
+
+function EntryRow({
+  q,
+  onPress,
+  styles,
+  theme,
+}: {
+  q: Question;
+  onPress: (q: Question) => void;
+  styles: ReturnType<typeof createStyles>;
+  theme: any;
+}) {
+  const rich = hasRichContent(q);
+  return (
+    <TouchableOpacity style={styles.card} onPress={() => onPress(q)} activeOpacity={0.7}>
+      <View style={styles.cardHeader}>
+        <Text style={styles.cardTitle}>{q.title}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {rich && <Ionicons name="albums-outline" size={15} color={theme.textSecondary} />}
+          <Ionicons name="chevron-back" size={18} color={theme.textSecondary} />
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
@@ -299,6 +379,28 @@ const createStyles = (theme: any) =>
     },
     searchInput: { flex: 1, paddingVertical: 10, color: theme.text, fontSize: 15 },
     empty: { color: theme.textSecondary, textAlign: 'center', marginTop: 32 },
+    folderSection: { marginBottom: 16 },
+    folderHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+      marginBottom: 4,
+    },
+    folderName: { flex: 1, fontSize: 16, fontWeight: '700', color: theme.text, textAlign: 'right', writingDirection: 'rtl' },
+    folderCount: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: theme.textSecondary,
+      backgroundColor: theme.border,
+      borderRadius: 10,
+      minWidth: 22,
+      textAlign: 'center',
+      paddingHorizontal: 6,
+      paddingVertical: 1,
+      overflow: 'hidden',
+    },
     card: { backgroundColor: theme.surface, borderRadius: 12, padding: 14, marginBottom: 8 },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
     cardTitle: { flex: 1, fontSize: 15, fontWeight: '700', color: theme.text, writingDirection: 'rtl', textAlign: 'right' },
