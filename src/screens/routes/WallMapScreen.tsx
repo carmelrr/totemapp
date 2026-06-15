@@ -108,7 +108,7 @@ const WallMapScreen: React.FC<WallMapScreenProps> = ({ route, navigation }) => {
   const [showMapSelector, setShowMapSelector] = useState(false);
   
   // Load published rooms from Firebase
-  const { rooms: publishedRooms, isLoading: isLoadingRooms } = usePublishedRooms({});
+  const { rooms: publishedRooms, loading: isLoadingRooms } = usePublishedRooms({});
   
   // Get selected room (if not legacy)
   const selectedRoom = useMemo(() => {

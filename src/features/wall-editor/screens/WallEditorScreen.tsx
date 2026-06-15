@@ -555,7 +555,7 @@ export default function WallEditorScreen() {
         locked: false,
         flipX: false,
         flipY: false,
-      });
+      } as any);
       setShowOverlayControls(true);
       
     } catch (error) {
@@ -677,7 +677,7 @@ export default function WallEditorScreen() {
         setArrowStartPoint(point);
       } else {
         // Second tap - create the arrow
-        const newArrow: EntranceArrow = {
+        const newArrow = {
           start: arrowStartPoint,
           end: point,
           color: currentRoom.entranceArrow?.color || '#22C55E',
@@ -1707,17 +1707,6 @@ const createStyles = (theme: any, layout: any, insets: any) =>
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: 10,
-    },
-    colorOption: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    colorOptionSelected: {
-      borderWidth: 3,
-      borderColor: '#ffffff',
     },
     gradeOptions: {
       flexDirection: 'row',

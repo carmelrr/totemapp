@@ -31,7 +31,7 @@ interface DynamicWallMapProps {
  * This component can be used as a drop-in replacement for WallMapSVG
  * when a room has been configured via the editor.
  */
-export default React.memo(function DynamicWallMap({
+const DynamicWallMap = React.memo(function DynamicWallMap({
   room,
   width = '100%',
   height,
@@ -234,6 +234,8 @@ export default React.memo(function DynamicWallMap({
     </Svg>
   );
 });
+
+export default DynamicWallMap;
 
 /**
  * Props for the combined map component that can use either

@@ -565,7 +565,7 @@ export const SprayRouteDetailScreen: React.FC = () => {
         {/* Community Feedbacks */}
         {feedbacks.length > 0 && (
           <FeedbacksList
-            feedbacks={feedbacks}
+            feedbacks={feedbacks as any}
             title={`${t.spray.communityFeedbacks} (${feedbacks.length})`}
             showAvatar={false}
             showDate={true}

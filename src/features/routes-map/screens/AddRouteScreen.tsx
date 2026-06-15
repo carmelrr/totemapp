@@ -245,6 +245,7 @@ export default function AddRouteMapScreen() {
 
         <TouchableOpacity style={styles.mapTouchable} onPress={handleMapPress}>
           <MapViewport
+            room={undefined as any}
             onMeasured={handleMapMeasured}
             onTransformChange={handleTransformChange}
             onTransformsReady={handleTransformsReady}
@@ -338,7 +339,7 @@ export default function AddRouteMapScreen() {
                       { backgroundColor: colorOption },
                       color === colorOption && styles.selectedColorChip,
                     ]}
-                    onPress={() => setColor(colorOption)}
+                    onPress={() => setColor(colorOption as any)}
                   >
                     {color === colorOption && (
                       <Text style={styles.colorCheckmark}>✓</Text>

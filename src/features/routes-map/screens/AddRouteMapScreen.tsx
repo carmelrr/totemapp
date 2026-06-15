@@ -546,7 +546,7 @@ export default function AddRouteMapScreen() {
   if (languageLoading || !selectedRoom) {
     return (
       <View style={styles.container}>
-        <View style={styles.loadingContainer}>
+        <View style={(styles as any).loadingContainer}>
           <Text style={{ color: theme.text }}>טוען מפה...</Text>
         </View>
       </View>

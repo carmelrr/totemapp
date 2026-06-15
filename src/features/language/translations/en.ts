@@ -48,6 +48,7 @@ export const en = {
     noRoutesInView: "No routes in visible area",
     errorLoadingRoutes: "Error loading routes",
     errorGeneric: "An error occurred. Please try again.",
+    apply: "Apply",
   },
 
   // Auth
@@ -578,6 +579,7 @@ export const en = {
     feedbackDeleted: "Feedback deleted",
     cannotDeleteFeedback: "Cannot delete feedback",
     anonymousUser: "Anonymous User",
+    locationOnWall: "Location on Wall",
   },
 
   // Competition
@@ -620,6 +622,12 @@ export const en = {
     noResultsYet: "No results to display yet",
     noScoreYet: "No score yet",
     routesCompleted: "routes",
+    pointsTopLabel: "Points for Top",
+    pointsZoneLabel: "Points for Zone",
+    perRoutePointsHint: "Leave empty to use the default",
+    editRoutePoints: "Edit Points",
+    routeLabel: "Route",
+    saveResult: "Save",
   },
 
   // Social / Leaderboard
@@ -911,6 +919,11 @@ export const en = {
     startTopColor: "Start / Top",
     middleColor: "Middle",
     feetColor: "Feet",
+    feedbackPlaceholder: "Share your experience...",
+    tapToAddHold: "Tap to add a hold",
+    loginToAddRoute: "Log in to add a route",
+    byRating: "By Rating",
+    noRoutesWithFilter: "No routes match the filter",
   },
 
   // Route Statistics
@@ -1167,6 +1180,7 @@ export const en = {
     showAll: "Show All",
     showCompleted: "Completed Routes",
     showNotCompleted: "Not Completed Routes",
+    noGradesAvailable: "No grades available",
   },
 
   // Wall
@@ -1865,6 +1879,12 @@ export const en = {
     nameRequired: "Please enter a tape name",
     noTapes: "No tapes defined yet",
     none: "None",
+    autoAssign: "Auto-assign",
+    autoAssignConfirm: "Auto-assign tapes to routes by grade range?",
+    autoAssignDone: "Tapes assigned",
+    gradeMin: "Min grade",
+    gradeMax: "Max grade",
+    gradeRange: "Grade range",
   },
 
   // Moderation

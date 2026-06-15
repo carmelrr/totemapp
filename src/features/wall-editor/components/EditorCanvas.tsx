@@ -310,7 +310,7 @@ function EditorCanvasComponent(
   // Mouse wheel zoom for web/desktop
   const containerRef = useRef<View>(null);
   
-  const handleWheel = useCallback((event: WheelEvent) => {
+  const handleWheel = useCallback((event: any) => {
     event.preventDefault();
     
     const delta = event.deltaY > 0 ? 0.9 : 1.1; // Zoom out/in

@@ -244,7 +244,7 @@ export function RolesManagementScreen() {
             <TouchableOpacity
               onPress={() => {
                 setSearchQuery('');
-                loadUsersWithRoles();
+                setUsers(allUsers);
               }}
             >
               <Ionicons name="close-circle" size={20} color="#666" />

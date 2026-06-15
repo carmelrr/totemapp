@@ -89,7 +89,7 @@ const linking = {
 
 function ThemedNavigator({ isAdmin }: { isAdmin: boolean }) {
   return (
-    <NavigationContainer linking={linking}>
+    <NavigationContainer linking={linking as any}>
       <RootStack.Navigator 
         id={undefined}
         screenOptions={{ headerShown: false }}
@@ -261,7 +261,7 @@ function AppContent() {
           // If document doesn't exist, wait a bit and retry (for new Google sign-ins)
           if (!userDoc.exists()) {
             if (__DEV__) console.log("🔧 User document not found, waiting for creation...");
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            await new Promise(resolve => setTimeout(() => resolve(undefined), 2000));
             userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
           }
           

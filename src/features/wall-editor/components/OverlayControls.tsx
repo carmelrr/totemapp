@@ -35,7 +35,7 @@ export default function OverlayControls({
   const [localScale, setLocalScale] = useState(overlay.scale);
   
   // Ref for long press interval
-  const moveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const moveIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleOpacityChange = useCallback((value: number) => {
     setLocalOpacity(value);
@@ -87,7 +87,7 @@ export default function OverlayControls({
   // We need to use refs to track current position during long press
   const currentPosRef = useRef({ x: overlay.x, y: overlay.y });
   currentPosRef.current = { x: overlay.x, y: overlay.y };
-  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   const startContinuousMove = useCallback((dx: number, dy: number) => {
     // Clear any existing timers

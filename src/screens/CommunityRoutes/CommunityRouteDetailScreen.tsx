@@ -417,7 +417,7 @@ export const CommunityRouteDetailScreen: React.FC = () => {
             {feedbacks.length > 0 && (
               <View style={styles.otherFeedbacksSection}>
                 <FeedbacksList
-                  feedbacks={feedbacks}
+                  feedbacks={feedbacks as any}
                   title={`${t.routes.communityFeedbacks}`}
                   excludeUserId={user?.uid}
                   showAvatar={false}

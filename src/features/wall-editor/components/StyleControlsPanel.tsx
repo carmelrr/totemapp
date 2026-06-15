@@ -111,8 +111,8 @@ export default function StyleControlsPanel({
   }, [overlay?.opacity, overlay?.brightness, overlay?.scale]);
   
   // Refs for long press interval (overlay)
-  const moveIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const longPressTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const moveIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentPosRef = useRef({ x: overlay?.x ?? 0, y: overlay?.y ?? 0 });
   
   // Keep ref updated with current position
@@ -123,8 +123,8 @@ export default function StyleControlsPanel({
   }, [overlay?.x, overlay?.y]);
 
   // Generic long-press refs for all other D-pads (arrows, labels, sectors)
-  const genericIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const genericTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const genericIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const genericTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const roomRef = useRef(room);
   React.useEffect(() => { roomRef.current = room; }, [room]);
 

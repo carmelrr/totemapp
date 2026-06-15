@@ -50,6 +50,7 @@ export type RoutesMapStackParamList = {
   RouteDetails: { route: any; origin?: string };
   ColorPickerScreen: undefined;
   WallTapeManagement: undefined;
+  RoutesArchive: undefined;
 };
 
 export type ProfileStackParamList = {
@@ -304,7 +305,7 @@ export function MainTabNavigator() {
             // Reset the stack to the first screen when tab is pressed
             const routeName = getFocusedRouteNameFromRoute(route);
             if (routeName && routeName !== 'RoutesMap') {
-              e.preventDefault();
+              (e as any).preventDefault();
               navigation.reset({
                 index: 0,
                 routes: [{ name: 'RoutesMapTab' }],
@@ -323,7 +324,7 @@ export function MainTabNavigator() {
           tabPress: (e) => {
             const routeName = getFocusedRouteNameFromRoute(route);
             if (routeName && routeName !== 'CommunityHome') {
-              e.preventDefault();
+              (e as any).preventDefault();
               navigation.reset({
                 index: 0,
                 routes: [{ name: 'CommunityTab' }],
@@ -342,7 +343,7 @@ export function MainTabNavigator() {
           tabPress: (e) => {
             const routeName = getFocusedRouteNameFromRoute(route);
             if (routeName && routeName !== 'Leaderboard') {
-              e.preventDefault();
+              (e as any).preventDefault();
               navigation.reset({
                 index: 0,
                 routes: [{ name: 'LeaderboardTab' }],
@@ -362,7 +363,7 @@ export function MainTabNavigator() {
             const routeName = getFocusedRouteNameFromRoute(route);
             if (routeName && routeName !== 'SprayHome') {
               // Prevent default behavior
-              e.preventDefault();
+              (e as any).preventDefault();
               // Reset the stack to initial state
               navigation.reset({
                 index: 0,
@@ -382,7 +383,7 @@ export function MainTabNavigator() {
           tabPress: (e) => {
             // Block profile tab for guests
             if (isGuest) {
-              e.preventDefault();
+              (e as any).preventDefault();
               requireAuth(t);
               return;
             }
@@ -390,7 +391,7 @@ export function MainTabNavigator() {
             const routeName = getFocusedRouteNameFromRoute(route);
             if (routeName && routeName !== 'Profile') {
               // Prevent default behavior
-              e.preventDefault();
+              (e as any).preventDefault();
               // Reset the stack to initial state - this clears the history
               navigation.reset({
                 index: 0,

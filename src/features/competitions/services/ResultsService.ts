@@ -1481,7 +1481,8 @@ export class ResultsService {
    */
   static subscribeToPointsCompetitionLeaderboard(
     competitionId: string,
-    callback: (entries: LeaderboardEntry[]) => void
+    callback: (entries: LeaderboardEntry[]) => void,
+    category?: string
   ): () => void {
     const emit = coalesce(callback);
     const resultsRef = collection(
@@ -1503,7 +1504,7 @@ export class ResultsService {
           return;
         }
 
-        const entries: LeaderboardEntry[] = allResults.map((result) => {
+        const entries: LeaderboardEntry[] = (category ? allResults.filter((r) => r.category === category) : allResults).map((result) => {
           let totalPoints = 0;
           let totalAttempts = 0;
           let routesCompleted = 0;

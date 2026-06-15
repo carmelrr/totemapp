@@ -899,7 +899,7 @@ export default function ManageCompetitionRoutesScreen() {
             {/* Zone/Top per-route points */}
             {isZoneTop && (
               <View style={styles.inputSection}>
-                <Text style={styles.inputLabel}>{t.competitions?.pointsTopLabel || 'נקודות ל-Top'}</Text>
+                <Text style={styles.inputLabel}>{t.competition?.pointsTopLabel || 'נקודות ל-Top'}</Text>
                 <TextInput
                   style={styles.input}
                   value={newRoutePointsTop}
@@ -909,7 +909,7 @@ export default function ManageCompetitionRoutesScreen() {
                   placeholderTextColor={theme.textSecondary}
                   textAlign="center"
                 />
-                <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t.competitions?.pointsZoneLabel || 'נקודות ל-Zone'}</Text>
+                <Text style={[styles.inputLabel, { marginTop: 12 }]}>{t.competition?.pointsZoneLabel || 'נקודות ל-Zone'}</Text>
                 <TextInput
                   style={styles.input}
                   value={newRoutePointsZone}
@@ -920,7 +920,7 @@ export default function ManageCompetitionRoutesScreen() {
                   textAlign="center"
                 />
                 <Text style={styles.zoneTopHint}>
-                  {t.competitions?.perRoutePointsHint || 'השאר ריק לשימוש בברירת מחדל'}
+                  {t.competition?.perRoutePointsHint || 'השאר ריק לשימוש בברירת מחדל'}
                 </Text>
               </View>
             )}
@@ -1013,7 +1013,7 @@ export default function ManageCompetitionRoutesScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
-                {t.competitions?.editRoutePoints || 'עריכת ניקוד'} - {t.competitions?.routeLabel || 'מסלול'} {editingRoute?.routeNumber}
+                {t.competition?.editRoutePoints || 'עריכת ניקוד'} - {t.competition?.routeLabel || 'מסלול'} {editingRoute?.routeNumber}
               </Text>
               <TouchableOpacity
                 onPress={() => {
@@ -1026,7 +1026,7 @@ export default function ManageCompetitionRoutesScreen() {
             </View>
 
             <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>{t.competitions?.pointsTopLabel || 'נקודות ל-Top'}</Text>
+              <Text style={styles.inputLabel}>{t.competition?.pointsTopLabel || 'נקודות ל-Top'}</Text>
               <TextInput
                 style={styles.input}
                 value={editPointsTop}
@@ -1039,7 +1039,7 @@ export default function ManageCompetitionRoutesScreen() {
             </View>
 
             <View style={styles.inputSection}>
-              <Text style={styles.inputLabel}>{t.competitions?.pointsZoneLabel || 'נקודות ל-Zone'}</Text>
+              <Text style={styles.inputLabel}>{t.competition?.pointsZoneLabel || 'נקודות ל-Zone'}</Text>
               <TextInput
                 style={styles.input}
                 value={editPointsZone}
@@ -1059,7 +1059,7 @@ export default function ManageCompetitionRoutesScreen() {
               {isSubmitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.submitBtnText}>{t.competitions?.saveResult || 'שמור'}</Text>
+                <Text style={styles.submitBtnText}>{t.competition?.saveResult || 'שמור'}</Text>
               )}
             </TouchableOpacity>
           </View>

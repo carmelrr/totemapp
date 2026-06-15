@@ -89,7 +89,7 @@ export function useEditorMap({
   }), [room]);
   
   // All routes
-  const routes = useMemo(() => room?.routes || [], [room]);
+  const routes = useMemo(() => (room as any)?.routes || [], [room]);
   
   // Filter routes by viewport bounds
   const visibleRoutes = useMemo(() => {

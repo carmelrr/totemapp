@@ -833,7 +833,7 @@ export class RoutesService {
       console.log('[RoutesService] Routes matching date:', dateRoutes.length);
 
       if (dateRoutes.length < 2) {
-        return { updated: 0, total: dateRoutes.length };
+        return { updated: 0, total: dateRoutes.length, previousPositions: {} };
       }
 
       // Determine extremes: use provided IDs or fallback to auto-detection

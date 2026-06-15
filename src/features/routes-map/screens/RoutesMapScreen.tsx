@@ -19,6 +19,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 // Theme
 import { useTheme } from '@/features/theme/ThemeContext';
+import { auth } from '@/features/data/firebase';
 import { BrandLogo } from '@/components/ui/BrandLogo';
 
 // Responsive Layout Hook
@@ -394,6 +395,18 @@ export default function RoutesMapScreen() {
   const setNavigationList = useRouteNavigationStore((s) => s.setNavigationList);
 
   // Handlers
+  const handleToggleRouteSelection = useCallback((routeId: string) => {
+    setMultiSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(routeId)) {
+        next.delete(routeId);
+      } else {
+        next.add(routeId);
+      }
+      return next;
+    });
+  }, []);
+
   const handleRoutePress = useCallback((route: RouteDoc) => {
     // In balance mode, toggle extreme selection
     if (balanceModeActive) {
@@ -574,18 +587,6 @@ export default function RoutesMapScreen() {
         setMultiSelectedIds(new Set());
       }
       return !prev;
-    });
-  }, []);
-
-  const handleToggleRouteSelection = useCallback((routeId: string) => {
-    setMultiSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(routeId)) {
-        next.delete(routeId);
-      } else {
-        next.add(routeId);
-      }
-      return next;
     });
   }, []);
 

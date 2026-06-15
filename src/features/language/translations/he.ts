@@ -50,6 +50,7 @@ export const he: TranslationKeys = {
     noRoutesInView: "אין מסלולים בתחום הנראה",
     errorLoadingRoutes: "שגיאה בטעינת מסלולים",
     errorGeneric: "אירעה שגיאה. נסה שוב.",
+    apply: "החל",
   },
 
   // Auth
@@ -581,6 +582,7 @@ export const he: TranslationKeys = {
     feedbackDeleted: "התגובה נמחקה",
     cannotDeleteFeedback: "לא ניתן למחוק את התגובה",
     anonymousUser: "משתמש אנונימי",
+    locationOnWall: "מיקום על הקיר",
   },
 
   // Competition
@@ -623,6 +625,12 @@ export const he: TranslationKeys = {
     noResultsYet: "עדיין אין תוצאות להצגה",
     noScoreYet: "אין ניקוד עדיין",
     routesCompleted: "מסלולים",
+    pointsTopLabel: "נקודות ל-Top",
+    pointsZoneLabel: "נקודות ל-Zone",
+    perRoutePointsHint: "השאר ריק לשימוש בברירת מחדל",
+    editRoutePoints: "עריכת ניקוד",
+    routeLabel: "מסלול",
+    saveResult: "שמור",
   },
 
   // Social / Leaderboard
@@ -914,6 +922,11 @@ export const he: TranslationKeys = {
     startTopColor: "התחלה / טופ",
     middleColor: "ביניים",
     feetColor: "רגליים",
+    feedbackPlaceholder: "שתף את החוויה שלך...",
+    tapToAddHold: "הקש כדי להוסיף אחיזה",
+    loginToAddRoute: "התחבר כדי להוסיף מסלול",
+    byRating: "לפי דירוג",
+    noRoutesWithFilter: "אין מסלולים שתואמים לסינון",
   },
 
   // Route Statistics
@@ -1171,6 +1184,7 @@ export const he: TranslationKeys = {
     showAll: "הצג הכל",
     showCompleted: "מסלולים שסגרתי",
     showNotCompleted: "מסלולים שלא סגרתי",
+    noGradesAvailable: "אין דרגות זמינות",
   },
 
   // Wall
@@ -1869,6 +1883,12 @@ export const he: TranslationKeys = {
     nameRequired: "יש להזין שם לטייפ",
     noTapes: "עדיין לא הוגדרו טייפים",
     none: "ללא",
+    autoAssign: "שיוך אוטומטי",
+    autoAssignConfirm: "לשייך טייפים למסלולים לפי טווח דרגות?",
+    autoAssignDone: "הטייפים שויכו",
+    gradeMin: "דרגה מינימלית",
+    gradeMax: "דרגה מקסימלית",
+    gradeRange: "טווח דרגות",
   },
 
   // מודרציה

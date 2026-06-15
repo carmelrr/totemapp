@@ -328,7 +328,7 @@ export default function HomeScreen() {
   }, [styles.star]);
 
   const navigateToUserProfile = useCallback((userId: string, displayName?: string) => {
-    navigation.navigate("ProfileTab", {
+    (navigation as any).navigate("ProfileTab", {
       screen: "UserProfile",
       params: { userId, displayName },
     });
@@ -349,7 +349,7 @@ export default function HomeScreen() {
       createdAt: new Date(),
     };
     
-    navigation.navigate("RoutesMapTab", {
+    (navigation as any).navigate("RoutesMapTab", {
       screen: "RouteDetails",
       params: { route: routeForDetails, origin: "HomeTab" },
     });

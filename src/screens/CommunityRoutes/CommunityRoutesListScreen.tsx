@@ -182,7 +182,7 @@ export const CommunityRoutesListScreen: React.FC = () => {
         <View style={styles.imageContainer}>
           <Image
             source={{ uri: item.imageUrl }}
-            style={styles.routeImage}
+            style={styles.routeImage as any}
             resizeMode="cover"
           />
           {/* Expiration badge */}
@@ -649,7 +649,7 @@ const createStyles = (theme: Theme, layout: any, insets: any) => {
       gap: 8,
     },
     routeCard: {
-      width: cardWidth,
+      width: cardWidth as any,
       borderRadius: isPhoneLandscape ? 10 : 16,
       marginBottom: isPhoneLandscape ? 8 : 12,
       overflow: 'hidden',

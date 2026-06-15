@@ -96,7 +96,7 @@ export interface CommunityRouteFilters {
   minGrade?: string;
   maxGrade?: string;
   tags?: string[];
-  sortBy: 'newest' | 'oldest' | 'top-rated' | 'most-sends' | 'easy-to-hard' | 'hard-to-easy';
+  sortBy: 'newest' | 'oldest' | 'top-rated' | 'most-sends' | 'easy-to-hard' | 'hard-to-easy' | 'popular' | 'expiring-soon' | 'most-repeats';
   createdByMe?: boolean;
   filterGrades?: string[];
   filterCreators?: string[];
