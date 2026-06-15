@@ -1561,6 +1561,7 @@ export const en = {
     totemDivisionPerCategoryDesc: "Each route's 1000-point pool is split among climbers within the same category.",
     totemDivisionGlobalDesc: "Each route's 1000-point pool is split among all climbers who sent it, across every category. Standings are still shown per category.",
     totemDivisionNoCategoriesNote: "No categories are defined, so division is effectively global.",
+    addCategory: "Add Category",
     attemptNumberShort: "Attempt #",
     saveResult: "Save Result",
     editRoutePoints: "Edit Scoring",

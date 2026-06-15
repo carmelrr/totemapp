@@ -69,6 +69,16 @@ export default function CreateCompetitionScreen() {
   // Totemtition settings
   const [totemDivisionScope, setTotemDivisionScope] = useState<'per_category' | 'global'>('per_category');
 
+  // Categories — created with the competition, still editable later in ManageCategories
+  const [categories, setCategories] = useState<
+    Array<{ id: string; name: string; type?: 'age' | 'gender' | 'skill'; value?: string; minAge?: number; maxAge?: number }>
+  >(() => [
+    { id: 'male_open', name: t.competitionExt.categoryMaleOpen, type: 'gender', value: 'male' },
+    { id: 'female_open', name: t.competitionExt.categoryFemaleOpen, type: 'gender', value: 'female' },
+    { id: 'youth', name: t.competitionExt.categoryYouth, type: 'age', minAge: 0, maxAge: 18 },
+    { id: 'adults', name: t.competitionExt.categoryAdults, type: 'age', minAge: 18, maxAge: 99 },
+  ]);
+
   // Entry/Registration modes
   const [resultsEntryMode, setResultsEntryMode] = useState<'selfEntry' | 'judgesOnly'>('judgesOnly');
   const [registrationMode, setRegistrationMode] = useState<'openRegistration' | 'adminsOrJudgesOnly'>('openRegistration');
@@ -181,13 +191,9 @@ export default function CreateCompetitionScreen() {
           } : {}),
         },
         createdBy: user.uid,
-        categories: enableCategories ? [
-          // Default categories
-          { id: 'male_open', name: t.competitionExt.categoryMaleOpen, type: 'gender', value: 'male' },
-          { id: 'female_open', name: t.competitionExt.categoryFemaleOpen, type: 'gender', value: 'female' },
-          { id: 'youth', name: t.competitionExt.categoryYouth, type: 'age', minAge: 0, maxAge: 18 },
-          { id: 'adults', name: t.competitionExt.categoryAdults, type: 'age', minAge: 18, maxAge: 99 },
-        ] : [],
+        categories: enableCategories
+          ? categories.filter((c) => c.name.trim()).map((c) => ({ ...c, name: c.name.trim() }))
+          : [],
       });
 
       Alert.alert(
@@ -513,6 +519,41 @@ export default function CreateCompetitionScreen() {
                 />
                 <Text style={styles.toggleLabel}>{t.competitionExt.enableCategoriesToggle}</Text>
               </TouchableOpacity>
+            )}
+
+            {showCategories && enableCategories && (
+              <View style={styles.categoriesEditor}>
+                {categories.map((cat, idx) => (
+                  <View key={cat.id} style={styles.categoryRow}>
+                    <TextInput
+                      style={styles.categoryInput}
+                      value={cat.name}
+                      onChangeText={(text) =>
+                        setCategories((prev) => prev.map((c, i) => (i === idx ? { ...c, name: text } : c)))
+                      }
+                      placeholder={t.competitionExt.categoryNamePlaceholder}
+                      placeholderTextColor={theme.textSecondary}
+                      textAlign="right"
+                    />
+                    <TouchableOpacity
+                      onPress={() => setCategories((prev) => prev.filter((_, i) => i !== idx))}
+                    >
+                      <Ionicons name="trash-outline" size={20} color={theme.error || '#e74c3c'} />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                <TouchableOpacity
+                  style={styles.addCategoryBtn}
+                  onPress={() =>
+                    setCategories((prev) => [...prev, { id: 'cat_' + Date.now(), name: '' }])
+                  }
+                >
+                  <Ionicons name="add-circle-outline" size={20} color={theme.primary} />
+                  <Text style={[styles.toggleLabel, { color: theme.primary, flex: 0 }]}>
+                    {t.competitionExt.addCategory}
+                  </Text>
+                </TouchableOpacity>
+              </View>
             )}
           </View>
           )}
@@ -893,6 +934,32 @@ const createStyles = (theme: any) =>
       fontSize: 14,
       color: theme.text,
       flex: 1,
+    },
+    categoriesEditor: {
+      marginTop: 12,
+      gap: 8,
+    },
+    categoryRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    categoryInput: {
+      flex: 1,
+      backgroundColor: theme.card,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingHorizontal: 12,
+      paddingVertical: 10,
+      fontSize: 14,
+      color: theme.text,
+    },
+    addCategoryBtn: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingVertical: 8,
     },
     toggleGroup: {
       flexDirection: 'row',

@@ -1565,6 +1565,7 @@ export const he: TranslationKeys = {
     totemDivisionPerCategoryDesc: "מאגר 1000 הנקודות של כל מסלול מתחלק בין המטפסים באותה קטגוריה.",
     totemDivisionGlobalDesc: "מאגר 1000 הנקודות של כל מסלול מתחלק בין כל מי שסיים אותו, בכל הקטגוריות. הדירוג עדיין מוצג לפי קטגוריה.",
     totemDivisionNoCategoriesNote: "לא הוגדרו קטגוריות, ולכן החלוקה היא גלובלית בפועל.",
+    addCategory: "הוסף קטגוריה",
     attemptNumberShort: "ניסיון #",
     saveResult: "שמור תוצאה",
     editRoutePoints: "עריכת ניקוד",
