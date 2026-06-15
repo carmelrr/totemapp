@@ -5,9 +5,13 @@
 export default ({ config }) => {
   const isTvMode = process.env.EXPO_PUBLIC_TV_MODE === '1';
   const basePlugins = config.plugins || [];
-  const plugins = isTvMode
-    ? [...basePlugins, './plugins/withAndroidTv']
-    : basePlugins;
+  // Always apply the iOS modular-headers fix (needed for AppCheckCore/GoogleSignIn pods);
+  // it's a no-op on Android.
+  const plugins = [
+    ...basePlugins,
+    './plugins/withIosModularHeaders',
+    ...(isTvMode ? ['./plugins/withAndroidTv'] : []),
+  ];
 
   return {
     ...config,
