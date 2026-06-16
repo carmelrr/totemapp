@@ -26,6 +26,7 @@ import {
   useCompetition,
   useParticipants,
   useCompetitionRoutes,
+  useCompetitionLeaderboard,
 } from '@/features/competitions/hooks/useCompetition';
 import { ResultsService } from '@/features/competitions/services/ResultsService';
 import { getColorDisplayHex } from '@/features/routes-map/services/ColorSettingsService';
@@ -56,7 +57,15 @@ export default function JudgeEntryScreen() {
   const { competition, loading: compLoading } = useCompetition(competitionId);
   const { participants, loading: partsLoading } = useParticipants(competitionId);
   const { routes, loading: routesLoading } = useCompetitionRoutes(competitionId);
-  
+  // Leaderboard entries — used to show each participant's live total (esp. Totemtition,
+  // whose points are dynamic) so the entry screen matches the leaderboard exactly.
+  const { entries: leaderboardEntries } = useCompetitionLeaderboard(
+    competitionId,
+    undefined,
+    competition?.format,
+    competition?.settings
+  );
+
   // Use global roles for judge permissions (admin, judge, head_judge)
   const isJudge = rolesContext.canEnterResults;
   const isHeadJudge = rolesContext.isHeadJudge;
@@ -793,21 +802,15 @@ export default function JudgeEntryScreen() {
                         })()
                       : isTotemtition
                       ? (() => {
-                          // Totemtition points are dynamic (1000 ÷ completers); the stored
-                          // totalPoints is 0, so sum the per-route points like the list does.
-                          const allRoutes = participantResults.routes
-                            ? (Array.isArray(participantResults.routes) ? participantResults.routes : Object.values(participantResults.routes))
-                            : [];
-                          const participantCategory = selectedParticipant?.category || '__no_category__';
-                          const categoryRouteCounts = routeCompletionCountsByCategory[participantCategory] || {};
-                          let total = 0;
-                          allRoutes.forEach((r: RouteResult) => {
-                            if (r.completed) {
-                              const count = categoryRouteCounts[r.routeId || String(r.routeNumber)] || 1;
-                              total += Math.floor(1000 / count);
-                            }
-                          });
-                          return `סה"כ: ${total} נק'`;
+                          // Totemtition points are dynamic; read the participant's total
+                          // straight from the leaderboard so it always matches it exactly.
+                          const entry = leaderboardEntries.find(
+                            (e) =>
+                              e.participantId === selectedParticipant.userId ||
+                              e.userId === selectedParticipant.userId
+                          );
+                          const pts = entry?.points ?? entry?.totalPoints ?? 0;
+                          return `סה"כ: ${pts} נק'`;
                         })()
                       : `סה"כ: ${participantResults.totalPoints} נק'`
                     }
