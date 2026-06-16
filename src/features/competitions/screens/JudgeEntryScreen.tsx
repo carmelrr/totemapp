@@ -987,7 +987,7 @@ export default function JudgeEntryScreen() {
                         )}
                       </TouchableOpacity>
 
-                      {getRouteStatus(selectedRoute) === 'completed' && isHeadJudge && (
+                      {getRouteStatus(selectedRoute) === 'completed' && (isHeadJudge || selectedParticipant?.userId === user?.uid) && (
                         <TouchableOpacity
                           style={[styles.modalBtn, styles.dangerBtn]}
                           onPress={handleRemoveResult}
@@ -1043,7 +1043,7 @@ export default function JudgeEntryScreen() {
                         )}
                       </TouchableOpacity>
 
-                      {getRouteStatus(selectedRoute) === 'completed' && isHeadJudge && (
+                      {getRouteStatus(selectedRoute) === 'completed' && (isHeadJudge || selectedParticipant?.userId === user?.uid) && (
                         <TouchableOpacity
                           style={[styles.modalBtn, styles.dangerBtn]}
                           onPress={handleRemoveResult}
