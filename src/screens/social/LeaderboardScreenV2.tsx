@@ -296,10 +296,11 @@ export default function LeaderboardScreen() {
   };
 
   const handleEnterResultsPress = (competition: Competition) => {
-    // Navigate to judge entry screen for entering results
+    // Open the full competition view (map + leaderboard tabs) so the judge sees the
+    // wall map immediately and can enter results from it; the leaderboard is one tab away.
     navigation.navigate('Competitions', {
-      screen: 'JudgeEntry',
-      params: { competitionId: competition.id }
+      screen: 'ManageCompetition',
+      params: { competitionId: competition.id, initialTab: 'map' }
     });
   };
 

@@ -24,7 +24,7 @@ import {
 export type CompetitionStackParamList = {
   CompetitionsList: undefined;
   CreateCompetition: undefined;
-  ManageCompetition: { competitionId: string; initialTab?: 'overview' | 'participants' | 'judges' | 'leaderboard' };
+  ManageCompetition: { competitionId: string; initialTab?: 'overview' | 'participants' | 'judges' | 'leaderboard' | 'map' };
   ManageParticipants: { competitionId: string };
   ManageCategories: { competitionId: string };
   ManageCompetitionRoutes: { competitionId: string };
