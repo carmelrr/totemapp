@@ -411,6 +411,18 @@ service cloud.firestore {
         allow delete: if isAdmin();
       }
       
+      // Participants private data (national ID) — staff-only read. Written by the
+      // owner on self-registration, or by an admin/judge adding the participant.
+      match /participantsPrivate/{participantId} {
+        allow read: if isAdmin() || isJudge(competitionId);
+        allow create, update: if isAdmin() ||
+          canJudgeAddParticipants(competitionId) ||
+          (isAuthenticated() &&
+           exists(/databases/$(database)/documents/competitions/$(competitionId)/participants/$(participantId)) &&
+           get(/databases/$(database)/documents/competitions/$(competitionId)/participants/$(participantId)).data.userId == request.auth.uid);
+        allow delete: if isAdmin();
+      }
+
       // Results Sub-collection
       match /results/{participantId} {
         allow read: if true;

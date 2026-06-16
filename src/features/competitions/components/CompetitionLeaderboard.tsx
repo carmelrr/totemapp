@@ -790,11 +790,14 @@ export function CompetitionLeaderboard({
                   | Record<string, { idNumber?: string | null; birthYear?: number | null }>
                   | undefined;
                 if (competition.settings?.nationalLeague) {
-                  const participants = await ParticipantService.getParticipants(competition.id);
+                  const [participants, privateIds] = await Promise.all([
+                    ParticipantService.getParticipants(competition.id),
+                    ParticipantService.getParticipantsPrivate(competition.id),
+                  ]);
                   participantsById = {};
                   participants.forEach((p) => {
                     participantsById![p.id] = {
-                      idNumber: p.idNumber ?? null,
+                      idNumber: privateIds[p.id] ?? null,
                       birthYear: p.birthYear ?? null,
                     };
                   });

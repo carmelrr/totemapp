@@ -18,6 +18,7 @@ import {
   serverTimestamp,
   writeBatch,
   runTransaction,
+  setDoc,
 } from 'firebase/firestore';
 import { db } from '@/features/data/firebase';
 import { Participant, Category, Gender, SkillLevel } from '../types';
@@ -158,7 +159,7 @@ export class ParticipantService {
         competitionId,
         name: participantName,
         userName: participantName, // alias for screens
-        idNumber: data.idNumber || null,
+        idNumber: null, // national ID lives in the staff-only participantsPrivate subcollection
         userId: data.userId || null,
         email: data.email || null,
         phone: data.phone || null,
@@ -177,6 +178,8 @@ export class ParticipantService {
       const docRef = await addDoc(participantsRef, participantData);
       console.log('Participant added:', docRef.id);
 
+      await this.setParticipantPrivate(competitionId, docRef.id, data.idNumber);
+
       // Update category participant count if category is set
       if (assignedCategory) {
         await this.updateCategoryCount(competitionId, assignedCategory, 1);
@@ -192,6 +195,44 @@ export class ParticipantService {
   /**
    * Get all active participants for a competition
    */
+  /**
+   * Store a participant's national ID privately (staff-only), in a separate
+   * subcollection that is NOT world-readable like the participant doc. No-op if empty.
+   */
+  static async setParticipantPrivate(
+    competitionId: string,
+    participantId: string,
+    idNumber?: string | null
+  ): Promise<void> {
+    if (!idNumber) return;
+    try {
+      await setDoc(
+        doc(db, 'competitions', competitionId, 'participantsPrivate', participantId),
+        { idNumber },
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('[ParticipantService] setParticipantPrivate failed', e);
+    }
+  }
+
+  /** Read all private national IDs for a competition (staff only). participantId -> idNumber. */
+  static async getParticipantsPrivate(competitionId: string): Promise<Record<string, string>> {
+    const map: Record<string, string> = {};
+    try {
+      const snap = await getDocs(
+        collection(db, 'competitions', competitionId, 'participantsPrivate')
+      );
+      snap.forEach((d) => {
+        const idn = d.data()?.idNumber;
+        if (idn) map[d.id] = String(idn);
+      });
+    } catch (e) {
+      console.warn('[ParticipantService] getParticipantsPrivate failed', e);
+    }
+    return map;
+  }
+
   static async getParticipants(
     competitionId: string,
     category?: string
@@ -1263,7 +1304,7 @@ export class ParticipantService {
         competitionId,
         name: userData.displayName,
         userName: userData.displayName,
-        idNumber: userData.idNumber || null,
+        idNumber: null, // national ID lives in the staff-only participantsPrivate subcollection
         userId: userId,
         email: userData.email || null,
         phone: userData.phone || null,
@@ -1282,6 +1323,9 @@ export class ParticipantService {
 
       const docRef = await addDoc(participantsRef, participantData);
       console.log('Self-registration submitted:', docRef.id);
+
+      // Store the national ID privately (staff-only), not on the public participant doc.
+      await this.setParticipantPrivate(competitionId, docRef.id, userData.idNumber);
 
       // Update category count if assigned
       if (assignedCategory) {
