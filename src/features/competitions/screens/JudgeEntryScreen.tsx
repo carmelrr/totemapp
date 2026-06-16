@@ -28,6 +28,8 @@ import {
   useCompetitionRoutes,
 } from '@/features/competitions/hooks/useCompetition';
 import { ResultsService } from '@/features/competitions/services/ResultsService';
+import { getColorDisplayHex } from '@/features/routes-map/services/ColorSettingsService';
+import { getContrastTextColor } from '@/constants/colors';
 import {
   Participant,
   CompetitionRoute,
@@ -595,6 +597,9 @@ export default function JudgeEntryScreen() {
       resultDisplay = `${t}${z} ${ta} ${za}`;
     }
 
+    const routeColor =
+      (item.color ? getColorDisplayHex(item.color) : null) || '#3b82f6';
+
     return (
       <TouchableOpacity
         style={[
@@ -603,8 +608,10 @@ export default function JudgeEntryScreen() {
         ]}
         onPress={() => handleRoutePress(item)}
       >
-        <View style={styles.routeNumber}>
-          <Text style={styles.routeNumberText}>{getRouteLabel(item.routeNumber)}</Text>
+        <View style={[styles.routeNumber, { backgroundColor: routeColor }]}>
+          <Text style={[styles.routeNumberText, { color: getContrastTextColor(routeColor) }]}>
+            {getRouteLabel(item.routeNumber)}
+          </Text>
         </View>
         
         <View style={styles.routeInfo}>

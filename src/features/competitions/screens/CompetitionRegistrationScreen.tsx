@@ -431,8 +431,8 @@ export default function CompetitionRegistrationScreen() {
           </>
         )}
 
-        {/* Skill Level Selection (optional) */}
-        {competition.settings?.enableCategories && (
+        {/* Skill Level Selection — only when a category actually uses skill levels */}
+        {competition.categories?.some((c) => c.skillLevels && c.skillLevels.length > 0) && (
           <View style={styles.inputSection}>
             <Text style={styles.inputLabel}>{t.competitionExt.skillLevel}</Text>
             <View style={styles.skillLevelContainer}>
