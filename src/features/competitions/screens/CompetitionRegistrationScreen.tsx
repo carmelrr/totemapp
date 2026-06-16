@@ -4,7 +4,7 @@
  * Allows users to register themselves and view their registration status
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -44,7 +44,17 @@ export default function CompetitionRegistrationScreen() {
   const [selectedGender, setSelectedGender] = useState<Gender | ''>('');
   const [birthYear, setBirthYear] = useState('');
   const [selectedSkillLevel, setSelectedSkillLevel] = useState<SkillLevel | ''>('');
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
+
+  // Category is auto-assigned from gender + birth year — no manual selection.
+  const matchedCategory = useMemo(() => {
+    if (!competition?.categories || competition.categories.length === 0) return null;
+    if (!selectedGender && !birthYear) return null;
+    const by = birthYear ? parseInt(birthYear, 10) : undefined;
+    return ParticipantService.findMatchingCategory(competition.categories, {
+      gender: selectedGender || undefined,
+      birthYear: by && !isNaN(by) ? by : undefined,
+    });
+  }, [competition?.categories, selectedGender, birthYear]);
 
   const styles = createStyles(theme);
 
@@ -95,7 +105,6 @@ export default function CompetitionRegistrationScreen() {
 
     setIsSubmitting(true);
     try {
-      const categoryObj = competition.categories?.find(c => c.id === selectedCategory);
       const birthYearNum = birthYear ? parseInt(birthYear, 10) : undefined;
       
       const participantId = await ParticipantService.selfRegister(
@@ -109,8 +118,8 @@ export default function CompetitionRegistrationScreen() {
           gender: selectedGender || undefined,
           birthYear: birthYearNum,
           skillLevel: selectedSkillLevel || undefined,
-          category: selectedCategory || undefined,
-          categoryName: categoryObj?.name,
+          category: matchedCategory?.id || undefined,
+          categoryName: matchedCategory?.name,
         }
       );
 
@@ -410,28 +419,19 @@ export default function CompetitionRegistrationScreen() {
           </View>
         )}
 
-        {/* Category Selection */}
+        {/* Category — auto-assigned by gender + age */}
         {competition.categories && competition.categories.length > 0 && (
           <View style={styles.inputSection}>
             <Text style={styles.inputLabel}>{t.competitionExt.category}</Text>
-            <View style={styles.categoriesGrid}>
-              {competition.categories.map((cat) => (
-                <TouchableOpacity
-                  key={cat.id}
-                  style={[
-                    styles.categoryOption,
-                    selectedCategory === cat.id && styles.categoryOptionSelected,
-                  ]}
-                  onPress={() => setSelectedCategory(cat.id)}
-                >
-                  <Text style={[
-                    styles.categoryOptionText,
-                    selectedCategory === cat.id && styles.categoryOptionTextSelected,
-                  ]}>
-                    {cat.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+            <View style={styles.assignedCategoryBox}>
+              <Ionicons
+                name={matchedCategory ? 'checkmark-circle' : 'alert-circle-outline'}
+                size={20}
+                color={matchedCategory ? theme.primary : theme.textSecondary}
+              />
+              <Text style={styles.assignedCategoryText}>
+                {matchedCategory ? matchedCategory.name : t.competitionExt.noMatchingCategory}
+              </Text>
             </View>
           </View>
         )}
@@ -622,6 +622,20 @@ const createStyles = (theme: any) =>
     readOnlyText: {
       fontSize: 16,
       color: theme.text,
+    },
+    assignedCategoryBox: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      backgroundColor: theme.card,
+      borderRadius: 12,
+      padding: 14,
+    },
+    assignedCategoryText: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: theme.text,
+      flex: 1,
     },
     categoriesGrid: {
       flexDirection: 'row',

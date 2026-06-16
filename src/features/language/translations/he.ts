@@ -1513,6 +1513,7 @@ export const he: TranslationKeys = {
     ageRange: "טווח גילאים",
     minAge: "גיל מינימלי",
     maxAge: "גיל מקסימלי",
+    noMatchingCategory: "אין קטגוריה מתאימה לגיל זה — מנהל ישייך אותך.",
     skillLevels: "רמות מיומנות",
     participantsInCategory: "משתתפים",
     unassignedParticipants: "משתתפים ללא קטגוריה",

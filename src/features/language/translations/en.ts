@@ -1509,6 +1509,7 @@ export const en = {
     ageRange: "Age Range",
     minAge: "Min Age",
     maxAge: "Max Age",
+    noMatchingCategory: "No matching category for this age — an admin will assign you.",
     skillLevels: "Skill Levels",
     participantsInCategory: "participants",
     unassignedParticipants: "Unassigned Participants",

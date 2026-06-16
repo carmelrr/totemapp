@@ -524,22 +524,62 @@ export default function CreateCompetitionScreen() {
             {showCategories && enableCategories && (
               <View style={styles.categoriesEditor}>
                 {categories.map((cat, idx) => (
-                  <View key={cat.id} style={styles.categoryRow}>
-                    <TextInput
-                      style={styles.categoryInput}
-                      value={cat.name}
-                      onChangeText={(text) =>
-                        setCategories((prev) => prev.map((c, i) => (i === idx ? { ...c, name: text } : c)))
-                      }
-                      placeholder={t.competitionExt.categoryNamePlaceholder}
-                      placeholderTextColor={theme.textSecondary}
-                      textAlign="right"
-                    />
-                    <TouchableOpacity
-                      onPress={() => setCategories((prev) => prev.filter((_, i) => i !== idx))}
-                    >
-                      <Ionicons name="trash-outline" size={20} color={theme.error || '#e74c3c'} />
-                    </TouchableOpacity>
+                  <View key={cat.id} style={styles.categoryCard}>
+                    <View style={styles.categoryRow}>
+                      <TextInput
+                        style={styles.categoryInput}
+                        value={cat.name}
+                        onChangeText={(text) =>
+                          setCategories((prev) => prev.map((c, i) => (i === idx ? { ...c, name: text } : c)))
+                        }
+                        placeholder={t.competitionExt.categoryNamePlaceholder}
+                        placeholderTextColor={theme.textSecondary}
+                        textAlign="right"
+                      />
+                      <TouchableOpacity
+                        onPress={() => setCategories((prev) => prev.filter((_, i) => i !== idx))}
+                      >
+                        <Ionicons name="trash-outline" size={20} color={theme.error || '#e74c3c'} />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.categoryAgeRow}>
+                      <Text style={styles.categoryAgeLabel}>{t.competitionExt.ageRange}:</Text>
+                      <TextInput
+                        style={styles.categoryAgeInput}
+                        value={cat.minAge != null ? String(cat.minAge) : ''}
+                        onChangeText={(v) =>
+                          setCategories((prev) =>
+                            prev.map((c, i) => {
+                              if (i !== idx) return c;
+                              const n = parseInt(v, 10);
+                              return { ...c, minAge: v.trim() === '' || isNaN(n) ? undefined : n };
+                            }),
+                          )
+                        }
+                        keyboardType="number-pad"
+                        placeholder={t.competitionExt.minAge}
+                        placeholderTextColor={theme.textSecondary}
+                        textAlign="center"
+                      />
+                      <Text style={styles.categoryAgeDash}>–</Text>
+                      <TextInput
+                        style={styles.categoryAgeInput}
+                        value={cat.maxAge != null ? String(cat.maxAge) : ''}
+                        onChangeText={(v) =>
+                          setCategories((prev) =>
+                            prev.map((c, i) => {
+                              if (i !== idx) return c;
+                              const n = parseInt(v, 10);
+                              return { ...c, maxAge: v.trim() === '' || isNaN(n) ? undefined : n };
+                            }),
+                          )
+                        }
+                        keyboardType="number-pad"
+                        placeholder={t.competitionExt.maxAge}
+                        placeholderTextColor={theme.textSecondary}
+                        textAlign="center"
+                      />
+                    </View>
                   </View>
                 ))}
                 <TouchableOpacity
@@ -937,6 +977,14 @@ const createStyles = (theme: any) =>
     },
     categoriesEditor: {
       marginTop: 12,
+      gap: 10,
+    },
+    categoryCard: {
+      backgroundColor: theme.card,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      padding: 10,
       gap: 8,
     },
     categoryRow: {
@@ -946,7 +994,7 @@ const createStyles = (theme: any) =>
     },
     categoryInput: {
       flex: 1,
-      backgroundColor: theme.card,
+      backgroundColor: theme.background,
       borderRadius: 8,
       borderWidth: 1,
       borderColor: theme.border,
@@ -954,6 +1002,29 @@ const createStyles = (theme: any) =>
       paddingVertical: 10,
       fontSize: 14,
       color: theme.text,
+    },
+    categoryAgeRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+    },
+    categoryAgeLabel: {
+      fontSize: 13,
+      color: theme.textSecondary,
+    },
+    categoryAgeInput: {
+      width: 64,
+      backgroundColor: theme.background,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingVertical: 8,
+      fontSize: 14,
+      color: theme.text,
+    },
+    categoryAgeDash: {
+      fontSize: 16,
+      color: theme.textSecondary,
     },
     addCategoryBtn: {
       flexDirection: 'row',
