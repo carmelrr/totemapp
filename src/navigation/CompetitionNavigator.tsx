@@ -28,7 +28,7 @@ export type CompetitionStackParamList = {
   ManageParticipants: { competitionId: string };
   ManageCategories: { competitionId: string };
   ManageCompetitionRoutes: { competitionId: string };
-  JudgeEntry: { competitionId: string };
+  JudgeEntry: { competitionId: string; selectedRouteNumber?: number };
   JudgeBatchEntry: { competitionId: string };
   CompetitionRegistration: { competitionId: string };
   PointsCompetition: { competitionId: string };

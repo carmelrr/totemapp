@@ -3,7 +3,7 @@
  * @description Screen for judges to enter competition results
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -50,7 +50,7 @@ export default function JudgeEntryScreen() {
   const { t } = useLanguage();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { competitionId } = route.params;
+  const { competitionId, selectedRouteNumber } = route.params;
   const { user } = useAuth();
   const rolesContext = useRolesContext();
 
@@ -77,6 +77,8 @@ export default function JudgeEntryScreen() {
 
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
   const [participantResults, setParticipantResults] = useState<ParticipantResult | null>(null);
+  const routesListRef = useRef<FlatList<CompetitionRoute>>(null);
+  const handledInitialRouteRef = useRef(false);
   const [showResultModal, setShowResultModal] = useState(false);
   const [selectedRoute, setSelectedRoute] = useState<CompetitionRoute | null>(null);
   const [attempts, setAttempts] = useState('1');
@@ -279,6 +281,25 @@ export default function JudgeEntryScreen() {
     
     setShowResultModal(true);
   };
+
+  // Arriving from a map tap: jump to that route — scroll the list to it and open its entry.
+  useEffect(() => {
+    if (handledInitialRouteRef.current) return;
+    if (!selectedRouteNumber || routes.length === 0 || !selectedParticipant) return;
+    const target = routes.find((r) => r.routeNumber === selectedRouteNumber);
+    if (!target) return;
+    handledInitialRouteRef.current = true;
+    const index = routes.findIndex((r) => r.id === target.id);
+    if (index >= 0) {
+      setTimeout(() => {
+        try {
+          routesListRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.3 });
+        } catch {}
+      }, 250);
+    }
+    handleRoutePress(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRouteNumber, routes, selectedParticipant]);
 
   const handleSubmitResult = async (completed: boolean) => {
     if (!selectedParticipant || !selectedRoute || !user || !competition) return;
@@ -819,12 +840,20 @@ export default function JudgeEntryScreen() {
               </View>
 
               <FlatList
+                ref={routesListRef}
                 data={routes}
                 keyExtractor={(item) => item.id}
                 renderItem={renderRouteItem}
                 showsVerticalScrollIndicator={false}
                 numColumns={2}
                 contentContainerStyle={styles.routesGrid}
+                onScrollToIndexFailed={(info) => {
+                  setTimeout(() => {
+                    try {
+                      routesListRef.current?.scrollToIndex({ index: info.index, animated: true, viewPosition: 0.3 });
+                    } catch {}
+                  }, 300);
+                }}
               />
             </>
           ) : (
