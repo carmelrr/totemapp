@@ -57,6 +57,9 @@ export interface CompetitionSettings {
   // National league: collect full name + ID number at registration and include them in exports
   nationalLeague?: boolean;
 
+  // Whether categories use skill levels (asked in the category editor + at registration)
+  enableSkillLevels?: boolean;
+
   // Totemtition specific
   basePointsPerRoute?: number;          // 1000 for totemtition
   totemDivisionScope?: 'per_category' | 'global'; // how each route's pool is split (default 'per_category')

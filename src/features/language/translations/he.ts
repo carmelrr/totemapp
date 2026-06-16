@@ -1516,6 +1516,7 @@ export const he: TranslationKeys = {
     maxAge: "גיל מקסימלי",
     noMatchingCategory: "אין קטגוריה מתאימה לגיל זה — מנהל ישייך אותך.",
     skillLevels: "רמות מיומנות",
+    enableSkillLevelsToggle: "השתמש ברמות מיומנות",
     participantsInCategory: "משתתפים",
     unassignedParticipants: "משתתפים ללא קטגוריה",
     allAssigned: "כל המשתתפים שויכו",

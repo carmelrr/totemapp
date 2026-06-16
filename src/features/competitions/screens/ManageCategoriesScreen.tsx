@@ -26,6 +26,7 @@ import { useRolesContext } from '@/features/roles/RolesContext';
 import { useLanguage } from '@/features/language';
 import { useCompetition, useParticipants } from '@/features/competitions/hooks/useCompetition';
 import { ParticipantService } from '@/features/competitions/services/ParticipantService';
+import { CompetitionService } from '@/features/competitions/services/CompetitionService';
 import { Category, Gender, SkillLevel, Participant } from '@/features/competitions/types';
 import { isZoneTopFormat } from '@/features/competitions/constants';
 
@@ -83,6 +84,25 @@ export default function ManageCategoriesScreen() {
   // For assigning participants
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
+
+  // Whether categories use skill levels (off by default). Controls both the skill-level
+  // field in the category editor and the skill-level question at registration.
+  const [skillLevelsEnabled, setSkillLevelsEnabled] = useState(false);
+  useEffect(() => {
+    setSkillLevelsEnabled(!!competition?.settings?.enableSkillLevels);
+  }, [competition?.settings?.enableSkillLevels]);
+
+  const toggleSkillLevelsEnabled = async (next: boolean) => {
+    setSkillLevelsEnabled(next);
+    try {
+      await CompetitionService.updateCompetition(competitionId, {
+        settings: { ...(competition?.settings || {}), enableSkillLevels: next },
+      } as any);
+    } catch (e) {
+      console.warn('[ManageCategories] failed to toggle skill levels', e);
+      setSkillLevelsEnabled(!next); // revert on failure
+    }
+  };
 
   // Check permissions - only head_judge and admin can manage categories
   const canManageCategories = rolesContext.isAdmin || rolesContext.isHeadJudge;
@@ -296,6 +316,18 @@ export default function ManageCategoriesScreen() {
               <Ionicons name="flash" size={20} color="#fff" />
               <Text style={styles.actionButtonText}>{t.competitionExt.autoAssign}</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Skill levels toggle — when off, skill level isn't asked here or at registration */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, gap: 12 }}>
+            <Text style={{ flex: 1, fontSize: 15, fontWeight: '600', color: theme.text, textAlign: 'right' }}>
+              {t.competitionExt.enableSkillLevelsToggle}
+            </Text>
+            <Switch
+              value={skillLevelsEnabled}
+              onValueChange={toggleSkillLevelsEnabled}
+              disabled={!canManageCategories}
+            />
           </View>
 
           {/* Categories List */}
@@ -514,25 +546,29 @@ export default function ManageCategoriesScreen() {
                 />
               </View>
 
-              {/* Skill Levels */}
-              <Text style={styles.inputLabel}>{t.competitionExt.skillLevels}</Text>
-              <View style={styles.skillLevelsGrid}>
-                {SKILL_LEVEL_OPTIONS.map((option) => (
-                  <TouchableOpacity
-                    key={option.value}
-                    style={[
-                      styles.skillLevelChip,
-                      formData.skillLevels.includes(option.value) && styles.skillLevelChipActive,
-                    ]}
-                    onPress={() => toggleSkillLevel(option.value)}
-                  >
-                    <Text style={[
-                      styles.skillLevelChipText,
-                      formData.skillLevels.includes(option.value) && styles.skillLevelChipTextActive,
-                    ]}>{option.label}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
+              {/* Skill Levels — only when enabled for the competition */}
+              {skillLevelsEnabled && (
+                <>
+                  <Text style={styles.inputLabel}>{t.competitionExt.skillLevels}</Text>
+                  <View style={styles.skillLevelsGrid}>
+                    {SKILL_LEVEL_OPTIONS.map((option) => (
+                      <TouchableOpacity
+                        key={option.value}
+                        style={[
+                          styles.skillLevelChip,
+                          formData.skillLevels.includes(option.value) && styles.skillLevelChipActive,
+                        ]}
+                        onPress={() => toggleSkillLevel(option.value)}
+                      >
+                        <Text style={[
+                          styles.skillLevelChipText,
+                          formData.skillLevels.includes(option.value) && styles.skillLevelChipTextActive,
+                        ]}>{option.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
+              )}
 
               {/* Order */}
               <Text style={styles.inputLabel}>{t.competitionExt.order}</Text>
