@@ -791,6 +791,24 @@ export default function JudgeEntryScreen() {
                           });
                           return formatIFSCResult(tops, zones, topAtt, zoneAtt);
                         })()
+                      : isTotemtition
+                      ? (() => {
+                          // Totemtition points are dynamic (1000 ÷ completers); the stored
+                          // totalPoints is 0, so sum the per-route points like the list does.
+                          const allRoutes = participantResults.routes
+                            ? (Array.isArray(participantResults.routes) ? participantResults.routes : Object.values(participantResults.routes))
+                            : [];
+                          const participantCategory = selectedParticipant?.category || '__no_category__';
+                          const categoryRouteCounts = routeCompletionCountsByCategory[participantCategory] || {};
+                          let total = 0;
+                          allRoutes.forEach((r: RouteResult) => {
+                            if (r.completed) {
+                              const count = categoryRouteCounts[r.routeId || String(r.routeNumber)] || 1;
+                              total += Math.floor(1000 / count);
+                            }
+                          });
+                          return `סה"כ: ${total} נק'`;
+                        })()
                       : `סה"כ: ${participantResults.totalPoints} נק'`
                     }
                   </Text>
