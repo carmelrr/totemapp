@@ -1712,6 +1712,7 @@ export const en = {
     basePointsInfo: (points: number) => `${points} base points`,
     totemBasePoints: "1000 base points",
     attemptsLabel: "Number of attempts",
+    saveAttempts: "Save attempts",
     deleteResult: "Delete Result",
     deleteResultConfirm: "Delete this result?",
     cannotDeleteResult: "Cannot delete result",

@@ -1716,6 +1716,7 @@ export const he: TranslationKeys = {
     basePointsInfo: (points: number) => `${points} נקודות בסיס`,
     totemBasePoints: "1000 נקודות בסיס",
     attemptsLabel: "מספר ניסיונות",
+    saveAttempts: "שמור ניסיונות",
     deleteResult: "מחיקת תוצאה",
     deleteResultConfirm: "האם למחוק את התוצאה הזו?",
     cannotDeleteResult: "לא ניתן למחוק את התוצאה",

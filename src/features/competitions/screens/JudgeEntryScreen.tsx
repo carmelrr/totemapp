@@ -326,7 +326,9 @@ export default function JudgeEntryScreen() {
         routeId: selectedRoute.id,
         grade: selectedRoute.grade,
         completed: isZoneTop ? (topAchieved || zoneAchieved) : completed,
-        attempts: isZoneTop ? (parseInt(topAttempt) || parseInt(zoneAttempt) || attemptsNum) : (completed ? attemptsNum : 0),
+        // Keep the attempt count even when not completed yet, so progress is remembered
+        // and the attempt is already known when the route is later closed.
+        attempts: isZoneTop ? (parseInt(topAttempt) || parseInt(zoneAttempt) || attemptsNum) : attemptsNum,
       };
 
       // Add Zone/Top fields for applicable formats
@@ -666,6 +668,10 @@ export default function JudgeEntryScreen() {
                 <Text style={styles.routeAttempts}>{attempts} ניסיונות</Text>
               </>
             )}
+          </View>
+        ) : result && attempts > 0 ? (
+          <View style={styles.routeResult}>
+            <Text style={[styles.routeAttempts, { color: theme.primary }]}>{attempts} ניסיונות</Text>
           </View>
         ) : (
           <View style={styles.routeAction}>
@@ -1091,6 +1097,16 @@ export default function JudgeEntryScreen() {
                             <Text style={styles.modalBtnText}>{t.competitionExt.completed}</Text>
                           </>
                         )}
+                      </TouchableOpacity>
+
+                      {/* Save the attempt count without completing — remembered for later */}
+                      <TouchableOpacity
+                        style={[styles.modalBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.primary }]}
+                        onPress={() => handleSubmitResult(false)}
+                        disabled={isSubmitting}
+                      >
+                        <Ionicons name="time-outline" size={22} color={theme.primary} />
+                        <Text style={[styles.modalBtnText, { color: theme.primary }]}>{t.competitionExt.saveAttempts}</Text>
                       </TouchableOpacity>
 
                       {getRouteStatus(selectedRoute) === 'completed' && (isHeadJudge || selectedParticipant?.userId === user?.uid) && (
