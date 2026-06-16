@@ -595,16 +595,19 @@ export default function JudgeEntryScreen() {
     const basePoints = isTotemRoute ? 1000 : (NATIONAL_LEAGUE_GRADE_POINTS[item.grade] || 100);
     const displayGrade = isTotemRoute ? '🎯' : item.grade;
     
-    // Get the current participant's category for category-based completion counts
+    // Completion-count bucket: 'global' division scope divides across everyone,
+    // otherwise within the participant's category — matching the leaderboard.
     const currentParticipant = selectedParticipant || selfParticipant;
     const participantCategory = currentParticipant?.category || '__no_category__';
-    
-    // For Totemtition routes, show actual completion count and calculated points (per category)
+    const scopeKey =
+      competition?.settings?.totemDivisionScope === 'global' ? '__global__' : participantCategory;
+
+    // For Totemtition routes, show actual completion count and calculated points
     let pointsLabel: string;
     let currentRoutePoints = 0;
     if (isTotemRoute) {
-      // Get completion count for this route within the participant's category
-      const categoryRouteCounts = routeCompletionCountsByCategory[participantCategory] || {};
+      // Completion count for this route within the active division scope
+      const categoryRouteCounts = routeCompletionCountsByCategory[scopeKey] || {};
       const completionCount = categoryRouteCounts[item.id] || 0;
       if (completionCount > 0) {
         currentRoutePoints = Math.floor(1000 / completionCount);
