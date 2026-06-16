@@ -1476,6 +1476,7 @@ export const he: TranslationKeys = {
     gender: "מין *",
     male: "זכר",
     female: "נקבה",
+    genderBoth: "הכל",
     birthYear: "שנת לידה *",
     birthYearPlaceholder: "לדוגמה: 1995",
     skillLevel: "רמת מיומנות",

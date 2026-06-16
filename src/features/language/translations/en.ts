@@ -1472,6 +1472,7 @@ export const en = {
     gender: "Gender *",
     male: "Male",
     female: "Female",
+    genderBoth: "All",
     birthYear: "Birth Year *",
     birthYearPlaceholder: "e.g., 1995",
     skillLevel: "Skill Level",

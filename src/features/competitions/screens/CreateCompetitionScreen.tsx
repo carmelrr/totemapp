@@ -71,12 +71,12 @@ export default function CreateCompetitionScreen() {
 
   // Categories — created with the competition, still editable later in ManageCategories
   const [categories, setCategories] = useState<
-    Array<{ id: string; name: string; type?: 'age' | 'gender' | 'skill'; value?: string; minAge?: number; maxAge?: number }>
+    Array<{ id: string; name: string; gender?: 'male' | 'female'; minAge?: number; maxAge?: number }>
   >(() => [
-    { id: 'male_open', name: t.competitionExt.categoryMaleOpen, type: 'gender', value: 'male' },
-    { id: 'female_open', name: t.competitionExt.categoryFemaleOpen, type: 'gender', value: 'female' },
-    { id: 'youth', name: t.competitionExt.categoryYouth, type: 'age', minAge: 0, maxAge: 18 },
-    { id: 'adults', name: t.competitionExt.categoryAdults, type: 'age', minAge: 18, maxAge: 99 },
+    { id: 'male_open', name: t.competitionExt.categoryMaleOpen, gender: 'male' },
+    { id: 'female_open', name: t.competitionExt.categoryFemaleOpen, gender: 'female' },
+    { id: 'youth', name: t.competitionExt.categoryYouth, minAge: 0, maxAge: 18 },
+    { id: 'adults', name: t.competitionExt.categoryAdults, minAge: 18, maxAge: 99 },
   ]);
 
   // Entry/Registration modes
@@ -580,6 +580,37 @@ export default function CreateCompetitionScreen() {
                         textAlign="center"
                       />
                     </View>
+                    <View style={styles.categoryGenderRow}>
+                      {(
+                        [
+                          { val: undefined, label: t.competitionExt.genderBoth },
+                          { val: 'male', label: t.competitionExt.male },
+                          { val: 'female', label: t.competitionExt.female },
+                        ] as { val: 'male' | 'female' | undefined; label: string }[]
+                      ).map((opt) => (
+                        <TouchableOpacity
+                          key={opt.label}
+                          style={[
+                            styles.categoryGenderOption,
+                            cat.gender === opt.val && styles.categoryGenderOptionSelected,
+                          ]}
+                          onPress={() =>
+                            setCategories((prev) =>
+                              prev.map((c, i) => (i === idx ? { ...c, gender: opt.val } : c)),
+                            )
+                          }
+                        >
+                          <Text
+                            style={[
+                              styles.categoryGenderText,
+                              cat.gender === opt.val && styles.categoryGenderTextSelected,
+                            ]}
+                          >
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
                   </View>
                 ))}
                 <TouchableOpacity
@@ -1025,6 +1056,31 @@ const createStyles = (theme: any) =>
     categoryAgeDash: {
       fontSize: 16,
       color: theme.textSecondary,
+    },
+    categoryGenderRow: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    categoryGenderOption: {
+      flex: 1,
+      alignItems: 'center',
+      paddingVertical: 8,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: theme.background,
+    },
+    categoryGenderOptionSelected: {
+      backgroundColor: theme.primary,
+      borderColor: theme.primary,
+    },
+    categoryGenderText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: theme.text,
+    },
+    categoryGenderTextSelected: {
+      color: '#fff',
     },
     addCategoryBtn: {
       flexDirection: 'row',
