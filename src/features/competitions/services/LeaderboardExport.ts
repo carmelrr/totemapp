@@ -68,23 +68,21 @@ function rankWithinCategory(
 export function buildLeaderboardCsv(
   competition: Competition,
   entries: LeaderboardEntry[],
-  opts?: { uncategorizedLabel?: string }
+  opts?: {
+    uncategorizedLabel?: string;
+    participantsById?: Record<string, { idNumber?: string | null; birthYear?: number | null }>;
+  }
 ): string {
   const uncat = opts?.uncategorizedLabel ?? 'כללי';
   const isZoneTop = isZoneTopFormat(competition.format);
+  // National-league exports include full identity columns (ID number + birth year).
+  const nationalLeague = !!competition.settings?.nationalLeague && !!opts?.participantsById;
+  const pById = opts?.participantsById ?? {};
 
-  const header = isZoneTop
-    ? [
-        'מיקום',
-        'שם',
-        'קטגוריה',
-        'נקודות',
-        'מסלולים',
-        'ניסיונות',
-        'טופים',
-        'זונות',
-      ]
-    : ['מיקום', 'שם', 'קטגוריה', 'נקודות', 'מסלולים', 'ניסיונות'];
+  const header: string[] = ['מיקום', 'שם'];
+  if (nationalLeague) header.push('תעודת זהות', 'שנת לידה');
+  header.push('קטגוריה', 'נקודות', 'מסלולים', 'ניסיונות');
+  if (isZoneTop) header.push('טופים', 'זונות');
 
   const buildDataRow = (
     e: LeaderboardEntry,
@@ -94,11 +92,17 @@ export function buildLeaderboardCsv(
     const row: (string | number | undefined)[] = [
       rankLabel,
       e.participantName || e.userName || '',
+    ];
+    if (nationalLeague) {
+      const p = pById[e.participantId] || {};
+      row.push(p.idNumber ?? '', p.birthYear ?? '');
+    }
+    row.push(
       categoryName,
       e.points ?? 0,
       e.routesCompleted ?? 0,
       e.totalAttempts ?? 0,
-    ];
+    );
     if (isZoneTop) {
       row.push(e.totalTops ?? 0, e.totalZones ?? 0);
     }
@@ -169,7 +173,11 @@ function safeFileName(input: string): string {
 export async function exportLeaderboardCsv(
   competition: Competition,
   entries: LeaderboardEntry[],
-  opts?: { uncategorizedLabel?: string; fileNamePrefix?: string }
+  opts?: {
+    uncategorizedLabel?: string;
+    fileNamePrefix?: string;
+    participantsById?: Record<string, { idNumber?: string | null; birthYear?: number | null }>;
+  }
 ): Promise<string | null> {
   const csv = buildLeaderboardCsv(competition, entries, opts);
   const prefix = opts?.fileNamePrefix ?? 'leaderboard';

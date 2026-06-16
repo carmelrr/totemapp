@@ -786,8 +786,22 @@ export function CompetitionLeaderboard({
               try {
                 setExporting(true);
                 const rows = hasCategories ? allEntries : allEntriesNoCategory;
+                let participantsById:
+                  | Record<string, { idNumber?: string | null; birthYear?: number | null }>
+                  | undefined;
+                if (competition.settings?.nationalLeague) {
+                  const participants = await ParticipantService.getParticipants(competition.id);
+                  participantsById = {};
+                  participants.forEach((p) => {
+                    participantsById![p.id] = {
+                      idNumber: p.idNumber ?? null,
+                      birthYear: p.birthYear ?? null,
+                    };
+                  });
+                }
                 await exportLeaderboardCsv(competition, rows, {
                   uncategorizedLabel: (t.competition as any)?.uncategorized || 'ללא קטגוריה',
+                  participantsById,
                 });
               } catch (e) {
                 console.warn('[CSV export] failed', e);

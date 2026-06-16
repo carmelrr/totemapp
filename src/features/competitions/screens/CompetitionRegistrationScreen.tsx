@@ -44,6 +44,10 @@ export default function CompetitionRegistrationScreen() {
   const [selectedGender, setSelectedGender] = useState<Gender | ''>('');
   const [birthYear, setBirthYear] = useState('');
   const [selectedSkillLevel, setSelectedSkillLevel] = useState<SkillLevel | ''>('');
+  const [fullName, setFullName] = useState('');
+  const [idNumber, setIdNumber] = useState('');
+
+  const isNationalLeague = !!competition?.settings?.nationalLeague;
 
   // Category is auto-assigned from gender + birth year — no manual selection.
   const matchedCategory = useMemo(() => {
@@ -102,6 +106,16 @@ export default function CompetitionRegistrationScreen() {
       Alert.alert(t.common.error, t.competitionExt.invalidBirthYear);
       return;
     }
+    if (isNationalLeague) {
+      if (!fullName.trim()) {
+        Alert.alert(t.common.error, t.competitionExt.mustEnterFullName);
+        return;
+      }
+      if (idNumber.trim().length < 5) {
+        Alert.alert(t.common.error, t.competitionExt.mustEnterIdNumber);
+        return;
+      }
+    }
 
     setIsSubmitting(true);
     try {
@@ -111,13 +125,16 @@ export default function CompetitionRegistrationScreen() {
         competitionId,
         user.uid,
         {
-          displayName: user.displayName || t.competitionExt.defaultParticipantName,
+          displayName: isNationalLeague
+            ? fullName.trim()
+            : (user.displayName || t.competitionExt.defaultParticipantName),
           email: user.email || undefined,
           phone: phone || undefined,
           photoURL: user.photoURL || undefined,
           gender: selectedGender || undefined,
           birthYear: birthYearNum,
           skillLevel: selectedSkillLevel || undefined,
+          idNumber: isNationalLeague ? idNumber.trim() : undefined,
           category: matchedCategory?.id || undefined,
           categoryName: matchedCategory?.name,
         }
@@ -384,6 +401,35 @@ export default function CompetitionRegistrationScreen() {
               maxLength={4}
             />
           </View>
+
+        {/* National league: full name + ID number (required) */}
+        {isNationalLeague && (
+          <>
+            <View style={styles.inputSection}>
+              <Text style={styles.inputLabel}>{t.competitionExt.fullNameLabel} *</Text>
+              <TextInput
+                style={styles.input}
+                value={fullName}
+                onChangeText={setFullName}
+                placeholder={t.competitionExt.fullNamePlaceholder}
+                placeholderTextColor={theme.textSecondary}
+                textAlign="right"
+              />
+            </View>
+            <View style={styles.inputSection}>
+              <Text style={styles.inputLabel}>{t.competitionExt.idNumberLabel} *</Text>
+              <TextInput
+                style={styles.input}
+                value={idNumber}
+                onChangeText={(v) => setIdNumber(v.replace(/[^0-9]/g, ''))}
+                placeholder={t.competitionExt.idNumberPlaceholder}
+                placeholderTextColor={theme.textSecondary}
+                keyboardType="number-pad"
+                maxLength={9}
+              />
+            </View>
+          </>
+        )}
 
         {/* Skill Level Selection (optional) */}
         {competition.settings?.enableCategories && (

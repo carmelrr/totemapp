@@ -56,6 +56,7 @@ export default function CreateCompetitionScreen() {
   const [attemptPenalty, setAttemptPenalty] = useState('10');
   const [maxAttempts, setMaxAttempts] = useState('10');
   const [enableCategories, setEnableCategories] = useState(true);
+  const [nationalLeague, setNationalLeague] = useState(false);
 
   // Zone/Top settings
   const [enableZone, setEnableZone] = useState(true);
@@ -106,6 +107,7 @@ export default function CreateCompetitionScreen() {
     setAttemptPenalty(String(defaults.attemptPenalty));
     setMaxAttempts(String(defaults.maxAttempts));
     setEnableCategories(defaults.enableCategories);
+    setNationalLeague(newFormat === 'national_league');
 
     // Update entry/registration modes
     setResultsEntryMode(defaults.resultsEntryMode ?? (defaults.judgesOnly ? 'judgesOnly' : 'selfEntry'));
@@ -171,6 +173,7 @@ export default function CreateCompetitionScreen() {
           maxAttempts: showMaxAttempts ? parseInt(maxAttempts) : 999,
           enableCategories: showCategories ? enableCategories : false,
           enableRounds: false,
+          nationalLeague,
           allowSelfEntry: resultsEntryMode === 'selfEntry',
           judgesOnly: resultsEntryMode === 'judgesOnly',
           resultsEntryMode,
@@ -453,6 +456,26 @@ export default function CreateCompetitionScreen() {
           {showAdvancedSettings && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>{t.competitionExt.advancedSettings}</Text>
+
+            <TouchableOpacity
+              style={styles.toggleRow}
+              onPress={() => setNationalLeague(!nationalLeague)}
+            >
+              <Ionicons
+                name={nationalLeague ? 'checkbox' : 'square-outline'}
+                size={24}
+                color={nationalLeague ? theme.primary : theme.textSecondary}
+              />
+              <Text style={styles.toggleLabel}>{t.competitionExt.nationalLeagueToggle}</Text>
+            </TouchableOpacity>
+            {nationalLeague && (
+              <View style={[styles.toggleRow, { backgroundColor: theme.card, padding: 12, borderRadius: 8, marginTop: 4 }]}>
+                <Ionicons name="information-circle-outline" size={20} color={theme.primary} />
+                <Text style={[styles.toggleLabel, { fontSize: 12, color: theme.textSecondary }]}>
+                  {t.competitionExt.nationalLeagueHint}
+                </Text>
+              </View>
+            )}
             
             <View style={styles.settingsGrid}>
               <View style={styles.settingItem}>

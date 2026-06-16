@@ -1191,6 +1191,7 @@ export class ParticipantService {
       gender?: Gender;
       birthYear?: number;
       skillLevel?: SkillLevel;
+      idNumber?: string;
       category?: string;
       categoryName?: string;
     }
@@ -1262,7 +1263,7 @@ export class ParticipantService {
         competitionId,
         name: userData.displayName,
         userName: userData.displayName,
-        idNumber: null,
+        idNumber: userData.idNumber || null,
         userId: userId,
         email: userData.email || null,
         phone: userData.phone || null,
