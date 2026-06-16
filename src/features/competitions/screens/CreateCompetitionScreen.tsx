@@ -199,6 +199,12 @@ export default function CreateCompetitionScreen() {
           : [],
       });
 
+      // "Open registration" mode means people can self-register immediately, so
+      // actually open registration (otherwise competitions are created closed).
+      if (registrationMode === 'openRegistration') {
+        await CompetitionService.openRegistration(competitionId);
+      }
+
       Alert.alert(
         t.alerts.success,
         t.common.success,
