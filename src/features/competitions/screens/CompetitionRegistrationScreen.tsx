@@ -262,7 +262,7 @@ export default function CompetitionRegistrationScreen() {
               </Text>
               <TouchableOpacity
                 style={styles.primaryBtn}
-                onPress={() => navigation.navigate('JudgeEntry', { competitionId })}
+                onPress={() => navigation.navigate('ManageCompetition', { competitionId, initialTab: 'map' })}
               >
                 <Text style={styles.primaryBtnText}>{t.competitionExt.enterResults}</Text>
               </TouchableOpacity>
