@@ -642,7 +642,11 @@ export function CompetitionLeaderboard({
         participantsById = {};
         allParticipants.forEach((p) => {
           const rec = {
-            idNumber: privateIds[p.id] ?? null,
+            // New registrations store the ID in participantsPrivate (keyed by doc
+            // id). Participants who registered before the PII migration still have
+            // the ID directly on their participant doc — fall back to that so older
+            // entrants' IDs also appear in the export.
+            idNumber: privateIds[p.id] ?? (p as any).idNumber ?? null,
             birthYear: (p as any).birthYear ?? null,
           };
           participantsById![p.id] = rec;
