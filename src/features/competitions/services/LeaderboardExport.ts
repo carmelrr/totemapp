@@ -4,7 +4,10 @@
  * for a leaderboard snapshot and hands it to the OS share sheet.
  */
 
-import * as FileSystem from 'expo-file-system';
+// Expo SDK 54's new expo-file-system API dropped the top-level
+// writeAsStringAsync / cacheDirectory helpers; they live under /legacy now
+// (same import the rest of the app uses, e.g. WallEditorScreen).
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { Platform, Share } from 'react-native';
 import type { Competition, LeaderboardEntry } from '../types';

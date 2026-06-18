@@ -600,22 +600,52 @@ export function CompetitionLeaderboard({
     if (exporting) return;
     try {
       setExporting(true);
-      const rows = hasCategories ? allEntries : allEntriesNoCategory;
+      // Build a complete row set: every participant across EVERY category,
+      // including those with no score yet. `allEntries` already spans all
+      // categories (the per-category tabs only filter it for display), and
+      // buildLeaderboardCsv groups the rows back into per-category sections.
+      const rowsMap = new Map<string, LeaderboardEntry>();
+      allEntries.forEach((e) => rowsMap.set(e.userId || e.participantId, e));
+      participants.forEach((p) => {
+        const key = p.userId || p.id;
+        if (!rowsMap.has(key)) {
+          rowsMap.set(key, {
+            rank: 0,
+            participantId: p.id,
+            participantName: p.userName || p.name || 'Unknown',
+            userName: p.userName || p.name || 'Unknown',
+            userId: p.userId,
+            photoURL: p.photoURL || null,
+            points: 0,
+            totalPoints: 0,
+            routesCompleted: 0,
+            category: p.category,
+            categoryName: p.categoryName,
+          } as LeaderboardEntry);
+        }
+      });
+      const rows = Array.from(rowsMap.values());
       let participantsById:
         | Record<string, { idNumber?: string | null; birthYear?: number | null }>
         | undefined;
       if (competition.settings?.nationalLeague) {
-        const [participants, privateIds] = await Promise.all([
-          ParticipantService.getParticipants(competition.id),
-          ParticipantService.getParticipantsPrivate(competition.id),
-        ]);
-        participantsById = {};
-        participants.forEach((p) => {
-          participantsById![p.id] = {
-            idNumber: privateIds[p.id] ?? null,
-            birthYear: p.birthYear ?? null,
-          };
-        });
+        // National-league identity columns (ID number + birth year). Best-effort:
+        // if the private data can't be fetched, still export the rest of the CSV.
+        try {
+          const [nlParticipants, privateIds] = await Promise.all([
+            ParticipantService.getParticipants(competition.id),
+            ParticipantService.getParticipantsPrivate(competition.id),
+          ]);
+          participantsById = {};
+          nlParticipants.forEach((p) => {
+            participantsById![p.id] = {
+              idNumber: privateIds[p.id] ?? null,
+              birthYear: p.birthYear ?? null,
+            };
+          });
+        } catch (idErr) {
+          console.warn('[CSV export] could not load private identity data', idErr);
+        }
       }
       await exportLeaderboardCsv(competition, rows, {
         uncategorizedLabel: (t.competition as any)?.uncategorized || 'ללא קטגוריה',
