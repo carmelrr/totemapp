@@ -78,12 +78,21 @@ export function buildLeaderboardCsv(
 ): string {
   const uncat = opts?.uncategorizedLabel ?? 'כללי';
   const isZoneTop = isZoneTopFormat(competition.format);
-  // National-league exports include full identity columns (ID number + birth year).
-  const nationalLeague = !!competition.settings?.nationalLeague && !!opts?.participantsById;
   const pById = opts?.participantsById ?? {};
+  // Include identity columns (ID number + birth year) whenever we actually have
+  // identity data — i.e. competitions where entrants supplied their ID at
+  // registration. Leaderboard rows may be keyed by participantId OR userId, and
+  // pById is keyed by both, so resolve a row under whichever is present.
+  const lookupIdentity = (
+    e: LeaderboardEntry
+  ): { idNumber?: string | null; birthYear?: number | null } =>
+    pById[e.participantId] || (e.userId ? pById[e.userId] : undefined) || {};
+  const hasIdentityData = Object.values(pById).some(
+    (v) => (v?.idNumber != null && v.idNumber !== '') || v?.birthYear != null
+  );
 
   const header: string[] = ['מיקום', 'שם'];
-  if (nationalLeague) header.push('תעודת זהות', 'שנת לידה');
+  if (hasIdentityData) header.push('תעודת זהות', 'שנת לידה');
   header.push('קטגוריה', 'נקודות', 'מסלולים', 'ניסיונות');
   if (isZoneTop) header.push('טופים', 'זונות');
 
@@ -96,8 +105,8 @@ export function buildLeaderboardCsv(
       rankLabel,
       e.participantName || e.userName || '',
     ];
-    if (nationalLeague) {
-      const p = pById[e.participantId] || {};
+    if (hasIdentityData) {
+      const p = lookupIdentity(e);
       row.push(p.idNumber ?? '', p.birthYear ?? '');
     }
     row.push(

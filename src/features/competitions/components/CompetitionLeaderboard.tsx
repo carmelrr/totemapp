@@ -625,27 +625,32 @@ export function CompetitionLeaderboard({
         }
       });
       const rows = Array.from(rowsMap.values());
+      // Identity columns (ID number + birth year). Each participant enters their
+      // ID at registration; it's stored in the staff-only participantsPrivate
+      // subcollection keyed by the participant DOC id, while leaderboard rows are
+      // keyed by the participant's userId — so map the data under BOTH ids and let
+      // the export resolve a row by whichever it carries. Best-effort: if the
+      // identity data can't be loaded, still export the rest of the CSV.
       let participantsById:
         | Record<string, { idNumber?: string | null; birthYear?: number | null }>
         | undefined;
-      if (competition.settings?.nationalLeague) {
-        // National-league identity columns (ID number + birth year). Best-effort:
-        // if the private data can't be fetched, still export the rest of the CSV.
-        try {
-          const [nlParticipants, privateIds] = await Promise.all([
-            ParticipantService.getParticipants(competition.id),
-            ParticipantService.getParticipantsPrivate(competition.id),
-          ]);
-          participantsById = {};
-          nlParticipants.forEach((p) => {
-            participantsById![p.id] = {
-              idNumber: privateIds[p.id] ?? null,
-              birthYear: p.birthYear ?? null,
-            };
-          });
-        } catch (idErr) {
-          console.warn('[CSV export] could not load private identity data', idErr);
-        }
+      try {
+        const [allParticipants, privateIds] = await Promise.all([
+          ParticipantService.getParticipants(competition.id),
+          ParticipantService.getParticipantsPrivate(competition.id),
+        ]);
+        participantsById = {};
+        allParticipants.forEach((p) => {
+          const rec = {
+            idNumber: privateIds[p.id] ?? null,
+            birthYear: (p as any).birthYear ?? null,
+          };
+          participantsById![p.id] = rec;
+          const uid = (p as any).userId;
+          if (uid) participantsById![uid] = rec;
+        });
+      } catch (idErr) {
+        console.warn('[CSV export] could not load identity data', idErr);
       }
       await exportLeaderboardCsv(competition, rows, {
         uncategorizedLabel: (t.competition as any)?.uncategorized || 'ללא קטגוריה',
