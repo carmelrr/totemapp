@@ -371,9 +371,12 @@ export function CompetitionLeaderboard({
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { isAdmin } = useAdmin();
-  const { isHeadJudge } = useRolesContext();
-  // Admins and head judges may export the results.
-  const canExportResults = isAdmin || isHeadJudge;
+  const { isHeadJudge, isJudgeRole } = useRolesContext();
+  // Any competition staff (admin / head judge / judge) may export the results.
+  // These roles already have read access to the private identity data (Firestore
+  // rules), so the export — including national-league ID numbers — is consistent
+  // with what they can already see.
+  const canExportResults = isAdmin || isHeadJudge || isJudgeRole;
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -589,6 +592,43 @@ export function CompetitionLeaderboard({
     return set;
   }, [allEntriesNoCategory]);
 
+  // Build a CSV (UTF-8 with BOM, so it opens directly in Excel / Google Sheets)
+  // for the full leaderboard and hand it to the OS share sheet. For national-league
+  // competitions the export also includes each participant's ID number + birth year,
+  // fetched from the staff-only private subcollection.
+  const handleExportCsv = async () => {
+    if (exporting) return;
+    try {
+      setExporting(true);
+      const rows = hasCategories ? allEntries : allEntriesNoCategory;
+      let participantsById:
+        | Record<string, { idNumber?: string | null; birthYear?: number | null }>
+        | undefined;
+      if (competition.settings?.nationalLeague) {
+        const [participants, privateIds] = await Promise.all([
+          ParticipantService.getParticipants(competition.id),
+          ParticipantService.getParticipantsPrivate(competition.id),
+        ]);
+        participantsById = {};
+        participants.forEach((p) => {
+          participantsById![p.id] = {
+            idNumber: privateIds[p.id] ?? null,
+            birthYear: p.birthYear ?? null,
+          };
+        });
+      }
+      await exportLeaderboardCsv(competition, rows, {
+        uncategorizedLabel: (t.competition as any)?.uncategorized || 'ללא קטגוריה',
+        participantsById,
+      });
+    } catch (e) {
+      console.warn('[CSV export] failed', e);
+      Alert.alert(t.common?.error || 'שגיאה', t.competition.exportFailed);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const renderPodium = () => {
     if (topThree.length === 0) return null;
 
@@ -778,55 +818,27 @@ export function CompetitionLeaderboard({
             <Text style={styles.statLabel}>{t.competition.scoring}</Text>
           </View>
         )}
-        {canExportResults && (
-          <TouchableOpacity
-            style={styles.exportButton}
-            onPress={async () => {
-              if (exporting) return;
-              try {
-                setExporting(true);
-                const rows = hasCategories ? allEntries : allEntriesNoCategory;
-                let participantsById:
-                  | Record<string, { idNumber?: string | null; birthYear?: number | null }>
-                  | undefined;
-                if (competition.settings?.nationalLeague) {
-                  const [participants, privateIds] = await Promise.all([
-                    ParticipantService.getParticipants(competition.id),
-                    ParticipantService.getParticipantsPrivate(competition.id),
-                  ]);
-                  participantsById = {};
-                  participants.forEach((p) => {
-                    participantsById![p.id] = {
-                      idNumber: privateIds[p.id] ?? null,
-                      birthYear: p.birthYear ?? null,
-                    };
-                  });
-                }
-                await exportLeaderboardCsv(competition, rows, {
-                  uncategorizedLabel: (t.competition as any)?.uncategorized || 'ללא קטגוריה',
-                  participantsById,
-                });
-              } catch (e) {
-                console.warn('[CSV export] failed', e);
-                Alert.alert('שגיאה', 'ייצוא ה-CSV נכשל');
-              } finally {
-                setExporting(false);
-              }
-            }}
-            activeOpacity={0.7}
-            disabled={exporting}
-          >
-            {exporting ? (
-              <ActivityIndicator size="small" color={theme.primary} />
-            ) : (
-              <>
-                <Text style={styles.exportButtonText}>CSV</Text>
-                <Text style={styles.exportButtonIcon}>⬇</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        )}
       </View>
+
+      {/* Prominent export button for competition staff. Produces a CSV (UTF-8 with
+          BOM) that opens directly in Excel / Google Sheets. */}
+      {canExportResults && (
+        <TouchableOpacity
+          style={styles.exportButton}
+          onPress={handleExportCsv}
+          activeOpacity={0.7}
+          disabled={exporting}
+        >
+          {exporting ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Text style={styles.exportButtonIcon}>⬇</Text>
+              <Text style={styles.exportButtonText}>{t.competition.exportResultsCsv}</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      )}
 
       {/* If has categories - show category tabs + selected category leaderboard */}
       {hasCategories ? (
@@ -982,23 +994,22 @@ const createStyles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.primary,
-      alignSelf: 'center',
-      minWidth: 60,
+      backgroundColor: theme.primary,
+      paddingHorizontal: 16,
+      paddingVertical: 12,
+      borderRadius: 12,
+      marginHorizontal: 15,
+      marginBottom: 12,
     },
     exportButtonText: {
-      fontSize: 12,
+      fontSize: 15,
       fontWeight: '700',
-      color: theme.primary,
-      marginEnd: 4,
+      color: '#fff',
+      marginStart: 8,
     },
     exportButtonIcon: {
-      fontSize: 12,
-      color: theme.primary,
+      fontSize: 16,
+      color: '#fff',
     },
     categoryTabs: {
       flexDirection: 'row',

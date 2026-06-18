@@ -624,6 +624,8 @@ export const he: TranslationKeys = {
     scoring: "ניקוד",
     noResultsYet: "עדיין אין תוצאות להצגה",
     noScoreYet: "אין ניקוד עדיין",
+    exportResultsCsv: "ייצוא תוצאות (Excel / Google Sheets)",
+    exportFailed: "ייצוא ה-CSV נכשל",
     routesCompleted: "מסלולים",
     pointsTopLabel: "נקודות ל-Top",
     pointsZoneLabel: "נקודות ל-Zone",

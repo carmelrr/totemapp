@@ -621,6 +621,8 @@ export const en = {
     scoring: "Scoring",
     noResultsYet: "No results to display yet",
     noScoreYet: "No score yet",
+    exportResultsCsv: "Export results (Excel / Google Sheets)",
+    exportFailed: "CSV export failed",
     routesCompleted: "routes",
     pointsTopLabel: "Points for Top",
     pointsZoneLabel: "Points for Zone",
